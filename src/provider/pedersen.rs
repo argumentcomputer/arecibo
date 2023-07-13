@@ -2,7 +2,7 @@
 use crate::{
   errors::NovaError,
   traits::{
-    commitment::{CommitmentEngineTrait, CommitmentTrait},
+    commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, CompressedGroup, Group, ROTrait, TranscriptReprTrait,
   },
 };
@@ -22,6 +22,12 @@ use serde::{Deserialize, Serialize};
 pub struct CommitmentKey<G: Group> {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<G::PreprocessedGroupElement>,
+}
+
+impl<G: Group> Len for CommitmentKey<G> {
+  fn len(&self) -> usize {
+    self.ck.len()
+  }
 }
 
 /// A type that holds a commitment
