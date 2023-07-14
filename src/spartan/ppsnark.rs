@@ -868,7 +868,7 @@ where
     S: &R1CSShape<G>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     // check the provided commitment key meets minimal requirements
-    assert!(ck.len() >= Self::commitment_key_floor()(S));
+    assert!(ck.length() >= Self::commitment_key_floor()(S));
     let (pk_ee, vk_ee) = EE::setup(ck);
 
     // pad the R1CS matrices
