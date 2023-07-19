@@ -101,6 +101,8 @@ pub mod pasta;
 pub mod pedersen;
 pub mod poseidon;
 pub mod secp_secq;
+pub mod kzg;
+pub mod zeromorph;
 
 use ff::PrimeField;
 use pasta_curves::{self, arithmetic::CurveAffine, group::Group as AnotherGroup};
