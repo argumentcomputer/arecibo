@@ -13,7 +13,6 @@ use halo2curves::pairing::Engine;
 #[derive(Clone)]
 pub struct KZGParams {
     pub nmax: u64,
-    pub tau: Fr, // TODO: remove toxic waste! q(tau) must be computed using power of tau
     pub powers_of_tau: Vec<G1Affine>,
     pub xi1: G1Affine,
     pub gen2: G2Affine,
@@ -54,7 +53,6 @@ pub fn setup(nmax: u64) -> KZGParams {
     }
     let res: KZGParams = KZGParams{
         nmax,
-        tau,
         powers_of_tau: powers,
         xi1: xi1.into(),
         gen2: gen2.into(),
@@ -116,15 +114,13 @@ fn compute_q_helper(f: &[Fr], v: Fr, u: Fr) -> Vec<Fr> {
     q
 }
 
-fn eval(q: &[Fr], tau: Fr) -> Fr {
-    let mut ptau = Fr::from(1);
-    let mut sum = Fr::from(0);
-    for coeff in q.iter() {
-        let term = coeff.mul(&ptau);
-        ptau *= tau;
-        sum += term;
+fn eval(q: &[Fr], params: KZGParams) -> G1Affine {
+    let mut sum = params.powers_of_tau[0].mul(q[0]);
+    for (i, coeff) in q.iter().enumerate().skip(1) {
+        let term = params.powers_of_tau[i].mul(coeff);
+        sum = sum.add(term);
     }
-    sum
+    sum.into()
 }
 
 pub fn proveEval(f: &[Fr], v: Fr, u: Fr, r: Fr, params: KZGParams) -> KZGProof {
@@ -133,10 +129,10 @@ pub fn proveEval(f: &[Fr], v: Fr, u: Fr, r: Fr, params: KZGParams) -> KZGProof {
 
     let q = compute_q_helper(f, v, u);
     // eval q
-    let qtau = eval(&q[..], params.tau);
+    let gqtau = eval(&q[..], params.clone());
 
     let gen1 = G1::generator();
-    let gqtau = gen1.mul(qtau);
+
     let sxi1 = params.xi1.mul(s);
     let pi = gqtau.add(sxi1);
 
