@@ -13,55 +13,55 @@ use halo2curves::pairing::Engine;
 #[derive(Clone)]
 pub struct KZGParams {
     pub nmax: u64,
+    pub gen1: G1,
+    pub gen2: G2,
     pub powers_of_tau: Vec<G1Affine>,
-    pub xi1: G1Affine,
-    pub gen2: G2Affine,
-    pub xi2: G2Affine,
-    pub tau2: G2Affine,
+    pub xi1: G1,
+    pub xi2: G2,
+    pub tau2: G2,
 }
 
 #[derive(Clone)]
 pub struct KZGProof {
-    pub pi: G1Affine,
-    pub delta: G1Affine,
+    pub pi: G1,
+    pub delta: G1,
 }
 
 pub fn setup(nmax: u64) -> KZGParams {
 
+    // FIXME: avoid repeated code
     let rng = &mut rand::thread_rng();
     let tau = Fr::random(rng);
-    //let tau = Fr::from(1);
     let rng = &mut rand::thread_rng();
     let xi = Fr::random(rng);
 
+    let gen1: G1 = G1::generator();
+    let gen2: G2 = G2::generator();
     let mut powers = Vec::new();
-    let mut xi1 = G1::generator();
-    let mut xi2 = G2::generator();
-    let mut tau2 = G2::generator();
-    let gen1 = G1::generator();
-    let gen2 = G2::generator();
-    for i in 0..nmax {
+    let mut xi1 = gen1;
+    let mut xi2 = gen2;
+    let mut tau2 = gen2;
 
+    for i in 0..nmax {
         let gtau = gen1;
         let result = gtau.mul(tau.pow([i as u64]));
-
         powers.push(result.into());
-        xi1 = gen1.mul(xi).into();
-        xi2 = gen2.mul(xi).into();
-
-        tau2 = gen2.mul(tau).into();
+        xi1 = gen1.mul(xi);
+        xi2 = gen2.mul(xi);
+        tau2 = gen2.mul(tau);
     }
-    let res: KZGParams = KZGParams{
+    KZGParams{
         nmax,
-        powers_of_tau: powers,
-        xi1: xi1.into(),
         gen2: gen2.into(),
-        xi2: xi2.into(),
-        tau2: tau2.into(),
-    };
-    return res;
+        gen1: gen1.into(),
+        powers_of_tau: powers,
+        xi1,
+        xi2,
+        tau2,
+    }
 }
 
+/// Commit to univariate polynomial p given in coefficient representation
 pub fn commit(p: &[Fr], params: KZGParams) -> (G1, Fr) {
 
     let rng = &mut rand::thread_rng();
@@ -79,14 +79,19 @@ pub fn commit(p: &[Fr], params: KZGParams) -> (G1, Fr) {
     (C, r)
 }
 
-fn compute_q_helper(f: &[Fr], v: Fr, u: Fr) -> Vec<Fr> {
-    let mut q = vec!(Fr::from(0); f.len());
-    let mut xmu = vec!(Fr::from(0); f.len());
-    // f - v
+fn init(f: &[Fr]) -> Vec<Fr> {
     let mut fmv = vec!(Fr::from(0); f.len());
     for (i, elem) in f.iter().enumerate() {
         fmv[i] = *elem;
     }
+    fmv
+}
+
+fn compute_q(f: &[Fr], v: Fr, u: Fr) -> Vec<Fr> {
+    let mut q = vec!(Fr::from(0); f.len());
+    let mut xmu = vec!(Fr::from(0); f.len());
+    // f - v
+    let mut fmv = init(f);
     fmv[0] = fmv[0].sub(&v);
 
     // X - u
@@ -114,65 +119,91 @@ fn compute_q_helper(f: &[Fr], v: Fr, u: Fr) -> Vec<Fr> {
     q
 }
 
-fn eval(q: &[Fr], params: KZGParams) -> G1Affine {
+/// Use power of tau to compute evaluation of polynomial q in coefficient representation.
+fn eval(q: &[Fr], params: KZGParams) -> G1 {
     let mut sum = params.powers_of_tau[0].mul(q[0]);
     for (i, coeff) in q.iter().enumerate().skip(1) {
         let term = params.powers_of_tau[i].mul(coeff);
         sum = sum.add(term);
     }
-    sum.into()
+    sum
 }
 
+/// Prove evaluation of f at point u is equal to v.
 pub fn proveEval(f: &[Fr], v: Fr, u: Fr, r: Fr, params: KZGParams) -> KZGProof {
     let rng = &mut rand::thread_rng();
     let s = Fr::random(rng);
 
-    let q = compute_q_helper(f, v, u);
+    // compute pi
+    let q = compute_q(f, v, u);
     // eval q
     let gqtau = eval(&q[..], params.clone());
 
-    let gen1 = G1::generator();
 
     let sxi1 = params.xi1.mul(s);
     let pi = gqtau.add(sxi1);
 
-    // compute pi
     // compute delta
-    let mut delta = gen1.mul(r);
+    let mut delta = params.gen1.mul(r);
     delta = delta.sub(params.powers_of_tau[1].mul(s));
-    delta = delta.add(gen1.mul(s.mul(u)));
-    KZGProof { pi: pi.into(), delta: delta.into() }
+    delta = delta.add(params.gen1.mul(s.mul(u)));
+    KZGProof { pi, delta }
 }
 
-pub fn verifyEval(C: G1Affine, v: Fr, u: Fr, proof: KZGProof, params: KZGParams) -> bool {
+/// Verify proof that polynomial in commitment C evals to v at point u.
+pub fn verifyEval(C: G1, v: Fr, u: Fr, proof: KZGProof, params: KZGParams) -> bool {
     // pleft
-    let gen1 = G1::generator();
-    let gen2 = G2::generator();
-    let vgen1 = G1Affine::from(gen1).mul(v);
+    let vgen1 = params.gen1.mul(v);
     let mut csvgen1 = C;
-    csvgen1 = csvgen1.sub(G1Affine::from(vgen1)).into();
-    let g2 = G2Affine::from(gen2);
-    let pleft = Bn256::pairing(&csvgen1, &(g2));
+    csvgen1 = csvgen1.sub(vgen1);
+    let g2 = params.gen2;
+    let pleft = Bn256::pairing(&G1Affine::from(csvgen1), &G2Affine::from(g2));
     // pright1
     let ug2 = g2.mul(u);
     let tau2mug2 = params.tau2.sub(ug2);
-    let pright1 = Bn256::pairing(&proof.pi, &G2Affine::from(tau2mug2));
+    let pright1 = Bn256::pairing(&G1Affine::from(proof.pi), &G2Affine::from(tau2mug2));
 
     // pright2
-    let pright2 = Bn256::pairing(&proof.delta, &params.xi2);
+    let pright2 = Bn256::pairing(&G1Affine::from(proof.delta), &G2Affine::from(params.xi2));
     // pleft =? pright1 - pright2
     let r1pr2 = pright1.add(pright2);
     pleft.eq(&r1pr2)
 }
 
 #[test]
-fn test_kzg(){
+fn test_kzg_simple(){
     let params = setup(3);
-    let p = [Fr::from(0), Fr::from(0), Fr::from(1)];
+    let p = [Fr::from(0), Fr::from(0), Fr::from(1)]; // this is Xˆ2
     let (C, r) = commit(&p, params.clone());
     let v = Fr::from(1);
     let u = Fr::from(1);
-    let proof = proveEval(&[Fr::from(0), Fr::from(0), Fr::from(1)], v, u, r, params.clone());
-    let b = verifyEval(G1Affine::from(C), v, u, proof.clone(), params.clone());
+    // Xˆ2 - 1 = (X + 1).(X - 1)
+    let proof = proveEval(&p, v, u, r, params.clone());
+    let b = verifyEval(C, v, u, proof.clone(), params.clone());
+    assert!(b);
+}
+
+#[test]
+fn test_kzg_simple2(){
+    let params = setup(5);
+    let p = [Fr::from(0), Fr::from(0), Fr::from(0), Fr::from(0), Fr::from(1)]; // this is Xˆ4
+    let (C, r) = commit(&p, params.clone());
+    let v = Fr::from(1);
+    let u = Fr::from(1);
+    // Xˆ4 - 1 = (Xˆ2 + 1).(Xˆ2 - 1) = (Xˆ2 + 1).(X + 1).(X - 1)
+    let proof = proveEval(&p, v, u, r, params.clone());
+    let b = verifyEval(C, v, u, proof.clone(), params.clone());
+    assert!(b);
+}
+
+#[test]
+fn test_kzg_simple3(){
+    let params = setup(5);
+    let p = [Fr::from(1), Fr::from(1), Fr::from(1), Fr::from(1), Fr::from(1)]; // this is Xˆ4 + Xˆ3 + ˆXˆ2 + Xˆ1 + 1
+    let (C, r) = commit(&p, params.clone());
+    let v = Fr::from(5);
+    let u = Fr::from(1);
+    let proof = proveEval(&p, v, u, r, params.clone());
+    let b = verifyEval(C, v, u, proof.clone(), params.clone());
     assert!(b);
 }
