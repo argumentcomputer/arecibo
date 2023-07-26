@@ -107,12 +107,39 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   }
 }
 
+impl<Scalar: PrimeField> FromIterator<Scalar> for MultilinearPolynomial<Scalar> {
+  fn from_iter<I: IntoIterator<Item = Scalar>>(iter: I) -> Self {
+    let Z: Vec<_> = iter.into_iter().collect();
+    assert_eq!(Z.len(), (2_usize).pow((Z.len() as f64).log2() as u32));
+    MultilinearPolynomial {
+      num_vars: (Z.len() as f64).log2() as usize,
+      Z,
+    }
+  }
+}
+
 impl<Scalar: PrimeField> Index<usize> for MultilinearPolynomial<Scalar> {
   type Output = Scalar;
 
   #[inline(always)]
   fn index(&self, _index: usize) -> &Scalar {
     &(self.Z[_index])
+  }
+}
+
+/// Adds another multilinear polynomial to `self`.
+/// Assumes the two polynomials have the same number of variables.
+impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
+  type Output = Result<Self, &'static str>;
+
+  fn add(self, other: Self) -> Self::Output {
+    if self.get_num_vars() != other.get_num_vars() {
+      return Err("The two polynomials must have the same number of variables");
+    }
+
+    let sum: Vec<Scalar> = zip_with!((self.Z.iter(), other.Z.iter()), |a, b| *a + *b).collect();
+
+    Ok(MultilinearPolynomial::new(sum))
   }
 }
 
@@ -161,19 +188,11 @@ impl<Scalar: PrimeField> SparsePolynomial<Scalar> {
   }
 }
 
-/// Adds another multilinear polynomial to `self`.
-/// Assumes the two polynomials have the same number of variables.
-impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
-  type Output = Result<Self, &'static str>;
-
-  fn add(self, other: Self) -> Self::Output {
-    if self.get_num_vars() != other.get_num_vars() {
-      return Err("The two polynomials must have the same number of variables");
-    }
-
-    let sum: Vec<Scalar> = zip_with!((self.Z.iter(), other.Z.iter()), |a, b| *a + *b).collect();
-
-    Ok(MultilinearPolynomial::new(sum))
+impl<Scalar: PrimeField> FromIterator<(usize, Scalar)> for SparsePolynomial<Scalar> {
+  fn from_iter<I: IntoIterator<Item = (usize, Scalar)>>(iter: I) -> Self {
+    let Z: Vec<_> = iter.into_iter().collect();
+    let num_vars = Z.iter().map(|(index, _)| *index).max().unwrap_or(0) + 1;
+    SparsePolynomial { num_vars, Z }
   }
 }
 
