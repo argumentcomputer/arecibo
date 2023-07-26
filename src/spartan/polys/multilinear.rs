@@ -110,9 +110,9 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
 impl<Scalar: PrimeField> FromIterator<Scalar> for MultilinearPolynomial<Scalar> {
   fn from_iter<I: IntoIterator<Item = Scalar>>(iter: I) -> Self {
     let Z: Vec<_> = iter.into_iter().collect();
-    assert_eq!(Z.len(), (2_usize).pow((Z.len() as f64).log2() as u32));
+    assert_eq!(Z.len(), (2_usize).pow(Z.len().ilog2()));
     MultilinearPolynomial {
-      num_vars: (Z.len() as f64).log2() as usize,
+      num_vars: Z.len().ilog2() as usize,
       Z,
     }
   }
