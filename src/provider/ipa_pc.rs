@@ -11,6 +11,7 @@ use crate::{
   },
   Commitment, CommitmentKey, CompressedCommitment, CE,
 };
+use abomonation_derive::Abomonation;
 use core::iter;
 use ff::Field;
 use rayon::prelude::*;
@@ -18,15 +19,17 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// Provides an implementation of the prover key
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
+#[abomonation_omit_bounds]
 pub struct ProverKey<G: Group> {
   ck_s: CommitmentKey<G>,
 }
 
 /// Provides an implementation of the verifier key
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
+#[abomonation_omit_bounds]
 pub struct VerifierKey<G: Group> {
   ck_v: CommitmentKey<G>,
   ck_s: CommitmentKey<G>,
