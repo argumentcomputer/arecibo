@@ -7,12 +7,13 @@
 pub mod bn256_grumpkin;
 pub mod ipa_pc;
 pub mod keccak;
+pub (crate) mod kzg;
+pub mod non_hiding_kzg;
 pub mod pasta;
 pub mod pedersen;
 pub mod poseidon;
 pub mod secp_secq;
-pub mod kzg;
-pub mod zeromorph;
+pub (crate) mod zeromorph;
 
 use ff::PrimeField;
 use pasta_curves::{self, arithmetic::CurveAffine, group::Group as AnotherGroup};
@@ -118,7 +119,7 @@ fn cpu_multiexp_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::
 ///
 /// This will use multithreading if beneficial.
 /// Adapted from zcash/halo2
-pub(crate) fn cpu_best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+fn cpu_best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
   assert_eq!(coeffs.len(), bases.len());
 
   let num_threads = current_num_threads();
