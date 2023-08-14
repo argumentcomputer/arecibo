@@ -12,6 +12,7 @@ pub(crate) mod secp_secq;
 pub(crate) mod traits;
 pub(crate) mod kzg;
 pub(crate) mod zeromorph;
+pub(crate) mod non_hiding_kzg;
 
 // crate-private modules
 mod keccak;
