@@ -302,9 +302,9 @@ impl<G: Group> SumcheckProof<G> {
 
 // ax^2 + bx + c stored as vec![a,b,c]
 // ax^3 + bx^2 + cx + d stored as vec![a,b,c,d]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UniPoly<Scalar: PrimeField> {
-  coeffs: Vec<Scalar>,
+  pub coeffs: Vec<Scalar>,
 }
 
 // ax^2 + bx + c stored as vec![a,c]
@@ -315,6 +315,26 @@ pub struct CompressedUniPoly<Scalar: PrimeField> {
 }
 
 impl<Scalar: PrimeField> UniPoly<Scalar> {
+  pub fn new(coeffs: Vec<Scalar>) -> Self {
+    let mut res = UniPoly { coeffs };
+    res.truncate_leading_zeros();
+    res
+  }
+
+  pub fn is_zero(&self) -> bool {
+    self.coeffs.is_empty() || self.coeffs.iter().all(|c| c == &Scalar::ZERO)
+  }
+
+  fn truncate_leading_zeros(&mut self) {
+    while self.coeffs.last().map_or(false, |c| c == &Scalar::ZERO) {
+      self.coeffs.pop();
+    }
+  }
+
+  pub fn leading_coefficient(&self) -> Option<&Scalar> {
+    self.coeffs.last()
+  }
+
   pub fn from_evals(evals: &[Scalar]) -> Self {
     // we only support degree-2 or degree-3 univariate polynomials
     assert!(evals.len() == 3 || evals.len() == 4);

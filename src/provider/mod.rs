@@ -7,10 +7,11 @@
 pub mod bn256_grumpkin;
 pub mod ipa_pc;
 pub mod keccak;
+pub mod kzg;
+pub mod non_hiding_kzg;
 pub mod pasta;
 pub mod pedersen;
 pub mod poseidon;
-pub mod kzg;
 pub mod zeromorph;
 
 use ff::PrimeField;
@@ -114,7 +115,7 @@ fn cpu_multiexp_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C], acc: &
 ///
 /// This will use multithreading if beneficial.
 /// Adapted from zcash/halo2
-pub(crate) fn cpu_best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+fn cpu_best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
   assert_eq!(coeffs.len(), bases.len());
 
   let num_threads = rayon::current_num_threads();
