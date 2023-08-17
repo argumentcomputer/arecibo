@@ -10,9 +10,9 @@ pub(crate) mod pedersen;
 pub(crate) mod poseidon;
 pub(crate) mod secp_secq;
 pub(crate) mod traits;
-pub(crate) mod kzg;
-pub(crate) mod zeromorph;
+// a non-hiding variant of {kzg, zeromorph}
 pub(crate) mod non_hiding_kzg;
+pub(crate) mod non_hiding_zeromorph;
 
 // crate-private modules
 mod keccak;
