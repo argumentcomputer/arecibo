@@ -11,7 +11,7 @@ use rayon::prelude::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::spartan::{math::Math, polys::eq_poly::EqPolynomial};
+use crate::spartan::{math::Math, polys::eq::EqPolynomial};
 
 /// A multilinear extension of a polynomial $Z(\cdot)$, denote it as $\tilde{Z}(x_1, ..., x_m)$
 /// where the degree of each variable is at most one.
@@ -303,6 +303,10 @@ mod tests {
     // g(5, 10) = 8*(1 - 5)(1 - 10) + 8*(1 - 5)(10) + 8*(5)(1-10) + 8*(5)(10) = 96 + -16 + -72 + 96  = 8
     assert_eq!(
       dense_poly.evaluate(vec![F::from(3), F::from(4)].as_slice()),
+      F::from(8)
+    );
+    assert_eq!(
+      dense_poly.evaluate(vec![F::from(5), F::from(10)].as_slice()),
       F::from(8)
     );
   }

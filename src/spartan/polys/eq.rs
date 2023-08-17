@@ -35,7 +35,7 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   pub fn evaluate(&self, rx: &[Scalar]) -> Scalar {
     assert_eq!(self.r.len(), rx.len());
     (0..rx.len())
-      .map(|i| rx[i] * self.r[i] + (Scalar::ONE - rx[i]) * (Scalar::ONE - self.r[i]))
+      .map(|i| self.r[i] * rx[i] + (Scalar::ONE - self.r[i]) * (Scalar::ONE - rx[i]))
       .fold(Scalar::ONE, |acc, item| acc * item)
   }
 
