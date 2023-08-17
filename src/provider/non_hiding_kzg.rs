@@ -5,22 +5,24 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rand::Rng;
 use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
-use crate::{errors::NovaError, traits::Group};
+use crate::{errors::NovaError, traits::TranscriptReprTrait};
+
+use crate::provider::traits::DlogGroup;
 
 /// `UniversalParams` are the universal parameters for the KZG10 scheme.
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct UVUniversalKZGParam<E: Engine> {
   /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to
   /// `degree`.
   pub powers_of_g: Vec<E::G1Affine>,
-  /// The generator of G2.
-  pub h: E::G2Affine,
-  /// \beta times the above generator of G2.
-  pub beta_h: E::G2Affine,
+  /// Group elements of the form `{ \beta^i H }`, where `i` ranges from 0 to
+  /// `degree`.
+  pub powers_of_h: Vec<E::G2Affine>,
 }
 /// `UnivariateProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UVKZGProverKey<E: Engine> {
   /// generators
   pub powers_of_g: Vec<E::G1Affine>,
@@ -28,7 +30,7 @@ pub struct UVKZGProverKey<E: Engine> {
 
 /// `UVKZGVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UVKZGVerifierKey<E: Engine> {
   /// The generator of G1.
   pub g: E::G1Affine,
@@ -38,10 +40,7 @@ pub struct UVKZGVerifierKey<E: Engine> {
   pub beta_h: E::G2Affine,
 }
 
-impl<E: Engine> UVUniversalKZGParam<E>
-where
-  E::G1: Group,
-{
+impl<E: Engine> UVUniversalKZGParam<E> {
   /// Returns the maximum supported degree
   pub fn max_degree(&self) -> usize {
     self.powers_of_g.len()
@@ -66,8 +65,8 @@ where
     }
     UVKZGVerifierKey {
       g: self.powers_of_g[0],
-      h: self.h,
-      beta_h: self.beta_h,
+      h: self.powers_of_h[0],
+      beta_h: self.powers_of_h[1],
     }
   }
 
@@ -84,8 +83,8 @@ where
     let pk = UVKZGProverKey { powers_of_g };
     let vk = UVKZGVerifierKey {
       g: self.powers_of_g[0],
-      h: self.h,
-      beta_h: self.beta_h,
+      h: self.powers_of_h[0],
+      beta_h: self.powers_of_h[1],
     };
     (pk, vk)
   }
@@ -109,13 +108,20 @@ where
     let mut powers_of_g = vec![E::G1Affine::identity(); powers_of_g_projective.len()];
     E::G1::batch_normalize(&powers_of_g_projective, &mut powers_of_g);
 
-    let h = h.to_affine();
-    let beta_h = (h * beta).to_affine();
+    let powers_of_h_projective = (0..=max_degree)
+      .scan(h, |acc, _| {
+        let val = *acc;
+        *acc *= beta;
+        Some(val)
+      })
+      .collect::<Vec<E::G2>>();
+
+    let mut powers_of_h = vec![E::G2Affine::identity(); powers_of_h_projective.len()];
+    E::G2::batch_normalize(&powers_of_h_projective, &mut powers_of_h);
 
     let pp = Self {
       powers_of_g,
-      h,
-      beta_h,
+      powers_of_h,
     };
     pp
   }
@@ -128,8 +134,19 @@ pub struct UVKZGCommitment<E: Engine>(
   pub E::G1Affine,
 );
 
+impl<E: Engine> TranscriptReprTrait<E::G1> for UVKZGCommitment<E>
+where
+  E::G1: DlogGroup,
+{
+  fn to_transcript_bytes(&self) -> Vec<u8> {
+    // TODO: avoid the round-trip through the group
+    E::G1::from(self.0).compress().to_transcript_bytes()
+  }
+}
+
 /// Polynomial Evaluation
-pub struct UVKZGEvaluation<E: Engine>(E::Fr);
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+pub struct UVKZGEvaluation<E: Engine>(pub E::Fr);
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 
@@ -197,7 +214,7 @@ pub struct UVKZGPCS<E> {
 
 impl<E: MultiMillerLoop> UVKZGPCS<E>
 where
-  E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
 {
   // TODO: this relies on NovaError::InvalidIPA, which should really be extended to a sub-error enum
   // called "PCSError"
@@ -212,7 +229,7 @@ where
     if poly.degree() > prover_param.powers_of_g.len() {
       return Err(NovaError::InvalidIPA);
     }
-    let C = <E::G1 as Group>::vartime_multiscalar_mul(
+    let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
       poly.coeffs.as_slice(),
       &prover_param.powers_of_g.as_slice()[..poly.coeffs.len()],
     );
@@ -248,7 +265,7 @@ where
       .divide_with_q_and_r(&divisor)
       .map(|(q, _r)| q)
       .ok_or(NovaError::InvalidIPA)?;
-    let proof = <E::G1 as Group>::vartime_multiscalar_mul(
+    let proof = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
       witness_polynomial.coeffs.as_slice(),
       &prover_param.powers_of_g.as_slice()[..witness_polynomial.coeffs.len()],
     );
@@ -380,7 +397,7 @@ mod tests {
   fn end_to_end_test_template<E>() -> Result<(), NovaError>
   where
     E: MultiMillerLoop,
-    E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+    E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
   {
     for _ in 0..100 {
       let mut rng = &mut thread_rng();
@@ -405,7 +422,7 @@ mod tests {
   fn batch_check_test_template<E>() -> Result<(), NovaError>
   where
     E: MultiMillerLoop,
-    E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+    E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
   {
     for _ in 0..10 {
       let mut rng = &mut thread_rng();
