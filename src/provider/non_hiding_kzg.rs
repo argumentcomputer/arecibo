@@ -6,21 +6,23 @@ use rand::Rng;
 use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
-use crate::{errors::NovaError, traits::Group};
+use crate::{
+  errors::NovaError,
+  traits::{Group, TranscriptReprTrait},
+};
 
 /// `UniversalParams` are the universal parameters for the KZG10 scheme.
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct UVUniversalKZGParam<E: Engine> {
   /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to
   /// `degree`.
   pub powers_of_g: Vec<E::G1Affine>,
-  /// The generator of G2.
-  pub h: E::G2Affine,
-  /// \beta times the above generator of G2.
-  pub beta_h: E::G2Affine,
+  /// Group elements of the form `{ \beta^i H }`, where `i` ranges from 0 to
+  /// `degree`.
+  pub powers_of_h: Vec<E::G2Affine>,
 }
 /// `UnivariateProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UVKZGProverKey<E: Engine> {
   /// generators
   pub powers_of_g: Vec<E::G1Affine>,
@@ -28,7 +30,7 @@ pub struct UVKZGProverKey<E: Engine> {
 
 /// `UVKZGVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UVKZGVerifierKey<E: Engine> {
   /// The generator of G1.
   pub g: E::G1Affine,
@@ -38,10 +40,7 @@ pub struct UVKZGVerifierKey<E: Engine> {
   pub beta_h: E::G2Affine,
 }
 
-impl<E: Engine> UVUniversalKZGParam<E>
-where
-  E::G1: Group,
-{
+impl<E: Engine> UVUniversalKZGParam<E> {
   /// Returns the maximum supported degree
   pub fn max_degree(&self) -> usize {
     self.powers_of_g.len()
@@ -66,8 +65,8 @@ where
     }
     UVKZGVerifierKey {
       g: self.powers_of_g[0],
-      h: self.h,
-      beta_h: self.beta_h,
+      h: self.powers_of_h[0],
+      beta_h: self.powers_of_h[1],
     }
   }
 
@@ -84,8 +83,8 @@ where
     let pk = UVKZGProverKey { powers_of_g };
     let vk = UVKZGVerifierKey {
       g: self.powers_of_g[0],
-      h: self.h,
-      beta_h: self.beta_h,
+      h: self.powers_of_h[0],
+      beta_h: self.powers_of_h[1],
     };
     (pk, vk)
   }
@@ -109,13 +108,20 @@ where
     let mut powers_of_g = vec![E::G1Affine::identity(); powers_of_g_projective.len()];
     E::G1::batch_normalize(&powers_of_g_projective, &mut powers_of_g);
 
-    let h = h.to_affine();
-    let beta_h = (h * beta).to_affine();
+    let powers_of_h_projective = (0..=max_degree)
+      .scan(h, |acc, _| {
+        let val = *acc;
+        *acc *= beta;
+        Some(val)
+      })
+      .collect::<Vec<E::G2>>();
+
+    let mut powers_of_h = vec![E::G2Affine::identity(); powers_of_h_projective.len()];
+    E::G2::batch_normalize(&powers_of_h_projective, &mut powers_of_h);
 
     let pp = Self {
       powers_of_g,
-      h,
-      beta_h,
+      powers_of_h,
     };
     pp
   }
@@ -128,8 +134,18 @@ pub struct UVKZGCommitment<E: Engine>(
   pub E::G1Affine,
 );
 
+impl<E: Engine> TranscriptReprTrait<E::G1> for UVKZGCommitment<E>
+where
+  E::G1: Group,
+{
+  fn to_transcript_bytes(&self) -> Vec<u8> {
+    E::G1::from(self.0).compress().to_transcript_bytes()
+  }
+}
+
 /// Polynomial Evaluation
-pub struct UVKZGEvaluation<E: Engine>(E::Fr);
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+pub struct UVKZGEvaluation<E: Engine>(pub E::Fr);
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 
