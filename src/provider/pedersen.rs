@@ -6,6 +6,7 @@ use crate::{
     AbsorbInROTrait, CompressedGroup, Group, ROTrait, TranscriptReprTrait,
   },
 };
+use abomonation_derive::Abomonation;
 use core::{
   fmt::Debug,
   marker::PhantomData,
@@ -16,15 +17,19 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A type that holds commitment generators
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[abomonation_omit_bounds]
 pub struct CommitmentKey<G: Group> {
+  #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<G::PreprocessedGroupElement>,
 }
 
 /// A type that holds a commitment
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
+#[abomonation_omit_bounds]
 pub struct Commitment<G: Group> {
+  #[abomonate_with(Vec<[u64; 12]>)] // this is a hack; we just assume the size of the element.
   pub(crate) comm: G,
 }
 

@@ -21,6 +21,7 @@ use crate::{
   },
   Commitment,
 };
+use abomonation_derive::Abomonation;
 use bellpepper::gadgets::Assignment;
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
@@ -30,7 +31,7 @@ use bellpepper_core::{
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 pub struct NovaAugmentedCircuitParams {
   limb_width: usize,
   n_limbs: usize,

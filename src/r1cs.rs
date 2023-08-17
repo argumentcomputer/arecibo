@@ -12,6 +12,8 @@ use crate::{
   },
   Commitment, CommitmentKey, CE,
 };
+use abomonation::Abomonation;
+use abomonation_derive::Abomonation;
 use core::{cmp::max, marker::PhantomData};
 use ff::Field;
 
@@ -26,13 +28,17 @@ pub struct R1CS<G: Group> {
 }
 
 /// A type that holds the shape of the R1CS matrices
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
 pub struct R1CSShape<G: Group> {
   pub(crate) num_cons: usize,
   pub(crate) num_vars: usize,
   pub(crate) num_io: usize,
+  #[abomonate_with(Vec<(usize, usize, <G::Scalar as ff::PrimeField>::Repr)>)]
   pub(crate) A: Vec<(usize, usize, G::Scalar)>,
+  #[abomonate_with(Vec<(usize, usize, <G::Scalar as ff::PrimeField>::Repr)>)]
   pub(crate) B: Vec<(usize, usize, G::Scalar)>,
+  #[abomonate_with(Vec<(usize, usize, <G::Scalar as ff::PrimeField>::Repr)>)]
   pub(crate) C: Vec<(usize, usize, G::Scalar)>,
 }
 
