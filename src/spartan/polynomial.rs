@@ -181,6 +181,43 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     }
     new_poly
   }
+
+  /// Compute quotient polynomials of the polynomial w.r.t. an input point
+  pub fn quotients(&self, point: &[Scalar]) -> (Vec<Vec<Scalar>>, Scalar) {
+    assert_eq!(self.get_num_vars(), point.len());
+
+    let mut remainder = self.Z.to_vec();
+    let mut quotients = point
+      .iter()
+      .zip(0..self.get_num_vars())
+      .rev()
+      .map(|(x_i, num_var)| {
+        let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << num_var);
+        let mut quotient = vec![Scalar::ZERO; remainder_lo.len()];
+
+        quotient
+          .par_iter_mut()
+          .zip(&*remainder_lo)
+          .zip(&*remainder_hi)
+          .for_each(|((q, r_lo), r_hi)| {
+            *q = *r_hi - *r_lo;
+          });
+        remainder_lo
+          .par_iter_mut()
+          .zip(remainder_hi)
+          .for_each(|(r_lo, r_hi)| {
+            *r_lo += (*r_hi - r_lo as &_) * x_i;
+          });
+
+        remainder.truncate(1 << num_var);
+
+        quotient
+      })
+      .collect::<Vec<Vec<Scalar>>>();
+    quotients.reverse();
+
+    (quotients, remainder[0])
+  }
 }
 
 impl<Scalar: PrimeField> Index<usize> for MultilinearPolynomial<Scalar> {

@@ -6,6 +6,8 @@ use crate::traits::{Group, TranscriptEngineTrait, TranscriptReprTrait};
 use ff::{Field, PrimeField};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::ops::{AddAssign, Index, IndexMut, MulAssign};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -423,5 +425,48 @@ impl<G: Group> TranscriptReprTrait<G> for UniPoly<G::Scalar> {
   fn to_transcript_bytes(&self) -> Vec<u8> {
     let coeffs = self.compress().coeffs_except_linear_term;
     coeffs.as_slice().to_transcript_bytes()
+  }
+}
+
+impl<Scalar: PrimeField> Index<usize> for UniPoly<Scalar> {
+  type Output = Scalar;
+
+  fn index(&self, index: usize) -> &Self::Output {
+    &self.coeffs[index]
+  }
+}
+
+impl<Scalar: PrimeField> IndexMut<usize> for UniPoly<Scalar> {
+  fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+    &mut self.coeffs[index]
+  }
+}
+
+impl<Scalar: PrimeField> AddAssign<&Scalar> for UniPoly<Scalar> {
+  fn add_assign(&mut self, rhs: &Scalar) {
+    self.coeffs.par_iter_mut().for_each(|c| *c += rhs);
+  }
+}
+
+impl<Scalar: PrimeField> MulAssign<&Scalar> for UniPoly<Scalar> {
+  fn mul_assign(&mut self, rhs: &Scalar) {
+    self.coeffs.par_iter_mut().for_each(|c| *c *= rhs);
+  }
+}
+
+impl<Scalar: PrimeField> AddAssign<&Self> for UniPoly<Scalar> {
+  fn add_assign(&mut self, rhs: &Self) {
+    let ordering = self.coeffs.len().cmp(&rhs.coeffs.len());
+    for (lhs, rhs) in self.coeffs.iter_mut().zip(&rhs.coeffs) {
+      *lhs += rhs;
+    }
+    if matches!(ordering, Ordering::Greater) || matches!(ordering, Ordering::Equal) {
+      self
+        .coeffs
+        .extend(rhs.coeffs[self.coeffs.len()..].iter().cloned());
+    }
+    if matches!(ordering, Ordering::Equal) {
+      self.truncate_leading_zeros();
+    }
   }
 }
