@@ -5,10 +5,8 @@
 use std::ops::{Add, Index};
 
 use ff::PrimeField;
-use rayon::prelude::{
-  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-  IntoParallelRefMutIterator, ParallelIterator,
-};
+use rand_core::{CryptoRng, RngCore};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::spartan::{math::Math, polys::eq::EqPolynomial};
@@ -57,6 +55,16 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     self.Z.len()
   }
 
+  /// Returns a random polynomial
+  ///
+  pub fn random<R: RngCore + CryptoRng>(num_vars: usize, mut rng: &mut R) -> Self {
+    MultilinearPolynomial::new(
+      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
+        .take(1 << num_vars)
+        .collect(),
+    )
+  }
+
   /// Bounds the polynomial's top variable using the given scalar.
   ///
   /// This operation modifies the polynomial in-place.
@@ -100,6 +108,43 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
       .zip(Z.into_par_iter())
       .map(|(a, b)| a * b)
       .sum()
+  }
+
+  /// Compute quotient polynomials of the polynomial w.r.t. an input point
+  pub fn quotients(&self, point: &[Scalar]) -> (Vec<Vec<Scalar>>, Scalar) {
+    assert_eq!(self.get_num_vars(), point.len());
+
+    let mut remainder = self.Z.to_vec();
+    let mut quotients = point
+      .iter()
+      .zip(0..self.get_num_vars())
+      .rev()
+      .map(|(x_i, num_var)| {
+        let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << num_var);
+        let mut quotient = vec![Scalar::ZERO; remainder_lo.len()];
+
+        quotient
+          .par_iter_mut()
+          .zip(&*remainder_lo)
+          .zip(&*remainder_hi)
+          .for_each(|((q, r_lo), r_hi)| {
+            *q = *r_hi - *r_lo;
+          });
+        remainder_lo
+          .par_iter_mut()
+          .zip(remainder_hi)
+          .for_each(|(r_lo, r_hi)| {
+            *r_lo += (*r_hi - r_lo as &_) * x_i;
+          });
+
+        remainder.truncate(1 << num_var);
+
+        quotient
+      })
+      .collect::<Vec<Vec<Scalar>>>();
+    quotients.reverse();
+
+    (quotients, remainder[0])
   }
 }
 

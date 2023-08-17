@@ -1,8 +1,13 @@
 //! Main components:
 //! - `UniPoly`: an univariate dense polynomial in coefficient form (big endian),
 //! - `CompressedUniPoly`: a univariate dense polynomial, compressed (omitted linear term), in coefficient form (little endian),
+use std::{
+  cmp::Ordering,
+  ops::{AddAssign, Index, IndexMut, MulAssign},
+};
+
 use ff::PrimeField;
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use rayon::prelude::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::traits::{Group, TranscriptReprTrait};
@@ -133,6 +138,49 @@ impl<G: Group> TranscriptReprTrait<G> for UniPoly<G::Scalar> {
       .iter()
       .flat_map(|&t| t.to_repr().as_ref().to_vec())
       .collect::<Vec<u8>>()
+  }
+}
+
+impl<Scalar: PrimeField> Index<usize> for UniPoly<Scalar> {
+  type Output = Scalar;
+
+  fn index(&self, index: usize) -> &Self::Output {
+    &self.coeffs[index]
+  }
+}
+
+impl<Scalar: PrimeField> IndexMut<usize> for UniPoly<Scalar> {
+  fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+    &mut self.coeffs[index]
+  }
+}
+
+impl<Scalar: PrimeField> AddAssign<&Scalar> for UniPoly<Scalar> {
+  fn add_assign(&mut self, rhs: &Scalar) {
+    self.coeffs.par_iter_mut().for_each(|c| *c += rhs);
+  }
+}
+
+impl<Scalar: PrimeField> MulAssign<&Scalar> for UniPoly<Scalar> {
+  fn mul_assign(&mut self, rhs: &Scalar) {
+    self.coeffs.par_iter_mut().for_each(|c| *c *= rhs);
+  }
+}
+
+impl<Scalar: PrimeField> AddAssign<&Self> for UniPoly<Scalar> {
+  fn add_assign(&mut self, rhs: &Self) {
+    let ordering = self.coeffs.len().cmp(&rhs.coeffs.len());
+    for (lhs, rhs) in self.coeffs.iter_mut().zip(&rhs.coeffs) {
+      *lhs += rhs;
+    }
+    if matches!(ordering, Ordering::Less) {
+      self
+        .coeffs
+        .extend(rhs.coeffs[self.coeffs.len()..].iter().cloned());
+    }
+    if matches!(ordering, Ordering::Equal) {
+      self.truncate_leading_zeros();
+    }
   }
 }
 #[cfg(test)]
