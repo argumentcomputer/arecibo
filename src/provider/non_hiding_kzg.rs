@@ -1,3 +1,4 @@
+//! Non-hiding variant of KZG10 scheme for univariate polynomials.
 use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
 // KZG
@@ -21,7 +22,6 @@ pub struct UVUniversalKZGParam<E: Engine> {
   /// \beta times the above generator of G2.
   pub beta_h: E::G2Affine,
 }
-
 /// `UnivariateProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct UVKZGProverKey<E: Engine> {
