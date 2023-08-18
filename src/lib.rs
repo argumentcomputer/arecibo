@@ -25,7 +25,6 @@ pub mod provider;
 pub mod spartan;
 pub mod traits;
 
-#[cfg(feature = "supernova")]
 pub mod supernova;
 
 use crate::bellpepper::{
