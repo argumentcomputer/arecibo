@@ -36,7 +36,7 @@ unsafe fn entomb_F<F: PrimeField, W: Write>(f: &F, bytes: &mut W) -> std::io::Re
 }
 
 /// this is **incredibly, INCREDIBLY** dangerous
-unsafe fn exhume_F<'a, 'b, F: PrimeField>(f: &mut F, bytes: &'a mut [u8]) -> Option<&'a mut [u8]> {
+unsafe fn exhume_F<'a, F: PrimeField>(f: &mut F, bytes: &'a mut [u8]) -> Option<&'a mut [u8]> {
   let (mine, rest) = bytes.split_at_mut(size_of::<F>());
   let mine = (mine as *const [u8]) as *const F;
   std::ptr::write(f, std::ptr::read(mine));
@@ -60,7 +60,7 @@ impl<F: PrimeField> abomonation::Abomonation for MinRootIteration<F> {
     Ok(())
   }
 
-  unsafe fn exhume<'a, 'b>(&'a mut self, bytes: &'b mut [u8]) -> Option<&'b mut [u8]> {
+  unsafe fn exhume<'b>(&mut self, bytes: &'b mut [u8]) -> Option<&'b mut [u8]> {
     let bytes = exhume_F(&mut self.x_i, bytes)?;
     let bytes = exhume_F(&mut self.y_i, bytes)?;
     let bytes = exhume_F(&mut self.x_i_plus_1, bytes)?;
@@ -195,7 +195,7 @@ fn main() {
       TrivialTestCircuit<<G2 as Group>::Scalar>,
     >::setup(&circuit_primary, &circuit_secondary);
     assert!(result.clone() == pp, "not equal!");
-    assert!(remaining.len() == 0);
+    assert!(remaining.is_empty());
   } else {
     println!("Something terrible happened");
   }

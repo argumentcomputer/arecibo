@@ -385,6 +385,7 @@ pub fn conditionally_select_alloc_relaxed_r1cs<
   Ok(c)
 }
 
+#[allow(dead_code)]
 /// c = cond ? a: b, where a, b: vec[AllocatedRelaxedR1CSInstance]
 pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
   G: Group,
