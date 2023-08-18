@@ -50,7 +50,7 @@ mod tests {
     // First create the shape
     let mut cs: ShapeCS<G> = ShapeCS::new();
     let _ = synthesize_alloc_bit(&mut cs);
-    let (shape, ck) = cs.r1cs_shape_with_commitmentkey();
+    let (shape, ck) = cs.r1cs_shape_and_key();
 
     // Now get the assignment
     let mut cs: SatisfyingAssignment<G> = SatisfyingAssignment::new();

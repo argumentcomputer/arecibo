@@ -123,7 +123,7 @@ where
     );
     let mut cs: ShapeCS<G1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_with_commitmentkey();
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key();
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, G1, C2> = NovaAugmentedCircuit::new(
@@ -134,7 +134,7 @@ where
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_with_commitmentkey();
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key();
 
     let mut pp = Self {
       F_arity_primary,

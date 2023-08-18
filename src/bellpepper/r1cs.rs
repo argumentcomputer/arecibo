@@ -25,7 +25,7 @@ pub trait NovaWitness<G: Group> {
 /// `NovaShape` provides methods for acquiring `R1CSShape` and `CommitmentKey` from implementers.
 pub trait NovaShape<G: Group> {
   /// Return an appropriate `R1CSShape` and `CommitmentKey` structs.
-  fn r1cs_shape_with_commitmentkey(&self) -> (R1CSShape<G>, CommitmentKey<G>) {
+  fn r1cs_shape_and_key(&self) -> (R1CSShape<G>, CommitmentKey<G>) {
     let S = self.r1cs_shape();
     let ck = R1CS::<G>::commitment_key(&S);
 
