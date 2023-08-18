@@ -1,36 +1,62 @@
 name: Build and Test Nova
 
 on:
+  merge_group:
   push:
-    branches: [ main ]
+    branches: [ dev ]
   pull_request:
-    branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [ dev ]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUST_BACKTRACE: short
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
     steps:
     - uses: actions/checkout@v2
-    - name: Install
-      run: rustup default stable
-    - name: Install rustfmt Components
-      run: rustup component add rustfmt
-    - name: Install clippy
-      run: rustup component add clippy
-    - name: Install Wasm target
-      run: rustup target add wasm32-unknown-unknown
-    - name: Build
-      run: cargo build --verbose
-    - name: Wasm build
-      run: cargo build --target wasm32-unknown-unknown
-    - name: Build examples
-      run: cargo build --examples --verbose
-    - name: Build benches
-      run: cargo build --benches --verbose
-    - name: Run tests
-      run: cargo +stable test --release --verbose
-    - name: Check Rustfmt Code Style
-      run: cargo fmt --all -- --check
-    - name: Check clippy warnings
-      run: cargo clippy --all-targets -- -D warnings
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+    - uses: taiki-e/install-action@nextest
+    - uses: Swatinem/rust-cache@v2
+    - name: Build, with benches & examples
+      run: cargo build --profile dev-ci --benches --examples 
+    - name: Linux Tests in parallel, with nextest profile ci and cargo profile dev-ci
+      run: |
+        cargo nextest run --profile ci --workspace --cargo-profile dev-ci
 
+  misc:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup target add wasm32-unknown-unknown
+      - name: Wasm build 
+        run: cargo build --target wasm32-unknown-unknown
+      - name: Check Rustfmt Code Style
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      - name: Check clippy warnings
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Doctests
+        run: cargo test --doc --workspace
