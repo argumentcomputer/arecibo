@@ -7,7 +7,7 @@ use ff::PrimeField;
 use nova_snark::{
   compute_digest,
   supernova::RecursiveSNARK,
-  supernova::{gen_commitmentkey_by_r1cs, PublicParams, RunningClaim},
+  supernova::{gen_commitment_key_by_r1cs, PublicParams, RunningClaim},
   traits::{
     circuit_supernova::{StepCircuit, TrivialTestCircuit},
     Group,
@@ -66,11 +66,11 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
     >::new(0, c_primary, c_secondary.clone(), 1);
 
     let (r1cs_shape_primary, r1cs_shape_secondary) = running_claim1.get_r1cs_shape();
-    let ck_primary = gen_commitmentkey_by_r1cs(r1cs_shape_primary);
-    let ck_secondary = gen_commitmentkey_by_r1cs(r1cs_shape_secondary);
+    let ck_primary = gen_commitment_key_by_r1cs(r1cs_shape_primary);
+    let ck_secondary = gen_commitment_key_by_r1cs(r1cs_shape_secondary);
 
     // set unified ck_primary, ck_secondary and update digest
-    running_claim1.set_commitmentkey(ck_primary.clone(), ck_secondary.clone());
+    running_claim1.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
     let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[running_claim1.get_publicparams()]);
 
     // Bench time to produce a recursive SNARK;
@@ -182,12 +182,12 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     >::new(1, c_primary, c_secondary.clone(), 2);
 
     let (r1cs_shape_primary, r1cs_shape_secondary) = running_claim1.get_r1cs_shape();
-    let ck_primary = gen_commitmentkey_by_r1cs(r1cs_shape_primary);
-    let ck_secondary = gen_commitmentkey_by_r1cs(r1cs_shape_secondary);
+    let ck_primary = gen_commitment_key_by_r1cs(r1cs_shape_primary);
+    let ck_secondary = gen_commitment_key_by_r1cs(r1cs_shape_secondary);
 
     // set unified ck_primary, ck_secondary and update digest
-    running_claim1.set_commitmentkey(ck_primary.clone(), ck_secondary.clone());
-    running_claim2.set_commitmentkey(ck_primary.clone(), ck_secondary.clone());
+    running_claim1.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
+    running_claim2.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
 
     let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[
       running_claim1.get_publicparams(),

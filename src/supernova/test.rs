@@ -339,9 +339,9 @@ where
     .unwrap();
 
   let ck_primary =
-    gen_commitmentkey_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_primary);
+    gen_commitment_key_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_primary);
   let ck_secondary =
-    gen_commitmentkey_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_secondary);
+    gen_commitment_key_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_secondary);
 
   // set unified ck_primary, ck_secondary and update digest
   running_claim1.params.ck_primary = Some(ck_primary.clone());
