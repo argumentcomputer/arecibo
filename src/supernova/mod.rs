@@ -219,7 +219,7 @@ where
   }
 
   /// get augmented_circuit_index
-  pub fn get_publicparams(&self) -> &PublicParams<G1, G2> {
+  pub fn get_public_params(&self) -> &PublicParams<G1, G2> {
     &self.params
   }
 }

@@ -351,8 +351,8 @@ where
   running_claim2.params.ck_secondary = Some(ck_secondary);
 
   let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[
-    running_claim1.get_publicparams(),
-    running_claim2.get_publicparams(),
+    running_claim1.get_public_params(),
+    running_claim2.get_public_params(),
   ]);
 
   let num_steps = rom.len();

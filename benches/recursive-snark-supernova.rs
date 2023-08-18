@@ -71,7 +71,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     // set unified ck_primary, ck_secondary and update digest
     running_claim1.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
-    let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[running_claim1.get_publicparams()]);
+    let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[running_claim1.get_public_params()]);
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -190,8 +190,8 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     running_claim2.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
 
     let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[
-      running_claim1.get_publicparams(),
-      running_claim2.get_publicparams(),
+      running_claim1.get_public_params(),
+      running_claim2.get_public_params(),
     ]);
 
     // Bench time to produce a recursive SNARK;
