@@ -142,6 +142,7 @@ where
   E::G1: Group,
 {
   fn to_transcript_bytes(&self) -> Vec<u8> {
+    // TODO: avoid the round-trip through the group
     E::G1::from(self.0).compress().to_transcript_bytes()
   }
 }

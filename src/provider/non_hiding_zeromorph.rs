@@ -3,7 +3,8 @@
 //!
 
 use ff::{BatchInvert, Field};
-use pairing::{Engine, MultiMillerLoop};
+use group::{Curve, Group as _};
+use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
@@ -225,16 +226,54 @@ where
         q *= &scalar;
         f += &q;
       });
+    debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
 
     UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof.into(), eval.into()))
   }
 
+  /// Verifies that `value` is the evaluation at `x` of the polynomial
+  /// committed inside `comm`.
+  pub fn verify(
+    vk: &impl Borrow<ZMVerifierKey<E>>,
+    comm: &ZMCommitment<E>,
+    point: &[E::Fr],
+    proof: ZMProof<E>,
+    evaluation: ZMEvaluation<E>,
+    transcript: &mut impl TranscriptEngineTrait<E::G1>,
+  ) -> Result<bool, NovaError> {
+    let vk = vk.borrow();
+    let num_vars = point.len();
 
+    let q_comms = E::G1::from_label(b"quo", num_vars);
 
+    let y = transcript.squeeze(b"y")?;
+
+    let q_hat_comm = E::G1::from_label(b"q_hat", 1);
+
+    let x = transcript.squeeze(b"x")?;
+    let z = transcript.squeeze(b"z")?;
+
+    let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
+    let scalars = [vec![E::Fr::ONE, z, eval_scalar * evaluation.0], q_scalars].concat();
+    let bases = [vec![q_hat_comm[0], comm.0, vk.vp.g], q_comms].concat();
+    let c = <E::G1 as Group>::vartime_multiscalar_mul(&scalars, &bases).to_affine();
+
+    let pi = proof.proof;
+
+    let pairing_inputs = [
+      (&c, &(-vk.s_offset_h).into()),
+      (
+        &pi,
+        &(E::G2::from(vk.vp.beta_h) - (vk.vp.h * x))
+          .to_affine()
+          .into(),
+      ),
+    ];
+
+    let pairing_result = E::multi_miller_loop(&pairing_inputs).final_exponentiation();
+    Ok(pairing_result.is_identity().into())
+  }
 }
-
-
-
 
 // TODO : move this somewhere else
 fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>) {
