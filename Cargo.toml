@@ -37,6 +37,7 @@ group = "0.13.0"
 log = "0.4.17"
 abomonation = "0.7.3"
 abomonation_derive = { git = "https://github.com/lurk-lab/abomonation_derive.git" }
+tap = "1.0.1"
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
 pasta-msm = { git="https://github.com/lurk-lab/pasta-msm", branch="dev", version = "0.1.4" }

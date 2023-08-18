@@ -14,6 +14,7 @@ use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use core::marker::PhantomData;
 use ff::Field;
 use ff::PrimeField;
+use tap::TapOptional;
 
 use super::*;
 
@@ -250,7 +251,7 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
       let _ = circuit_primary.synthesize(&mut cs);
       cs.constraints
         .get(index)
-        .map(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
+        .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
     SuperNovaError::UnSatIndex(msg, index) if msg == "r_secondary" || msg == "l_secondary" => {
       let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, Cb> = SuperNovaAugmentedCircuit::new(
@@ -264,7 +265,7 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
       let _ = circuit_secondary.synthesize(&mut cs);
       cs.constraints
         .get(index)
-        .map(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
+        .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
     _ => (),
   }
@@ -413,20 +414,20 @@ where
     });
 
     if augmented_circuit_index == OPCODE_0 {
-      let _ = recursive_snark
+      recursive_snark
         .prove_step(&running_claim1, &z0_primary, &z0_secondary)
         .unwrap();
-      let _ = recursive_snark
+      recursive_snark
         .verify(&running_claim1, &z0_primary, &z0_secondary)
         .map_err(|err| {
           print_constraints_name_on_error_index(err, &running_claim1, num_augmented_circuit)
         })
         .unwrap();
     } else if augmented_circuit_index == OPCODE_1 {
-      let _ = recursive_snark
+      recursive_snark
         .prove_step(&running_claim2, &z0_primary, &z0_secondary)
         .unwrap();
-      let _ = recursive_snark
+      recursive_snark
         .verify(&running_claim2, &z0_primary, &z0_secondary)
         .map_err(|err| {
           print_constraints_name_on_error_index(err, &running_claim2, num_augmented_circuit)
