@@ -571,5 +571,5 @@ fn test_recursive_circuit() {
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::new();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::new();
 
-  test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9918, 12178);
+  test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9835, 12036);
 }
