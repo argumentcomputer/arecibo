@@ -201,7 +201,7 @@ where
   }
 
   /// set primary/secondary commitment key
-  pub fn set_commitmentkey(
+  pub fn set_commitment_key(
     &mut self,
     ck_primary: CommitmentKey<G1>,
     ck_secondary: CommitmentKey<G2>,
@@ -219,7 +219,7 @@ where
   }
 
   /// get augmented_circuit_index
-  pub fn get_publicparams(&self) -> &PublicParams<G1, G2> {
+  pub fn get_public_params(&self) -> &PublicParams<G1, G2> {
     &self.params
   }
 }
@@ -776,6 +776,6 @@ where
 }
 
 /// genenate commitmentkey by r1cs shape
-pub fn gen_commitmentkey_by_r1cs<G: Group>(shape: &R1CSShape<G>) -> CommitmentKey<G> {
+pub fn gen_commitment_key_by_r1cs<G: Group>(shape: &R1CSShape<G>) -> CommitmentKey<G> {
   R1CS::<G>::commitment_key(shape)
 }

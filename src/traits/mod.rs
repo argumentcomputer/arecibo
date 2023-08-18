@@ -245,7 +245,6 @@ impl<G: Group, T: TranscriptReprTrait<G>> TranscriptReprTrait<G> for &[T] {
 }
 
 pub mod circuit;
-#[cfg(feature = "supernova")]
 pub mod circuit_supernova;
 pub mod evaluation;
 pub mod snark;

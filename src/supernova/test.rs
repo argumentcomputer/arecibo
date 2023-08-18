@@ -14,6 +14,7 @@ use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use core::marker::PhantomData;
 use ff::Field;
 use ff::PrimeField;
+use tap::TapOptional;
 
 use super::*;
 
@@ -250,7 +251,7 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
       let _ = circuit_primary.synthesize(&mut cs);
       cs.constraints
         .get(index)
-        .map(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
+        .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
     SuperNovaError::UnSatIndex(msg, index) if msg == "r_secondary" || msg == "l_secondary" => {
       let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, Cb> = SuperNovaAugmentedCircuit::new(
@@ -264,7 +265,7 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
       let _ = circuit_secondary.synthesize(&mut cs);
       cs.constraints
         .get(index)
-        .map(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
+        .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
     _ => (),
   }
@@ -339,9 +340,9 @@ where
     .unwrap();
 
   let ck_primary =
-    gen_commitmentkey_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_primary);
+    gen_commitment_key_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_primary);
   let ck_secondary =
-    gen_commitmentkey_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_secondary);
+    gen_commitment_key_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_secondary);
 
   // set unified ck_primary, ck_secondary and update digest
   running_claim1.params.ck_primary = Some(ck_primary.clone());
@@ -351,8 +352,8 @@ where
   running_claim2.params.ck_secondary = Some(ck_secondary);
 
   let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[
-    running_claim1.get_publicparams(),
-    running_claim2.get_publicparams(),
+    running_claim1.get_public_params(),
+    running_claim2.get_public_params(),
   ]);
 
   let num_steps = rom.len();
@@ -413,20 +414,20 @@ where
     });
 
     if augmented_circuit_index == OPCODE_0 {
-      let _ = recursive_snark
+      recursive_snark
         .prove_step(&running_claim1, &z0_primary, &z0_secondary)
         .unwrap();
-      let _ = recursive_snark
+      recursive_snark
         .verify(&running_claim1, &z0_primary, &z0_secondary)
         .map_err(|err| {
           print_constraints_name_on_error_index(err, &running_claim1, num_augmented_circuit)
         })
         .unwrap();
     } else if augmented_circuit_index == OPCODE_1 {
-      let _ = recursive_snark
+      recursive_snark
         .prove_step(&running_claim2, &z0_primary, &z0_secondary)
         .unwrap();
-      let _ = recursive_snark
+      recursive_snark
         .verify(&running_claim2, &z0_primary, &z0_secondary)
         .map_err(|err| {
           print_constraints_name_on_error_index(err, &running_claim2, num_augmented_circuit)
@@ -483,7 +484,7 @@ fn test_recursive_circuit_with<G1, G2>(
   if let Err(e) = circuit1.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape1, ck1) = cs.r1cs_shape_with_commitmentkey();
+  let (shape1, ck1) = cs.r1cs_shape_and_key();
   assert_eq!(cs.num_constraints(), num_constraints_primary);
 
   // Initialize the shape and ck for the secondary
@@ -501,7 +502,7 @@ fn test_recursive_circuit_with<G1, G2>(
   if let Err(e) = circuit2.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape2, ck2) = cs.r1cs_shape_with_commitmentkey();
+  let (shape2, ck2) = cs.r1cs_shape_and_key();
   assert_eq!(cs.num_constraints(), num_constraints_secondary);
 
   // Execute the base case for the primary
@@ -570,5 +571,5 @@ fn test_recursive_circuit() {
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::new();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::new();
 
-  test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9918, 12178);
+  test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9835, 12036);
 }
