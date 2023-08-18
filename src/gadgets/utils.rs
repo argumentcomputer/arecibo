@@ -72,6 +72,26 @@ pub fn alloc_one<F: PrimeField, CS: ConstraintSystem<F>>(
   Ok(one)
 }
 
+#[allow(dead_code)]
+/// alloc a field as a constant
+/// implemented refer from https://github.com/lurk-lab/lurk-rs/blob/4335fbb3290ed1a1176e29428f7daacb47f8033d/src/circuit/gadgets/data.rs#L387-L402
+pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  val: F,
+) -> Result<AllocatedNum<F>, SynthesisError> {
+  let allocated = AllocatedNum::<F>::alloc(cs.namespace(|| "allocate const"), || Ok(val))?;
+
+  // allocated * 1 = val
+  cs.enforce(
+    || "enforce constant",
+    |lc| lc + allocated.get_variable(),
+    |lc| lc + CS::one(),
+    |_| Boolean::Constant(true).lc(CS::one(), val),
+  );
+
+  Ok(allocated)
+}
+
 /// Allocate a scalar as a base. Only to be used is the scalar fits in base!
 pub fn alloc_scalar_as_base<G, CS>(
   mut cs: CS,
@@ -428,5 +448,24 @@ pub fn select_num_or_one<F: PrimeField, CS: ConstraintSystem<F>>(
     |lc| lc + c.get_variable() - CS::one(),
   );
 
+  Ok(c)
+}
+
+#[allow(dead_code)]
+/// c = a + b where a, b is AllocatedNum
+pub fn add_allocated_num<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError> {
+  let c = AllocatedNum::alloc(cs.namespace(|| "c"), || {
+    Ok(*a.get_value().get()? + b.get_value().get()?)
+  })?;
+  cs.enforce(
+    || "Check u_fold",
+    |lc| lc + a.get_variable() + b.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + c.get_variable(),
+  );
   Ok(c)
 }

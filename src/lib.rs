@@ -25,6 +25,9 @@ pub mod provider;
 pub mod spartan;
 pub mod traits;
 
+#[cfg(feature = "supernova")]
+pub mod supernova;
+
 use crate::bellpepper::{
   r1cs::{NovaShape, NovaWitness},
   shape_cs::ShapeCS,
@@ -120,7 +123,7 @@ where
     );
     let mut cs: ShapeCS<G1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape();
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_with_commitmentkey();
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, G1, C2> = NovaAugmentedCircuit::new(
@@ -131,7 +134,7 @@ where
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape();
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_with_commitmentkey();
 
     let mut pp = Self {
       F_arity_primary,
@@ -152,7 +155,7 @@ where
     };
 
     // set the digest in pp
-    pp.digest = compute_digest::<G1, PublicParams<G1, G2, C1, C2>>(&pp);
+    pp.digest = compute_digest::<G1, PublicParams<G1, G2, C1, C2>>(&[&pp]);
 
     pp
   }
@@ -324,7 +327,7 @@ where
       return Err(NovaError::InvalidInitialInputLength);
     }
 
-    // Frist step was already done in the constructor
+    // First step was already done in the constructor
     if self.i == 0 {
       self.i = 1;
       return Ok(());
@@ -812,9 +815,12 @@ type Commitment<G> = <<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment;
 type CompressedCommitment<G> = <<<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment as CommitmentTrait<G>>::CompressedCommitment;
 type CE<G> = <G as Group>::CE;
 
-fn compute_digest<G: Group, T: Serialize>(o: &T) -> G::Scalar {
+/// compute digest giving a collection of Serialize object
+pub fn compute_digest<G: Group, T: Serialize>(o: &[&T]) -> G::Scalar {
   // obtain a vector of bytes representing public parameters
-  let bytes = bincode::serialize(o).unwrap();
+  let mut bytes = vec![];
+  o.iter()
+    .for_each(|o| bytes.extend(bincode::serialize(*o).unwrap()));
   // convert pp_bytes into a short digest
   let mut hasher = Sha3_256::new();
   hasher.update(&bytes);

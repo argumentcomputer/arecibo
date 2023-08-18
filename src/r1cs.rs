@@ -198,19 +198,23 @@ impl<G: Group> R1CSShape<G> {
     assert_eq!(U.X.len(), self.num_io);
 
     // verify if Az * Bz = u*Cz + E
-    let res_eq: bool = {
+    let res_eq: Result<(), NovaError> = {
       let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
       let (Az, Bz, Cz) = self.multiply_vec(&z)?;
       assert_eq!(Az.len(), self.num_cons);
       assert_eq!(Bz.len(), self.num_cons);
       assert_eq!(Cz.len(), self.num_cons);
 
-      let res: usize = (0..self.num_cons)
-        .map(|i| usize::from(Az[i] * Bz[i] != U.u * Cz[i] + W.E[i]))
-        .sum();
-
-      res == 0
+      (0..self.num_cons).try_for_each(|i| {
+        if Az[i] * Bz[i] != U.u * Cz[i] + W.E[i] {
+          // constraint failed
+          Err(NovaError::UnSatIndex(i))
+        } else {
+          Ok(())
+        }
+      })
     };
+    res_eq?;
 
     // verify if comm_E and comm_W are commitments to E and W
     let res_comm: bool = {
@@ -219,11 +223,10 @@ impl<G: Group> R1CSShape<G> {
       U.comm_W == comm_W && U.comm_E == comm_E
     };
 
-    if res_eq && res_comm {
-      Ok(())
-    } else {
-      Err(NovaError::UnSat)
+    if !res_comm {
+      return Err(NovaError::UnSat);
     }
+    Ok(())
   }
 
   /// Checks if the R1CS instance is satisfiable given a witness and its shape
@@ -237,28 +240,30 @@ impl<G: Group> R1CSShape<G> {
     assert_eq!(U.X.len(), self.num_io);
 
     // verify if Az * Bz = u*Cz
-    let res_eq: bool = {
+    let res_eq: Result<(), NovaError> = {
       let z = [W.W.clone(), vec![G::Scalar::ONE], U.X.clone()].concat();
       let (Az, Bz, Cz) = self.multiply_vec(&z)?;
       assert_eq!(Az.len(), self.num_cons);
       assert_eq!(Bz.len(), self.num_cons);
       assert_eq!(Cz.len(), self.num_cons);
 
-      let res: usize = (0..self.num_cons)
-        .map(|i| usize::from(Az[i] * Bz[i] != Cz[i]))
-        .sum();
-
-      res == 0
+      (0..self.num_cons).try_for_each(|i| {
+        if Az[i] * Bz[i] != Cz[i] {
+          // constraint failed, retrieve constaint name
+          Err(NovaError::UnSatIndex(i))
+        } else {
+          Ok(())
+        }
+      })
     };
+    res_eq?;
 
     // verify if comm_W is a commitment to W
     let res_comm: bool = U.comm_W == CE::<G>::commit(ck, &W.W);
-
-    if res_eq && res_comm {
-      Ok(())
-    } else {
-      Err(NovaError::UnSat)
+    if !res_comm {
+      return Err(NovaError::UnSat);
     }
+    Ok(())
   }
 
   /// A method to compute a commitment to the cross-term `T` given a

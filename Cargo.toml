@@ -34,6 +34,7 @@ byteorder = "1.4.3"
 thiserror = "1.0"
 halo2curves = { version = "0.4.0", features = ["derive_serde"] }
 group = "0.13.0"
+log = "0.4.17"
 abomonation = "0.7.3"
 abomonation_derive = { git = "https://github.com/winston-h-zhang/abomonation_derive.git" }
 
@@ -70,6 +71,11 @@ harness = false
 name = "sha256"
 harness = false
 
+[[bench]]
+name = "recursive-snark-supernova"
+harness = false
+required-features = ["supernova"]
+
 [features]
 default = []
 # Compiles in portable mode, w/o ISA extensions => binary can be executed on all systems.
@@ -77,6 +83,7 @@ portable = ["pasta-msm/portable"]
 cuda = ["neptune/cuda", "neptune/pasta", "neptune/arity24"]
 opencl = ["neptune/opencl", "neptune/pasta", "neptune/arity24"]
 flamegraph = ["pprof/flamegraph", "pprof/criterion"]
+supernova = []
 
 # This is needed to ensure halo2curves, which imports pasta-curves, uses the *same* traits in bn256_grumpkin
 [patch.crates-io]

@@ -876,7 +876,7 @@ where
         vk_ee,
         digest: G::Scalar::ZERO,
       };
-      vk.digest = compute_digest::<G, VerifierKey<G, EE>>(&vk);
+      vk.digest = compute_digest::<G, VerifierKey<G, EE>>(&[&vk]);
       vk
     };
 
