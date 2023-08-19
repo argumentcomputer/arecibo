@@ -124,9 +124,12 @@ pub trait AbsorbInROTrait<G: Group> {
 }
 
 /// A helper trait that defines the behavior of a hash function that we use as an RO
-pub trait ROTrait<Base, Scalar> {
+pub trait ROTrait<Base: PrimeField, Scalar> {
+  /// The circuit alter ego of this trait impl - this constrains it to use the same constants
+  type CircuitRO: ROCircuitTrait<Base, Constants = Self::Constants>;
+
   /// A type representing constants/parameters associated with the hash function
-  type Constants: ROConstantsTrait<Base>
+  type Constants: Default
     + Clone
     + PartialEq
     + Send
@@ -147,8 +150,11 @@ pub trait ROTrait<Base, Scalar> {
 
 /// A helper trait that defines the behavior of a hash function that we use as an RO in the circuit model
 pub trait ROCircuitTrait<Base: PrimeField> {
-  /// A type representing constants/parameters associated with the hash function
-  type Constants: ROConstantsTrait<Base>
+  /// the vanilla alter ego of this trait - this constrains it to use the same constants
+  type VanillaRO<T: PrimeField>: ROTrait<Base, T, Constants = Self::Constants>;
+
+  /// A type representing constants/parameters associated with the hash function on this Base field
+  type Constants: Default
     + Clone
     + PartialEq
     + Send
@@ -167,12 +173,6 @@ pub trait ROCircuitTrait<Base: PrimeField> {
   fn squeeze<CS>(&mut self, cs: CS, num_bits: usize) -> Result<Vec<AllocatedBit>, SynthesisError>
   where
     CS: ConstraintSystem<Base>;
-}
-
-/// A helper trait that defines the constants associated with a hash function
-pub trait ROConstantsTrait<Base> {
-  /// produces constants/parameters associated with the hash function
-  fn new() -> Self;
 }
 
 /// An alias for constants associated with `G::RO`
