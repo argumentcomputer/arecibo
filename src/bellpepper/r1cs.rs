@@ -5,7 +5,7 @@
 use super::{shape_cs::ShapeCS, solver::SatisfyingAssignment, test_shape_cs::TestShapeCS};
 use crate::{
   errors::NovaError,
-  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, R1CS},
+  r1cs::{CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, R1CS},
   traits::Group,
   CommitmentKey,
 };
@@ -25,9 +25,15 @@ pub trait NovaWitness<G: Group> {
 /// `NovaShape` provides methods for acquiring `R1CSShape` and `CommitmentKey` from implementers.
 pub trait NovaShape<G: Group> {
   /// Return an appropriate `R1CSShape` and `CommitmentKey` structs.
-  fn r1cs_shape_and_key(&self) -> (R1CSShape<G>, CommitmentKey<G>) {
+  /// Optionally, a `CommitmentKeyHint` can be provided to help guide the
+  /// construction of the `CommitmentKey`. This parameter is documented in
+  /// `r1cs::R1CS::commitment_key`.
+  fn r1cs_shape_and_key(
+    &self,
+    optfn: Option<CommitmentKeyHint<G>>,
+  ) -> (R1CSShape<G>, CommitmentKey<G>) {
     let S = self.r1cs_shape();
-    let ck = R1CS::<G>::commitment_key(&S);
+    let ck = R1CS::<G>::commitment_key(&S, optfn);
 
     (S, ck)
   }

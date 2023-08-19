@@ -74,10 +74,19 @@ pub trait CommitmentTrait<G: Group>:
   fn decompress(c: &Self::CompressedCommitment) -> Result<Self, NovaError>;
 }
 
+/// A trait that helps determine the lenght of a structure.
+/// Note this does not impose any memory representation contraints on the structure.
+pub trait Len {
+  /// Returns the length of the structure.
+  fn length(&self) -> usize;
+}
+
 /// A trait that ties different pieces of the commitment generation together
 pub trait CommitmentEngineTrait<G: Group>: Clone + Send + Sync {
   /// Holds the type of the commitment key
-  type CommitmentKey: Clone
+  /// The key should quantify its length in terms of group generators.
+  type CommitmentKey: Len
+    + Clone
     + PartialEq
     + Debug
     + Send

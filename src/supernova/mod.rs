@@ -6,7 +6,10 @@ use crate::{
   bellpepper::shape_cs::ShapeCS,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   errors::NovaError,
-  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness, R1CS},
+  r1cs::{
+    CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
+    RelaxedR1CSWitness, R1CS,
+  },
   scalar_as_base,
   traits::{
     circuit_supernova::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Group,
@@ -775,7 +778,29 @@ where
   }
 }
 
-/// genenate commitmentkey by r1cs shape
-pub fn gen_commitment_key_by_r1cs<G: Group>(shape: &R1CSShape<G>) -> CommitmentKey<G> {
-  R1CS::<G>::commitment_key(shape)
+/// Generates public parameters (a `CommitmentKey`) for a Rank-1 Constraint System (R1CS) circuit,
+/// appropriate for use with a particular SNARK protocol.
+///
+/// To generate a commitment key that is tailored to a specific R1CS circuit and SNARK protocol,
+/// this function considers the 'shape' of the R1CS circuit (provided via the `R1CSShape` parameter `shape`)
+/// and optionally specific requirements of the SNARK protocol’s methodology.
+///
+/// # Arguments
+///
+/// * `shape`: The shape of the R1CS matrices, which is essential to understanding the structure of the
+///   R1CS circuit for which the `CommitmentKey` is being generated.
+///
+/// * `optfn`: An optional parameter that encapsulates specific requirements of the
+///   SNARK protocol's methodology. For "classical" SNARKs with no special needs, this can be `None`.
+///   For specific SNARKs, like Spartan with computational commitments, a particular value should be
+///   passed here. This value is typically provided in the SNARK's trait or implementation details.
+///
+/// # Returns
+///
+/// A `CommitmentKey` tailored to the given R1CS circuit shape and SNARK protocol specifics.
+pub fn gen_commitment_key_by_r1cs<G: Group>(
+  shape: &R1CSShape<G>,
+  optfn: Option<CommitmentKeyHint<G>>,
+) -> CommitmentKey<G> {
+  R1CS::<G>::commitment_key(shape, optfn)
 }

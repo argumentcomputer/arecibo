@@ -339,10 +339,14 @@ where
     .max_by(|(_, circuit_size1), (_, circuit_size2)| circuit_size1.cmp(circuit_size2))
     .unwrap();
 
-  let ck_primary =
-    gen_commitment_key_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_primary);
-  let ck_secondary =
-    gen_commitment_key_by_r1cs(&circuit_public_params[max_index_circuit].r1cs_shape_secondary);
+  let ck_primary = gen_commitment_key_by_r1cs(
+    &circuit_public_params[max_index_circuit].r1cs_shape_primary,
+    None,
+  );
+  let ck_secondary = gen_commitment_key_by_r1cs(
+    &circuit_public_params[max_index_circuit].r1cs_shape_secondary,
+    None,
+  );
 
   // set unified ck_primary, ck_secondary and update digest
   running_claim1.params.ck_primary = Some(ck_primary.clone());
@@ -484,7 +488,7 @@ fn test_recursive_circuit_with<G1, G2>(
   if let Err(e) = circuit1.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape1, ck1) = cs.r1cs_shape_and_key();
+  let (shape1, ck1) = cs.r1cs_shape_and_key(None);
   assert_eq!(cs.num_constraints(), num_constraints_primary);
 
   // Initialize the shape and ck for the secondary
@@ -502,7 +506,7 @@ fn test_recursive_circuit_with<G1, G2>(
   if let Err(e) = circuit2.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape2, ck2) = cs.r1cs_shape_and_key();
+  let (shape2, ck2) = cs.r1cs_shape_and_key(None);
   assert_eq!(cs.num_constraints(), num_constraints_secondary);
 
   // Execute the base case for the primary
