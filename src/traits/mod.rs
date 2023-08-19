@@ -21,7 +21,6 @@ pub trait Group:
   + Copy
   + Debug
   + Eq
-  + Sized
   + GroupOps
   + GroupOpsOwned
   + ScalarMul<<Self as Group>::Scalar>
@@ -102,7 +101,6 @@ pub trait CompressedGroup:
   + Copy
   + Debug
   + Eq
-  + Sized
   + Send
   + Sync
   + TranscriptReprTrait<Self::GroupElement>
