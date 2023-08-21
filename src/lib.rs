@@ -1035,7 +1035,7 @@ mod tests {
 
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &trivial_circuit1_secp,
-      &trivial_circuit2_secp.clone(),
+      &trivial_circuit2_secp,
       "b99760668a42354643e17b2f0a2d54f173d237eb213e7e758b20a88b4c653c01",
     );
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(

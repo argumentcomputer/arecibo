@@ -483,9 +483,9 @@ mod tests {
     let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<provider::secp_secq::secq256k1::Point> =
-      PoseidonConstantsCircuit::new();
+      PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<provider::secp_secq::secp256k1::Point> =
-      PoseidonConstantsCircuit::new();
+      PoseidonConstantsCircuit::default();
 
     test_recursive_circuit_with::<
       provider::secp_secq::secp256k1::Point,
