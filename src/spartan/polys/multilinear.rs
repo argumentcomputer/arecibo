@@ -5,10 +5,8 @@
 use std::ops::{Add, Index};
 
 use ff::PrimeField;
-use rayon::prelude::{
-  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-  IntoParallelRefMutIterator, ParallelIterator,
-};
+use rand_core::{CryptoRng, RngCore};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::spartan::{math::Math, polys::eq::EqPolynomial};
@@ -62,6 +60,16 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   /// This method returns true if the polynomial has no evaluations, and false otherwise.
   pub fn is_empty(&self) -> bool {
     self.Z.is_empty()
+  }
+
+  /// Returns a random polynomial
+  ///
+  pub fn random<R: RngCore + CryptoRng>(num_vars: usize, mut rng: &mut R) -> Self {
+    MultilinearPolynomial::new(
+      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
+        .take(1 << num_vars)
+        .collect(),
+    )
   }
 
   /// Bounds the polynomial's top variable using the given scalar.
