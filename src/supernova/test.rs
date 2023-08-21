@@ -331,16 +331,12 @@ where
   );
 
   // generate the commitkey based on max num of constraints and reused it for all other augmented circuit
-  let circuit_public_params = vec![&running_claim1.params, &running_claim2.params];
-
-  let (ck_primary, ck_secondary) = compute_commitment_keys(&circuit_public_params);
+  let (ck_primary, ck_secondary) =
+    compute_commitment_keys(&[&running_claim1.params, &running_claim2.params]);
 
   // set unified ck_primary, ck_secondary and update digest
-  running_claim1.params.ck_primary = Some(ck_primary.clone());
-  running_claim1.params.ck_secondary = Some(ck_secondary.clone());
-
-  running_claim2.params.ck_primary = Some(ck_primary);
-  running_claim2.params.ck_secondary = Some(ck_secondary);
+  running_claim1.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
+  running_claim2.set_commitment_key(ck_primary, ck_secondary);
 
   let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[
     running_claim1.get_public_params(),
