@@ -170,7 +170,7 @@ impl<Scalar: PrimeField> AddAssign<&Self> for UniPoly<Scalar> {
     for (lhs, rhs) in self.coeffs.iter_mut().zip(&rhs.coeffs) {
       *lhs += rhs;
     }
-    if matches!(ordering, Ordering::Greater) || matches!(ordering, Ordering::Equal) {
+    if matches!(ordering, Ordering::Less) {
       self
         .coeffs
         .extend(rhs.coeffs[self.coeffs.len()..].iter().cloned());
