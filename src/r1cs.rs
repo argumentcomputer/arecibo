@@ -332,7 +332,7 @@ impl<G: Group> R1CSShape<G> {
     Ok((T, comm_T))
   }
 
-  /// Pads the R1CSShape so that the number of variables is a power of two
+  /// Pads the `R1CSShape` so that the number of variables is a power of two
   /// Renumbers variables to accomodate padded variables
   pub fn pad(&self) -> Self {
     // equalize the number of variables and constraints
@@ -434,7 +434,7 @@ impl<G: Group> AbsorbInROTrait<G> for R1CSInstance<G> {
 }
 
 impl<G: Group> RelaxedR1CSWitness<G> {
-  /// Produces a default RelaxedR1CSWitness given an R1CSShape
+  /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
   pub fn default(S: &R1CSShape<G>) -> RelaxedR1CSWitness<G> {
     RelaxedR1CSWitness {
       W: vec![G::Scalar::ZERO; S.num_vars],
@@ -442,7 +442,7 @@ impl<G: Group> RelaxedR1CSWitness<G> {
     }
   }
 
-  /// Initializes a new RelaxedR1CSWitness from an R1CSWitness
+  /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
   pub fn from_r1cs_witness(S: &R1CSShape<G>, witness: &R1CSWitness<G>) -> RelaxedR1CSWitness<G> {
     RelaxedR1CSWitness {
       W: witness.W.clone(),
@@ -455,7 +455,7 @@ impl<G: Group> RelaxedR1CSWitness<G> {
     (CE::<G>::commit(ck, &self.W), CE::<G>::commit(ck, &self.E))
   }
 
-  /// Folds an incoming R1CSWitness into the current one
+  /// Folds an incoming `R1CSWitness` into the current one
   pub fn fold(
     &self,
     W2: &R1CSWitness<G>,
@@ -501,7 +501,7 @@ impl<G: Group> RelaxedR1CSWitness<G> {
 }
 
 impl<G: Group> RelaxedR1CSInstance<G> {
-  /// Produces a default RelaxedR1CSInstance given R1CSGens and R1CSShape
+  /// Produces a default `RelaxedR1CSInstance` given `R1CSGens` and `R1CSShape`
   pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> RelaxedR1CSInstance<G> {
     let (comm_W, comm_E) = (Commitment::<G>::default(), Commitment::<G>::default());
     RelaxedR1CSInstance {
@@ -512,7 +512,7 @@ impl<G: Group> RelaxedR1CSInstance<G> {
     }
   }
 
-  /// Initializes a new RelaxedR1CSInstance from an R1CSInstance
+  /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance(
     ck: &CommitmentKey<G>,
     S: &R1CSShape<G>,
@@ -525,7 +525,7 @@ impl<G: Group> RelaxedR1CSInstance<G> {
     r_instance
   }
 
-  /// Initializes a new RelaxedR1CSInstance from an R1CSInstance
+  /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance_unchecked(
     comm_W: &Commitment<G>,
     X: &[G::Scalar],
@@ -538,7 +538,7 @@ impl<G: Group> RelaxedR1CSInstance<G> {
     }
   }
 
-  /// Folds an incoming RelaxedR1CSInstance into the current one
+  /// Folds an incoming `RelaxedR1CSInstance` into the current one
   pub fn fold(
     &self,
     U2: &R1CSInstance<G>,
