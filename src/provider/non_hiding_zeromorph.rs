@@ -276,11 +276,12 @@ where
 }
 
 // TODO : move this somewhere else
+// TODO: remove the transitory allocations
 fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>) {
   let num_vars = u.len();
 
   let squares_of_x = iter::successors(Some(x), |&x| Some(x.square()))
-    .take(num_vars)
+    .take(num_vars + 1)
     .collect::<Vec<_>>();
   let offsets_of_x = {
     let mut offsets_of_x = squares_of_x
@@ -321,4 +322,96 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
     .collect::<Vec<_>>();
 
   (-vs[0] * z, q_scalars)
+}
+
+#[cfg(test)]
+mod test {
+
+  use std::iter;
+
+  use ff::FromUniformBytes;
+  use halo2curves::bn256::Bn256;
+  use pairing::MultiMillerLoop;
+  use rand::{thread_rng, Rng};
+  use rand_chacha::ChaCha20Rng;
+  use rand_core::SeedableRng;
+
+  use crate::{
+    provider::{
+      bn256_grumpkin::bn256,
+      keccak::Keccak256Transcript,
+      non_hiding_kzg::UVUniversalKZGParam,
+      non_hiding_zeromorph::{trim, ZMPCS},
+    },
+    spartan::polynomial::MultilinearPolynomial,
+    traits::{Group, TranscriptEngineTrait},
+  };
+
+  fn commit_open_verify_with<E: MultiMillerLoop>()
+  where
+    E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  {
+    for num_vars in 3..16 {
+      // Setup
+      let (pp, vk) = {
+        let mut rng = thread_rng();
+        let poly_size = 1 << (num_vars + 1);
+        let param = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, poly_size);
+        trim(&param, poly_size)
+      };
+
+      // Commit and open
+      let mut transcript = Keccak256Transcript::<E::G1>::new(b"test");
+      let poly = MultilinearPolynomial::<E::Fr>::random(num_vars, &mut thread_rng());
+      let comm = ZMPCS::commit(&pp, &poly).unwrap();
+      let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
+        .take(num_vars)
+        .collect::<Vec<_>>();
+      let eval_pre = poly.evaluate(point.as_slice());
+
+      let (proof, eval) = ZMPCS::open(&pp, &poly, &comm, &point, &mut transcript).unwrap();
+      assert_eq!(eval_pre, eval.0);
+
+      // Verify
+
+      let mut transcript = Keccak256Transcript::new(b"test");
+      let result = ZMPCS::verify(&vk, &comm, point.as_slice(), proof, eval, &mut transcript);
+
+      assert_eq!(result, Ok(true));
+    }
+  }
+
+  #[test]
+  fn test_commit_open_verify() {
+    commit_open_verify_with::<Bn256>();
+  }
+
+  #[test]
+  fn test_quo() {
+    let num_vars = 10;
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+    let poly = MultilinearPolynomial::random(num_vars, &mut rng);
+
+    let point: Vec<_> = std::iter::from_fn(|| {
+      let mut bytes = [0u8; 64];
+      rng.fill(&mut bytes);
+      bn256::Scalar::from_uniform_bytes(&bytes).into()
+    })
+    .take(num_vars)
+    .collect();
+
+    for scalar in point.iter() {
+      println!("scalar: {:?}", scalar);
+    }
+    let (_quotients, remainder) = poly.quotients(&point);
+    assert_eq!(
+      poly.evaluate(&point),
+      remainder,
+      "poly: {:?}, \n point: {:?}, \n eval: {:?}, remainder:{:?}",
+      poly,
+      point,
+      poly.evaluate(&point),
+      remainder
+    );
+  }
 }
