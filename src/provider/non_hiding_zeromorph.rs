@@ -167,8 +167,10 @@ where
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
     let eval = poly.evaluate(point);
 
-    let (quotients, remainder) = poly.quotients(point);
-    debug_assert_eq!(remainder, eval);
+    let (quotients, _remainder) = poly.quotients(point);
+    // TODO: see test_quo below
+    // debug_assert_eq!(remainder, eval);
+
     // TODO: this should be a Cow
     let quotients_polys = quotients
       .iter()
@@ -386,6 +388,7 @@ mod test {
     commit_open_verify_with::<Bn256>();
   }
 
+  #[ignore]
   #[test]
   fn test_quo() {
     let num_vars = 10;
@@ -404,6 +407,9 @@ mod test {
       println!("scalar: {:?}", scalar);
     }
     let (_quotients, remainder) = poly.quotients(&point);
+    // TODO: the evaluation this is meant to compare to is that of the underlying univ. poly, see Lemma 2.3.1
+    // whith is not what poly.evaluate(point) returns.
+    // debug_assert_eq!(remainder, eval);
     assert_eq!(
       poly.evaluate(&point),
       remainder,
