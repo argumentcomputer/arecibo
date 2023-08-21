@@ -7,7 +7,7 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, Parall
 ///
 /// The polynomial is defined by the formula:
 /// $$
-/// \tilde{eq}(x, e) = \prod_{i=0}^m(e_i * x_i + (1 - e_i) * (1 - x_i))
+/// \tilde{eq}(x, e) = \prod_{i=1}^m(e_i * x_i + (1 - e_i) * (1 - x_i))
 /// $$
 ///
 /// Each element in the vector `r` corresponds to a component $e_i$, representing a bit from the binary representation of an input value $e$.
