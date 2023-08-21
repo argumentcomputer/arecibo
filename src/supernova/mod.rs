@@ -6,10 +6,7 @@ use crate::{
   bellpepper::shape_cs::ShapeCS,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   errors::NovaError,
-  r1cs::{
-    CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
-    RelaxedR1CSWitness, R1CS,
-  },
+  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness, R1CS},
   scalar_as_base,
   traits::{
     circuit_supernova::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Group,
@@ -778,29 +775,35 @@ where
   }
 }
 
-/// Generates public parameters (a `CommitmentKey`) for a Rank-1 Constraint System (R1CS) circuit,
-/// appropriate for use with a particular SNARK protocol.
-///
-/// To generate a commitment key that is tailored to a specific R1CS circuit and SNARK protocol,
-/// this function considers the 'shape' of the R1CS circuit (provided via the `R1CSShape` parameter `shape`)
-/// and optionally specific requirements of the SNARK protocol’s methodology.
-///
-/// # Arguments
-///
-/// * `shape`: The shape of the R1CS matrices, which is essential to understanding the structure of the
-///   R1CS circuit for which the `CommitmentKey` is being generated.
-///
-/// * `optfn`: An optional parameter that encapsulates specific requirements of the
-///   SNARK protocol's methodology. For "classical" SNARKs with no special needs, this can be `None`.
-///   For specific SNARKs, like Spartan with computational commitments, a particular value should be
-///   passed here. This value is typically provided in the SNARK's trait or implementation details.
-///
-/// # Returns
-///
-/// A `CommitmentKey` tailored to the given R1CS circuit shape and SNARK protocol specifics.
-pub fn gen_commitment_key_by_r1cs<G: Group>(
-  shape: &R1CSShape<G>,
-  optfn: Option<CommitmentKeyHint<G>>,
-) -> CommitmentKey<G> {
-  R1CS::<G>::commitment_key(shape, optfn)
+/// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
+/// `PublicParams`.
+pub fn compute_commitment_keys<G1: Group, G2: Group>(
+  circuit_public_params: &[&PublicParams<G1, G2>],
+) -> (CommitmentKey<G1>, CommitmentKey<G2>)
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+{
+  macro_rules! max_shape {
+    ($shape_getter:ident) => {
+      circuit_public_params
+        .iter()
+        .map(|params| {
+          let shape = &params.$shape_getter;
+          let size = R1CS::commitment_key_size(&shape, None);
+          (shape, size)
+        })
+        .max_by(|a, b| a.1.cmp(&b.1))
+        .unwrap()
+        .0
+    };
+  }
+
+  let shape_primary = max_shape!(r1cs_shape_primary);
+  let shape_secondary = max_shape!(r1cs_shape_secondary);
+
+  let ck_primary = R1CS::<G1>::commitment_key(&shape_primary, None);
+  let ck_secondary = R1CS::<G2>::commitment_key(&shape_secondary, None);
+
+  (ck_primary, ck_secondary)
 }
