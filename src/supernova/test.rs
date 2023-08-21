@@ -18,9 +18,9 @@ use tap::TapOptional;
 
 use super::*;
 
-fn constraint_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
+fn constrain_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
-  pc_counter: &AllocatedNum<F>,
+  program_counter: &AllocatedNum<F>,
   rom: &[AllocatedNum<F>],
   circuit_index: &AllocatedNum<F>,
 ) -> Result<(), SynthesisError> {
@@ -37,7 +37,7 @@ fn constraint_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
       let equal_bit = Boolean::from(alloc_num_equals(
         cs.namespace(|| format!("rom_values {} equal bit", i)),
         &index_alloc,
-        pc_counter,
+        program_counter,
       )?);
       conditionally_select(
         cs.namespace(|| format!("rom_values {} conditionally_select ", i)),
@@ -95,7 +95,7 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc_counter: &AllocatedNum<F>,
+    program_counter: &AllocatedNum<F>,
     z: &[AllocatedNum<F>],
   ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
     // constrain rom[pc] equal to `self.circuit_index`
@@ -103,9 +103,9 @@ where
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
-    constraint_augmented_circuit_index(
+    constrain_augmented_circuit_index(
       cs.namespace(|| "CubicCircuit agumented circuit constraint"),
-      pc_counter,
+      program_counter,
       &z[1..],
       &circuit_index,
     )?;
@@ -114,7 +114,7 @@ where
     let pc_next = add_allocated_num(
       // pc = pc + 1
       cs.namespace(|| "pc = pc + 1".to_string()),
-      pc_counter,
+      program_counter,
       &one,
     )?;
 
@@ -178,7 +178,7 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc_counter: &AllocatedNum<F>,
+    program_counter: &AllocatedNum<F>,
     z: &[AllocatedNum<F>],
   ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
     // constrain rom[pc] equal to `self.circuit_index`
@@ -186,9 +186,9 @@ where
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
-    constraint_augmented_circuit_index(
+    constrain_augmented_circuit_index(
       cs.namespace(|| "SquareCircuit agumented circuit constraint"),
-      pc_counter,
+      program_counter,
       &z[1..],
       &circuit_index,
     )?;
@@ -196,7 +196,7 @@ where
     let pc_next = add_allocated_num(
       // pc = pc + 1
       cs.namespace(|| "pc = pc + 1"),
-      pc_counter,
+      program_counter,
       &one,
     )?;
 
