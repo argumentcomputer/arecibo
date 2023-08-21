@@ -13,7 +13,7 @@ use crate::{
   scalar_as_base,
   traits::{
     circuit_supernova::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Group,
-    ROConstants, ROConstantsCircuit, ROConstantsTrait, ROTrait,
+    ROConstants, ROConstantsCircuit, ROTrait,
   },
   Commitment, CommitmentKey,
 };
@@ -81,15 +81,15 @@ where
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
 
-    let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::new();
-    let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::new();
+    let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
+    let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
 
     let F_arity_primary = c_primary.arity();
     let F_arity_secondary = c_secondary.arity();
 
     // ro_consts_circuit_primary are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-    let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::new();
-    let ro_consts_circuit_secondary: ROConstantsCircuit<G1> = ROConstantsCircuit::<G1>::new();
+    let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
+    let ro_consts_circuit_secondary: ROConstantsCircuit<G1> = ROConstantsCircuit::<G1>::default();
 
     // Initialize ck for the primary
     let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(

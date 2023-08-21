@@ -572,8 +572,8 @@ fn test_recursive_circuit() {
   type G2 = pasta_curves::vesta::Point;
   let params1 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
   let params2 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
-  let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::new();
-  let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::new();
+  let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::default();
+  let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
   test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9835, 12036);
 }
