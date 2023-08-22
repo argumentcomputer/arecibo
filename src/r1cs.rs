@@ -73,6 +73,7 @@ pub struct RelaxedR1CSInstance<G: Group> {
   pub(crate) u: G::Scalar,
 }
 
+/// A type for functions that hints commitment key sizing by returning the floor of the number of required generators.
 pub type CommitmentKeyHint<G> = Box<dyn Fn(&R1CSShape<G>) -> usize>;
 
 impl<G: Group> R1CS<G> {
@@ -96,6 +97,7 @@ impl<G: Group> R1CS<G> {
     G::CE::setup(b"ck", size)
   }
 
+  /// Computes the number of generators required for the commitment key corresponding to shape `S`.
   pub fn commitment_key_size(
     S: &R1CSShape<G>,
     commitment_key_floor: Option<CommitmentKeyHint<G>>,
@@ -173,7 +175,7 @@ impl<G: Group> R1CSShape<G> {
     assert!(self.num_io < self.num_vars);
   }
 
-  pub fn multiply_vec(
+  pub(crate) fn multiply_vec(
     &self,
     z: &[G::Scalar],
   ) -> Result<(Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>), NovaError> {

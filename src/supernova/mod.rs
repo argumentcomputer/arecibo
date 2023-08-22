@@ -802,8 +802,8 @@ where
   let shape_primary = max_shape!(r1cs_shape_primary);
   let shape_secondary = max_shape!(r1cs_shape_secondary);
 
-  let ck_primary = R1CS::<G1>::commitment_key(&shape_primary, None);
-  let ck_secondary = R1CS::<G2>::commitment_key(&shape_secondary, None);
+  let ck_primary = R1CS::commitment_key(shape_primary, None);
+  let ck_secondary = R1CS::commitment_key(shape_secondary, None);
 
   (ck_primary, ck_secondary)
 }
