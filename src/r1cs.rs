@@ -73,6 +73,7 @@ pub struct RelaxedR1CSInstance<G: Group> {
   pub(crate) u: G::Scalar,
 }
 
+/// A type for functions that hints commitment key sizing by returning the floor of the number of required generators.
 pub type CommitmentKeyHint<G> = Box<dyn Fn(&R1CSShape<G>) -> usize>;
 
 impl<G: Group> R1CS<G> {
@@ -86,16 +87,25 @@ impl<G: Group> R1CS<G> {
   /// * `S`: The shape of the R1CS matrices.
   /// * `commitment_key_hint`: An optional function that provides a floor for the number of
   ///   generators. A good function to provide is the commitment_key_floor field in the trait `RelaxedR1CSSNARKTrait`.
-  ///   If no floot function is provided, the default number of generators will be max(S.num_cons, S.num_vars).
+  ///   If no floor function is provided, the default number of generators will be max(S.num_cons, S.num_vars).
   ///
   pub fn commitment_key(
     S: &R1CSShape<G>,
     commitment_key_floor: Option<CommitmentKeyHint<G>>,
   ) -> CommitmentKey<G> {
+    let size = Self::commitment_key_size(S, commitment_key_floor);
+    G::CE::setup(b"ck", size)
+  }
+
+  /// Computes the number of generators required for the commitment key corresponding to shape `S`.
+  pub fn commitment_key_size(
+    S: &R1CSShape<G>,
+    commitment_key_floor: Option<CommitmentKeyHint<G>>,
+  ) -> usize {
     let num_cons = S.num_cons;
     let num_vars = S.num_vars;
     let generators_hint = commitment_key_floor.map(|f| f(S)).unwrap_or(0);
-    G::CE::setup(b"ck", max(max(num_cons, num_vars), generators_hint))
+    max(max(num_cons, num_vars), generators_hint)
   }
 }
 
@@ -165,7 +175,7 @@ impl<G: Group> R1CSShape<G> {
     assert!(self.num_io < self.num_vars);
   }
 
-  pub fn multiply_vec(
+  pub(crate) fn multiply_vec(
     &self,
     z: &[G::Scalar],
   ) -> Result<(Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>), NovaError> {

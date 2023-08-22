@@ -18,9 +18,9 @@ use tap::TapOptional;
 
 use super::*;
 
-fn constraint_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
+fn constrain_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
-  pc_counter: &AllocatedNum<F>,
+  program_counter: &AllocatedNum<F>,
   rom: &[AllocatedNum<F>],
   circuit_index: &AllocatedNum<F>,
 ) -> Result<(), SynthesisError> {
@@ -37,7 +37,7 @@ fn constraint_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
       let equal_bit = Boolean::from(alloc_num_equals(
         cs.namespace(|| format!("rom_values {} equal bit", i)),
         &index_alloc,
-        pc_counter,
+        program_counter,
       )?);
       conditionally_select(
         cs.namespace(|| format!("rom_values {} conditionally_select ", i)),
@@ -95,7 +95,7 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc_counter: &AllocatedNum<F>,
+    pc: &AllocatedNum<F>,
     z: &[AllocatedNum<F>],
   ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
     // constrain rom[pc] equal to `self.circuit_index`
@@ -103,9 +103,9 @@ where
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
-    constraint_augmented_circuit_index(
+    constrain_augmented_circuit_index(
       cs.namespace(|| "CubicCircuit agumented circuit constraint"),
-      pc_counter,
+      pc,
       &z[1..],
       &circuit_index,
     )?;
@@ -114,7 +114,7 @@ where
     let pc_next = add_allocated_num(
       // pc = pc + 1
       cs.namespace(|| "pc = pc + 1".to_string()),
-      pc_counter,
+      pc,
       &one,
     )?;
 
@@ -178,7 +178,7 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc_counter: &AllocatedNum<F>,
+    pc: &AllocatedNum<F>,
     z: &[AllocatedNum<F>],
   ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
     // constrain rom[pc] equal to `self.circuit_index`
@@ -186,9 +186,9 @@ where
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
-    constraint_augmented_circuit_index(
+    constrain_augmented_circuit_index(
       cs.namespace(|| "SquareCircuit agumented circuit constraint"),
-      pc_counter,
+      pc,
       &z[1..],
       &circuit_index,
     )?;
@@ -196,7 +196,7 @@ where
     let pc_next = add_allocated_num(
       // pc = pc + 1
       cs.namespace(|| "pc = pc + 1"),
-      pc_counter,
+      pc,
       &one,
     )?;
 
@@ -331,29 +331,12 @@ where
   );
 
   // generate the commitkey based on max num of constraints and reused it for all other augmented circuit
-  let circuit_public_params = vec![&running_claim1.params, &running_claim2.params];
-  let (max_index_circuit, _) = circuit_public_params
-    .iter()
-    .enumerate()
-    .map(|(i, params)| -> (usize, usize) { (i, params.r1cs_shape_primary.num_cons) })
-    .max_by(|(_, circuit_size1), (_, circuit_size2)| circuit_size1.cmp(circuit_size2))
-    .unwrap();
-
-  let ck_primary = gen_commitment_key_by_r1cs(
-    &circuit_public_params[max_index_circuit].r1cs_shape_primary,
-    None,
-  );
-  let ck_secondary = gen_commitment_key_by_r1cs(
-    &circuit_public_params[max_index_circuit].r1cs_shape_secondary,
-    None,
-  );
+  let (ck_primary, ck_secondary) =
+    compute_commitment_keys(&[&running_claim1.params, &running_claim2.params]);
 
   // set unified ck_primary, ck_secondary and update digest
-  running_claim1.params.ck_primary = Some(ck_primary.clone());
-  running_claim1.params.ck_secondary = Some(ck_secondary.clone());
-
-  running_claim2.params.ck_primary = Some(ck_primary);
-  running_claim2.params.ck_secondary = Some(ck_secondary);
+  running_claim1.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
+  running_claim2.set_commitment_key(ck_primary, ck_secondary);
 
   let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[
     running_claim1.get_public_params(),

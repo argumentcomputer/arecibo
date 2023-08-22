@@ -16,12 +16,12 @@ mod bellpepper;
 mod circuit;
 mod constants;
 mod nifs;
-mod r1cs;
 
 // public modules
 pub mod errors;
 pub mod gadgets;
 pub mod provider;
+pub mod r1cs;
 pub mod spartan;
 pub mod traits;
 
@@ -42,6 +42,7 @@ use errors::NovaError;
 use ff::{Field, PrimeField};
 use gadgets::utils::scalar_as_base;
 use nifs::NIFS;
+pub use r1cs::R1CS;
 use r1cs::{
   CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
