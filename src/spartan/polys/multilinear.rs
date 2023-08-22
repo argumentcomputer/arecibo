@@ -25,7 +25,7 @@ use crate::spartan::{math::Math, polys::eq::EqPolynomial};
 ///
 /// The implementation follows
 /// $$
-/// \tilde{Z}(x_1, ..., x_m) = \sum_{e\in {0,1}^m}Z(e)\cdot \prod_{i=0}^m(x_i\cdot e_i)\cdot (1-e_i)
+/// \tilde{Z}(x_1, ..., x_m) = \sum_{e\in {0,1}^m}Z(e) \cdot \prod_{i=1}^m(x_i \cdot e_i + (1-x_i) \cdot (1-e_i))
 /// $$
 ///
 /// Vector $Z$ indicates $Z(e)$ where $e$ ranges from $0$ to $2^m-1$.
@@ -71,7 +71,6 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     let n = self.len() / 2;
 
     let (left, right) = self.Z.split_at_mut(n);
-    let (right, _) = right.split_at(n);
 
     left
       .par_iter_mut()
