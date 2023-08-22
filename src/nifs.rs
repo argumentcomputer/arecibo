@@ -118,7 +118,7 @@ impl<G: Group> NIFS<G> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::{r1cs::R1CS, traits::Group};
+  use crate::{r1cs::commitment_key, traits::Group};
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use ff::{Field, PrimeField};
   use rand::rngs::OsRng;
@@ -323,7 +323,7 @@ mod tests {
     };
 
     // generate generators and ro constants
-    let ck = R1CS::<G>::commitment_key(&S, None);
+    let ck = commitment_key(&S, None);
     let ro_consts =
       <<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants::default();
 

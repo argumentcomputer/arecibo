@@ -5,7 +5,7 @@
 use super::{shape_cs::ShapeCS, solver::SatisfyingAssignment, test_shape_cs::TestShapeCS};
 use crate::{
   errors::NovaError,
-  r1cs::{CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, R1CS},
+  r1cs::{commitment_key, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness},
   traits::Group,
   CommitmentKey,
 };
@@ -33,7 +33,7 @@ pub trait NovaShape<G: Group> {
     optfn: Option<CommitmentKeyHint<G>>,
   ) -> (R1CSShape<G>, CommitmentKey<G>) {
     let S = self.r1cs_shape();
-    let ck = R1CS::<G>::commitment_key(&S, optfn);
+    let ck = commitment_key(&S, optfn);
 
     (S, ck)
   }
