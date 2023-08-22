@@ -14,18 +14,11 @@ use crate::{
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
-use core::{cmp::max, marker::PhantomData};
+use core::cmp::max;
 use ff::Field;
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-
-/// Public parameters for a given R1CS
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct R1CS<G: Group> {
-  _p: PhantomData<G>,
-}
 
 /// A type that holds the shape of the R1CS matrices
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
@@ -76,37 +69,35 @@ pub struct RelaxedR1CSInstance<G: Group> {
 /// A type for functions that hints commitment key sizing by returning the floor of the number of required generators.
 pub type CommitmentKeyHint<G> = Box<dyn Fn(&R1CSShape<G>) -> usize>;
 
-impl<G: Group> R1CS<G> {
-  /// Generates public parameters for a Rank-1 Constraint System (R1CS).
-  ///
-  /// This function takes into consideration the shape of the R1CS matrices and a hint function
-  /// for the number of generators. It returns a `CommitmentKey`.
-  ///
-  /// # Arguments
-  ///
-  /// * `S`: The shape of the R1CS matrices.
-  /// * `commitment_key_hint`: An optional function that provides a floor for the number of
-  ///   generators. A good function to provide is the commitment_key_floor field in the trait `RelaxedR1CSSNARKTrait`.
-  ///   If no floor function is provided, the default number of generators will be max(S.num_cons, S.num_vars).
-  ///
-  pub fn commitment_key(
-    S: &R1CSShape<G>,
-    commitment_key_floor: Option<CommitmentKeyHint<G>>,
-  ) -> CommitmentKey<G> {
-    let size = Self::commitment_key_size(S, commitment_key_floor);
-    G::CE::setup(b"ck", size)
-  }
+/// Generates public parameters for a Rank-1 Constraint System (R1CS).
+///
+/// This function takes into consideration the shape of the R1CS matrices and a hint function
+/// for the number of generators. It returns a `CommitmentKey`.
+///
+/// # Arguments
+///
+/// * `S`: The shape of the R1CS matrices.
+/// * `commitment_key_hint`: An optional function that provides a floor for the number of
+///   generators. A good function to provide is the commitment_key_floor field in the trait `RelaxedR1CSSNARKTrait`.
+///   If no floor function is provided, the default number of generators will be max(S.num_cons, S.num_vars).
+///
+pub fn commitment_key<G: Group>(
+  S: &R1CSShape<G>,
+  commitment_key_floor: Option<CommitmentKeyHint<G>>,
+) -> CommitmentKey<G> {
+  let size = commitment_key_size(S, commitment_key_floor);
+  G::CE::setup(b"ck", size)
+}
 
-  /// Computes the number of generators required for the commitment key corresponding to shape `S`.
-  pub fn commitment_key_size(
-    S: &R1CSShape<G>,
-    commitment_key_floor: Option<CommitmentKeyHint<G>>,
-  ) -> usize {
-    let num_cons = S.num_cons;
-    let num_vars = S.num_vars;
-    let generators_hint = commitment_key_floor.map(|f| f(S)).unwrap_or(0);
-    max(max(num_cons, num_vars), generators_hint)
-  }
+/// Computes the number of generators required for the commitment key corresponding to shape `S`.
+pub fn commitment_key_size<G: Group>(
+  S: &R1CSShape<G>,
+  commitment_key_floor: Option<CommitmentKeyHint<G>>,
+) -> usize {
+  let num_cons = S.num_cons;
+  let num_vars = S.num_vars;
+  let generators_hint = commitment_key_floor.map(|f| f(S)).unwrap_or(0);
+  max(max(num_cons, num_vars), generators_hint)
 }
 
 impl<G: Group> R1CSShape<G> {

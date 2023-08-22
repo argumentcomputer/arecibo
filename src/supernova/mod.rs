@@ -6,7 +6,10 @@ use crate::{
   bellpepper::shape_cs::ShapeCS,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   errors::NovaError,
-  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness, R1CS},
+  r1cs::{
+    commitment_key, commitment_key_size, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
+    RelaxedR1CSWitness,
+  },
   scalar_as_base,
   traits::{
     circuit_supernova::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Group,
@@ -790,7 +793,7 @@ where
         .iter()
         .map(|params| {
           let shape = &params.$shape_getter;
-          let size = R1CS::commitment_key_size(&shape, None);
+          let size = commitment_key_size(&shape, None);
           (shape, size)
         })
         .max_by(|a, b| a.1.cmp(&b.1))
@@ -802,8 +805,8 @@ where
   let shape_primary = max_shape!(r1cs_shape_primary);
   let shape_secondary = max_shape!(r1cs_shape_secondary);
 
-  let ck_primary = R1CS::commitment_key(shape_primary, None);
-  let ck_secondary = R1CS::commitment_key(shape_secondary, None);
+  let ck_primary = commitment_key(shape_primary, None);
+  let ck_secondary = commitment_key(shape_secondary, None);
 
   (ck_primary, ck_secondary)
 }
