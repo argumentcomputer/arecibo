@@ -20,6 +20,7 @@ use super::non_hiding_kzg::{
   UVKZGCommitment, UVKZGPoly, UVKZGProverKey, UVKZGVerifierKey,
   UVUniversalKZGParam, UVKZGPCS,
 };
+use std::ops::{Add, Mul};
 
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -110,10 +111,67 @@ pub struct ZMPCS<E> {
   phantom: PhantomData<E>,
 }
 
+
+fn eval_phi<E: Engine>(mon: E::Fr, deg: usize, n: u32) -> E::Fr {
+  let pow2n = usize::pow(2, n);
+  let mut res = E::Fr::ONE;
+  let mut current_mon = mon;
+  let mut i = 0;
+  while i < pow2n {
+    res += current_mon;
+    current_mon *= mon;
+    i += deg;
+  }
+  res
+}
+
+fn compute_term_helper<E: Engine>(x: E::Fr, k: usize, uk: E::Fr, n: u32) -> E::Fr {
+  let pow2k = usize::pow(2, k as u32);
+  let mon = x.pow([pow2k as u64]);
+  let monx = mon * x;
+  let phi_nk: E::Fr = eval_phi::<E>(mon, pow2k, n);
+  let phi_nkp1: E::Fr = eval_phi::<E>(monx, pow2k+1, n);
+  let res = (mon * phi_nk) + (uk * phi_nkp1);
+  res
+}
+
+// This function will be used in the prover
+#[allow(dead_code)]
+fn compute_r_phi_helper<E: Engine>(x: E::Fr, r: &[E::Fr], u: &[E::Fr], n: u32) -> E::Fr {
+  let mut res: E::Fr = E::Fr::ZERO;
+  let mut k: usize = 0;
+  while k < n as usize {
+    let term: E::Fr = compute_term_helper::<E>(x, k, u[k], n);
+    res = res + term * r[k];
+    k += 1;
+  }
+  res
+}
+
+// This function will be used in the verifier
+fn compute_cr_phi_helper<E: Engine>(x: E::Fr, c: Vec<E::G1Affine>, u: &[E::Fr], n: u32) -> E::G1 {
+  let mut res = E::G1::identity();
+  let mut k: usize = 0;
+  while k < n as usize {
+    //res = res + c[k].scalar_mul(compute_term_helper(x, k, u[k], n));
+    let cterm: E::G1Affine = <<E as Engine>::G1Affine as Mul<E::Fr>>::mul(c[k], compute_term_helper::<E>(x, k, u[k], n)).into();
+    res = res.add(cterm);
+    k += 1;
+  }
+  res
+}
+
+
+
+
+
 impl<E: MultiMillerLoop> ZMPCS<E>
 where
   E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
 {
+
+
+
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
   pub fn commit(
@@ -247,8 +305,13 @@ where
     evaluation: ZMEvaluation<E>,
     transcript: &mut impl TranscriptEngineTrait<E::G1>,
   ) -> Result<bool, NovaError> {
+
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////// Verifier's first message ////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+
     let vk = vk.borrow();
-    let _num_vars = point.len();
+    let num_vars = point.len();
 
     proof.ck.iter().for_each(|c| transcript.absorb(b"quo", c));
     let y = transcript.squeeze(b"y")?;
@@ -256,14 +319,34 @@ where
 
     transcript.absorb(b"q_hat", &proof.cqhat);
 
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////// Verifier's second message ///////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+
     let x = transcript.squeeze(b"x")?;
     dbg!(x);
     let z = transcript.squeeze(b"z")?;
     dbg!(z);
 
+
+    // Compute Cv,x
+    //// Compute xˆ2ˆk.phi_n-k-1(xˆ2ˆk+1) - u_k.phi_n-k(xˆ2ˆk)
+    let comm_points: Vec<_> =  proof.ck.iter().map(|c| c.0).collect();
+    let cr_phi: E::G1Affine = compute_cr_phi_helper::<E>(x, comm_points.clone(), point, num_vars as u32).into();
+    dbg!(cr_phi);
+
+
+    // TODO: Compute Czx
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    // TODO: Compute CZetax
+    // TODO: Compute CZetaZ
+
+    // TODO: Adjust pairings
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
     let scalars = [vec![E::Fr::ONE, z, eval_scalar * evaluation.0], q_scalars].concat();
-    let bases = [vec![proof.cqhat.0, comm.0, vk.vp.g], proof.ck.iter().map(|c| c.0).collect()].concat();
+    let bases = [vec![proof.cqhat.0, comm.0, vk.vp.g], comm_points.to_vec()].concat();
     let c = <E::G1 as Group>::vartime_multiscalar_mul(&scalars, &bases).to_affine();
 
     let pi = proof.pi;
