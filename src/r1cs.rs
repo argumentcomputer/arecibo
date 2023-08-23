@@ -96,7 +96,7 @@ pub fn commitment_key_size<G: Group>(
 ) -> usize {
   let num_cons = S.num_cons;
   let num_vars = S.num_vars;
-  let generators_hint = commitment_key_floor.map(|f| f(S)).unwrap_or(0);
+  let generators_hint = commitment_key_floor.map_or(0, |f| f(S));
   max(max(num_cons, num_vars), generators_hint)
 }
 
