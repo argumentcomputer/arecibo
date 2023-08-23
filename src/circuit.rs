@@ -31,7 +31,7 @@ use bellpepper_core::{
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct NovaAugmentedCircuitParams {
   limb_width: usize,
   n_limbs: usize,
