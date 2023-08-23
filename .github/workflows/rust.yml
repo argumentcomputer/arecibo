@@ -57,6 +57,6 @@ jobs:
           command: fmt
           args: --all -- --check
       - name: Check clippy warnings
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo xclippy -D warnings
       - name: Doctests
         run: cargo test --doc --workspace

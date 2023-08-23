@@ -85,10 +85,10 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
 
     for _ in 0..num_warmup_steps {
-      let program_counter = recursive_snark_option
-        .as_ref()
-        .map(|recursive_snark| recursive_snark.get_program_counter())
-        .unwrap_or_else(|| initial_program_counter);
+      let program_counter = recursive_snark_option.as_ref().map_or_else(
+        || initial_program_counter,
+        |recursive_snark| recursive_snark.get_program_counter(),
+      );
 
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(
@@ -207,10 +207,10 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let mut selected_augmented_circuit = 0;
 
     for _ in 0..num_warmup_steps {
-      let program_counter = recursive_snark_option
-        .as_ref()
-        .map(|recursive_snark| recursive_snark.get_program_counter())
-        .unwrap_or_else(|| initial_program_counter);
+      let program_counter = recursive_snark_option.as_ref().map_or_else(
+        || initial_program_counter,
+        |recursive_snark| recursive_snark.get_program_counter(),
+      );
 
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(

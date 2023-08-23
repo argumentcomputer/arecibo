@@ -52,7 +52,7 @@ struct MinRootIteration<F: PrimeField> {
 }
 
 impl<F: PrimeField> abomonation::Abomonation for MinRootIteration<F> {
-  unsafe fn entomb<W: std::io::Write>(&self, bytes: &mut W) -> std::io::Result<()> {
+  unsafe fn entomb<W: Write>(&self, bytes: &mut W) -> std::io::Result<()> {
     entomb_F(&self.x_i, bytes)?;
     entomb_F(&self.y_i, bytes)?;
     entomb_F(&self.x_i_plus_1, bytes)?;
