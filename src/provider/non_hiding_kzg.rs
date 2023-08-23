@@ -119,11 +119,10 @@ impl<E: Engine> UVUniversalKZGParam<E> {
     let mut powers_of_h = vec![E::G2Affine::identity(); powers_of_h_projective.len()];
     E::G2::batch_normalize(&powers_of_h_projective, &mut powers_of_h);
 
-    let pp = Self {
+    Self {
       powers_of_g,
       powers_of_h,
-    };
-    pp
+    }
   }
 }
 
