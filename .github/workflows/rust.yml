@@ -3,10 +3,10 @@ name: Build and Test Nova
 on:
   merge_group:
   push:
-    branches: [ dev ]
+    branches: [ dev, zeromorph ]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [ dev ]
+    branches: [ dev, zeromorph ]
 
 env:
   CARGO_TERM_COLOR: always
