@@ -17,7 +17,7 @@ use crate::{
 };
 
 use super::non_hiding_kzg::{
-  UVKZGCommitment, UVKZGPoly, UVKZGProverKey, UVKZGVerifierKey,
+  UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof, UVKZGProverKey, UVKZGVerifierKey,
   UVUniversalKZGParam, UVKZGPCS,
 };
 
@@ -89,6 +89,12 @@ impl<E: Engine> From<ZMCommitment<E>> for UVKZGCommitment<E> {
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ZMEvaluation<E: Engine>(E::Fr);
 
+impl<E: Engine> From<UVKZGEvaluation<E>> for ZMEvaluation<E> {
+  fn from(value: UVKZGEvaluation<E>) -> Self {
+    ZMEvaluation(value.0)
+  }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 
 /// Proofs
@@ -150,6 +156,7 @@ where
     point: &[E::Fr],
     transcript: &mut impl TranscriptEngineTrait<E::G1>,
   ) -> Result<(ZMProof<E>, ZMEvaluation<E>), NovaError> {
+    // TODO: add a domain separator to the transcript
     let num_vars = poly.get_num_vars();
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
@@ -159,9 +166,9 @@ where
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
     let eval = poly.evaluate(point);
 
-    let (quotients, _remainder) = poly.quotients(point);
+    let (quotients, remainder) = poly.quotients(point);
     // TODO: see test_quo below
-    // debug_assert_eq!(remainder, eval);
+    debug_assert_eq!(remainder, eval);
 
     // TODO: this should be a Cow
     let quotients_polys = quotients
@@ -176,7 +183,6 @@ where
     q_comms.iter().for_each(|c| transcript.absorb(b"quo", c));
 
     let y = transcript.squeeze(b"y")?;
-    dbg!(y);
 
     let powers_of_y = (0..num_vars)
       .scan(y, |acc, _| {
@@ -206,9 +212,8 @@ where
     transcript.absorb(b"q_hat", &q_hat_comm);
 
     let x = transcript.squeeze(b"x")?;
-    dbg!(x);
+
     let z = transcript.squeeze(b"z")?;
-    dbg!(z);
 
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
 
@@ -223,16 +228,17 @@ where
         q *= &scalar;
         f += &q;
       });
-    //debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
+    debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
 
-    //UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof.into(), eval.into()))
+    let (uvproof, uveval): (UVKZGProof<_>, UVKZGEvaluation<_>) =
+      UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof.into(), eval.into()))?;
 
     let proof = ZMProof {
-      pi: E::G1::zero().into(),
+      pi: uvproof.proof,
       cqhat: q_hat_comm,
       ck: q_comms,
     };
-    let eval = ZMEvaluation(eval_scalar);
+    let eval = uveval.into();
 
     Ok((proof, eval))
   }
@@ -247,23 +253,25 @@ where
     evaluation: ZMEvaluation<E>,
     transcript: &mut impl TranscriptEngineTrait<E::G1>,
   ) -> Result<bool, NovaError> {
+    // TODO: add a domain separator to the transcript
     let vk = vk.borrow();
-    let _num_vars = point.len();
 
     proof.ck.iter().for_each(|c| transcript.absorb(b"quo", c));
     let y = transcript.squeeze(b"y")?;
-    dbg!(y);
 
     transcript.absorb(b"q_hat", &proof.cqhat);
 
     let x = transcript.squeeze(b"x")?;
-    dbg!(x);
+
     let z = transcript.squeeze(b"z")?;
-    dbg!(z);
 
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
     let scalars = [vec![E::Fr::ONE, z, eval_scalar * evaluation.0], q_scalars].concat();
-    let bases = [vec![proof.cqhat.0, comm.0, vk.vp.g], proof.ck.iter().map(|c| c.0).collect()].concat();
+    let bases = [
+      vec![proof.cqhat.0, comm.0, vk.vp.g],
+      proof.ck.iter().map(|c| c.0).collect(),
+    ]
+    .concat();
     let c = <E::G1 as Group>::vartime_multiscalar_mul(&scalars, &bases).to_affine();
 
     let pi = proof.pi;
@@ -372,24 +380,34 @@ mod test {
       let mut transcript = Keccak256Transcript::<E::G1>::new(b"test");
       let poly = MultilinearPolynomial::<E::Fr>::random(num_vars, &mut thread_rng());
       let comm = ZMPCS::commit(&pp, &poly).unwrap();
+      // TODO: make sure the commitment drives the choice of the point challenge, i.e. that the commitment is absorbed in the transcript
       let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
         .take(num_vars)
         .collect::<Vec<_>>();
-      let _eval_pre = poly.evaluate(point.as_slice());
+      let eval_pre = poly.evaluate(point.as_slice());
 
       let mut transcript_prover = Keccak256Transcript::<E::G1>::new(b"test");
       let (proof, eval) = ZMPCS::open(&pp, &poly, &comm, &point, &mut transcript_prover).unwrap();
-      //assert_eq!(eval_pre, eval.0);
+      assert_eq!(eval_pre, eval.0);
 
       // Verify
-
       let mut transcript_verifier = Keccak256Transcript::new(b"test");
-      let result = ZMPCS::verify(&vk, &comm, point.as_slice(), proof, eval, &mut transcript_verifier);
+      let result = ZMPCS::verify(
+        &vk,
+        &comm,
+        point.as_slice(),
+        proof,
+        eval,
+        &mut transcript_verifier,
+      );
 
       // check both random oracles are synced, as expected
-      assert_eq!(transcript_prover.squeeze(b"test"), transcript_verifier.squeeze(b"test"));
+      assert_eq!(
+        transcript_prover.squeeze(b"test"),
+        transcript_verifier.squeeze(b"test")
+      );
 
-      assert_eq!(result, Ok(true));
+      result.unwrap();
     }
   }
 
