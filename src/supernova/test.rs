@@ -363,10 +363,10 @@ where
   let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
 
   for _ in 0..num_steps {
-    let program_counter = recursive_snark_option
-      .as_ref()
-      .map(|recursive_snark| recursive_snark.program_counter)
-      .unwrap_or_else(|| initial_program_counter);
+    let program_counter = recursive_snark_option.as_ref().map_or_else(
+      || initial_program_counter,
+      |recursive_snark| recursive_snark.program_counter,
+    );
     let augmented_circuit_index = rom[u32::from_le_bytes(
       // convert program counter from field to usize (only took le 4 bytes)
       program_counter.to_repr().as_ref()[0..4].try_into().unwrap(),

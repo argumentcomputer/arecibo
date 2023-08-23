@@ -68,7 +68,7 @@ impl<Scalar: PrimeField> IdentityPolynomial<Scalar> {
 /// A type that holds `R1CSShape` in a form amenable to memory checking
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
+#[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkRepr<G: Group> {
   N: usize, // size of the vectors
 
@@ -750,7 +750,7 @@ pub struct RelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
 
 impl<G: Group, EE: EvaluationEngineTrait<G>> RelaxedR1CSSNARK<G, EE>
 where
-  <G::Scalar as ff::PrimeField>::Repr: Abomonation,
+  <G::Scalar as PrimeField>::Repr: Abomonation,
 {
   fn prove_inner<T1, T2, T3>(
     mem: &mut T1,

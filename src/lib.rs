@@ -328,9 +328,10 @@ where
     let r_U_secondary =
       RelaxedR1CSInstance::<G2>::default(&pp.ck_secondary, &pp.r1cs_shape_secondary);
 
-    if zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary {
-      panic!("Invalid step length");
-    }
+    assert!(
+      !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
+      "Invalid step length"
+    );
 
     let zi_primary = zi_primary
       .iter()
@@ -1193,8 +1194,8 @@ mod tests {
     <G1::CE as CommitmentEngineTrait<G1>>::CommitmentKey: CommitmentKeyExtTrait<G1>,
     <G2::CE as CommitmentEngineTrait<G2>>::CommitmentKey: CommitmentKeyExtTrait<G2>,
     // this is due to the reliance on Abomonation
-    <<G1 as traits::Group>::Scalar as ff::PrimeField>::Repr: abomonation::Abomonation,
-    <<G2 as traits::Group>::Scalar as ff::PrimeField>::Repr: abomonation::Abomonation,
+    <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
+    <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
   {
     let circuit_primary = TrivialTestCircuit::default();
     let circuit_secondary = CubicCircuit::default();
@@ -1290,8 +1291,8 @@ mod tests {
     <G1::CE as CommitmentEngineTrait<G1>>::CommitmentKey: CommitmentKeyExtTrait<G1>,
     <G2::CE as CommitmentEngineTrait<G2>>::CommitmentKey: CommitmentKeyExtTrait<G2>,
     // this is due to the reliance on Abomonation
-    <<G1 as traits::Group>::Scalar as ff::PrimeField>::Repr: abomonation::Abomonation,
-    <<G2 as traits::Group>::Scalar as ff::PrimeField>::Repr: abomonation::Abomonation,
+    <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
+    <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
   {
     let circuit_primary = TrivialTestCircuit::default();
     let circuit_secondary = CubicCircuit::default();
@@ -1395,8 +1396,8 @@ mod tests {
     <G1::CE as CommitmentEngineTrait<G1>>::CommitmentKey: CommitmentKeyExtTrait<G1>,
     <G2::CE as CommitmentEngineTrait<G2>>::CommitmentKey: CommitmentKeyExtTrait<G2>,
     // this is due to the reliance on Abomonation
-    <<G1 as traits::Group>::Scalar as ff::PrimeField>::Repr: abomonation::Abomonation,
-    <<G2 as traits::Group>::Scalar as ff::PrimeField>::Repr: abomonation::Abomonation,
+    <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
+    <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
   {
     // y is a non-deterministic advice representing the fifth root of the input at a step.
     #[derive(Clone, Debug)]
