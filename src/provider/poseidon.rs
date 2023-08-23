@@ -132,7 +132,7 @@ where
   Scalar: PrimeField + PrimeFieldBits + Serialize + for<'de> Deserialize<'de>,
   Scalar::Repr: Abomonation,
 {
-  type VanillaRO<T: PrimeField> = PoseidonRO<Scalar, T>;
+  type NativeRO<T: PrimeField> = PoseidonRO<Scalar, T>;
   type Constants = PoseidonConstantsCircuit<Scalar>;
 
   /// Initialize the internal state and set the poseidon constants
