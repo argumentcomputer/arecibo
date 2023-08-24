@@ -9,6 +9,7 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
+use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::{
@@ -26,7 +27,11 @@ use super::{
 };
 
 /// `ZMProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>"
+))]
 pub struct ZMProverKey<E: Engine> {
   commit_pp: UVKZGProverKey<E>,
   open_pp: UVKZGProverKey<E>,
@@ -34,7 +39,11 @@ pub struct ZMProverKey<E: Engine> {
 
 /// `ZMVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
+))]
 pub struct ZMVerifierKey<E: Engine> {
   vp: UVKZGVerifierKey<E>,
   s_offset_h: E::G2Affine,
@@ -71,7 +80,7 @@ pub fn trim<E: Engine>(
 }
 
 /// Commitments
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct ZMCommitment<E: Engine>(
   /// the actual commitment is an affine point.
   pub E::G1Affine,
@@ -99,7 +108,7 @@ impl<E: Engine> From<UVKZGEvaluation<E>> for ZMEvaluation<E> {
   }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
 
 /// Proofs
 pub struct ZMProof<E: Engine> {
@@ -124,6 +133,10 @@ impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>> ZMPCS<E, NE
 where
   E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
 {
+  const fn protocol_name() -> &'static [u8] {
+    b"Zeromorph"
+  }
+
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
   pub fn commit(
@@ -155,12 +168,14 @@ where
   /// same.
   pub fn open(
     pp: &impl Borrow<ZMProverKey<E>>,
-    poly: &MultilinearPolynomial<E::Fr>,
     comm: &ZMCommitment<E>,
+    poly: &MultilinearPolynomial<E::Fr>,
     point: &[E::Fr],
+    eval: &ZMEvaluation<E>,
     transcript: &mut impl TranscriptEngineTrait<NE>,
-  ) -> Result<(ZMProof<E>, ZMEvaluation<E>), NovaError> {
-    // TODO: add a domain separator to the transcript
+  ) -> Result<ZMProof<E>, NovaError> {
+    transcript.dom_sep(Self::protocol_name());
+
     let num_vars = poly.get_num_vars();
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
@@ -168,16 +183,15 @@ where
     }
 
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
-    let eval = poly.evaluate(point);
+    debug_assert_eq!(poly.evaluate_opt(point), eval.0);
 
     let (quotients, remainder) = poly.quotients(point);
-    // TODO: see test_quo below
-    debug_assert_eq!(remainder, eval);
+    debug_assert_eq!(remainder, eval.0);
 
     // TODO: this should be a Cow
     let quotients_polys = quotients
-      .iter()
-      .map(|q| UVKZGPoly::new(q.clone()))
+      .into_iter()
+      .map(UVKZGPoly::new)
       .collect::<Vec<_>>();
 
     let q_comms = quotients_polys
@@ -197,7 +211,7 @@ where
       .collect::<Vec<E::Fr>>();
 
     let q_hat = {
-      let q_hat = powers_of_y.iter().zip(&quotients).enumerate().fold(
+      let q_hat = powers_of_y.iter().zip(quotients_polys.iter().map(|qp| qp.as_ref())).enumerate().fold(
         vec![E::Fr::ZERO; 1 << num_vars],
         |mut q_hat, (idx, (power_of_y, q))| {
           let offset = q_hat.len() - (1 << idx);
@@ -224,7 +238,7 @@ where
     let mut f = UVKZGPoly::new(poly.Z.clone());
     f *= &z;
     f += &q_hat;
-    f[0] += eval_scalar * eval;
+    f[0] += eval_scalar * eval.0;
     quotients_polys
       .into_iter()
       .zip(q_scalars)
@@ -233,8 +247,8 @@ where
         f += &q;
       });
     debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
-
-    let (uvproof, uveval): (UVKZGProof<_>, UVKZGEvaluation<_>) =
+    // hence uveval == Fr::ZERO
+    let (uvproof, _uveval): (UVKZGProof<_>, UVKZGEvaluation<_>) =
       UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof, eval))?;
 
     let proof = ZMProof {
@@ -242,22 +256,22 @@ where
       cqhat: q_hat_comm,
       ck: q_comms,
     };
-    let eval = uveval.into();
 
-    Ok((proof, eval))
+    Ok(proof)
   }
 
   /// Verifies that `value` is the evaluation at `x` of the polynomial
   /// committed inside `comm`.
   pub fn verify(
     vk: &impl Borrow<ZMVerifierKey<E>>,
+    transcript: &mut impl TranscriptEngineTrait<NE>,
     comm: &ZMCommitment<E>,
     point: &[E::Fr],
+    evaluation: &ZMEvaluation<E>,
     proof: ZMProof<E>,
-    evaluation: ZMEvaluation<E>,
-    transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> Result<bool, NovaError> {
-    // TODO: add a domain separator to the transcript
+    transcript.dom_sep(Self::protocol_name());
+
     let vk = vk.borrow();
 
     proof.ck.iter().for_each(|c| transcript.absorb(b"quo", c));
@@ -266,7 +280,6 @@ where
     transcript.absorb(b"q_hat", &proof.cqhat);
 
     let x = transcript.squeeze(b"x")?;
-
     let z = transcript.squeeze(b"z")?;
 
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
@@ -296,7 +309,6 @@ where
 }
 
 // TODO : move this somewhere else
-// TODO: remove the transitory allocations
 fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>) {
   let num_vars = u.len();
 
@@ -346,7 +358,6 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
 
 #[cfg(test)]
 mod test {
-
   use std::iter;
 
   use ff::FromUniformBytes;
@@ -361,7 +372,7 @@ mod test {
       Bn256Engine,
       keccak::Keccak256Transcript,
       non_hiding_kzg::UVUniversalKZGParam,
-      non_hiding_zeromorph::{trim, ZMPCS},
+      non_hiding_zeromorph::{trim, ZMEvaluation, ZMPCS},
       traits::DlogGroup,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
@@ -372,13 +383,17 @@ mod test {
   where
     E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
   {
-    for num_vars in 3..16 {
+    let max_vars = 16;
+    let mut rng = thread_rng();
+    let max_poly_size = 1 << (max_vars + 1);
+    let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
+
+    for num_vars in 3..max_vars { // this takes a while, run in --release
       // Setup
       let (pp, vk) = {
-        let mut rng = thread_rng();
         let poly_size = 1 << (num_vars + 1);
-        let param = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, poly_size);
-        trim(&param, poly_size)
+        
+        trim(&universal_setup, poly_size)
       };
 
       // Commit and open
@@ -388,21 +403,20 @@ mod test {
       let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
         .take(num_vars)
         .collect::<Vec<_>>();
-      let eval_pre = poly.evaluate(point.as_slice());
+      let eval = ZMEvaluation(poly.evaluate_opt(&point));
 
       let mut transcript_prover = Keccak256Transcript::<NE>::new(b"test");
-      let (proof, eval) = ZMPCS::open(&pp, &poly, &comm, &point, &mut transcript_prover).unwrap();
-      assert_eq!(eval_pre, eval.0);
+      let proof = ZMPCS::open(&pp, &comm, &poly, &point, &eval, &mut transcript_prover).unwrap();
 
       // Verify
       let mut transcript_verifier = Keccak256Transcript::<NE>::new(b"test");
       let result = ZMPCS::verify(
         &vk,
+        &mut transcript_verifier,
         &comm,
         point.as_slice(),
+        &eval,
         proof,
-        eval,
-        &mut transcript_verifier,
       );
 
       // check both random oracles are synced, as expected
@@ -420,7 +434,6 @@ mod test {
     commit_open_verify_with::<Bn256, Bn256Engine>();
   }
 
-  #[ignore]
   #[test]
   fn test_quo() {
     let num_vars = 10;
@@ -439,16 +452,12 @@ mod test {
       println!("scalar: {:?}", scalar);
     }
     let (_quotients, remainder) = poly.quotients(&point);
-    // TODO: the evaluation this is meant to compare to is that of the underlying univ. poly, see Lemma 2.3.1
-    // whith is not what poly.evaluate(point) returns.
-    // debug_assert_eq!(remainder, eval);
     assert_eq!(
-      poly.evaluate(&point),
+      poly.evaluate_opt(&point),
       remainder,
-      "poly: {:?}, \n point: {:?}, \n eval: {:?}, remainder:{:?}",
-      poly,
+      "point: {:?}, \n eval: {:?}, remainder:{:?}",
       point,
-      poly.evaluate(&point),
+      poly.evaluate_opt(&point),
       remainder
     );
   }

@@ -5,6 +5,7 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rand::Rng;
 use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
 use crate::{errors::NovaError, traits::TranscriptReprTrait};
@@ -22,7 +23,11 @@ pub struct UVUniversalKZGParam<E: Engine> {
   pub powers_of_h: Vec<E::G2Affine>,
 }
 /// `UnivariateProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>"
+))]
 pub struct UVKZGProverKey<E: Engine> {
   /// generators
   pub powers_of_g: Vec<E::G1Affine>,
@@ -30,7 +35,11 @@ pub struct UVKZGProverKey<E: Engine> {
 
 /// `UVKZGVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
+))]
 pub struct UVKZGVerifierKey<E: Engine> {
   /// The generator of G1.
   pub g: E::G1Affine,
@@ -127,7 +136,7 @@ impl<E: Engine> UVUniversalKZGParam<E> {
 }
 
 /// Commitments
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct UVKZGCommitment<E: Engine>(
   /// the actual commitment is an affine point.
   pub E::G1Affine,
