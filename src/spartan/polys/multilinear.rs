@@ -171,42 +171,36 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   }
 
   /// Fix one variable of the MLE
-  pub fn fix_variables(
-    &self,
-    partial_point: &[Scalar],
-) -> Self {
+  pub fn fix_variables(&self, partial_point: &[Scalar]) -> Self {
     assert!(
-        partial_point.len() <= self.num_vars,
-        "invalid size of partial point"
+      partial_point.len() <= self.num_vars,
+      "invalid size of partial point"
     );
     let nv = self.num_vars;
     let mut poly = self.Z.clone();
     let dim = partial_point.len();
     // evaluate single variable of partial point from left to right
     for (i, point) in partial_point.iter().enumerate().take(dim) {
-        poly = Self::fix_one_variable_helper(&poly, nv - i, point);
+      poly = Self::fix_one_variable_helper(&poly, nv - i, point);
     }
-    poly.truncate(1<< (nv-dim));
+    poly.truncate(1 << (nv - dim));
 
     MultilinearPolynomial::new(poly)
-}
+  }
 
-fn fix_one_variable_helper(data: &[Scalar], nv: usize, point: &Scalar) -> Vec<Scalar> {
-  let mut res = vec![Scalar::ZERO; 1 << (nv - 1)];
+  fn fix_one_variable_helper(data: &[Scalar], nv: usize, point: &Scalar) -> Vec<Scalar> {
+    let mut res = vec![Scalar::ZERO; 1 << (nv - 1)];
 
-  // evaluate single variable of partial point from left to right
-  //  for i in 0..(1 << (nv - 1)) {
-  //     res[i] = data[i] + (data[(i << 1) + 1] - data[i << 1]) * point;
-  // }
-  res.par_iter_mut().enumerate().for_each(|(i, x)| {
+    // evaluate single variable of partial point from left to right
+    //  for i in 0..(1 << (nv - 1)) {
+    //     res[i] = data[i] + (data[(i << 1) + 1] - data[i << 1]) * point;
+    // }
+    res.par_iter_mut().enumerate().for_each(|(i, x)| {
       *x = data[i << 1] + (data[(i << 1) + 1] - data[i << 1]) * point;
-  });
+    });
 
-  res
-}
-
-
-
+    res
+  }
 }
 
 impl<Scalar: PrimeField> Index<usize> for MultilinearPolynomial<Scalar> {
