@@ -94,7 +94,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         RecursiveSNARK::iter_base_step(
           &running_claim1,
           digest,
-          program_counter,
+          Some(program_counter),
           0,
           1,
           &z0_primary,
@@ -216,7 +216,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
         RecursiveSNARK::iter_base_step(
           &running_claim1,
           digest,
-          program_counter,
+          Some(program_counter),
           0,
           2,
           &z0_primary,
@@ -315,9 +315,9 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc: &AllocatedNum<F>,
+    pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     // Consider a an equation: `x^2 = y`, where `x` and `y` are respectively the input and output.
     let mut x = z[0].clone();
     let mut y = x.clone();
@@ -325,6 +325,6 @@ where
       y = x.square(cs.namespace(|| format!("x_sq_{i}")))?;
       x = y.clone();
     }
-    Ok((pc.clone(), vec![y]))
+    Ok((pc.cloned(), vec![y]))
   }
 }
