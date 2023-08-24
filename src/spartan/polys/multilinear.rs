@@ -111,15 +111,16 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   }
 
   /// Compute quotient polynomials of the polynomial w.r.t. an input point
+  /// i.e. q_k s.t. $$self - v = \Sum_{k=0}^(n-1) q_k (X_k-point_k)$$
   pub fn quotients(&self, point: &[Scalar]) -> (Vec<Vec<Scalar>>, Scalar) {
     assert_eq!(self.get_num_vars(), point.len());
 
     let mut remainder = self.Z.to_vec();
     let mut quotients = point
       .iter()
-      .zip(0..self.get_num_vars())
+      .enumerate()
       .rev()
-      .map(|(x_i, num_var)| {
+      .map(|(num_var, x_i)| {
         let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << num_var);
         let mut quotient = vec![Scalar::ZERO; remainder_lo.len()];
 
@@ -145,6 +146,44 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     quotients.reverse();
 
     (quotients, remainder[0])
+  }
+
+  /// Evaluate the MLE at a point
+  pub fn evaluate_opt(&self, point: &[Scalar]) -> Scalar {
+    assert_eq!(self.num_vars, point.len());
+    self.fix_variables(point).Z[0]
+  }
+
+  /// Fix one variable of the MLE
+  pub fn fix_variables(&self, partial_point: &[Scalar]) -> Self {
+    assert!(
+      partial_point.len() <= self.num_vars,
+      "invalid size of partial point"
+    );
+    let nv = self.num_vars;
+    let mut poly = self.Z.clone();
+    let dim = partial_point.len();
+    // evaluate single variable of partial point from left to right
+    for (i, point) in partial_point.iter().enumerate().take(dim) {
+      poly = Self::fix_one_variable_helper(&poly, nv - i, point);
+    }
+    poly.truncate(1 << (nv - dim));
+
+    MultilinearPolynomial::new(poly)
+  }
+
+  fn fix_one_variable_helper(data: &[Scalar], nv: usize, point: &Scalar) -> Vec<Scalar> {
+    let mut res = vec![Scalar::ZERO; 1 << (nv - 1)];
+
+    // evaluate single variable of partial point from left to right
+    //  for i in 0..(1 << (nv - 1)) {
+    //     res[i] = data[i] + (data[(i << 1) + 1] - data[i << 1]) * point;
+    // }
+    res.par_iter_mut().enumerate().for_each(|(i, x)| {
+      *x = data[i << 1] + (data[(i << 1) + 1] - data[i << 1]) * point;
+    });
+
+    res
   }
 }
 
