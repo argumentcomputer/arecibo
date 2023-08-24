@@ -76,7 +76,7 @@ pub struct SuperNovaAugmentedCircuitInputs<'a, G: Group> {
   U: Option<&'a [Option<RelaxedR1CSInstance<G>>]>,
   u: Option<&'a R1CSInstance<G>>,
   T: Option<&'a Commitment<G>>,
-  program_counter: G::Base,
+  program_counter: Option<G::Base>,
   last_augmented_circuit_index: G::Base,
 }
 
@@ -91,7 +91,7 @@ impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
     U: Option<&'a [Option<RelaxedR1CSInstance<G>>]>,
     u: Option<&'a R1CSInstance<G>>,
     T: Option<&'a Commitment<G>>,
-    program_counter: G::Base,
+    program_counter: Option<G::Base>,
     last_augmented_circuit_index: G::Base,
   ) -> Self {
     Self {
@@ -178,7 +178,15 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
     let program_counter = if self.params.is_primary_circuit {
       Some(AllocatedNum::alloc(
         cs.namespace(|| "program_counter"),
-        || Ok(self.inputs.get()?.program_counter),
+        || {
+          Ok(
+            self
+              .inputs
+              .get()?
+              .program_counter
+              .expect("program_counter missing"),
+          )
+        },
       )?)
     } else {
       None
@@ -330,14 +338,21 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
     let mut ro = G::ROCircuit::new(
       self.ro_consts.clone(),
       2 // params_next, i_new
-      + program_counter.as_ref().map_or(0, |_| 1) // optional program counter
+      + program_counter.as_ref().map_or(0, |_|
+                                        usize::from(self.params.is_primary_circuit)
+      ) // optional program counter
         + 2 * arity // zo, z1
         + num_augmented_circuits * (7 + 2 * self.params.n_limbs), // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
     );
     ro.absorb(&params);
     ro.absorb(&i);
-    if let Some(program_counter) = program_counter.as_ref() {
-      ro.absorb(program_counter)
+
+    if self.params.is_primary_circuit {
+      if let Some(program_counter) = program_counter.as_ref() {
+        ro.absorb(program_counter)
+      } else {
+        Err(SynthesisError::AssignmentMissing)?
+      }
     }
 
     for e in &z_0 {
@@ -407,7 +422,7 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
   pub fn synthesize<CS: ConstraintSystem<<G as Group>::Base>>(
     self,
     cs: &mut CS,
-  ) -> Result<(AllocatedNum<G::Base>, Vec<AllocatedNum<G::Base>>), SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<G::Base>>, Vec<AllocatedNum<G::Base>>), SynthesisError> {
     // NOTE `last_augmented_circuit_index` is aux without any constraint.
     // Reason is prover can only produce valid running instance by folding u into proper U_i[last_augmented_circuit_index]
     // However, there is crucial pre-asumption: `last_augmented_circuit_index` must within range [0, num_augmented_circuits)
@@ -534,16 +549,12 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
       &Boolean::from(is_base_case),
     )?;
 
-    let (program_counter_new, z_next) = if let Some(program_counter) = &program_counter {
-      self
-        .step_circuit
-        .synthesize(&mut cs.namespace(|| "F"), program_counter, &z_input)?
-    } else {
-      let zero_program_counter = alloc_zero(cs.namespace(|| "zero pc"))?;
-      self
-        .step_circuit
-        .synthesize(&mut cs.namespace(|| "F"), &zero_program_counter, &z_input)?
-    };
+    let (program_counter_new, z_next) = self.step_circuit.synthesize(
+      &mut cs.namespace(|| "F"),
+      program_counter.as_ref(),
+      &z_input,
+    )?;
+
     if z_next.len() != arity {
       return Err(SynthesisError::IncompatibleLengthVector(
         "z_next".to_string(),
@@ -576,7 +587,11 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
     ro.absorb(&i_next);
     // optionally absorb program counter if exist
     if program_counter.is_some() {
-      ro.absorb(&program_counter_new)
+      ro.absorb(
+        program_counter_new
+          .as_ref()
+          .expect("new program counter missing"),
+      )
     }
     for e in &z_0 {
       ro.absorb(e);

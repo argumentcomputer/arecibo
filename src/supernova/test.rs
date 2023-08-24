@@ -3,7 +3,7 @@ use crate::gadgets::utils::alloc_const;
 use crate::gadgets::utils::alloc_num_equals;
 use crate::gadgets::utils::conditionally_select;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
-use crate::traits::circuit_supernova::TrivialTestCircuit;
+use crate::traits::circuit_supernova::{TrivialSecondaryCircuit, TrivialTestCircuit};
 use crate::{
   compute_digest,
   gadgets::utils::{add_allocated_num, alloc_one, alloc_zero},
@@ -95,14 +95,15 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc: &AllocatedNum<F>,
+    pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     // constrain rom[pc] equal to `self.circuit_index`
     let circuit_index = alloc_const(
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
+    let pc = pc.unwrap();
     constrain_augmented_circuit_index(
       cs.namespace(|| "CubicCircuit agumented circuit constraint"),
       pc,
@@ -143,7 +144,7 @@ where
 
     let mut z_next = vec![y];
     z_next.extend(z[1..].iter().cloned());
-    Ok((pc_next, z_next))
+    Ok((Some(pc_next), z_next))
   }
 }
 
@@ -178,14 +179,15 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc: &AllocatedNum<F>,
+    pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     // constrain rom[pc] equal to `self.circuit_index`
     let circuit_index = alloc_const(
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
+    let pc = pc.unwrap();
     constrain_augmented_circuit_index(
       cs.namespace(|| "SquareCircuit agumented circuit constraint"),
       pc,
@@ -224,7 +226,7 @@ where
 
     let mut z_next = vec![y];
     z_next.extend(z[1..].iter().cloned());
-    Ok((pc_next, z_next))
+    Ok((Some(pc_next), z_next))
   }
 }
 
@@ -273,6 +275,37 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
 
 const OPCODE_0: usize = 0;
 const OPCODE_1: usize = 1;
+
+#[derive(Clone, Debug)]
+struct TestROM<G: Group> {
+  op0: CubicCircuit<G::Scalar>,
+  op1: SquareCircuit<G::Scalar>,
+  rom: Vec<usize>,
+  _p: PhantomData<G>,
+}
+
+impl<G: Group> CircuitSet<G> for TestROM<G> {
+  fn num_augmented_circuits(&self) -> usize {
+    2
+  }
+}
+
+impl<G: Group> TestROM<G> {
+  fn new(rom: Vec<usize>) -> Self {
+    let rom_len = rom.len();
+    Self {
+      op0: CubicCircuit::new(0, rom_len),
+      op1: SquareCircuit::new(1, rom_len),
+      rom,
+      _p: Default::default(),
+    }
+  }
+
+  fn num_steps(&self) -> usize {
+    self.rom.len()
+  }
+}
+
 fn test_trivial_nivc_with<G1, G2>()
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -296,38 +329,36 @@ where
   // To save the test time, after each step of iteration, RecursiveSNARK just verfiy the latest U_i[augmented_circuit_index] needs to be a satisfying instance.
   // TODO At the end of this test, RecursiveSNARK need to verify all U_i[] are satisfying instances
 
-  let rom = [
+  let rom = vec![
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
     OPCODE_1,
   ]; // Rom can be arbitrary length.
-  let circuit_secondary = TrivialTestCircuit::new(rom.len());
-  let num_augmented_circuit = 2;
+  let circuit_secondary = TrivialSecondaryCircuit::default();
 
+  let test_rom = TestROM::<G1>::new(rom);
   // Structuring running claims
-  let test_circuit1 = CubicCircuit::new(OPCODE_0, rom.len());
   let mut running_claim1 = RunningClaim::<
     G1,
     G2,
     CubicCircuit<<G1 as Group>::Scalar>,
-    TrivialTestCircuit<<G2 as Group>::Scalar>,
+    TrivialSecondaryCircuit<<G2 as Group>::Scalar>,
   >::new(
     OPCODE_0,
-    test_circuit1,
+    test_rom.op0.clone(),
     circuit_secondary.clone(),
-    num_augmented_circuit,
+    test_rom.num_augmented_circuits(),
   );
 
-  let test_circuit2 = SquareCircuit::new(OPCODE_1, rom.len());
   let mut running_claim2 = RunningClaim::<
     G1,
     G2,
     SquareCircuit<<G1 as Group>::Scalar>,
-    TrivialTestCircuit<<G2 as Group>::Scalar>,
+    TrivialSecondaryCircuit<<G2 as Group>::Scalar>,
   >::new(
     OPCODE_1,
-    test_circuit2,
+    test_rom.op1.clone(),
     circuit_secondary,
-    num_augmented_circuit,
+    test_rom.num_augmented_circuits(),
   );
 
   // generate the commitkey based on max num of constraints and reused it for all other augmented circuit
@@ -343,22 +374,18 @@ where
     running_claim2.get_public_params(),
   ]);
 
-  let num_steps = rom.len();
-  let initial_program_counter = <G1 as Group>::Scalar::from(0);
+  let num_steps = test_rom.num_steps();
+  let initial_program_counter = test_rom.initial_program_counter();
 
   // extend z0_primary/secondary with rom content
   let mut z0_primary = vec![<G1 as Group>::Scalar::ONE];
   z0_primary.extend(
-    rom
+    test_rom
+      .rom
       .iter()
       .map(|opcode| <G1 as Group>::Scalar::from(*opcode as u64)),
   );
-  let mut z0_secondary = vec![<G2 as Group>::Scalar::ONE];
-  z0_secondary.extend(
-    rom
-      .iter()
-      .map(|opcode| <G2 as Group>::Scalar::from(*opcode as u64)),
-  );
+  let z0_secondary = vec![<G2 as Group>::Scalar::ONE];
 
   let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
 
@@ -367,7 +394,7 @@ where
       || initial_program_counter,
       |recursive_snark| recursive_snark.program_counter,
     );
-    let augmented_circuit_index = rom[u32::from_le_bytes(
+    let augmented_circuit_index = test_rom.rom[u32::from_le_bytes(
       // convert program counter from field to usize (only took le 4 bytes)
       program_counter.to_repr().as_ref()[0..4].try_into().unwrap(),
     ) as usize];
@@ -377,9 +404,9 @@ where
         RecursiveSNARK::iter_base_step(
           &running_claim1,
           digest,
-          program_counter,
+          Some(program_counter),
           augmented_circuit_index,
-          num_augmented_circuit,
+          test_rom.num_augmented_circuits(),
           &z0_primary,
           &z0_secondary,
         )
@@ -388,9 +415,9 @@ where
         RecursiveSNARK::iter_base_step(
           &running_claim2,
           digest,
-          program_counter,
+          Some(program_counter),
           augmented_circuit_index,
-          num_augmented_circuit,
+          test_rom.num_augmented_circuits(),
           &z0_primary,
           &z0_secondary,
         )
@@ -407,7 +434,11 @@ where
       recursive_snark
         .verify(&running_claim1, &z0_primary, &z0_secondary)
         .map_err(|err| {
-          print_constraints_name_on_error_index(err, &running_claim1, num_augmented_circuit)
+          print_constraints_name_on_error_index(
+            err,
+            &running_claim1,
+            test_rom.num_augmented_circuits(),
+          )
         })
         .unwrap();
     } else if augmented_circuit_index == OPCODE_1 {
@@ -417,7 +448,11 @@ where
       recursive_snark
         .verify(&running_claim2, &z0_primary, &z0_secondary)
         .map_err(|err| {
-          print_constraints_name_on_error_index(err, &running_claim2, num_augmented_circuit)
+          print_constraints_name_on_error_index(
+            err,
+            &running_claim2,
+            test_rom.num_augmented_circuits(),
+          )
         })
         .unwrap();
     }
@@ -460,8 +495,6 @@ fn test_recursive_circuit_with<G1, G2>(
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
-  // Both circuit1 and circuit2 are TrivialTestCircuit
-
   // Initialize the shape and ck for the primary
   let step_circuit1 = TrivialTestCircuit::default();
   let arity1 = step_circuit1.arity();
@@ -475,9 +508,9 @@ fn test_recursive_circuit_with<G1, G2>(
   assert_eq!(cs.num_constraints(), num_constraints_primary);
 
   // Initialize the shape and ck for the secondary
-  let step_circuit2 = TrivialTestCircuit::default();
+  let step_circuit2 = TrivialSecondaryCircuit::default();
   let arity2 = step_circuit2.arity();
-  let circuit2: SuperNovaAugmentedCircuit<'_, G1, TrivialTestCircuit<<G1 as Group>::Base>> =
+  let circuit2: SuperNovaAugmentedCircuit<'_, G1, TrivialSecondaryCircuit<<G1 as Group>::Base>> =
     SuperNovaAugmentedCircuit::new(
       &secondary_params,
       None,
@@ -504,7 +537,7 @@ fn test_recursive_circuit_with<G1, G2>(
     None,
     None,
     None,
-    zero1,
+    Some(zero1),
     zero1,
   );
   let step_circuit = TrivialTestCircuit::default();
@@ -529,11 +562,11 @@ fn test_recursive_circuit_with<G1, G2>(
     None,
     Some(&inst1),
     None,
-    zero2,
+    None,
     zero2,
   );
-  let step_circuit = TrivialTestCircuit::default();
-  let circuit2: SuperNovaAugmentedCircuit<'_, G1, TrivialTestCircuit<<G1 as Group>::Base>> =
+  let step_circuit = TrivialSecondaryCircuit::default();
+  let circuit2: SuperNovaAugmentedCircuit<'_, G1, TrivialSecondaryCircuit<<G1 as Group>::Base>> =
     SuperNovaAugmentedCircuit::new(
       &secondary_params,
       Some(inputs2),
@@ -558,5 +591,5 @@ fn test_recursive_circuit() {
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::default();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
-  test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9835, 12036);
+  test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9835, 12035);
 }
