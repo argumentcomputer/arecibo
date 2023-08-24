@@ -180,6 +180,13 @@ impl<Scalar: PrimeField> AddAssign<&Self> for UniPoly<Scalar> {
     }
   }
 }
+
+impl<Scalar: PrimeField> AsRef<Vec<Scalar>> for UniPoly<Scalar> {
+  fn as_ref(&self) -> &Vec<Scalar> {
+    &self.coeffs
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use crate::provider::{bn256_grumpkin, secp_secq::secp256k1};
