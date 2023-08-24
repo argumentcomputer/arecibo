@@ -176,8 +176,8 @@ where
 
     // TODO: this should be a Cow
     let quotients_polys = quotients
-      .iter()
-      .map(|q| UVKZGPoly::new(q.clone()))
+      .into_iter()
+      .map(|q| UVKZGPoly::new(q))
       .collect::<Vec<_>>();
 
     let q_comms = quotients_polys
@@ -197,7 +197,7 @@ where
       .collect::<Vec<E::Fr>>();
 
     let q_hat = {
-      let q_hat = powers_of_y.iter().zip(&quotients).enumerate().fold(
+      let q_hat = powers_of_y.iter().zip(quotients_polys.iter().map(|qp| qp.as_ref())).enumerate().fold(
         vec![E::Fr::ZERO; 1 << num_vars],
         |mut q_hat, (idx, (power_of_y, q))| {
           let offset = q_hat.len() - (1 << idx);
@@ -371,13 +371,17 @@ mod test {
   where
     E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
   {
-    for num_vars in 3..16 { // this takes a while, run in --release
+    let max_vars = 16;
+    let mut rng = thread_rng();
+    let max_poly_size = 1 << (max_vars + 1);
+    let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
+
+    for num_vars in 3..max_vars { // this takes a while, run in --release
       // Setup
       let (pp, vk) = {
-        let mut rng = thread_rng();
         let poly_size = 1 << (num_vars + 1);
-        let param = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, poly_size);
-        trim(&param, poly_size)
+        
+        trim(&universal_setup, poly_size)
       };
 
       // Commit and open
