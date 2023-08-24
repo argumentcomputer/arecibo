@@ -164,10 +164,9 @@ where
     }
 
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
-    let eval = poly.evaluate(point);
+    let eval = poly.evaluate_opt(point);
 
     let (quotients, remainder) = poly.quotients(point);
-    // TODO: see test_quo below
     debug_assert_eq!(remainder, eval);
 
     // TODO: this should be a Cow
@@ -262,7 +261,6 @@ where
     transcript.absorb(b"q_hat", &proof.cqhat);
 
     let x = transcript.squeeze(b"x")?;
-
     let z = transcript.squeeze(b"z")?;
 
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
@@ -367,7 +365,7 @@ mod test {
   where
     E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
   {
-    for num_vars in 3..16 {
+    for num_vars in 3..16 { // this takes a while, run in --release
       // Setup
       let (pp, vk) = {
         let mut rng = thread_rng();
@@ -384,11 +382,9 @@ mod test {
       let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
         .take(num_vars)
         .collect::<Vec<_>>();
-      let eval_pre = poly.evaluate(point.as_slice());
 
       let mut transcript_prover = Keccak256Transcript::<E::G1>::new(b"test");
       let (proof, eval) = ZMPCS::open(&pp, &poly, &comm, &point, &mut transcript_prover).unwrap();
-      assert_eq!(eval_pre, eval.0);
 
       // Verify
       let mut transcript_verifier = Keccak256Transcript::new(b"test");
@@ -416,7 +412,6 @@ mod test {
     commit_open_verify_with::<Bn256>();
   }
 
-  #[ignore]
   #[test]
   fn test_quo() {
     let num_vars = 10;
@@ -435,17 +430,14 @@ mod test {
       println!("scalar: {:?}", scalar);
     }
     let (_quotients, remainder) = poly.quotients(&point);
-    // TODO: the evaluation this is meant to compare to is that of the underlying univ. poly, see Lemma 2.3.1
-    // whith is not what poly.evaluate(point) returns.
-    // debug_assert_eq!(remainder, eval);
     assert_eq!(
-      poly.evaluate(&point),
+      poly.evaluate_opt(&point),
       remainder,
-      "poly: {:?}, \n point: {:?}, \n eval: {:?}, remainder:{:?}",
-      poly,
+      "point: {:?}, \n eval: {:?}, remainder:{:?}",
       point,
-      poly.evaluate(&point),
+      poly.evaluate_opt(&point),
       remainder
     );
   }
+
 }
