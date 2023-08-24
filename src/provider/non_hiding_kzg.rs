@@ -9,9 +9,11 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
-use crate::{errors::NovaError, traits::TranscriptReprTrait};
-
-use super::DlogGroup;
+use crate::{
+  errors::{NovaError, PCSError},
+  traits::TranscriptReprTrait,
+  provider::DlogGroup,
+};
 
 /// `UniversalParams` are the universal parameters for the KZG10 scheme.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -76,9 +78,10 @@ impl<E: Engine> UVUniversalKZGParam<E> {
   /// # Panics
   /// If self.prover_params is empty.
   pub fn extract_verifier_key(&self, supported_size: usize) -> UVKZGVerifierKey<E> {
-    if self.powers_of_g.len() < supported_size {
-      panic!("supported_size is greater than self.max_degree()");
-    }
+    assert!(
+      self.powers_of_g.len() >= supported_size,
+      "supported_size is greater than self.max_degree()"
+    );
     UVKZGVerifierKey {
       g: self.powers_of_g[0],
       h: self.powers_of_h[0],
@@ -246,7 +249,7 @@ where
     let prover_param = prover_param.borrow();
 
     if poly.degree() > prover_param.powers_of_g.len() {
-      return Err(NovaError::InvalidIPA);
+      return Err(NovaError::PCSError(PCSError::LengthError));
     }
     let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
       poly.coeffs.as_slice(),
@@ -283,7 +286,7 @@ where
     let witness_polynomial = polynomial
       .divide_with_q_and_r(&divisor)
       .map(|(q, _r)| q)
-      .ok_or(NovaError::InvalidIPA)?;
+      .ok_or(NovaError::PCSError(PCSError::ZMError))?;
     let proof = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
       witness_polynomial.coeffs.as_slice(),
       &prover_param.powers_of_g.as_slice()[..witness_polynomial.coeffs.len()],
@@ -310,7 +313,7 @@ where
   ) -> Result<(Vec<UVKZGProof<E>>, Vec<UVKZGEvaluation<E>>), NovaError> {
     if polynomials.len() != points.len() {
       // TODO: a better Error
-      return Err(NovaError::InvalidIPA);
+      return Err(NovaError::PCSError(PCSError::LengthError));
     }
     let mut batch_proof = vec![];
     let mut evals = vec![];
