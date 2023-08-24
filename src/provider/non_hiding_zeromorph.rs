@@ -120,6 +120,10 @@ impl<E: MultiMillerLoop> ZMPCS<E>
 where
   E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
 {
+  const fn protocol_name() -> &'static [u8] {
+    b"Zeromorph"
+  }
+
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
   pub fn commit(
@@ -156,7 +160,8 @@ where
     point: &[E::Fr],
     transcript: &mut impl TranscriptEngineTrait<E::G1>,
   ) -> Result<(ZMProof<E>, ZMEvaluation<E>), NovaError> {
-    // TODO: add a domain separator to the transcript
+    transcript.dom_sep(Self::protocol_name());
+
     let num_vars = poly.get_num_vars();
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
@@ -252,7 +257,8 @@ where
     evaluation: ZMEvaluation<E>,
     transcript: &mut impl TranscriptEngineTrait<E::G1>,
   ) -> Result<bool, NovaError> {
-    // TODO: add a domain separator to the transcript
+    transcript.dom_sep(Self::protocol_name());
+
     let vk = vk.borrow();
 
     proof.ck.iter().for_each(|c| transcript.absorb(b"quo", c));
@@ -439,5 +445,4 @@ mod test {
       remainder
     );
   }
-
 }
