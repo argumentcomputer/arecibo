@@ -7,14 +7,14 @@
 pub mod bn256_grumpkin;
 pub mod ipa_pc;
 pub mod keccak;
-// pub mod kzg;
-pub mod non_hiding_kzg;
-pub mod non_hiding_zeromorph;
 pub mod pasta;
 pub mod pedersen;
 pub mod poseidon;
 pub mod secp_secq;
-// pub mod zeromorph;
+
+// a non-hiding variant of {kzg, zeromorph}
+pub mod non_hiding_kzg;
+pub mod non_hiding_zeromorph;
 
 use ff::PrimeField;
 use pasta_curves::{self, arithmetic::CurveAffine, group::Group as AnotherGroup};
