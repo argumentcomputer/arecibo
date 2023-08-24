@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::{
-  errors::NovaError,
+  errors::{NovaError, PCSError},
   spartan::polys::multilinear::MultilinearPolynomial,
   traits::{Engine as NovaEngine, TranscriptEngineTrait, evaluation::EvaluationEngineTrait}, CommitmentKey, Commitment,
 };
@@ -152,7 +152,7 @@ where
   ) -> Result<ZMCommitment<E>, NovaError> {
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
-      return Err(NovaError::InvalidIPA); // TODO: better error
+      return Err(NovaError::PCSError(PCSError::LengthError)); // TODO: better error
     }
     // TODO: remove the undue clone in the creation of an UVKZGPoly here
     UVKZGPCS::commit(&pp.commit_pp, &UVKZGPoly::new(poly.Z.clone())).map(|c| c.into())
@@ -186,7 +186,7 @@ where
     let num_vars = poly.get_num_vars();
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
-      return Err(NovaError::InvalidIPA); // TODO: better error
+      return Err(NovaError::PCSError(PCSError::LengthError));
     }
 
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
@@ -218,19 +218,23 @@ where
       .collect::<Vec<E::Fr>>();
 
     let q_hat = {
-      let q_hat = powers_of_y.iter().zip(quotients_polys.iter().map(|qp| qp.as_ref())).enumerate().fold(
-        vec![E::Fr::ZERO; 1 << num_vars],
-        |mut q_hat, (idx, (power_of_y, q))| {
-          let offset = q_hat.len() - (1 << idx);
-          q_hat[offset..]
-            .par_iter_mut()
-            .zip(q)
-            .for_each(|(q_hat, q)| {
-              *q_hat += *power_of_y * *q;
-            });
-          q_hat
-        },
-      );
+      let q_hat = powers_of_y
+        .iter()
+        .zip(quotients_polys.iter().map(|qp| qp.as_ref()))
+        .enumerate()
+        .fold(
+          vec![E::Fr::ZERO; 1 << num_vars],
+          |mut q_hat, (idx, (power_of_y, q))| {
+            let offset = q_hat.len() - (1 << idx);
+            q_hat[offset..]
+              .par_iter_mut()
+              .zip(q)
+              .for_each(|(q_hat, q)| {
+                *q_hat += *power_of_y * *q;
+              });
+            q_hat
+          },
+        );
       UVKZGPoly::new(q_hat)
     };
     let q_hat_comm = UVKZGPCS::commit(&pp.commit_pp, &q_hat)?;
@@ -411,7 +415,7 @@ mod test {
   use std::iter;
 
   use ff::FromUniformBytes;
-  use halo2curves::bn256::{Bn256, Fr as Scalar};
+  use halo2curves::bn256::Bn256;
   use pairing::MultiMillerLoop;
   use rand::{thread_rng, Rng};
   use rand_chacha::ChaCha20Rng;
@@ -438,11 +442,12 @@ mod test {
     let max_poly_size = 1 << (max_vars + 1);
     let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
 
-    for num_vars in 3..max_vars { // this takes a while, run in --release
+    for num_vars in 3..max_vars {
+      // this takes a while, run in --release
       // Setup
       let (pp, vk) = {
         let poly_size = 1 << (num_vars + 1);
-        
+
         trim(&universal_setup, poly_size)
       };
 
@@ -493,7 +498,7 @@ mod test {
     let point: Vec<_> = std::iter::from_fn(|| {
       let mut bytes = [0u8; 64];
       rng.fill(&mut bytes);
-      Scalar::from_uniform_bytes(&bytes).into()
+      <Bn256Engine as NovaEngine>::Scalar::from_uniform_bytes(&bytes).into()
     })
     .take(num_vars)
     .collect();
