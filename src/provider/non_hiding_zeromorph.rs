@@ -8,6 +8,7 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
+use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::{
@@ -22,7 +23,11 @@ use super::non_hiding_kzg::{
 };
 
 /// `ZMProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>"
+))]
 pub struct ZMProverKey<E: Engine> {
   commit_pp: UVKZGProverKey<E>,
   open_pp: UVKZGProverKey<E>,
@@ -30,7 +35,11 @@ pub struct ZMProverKey<E: Engine> {
 
 /// `ZMVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
+))]
 pub struct ZMVerifierKey<E: Engine> {
   vp: UVKZGVerifierKey<E>,
   s_offset_h: E::G2Affine,
@@ -67,7 +76,7 @@ pub fn trim<E: Engine>(
 }
 
 /// Commitments
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct ZMCommitment<E: Engine>(
   /// the actual commitment is an affine point.
   pub E::G1Affine,
@@ -95,7 +104,7 @@ impl<E: Engine> From<UVKZGEvaluation<E>> for ZMEvaluation<E> {
   }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
 
 /// Proofs
 pub struct ZMProof<E: Engine> {
@@ -155,11 +164,12 @@ where
   /// same.
   pub fn open(
     pp: &impl Borrow<ZMProverKey<E>>,
-    poly: &MultilinearPolynomial<E::Fr>,
     comm: &ZMCommitment<E>,
+    poly: &MultilinearPolynomial<E::Fr>,
     point: &[E::Fr],
+    eval: &ZMEvaluation<E>,
     transcript: &mut impl TranscriptEngineTrait<E::G1>,
-  ) -> Result<(ZMProof<E>, ZMEvaluation<E>), NovaError> {
+  ) -> Result<ZMProof<E>, NovaError> {
     transcript.dom_sep(Self::protocol_name());
 
     let num_vars = poly.get_num_vars();
@@ -169,10 +179,10 @@ where
     }
 
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
-    let eval = poly.evaluate_opt(point);
+    debug_assert_eq!(poly.evaluate_opt(point), eval.0);
 
     let (quotients, remainder) = poly.quotients(point);
-    debug_assert_eq!(remainder, eval);
+    debug_assert_eq!(remainder, eval.0);
 
     // TODO: this should be a Cow
     let quotients_polys = quotients
@@ -224,7 +234,7 @@ where
     let mut f = UVKZGPoly::new(poly.Z.clone());
     f *= &z;
     f += &q_hat;
-    f[0] += eval_scalar * eval;
+    f[0] += eval_scalar * eval.0;
     quotients_polys
       .into_iter()
       .zip(q_scalars)
@@ -233,8 +243,8 @@ where
         f += &q;
       });
     debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
-
-    let (uvproof, uveval): (UVKZGProof<_>, UVKZGEvaluation<_>) =
+    // hence uveval == Fr::ZERO
+    let (uvproof, _uveval): (UVKZGProof<_>, UVKZGEvaluation<_>) =
       UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof.into(), eval.into()))?;
 
     let proof = ZMProof {
@@ -242,20 +252,19 @@ where
       cqhat: q_hat_comm,
       ck: q_comms,
     };
-    let eval = uveval.into();
 
-    Ok((proof, eval))
+    Ok(proof)
   }
 
   /// Verifies that `value` is the evaluation at `x` of the polynomial
   /// committed inside `comm`.
   pub fn verify(
     vk: &impl Borrow<ZMVerifierKey<E>>,
+    transcript: &mut impl TranscriptEngineTrait<E::G1>,
     comm: &ZMCommitment<E>,
     point: &[E::Fr],
+    evaluation: &ZMEvaluation<E>,
     proof: ZMProof<E>,
-    evaluation: ZMEvaluation<E>,
-    transcript: &mut impl TranscriptEngineTrait<E::G1>,
   ) -> Result<bool, NovaError> {
     transcript.dom_sep(Self::protocol_name());
 
@@ -296,7 +305,6 @@ where
 }
 
 // TODO : move this somewhere else
-// TODO: remove the transitory allocations
 fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>) {
   let num_vars = u.len();
 
@@ -346,7 +354,6 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
 
 #[cfg(test)]
 mod test {
-
   use std::iter;
 
   use ff::FromUniformBytes;
@@ -361,7 +368,7 @@ mod test {
       bn256_grumpkin::bn256,
       keccak::Keccak256Transcript,
       non_hiding_kzg::UVUniversalKZGParam,
-      non_hiding_zeromorph::{trim, ZMPCS},
+      non_hiding_zeromorph::{trim, ZMEvaluation, ZMPCS},
     },
     spartan::polys::multilinear::MultilinearPolynomial,
     traits::{Group, TranscriptEngineTrait},
@@ -392,19 +399,20 @@ mod test {
       let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
         .take(num_vars)
         .collect::<Vec<_>>();
+      let eval = ZMEvaluation(poly.evaluate_opt(&point));
 
       let mut transcript_prover = Keccak256Transcript::<E::G1>::new(b"test");
-      let (proof, eval) = ZMPCS::open(&pp, &poly, &comm, &point, &mut transcript_prover).unwrap();
+      let proof = ZMPCS::open(&pp, &comm, &poly, &point, &eval, &mut transcript_prover).unwrap();
 
       // Verify
       let mut transcript_verifier = Keccak256Transcript::new(b"test");
       let result = ZMPCS::verify(
         &vk,
+        &mut transcript_verifier,
         &comm,
         point.as_slice(),
+        &eval,
         proof,
-        eval,
-        &mut transcript_verifier,
       );
 
       // check both random oracles are synced, as expected
