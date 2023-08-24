@@ -32,9 +32,9 @@ pub enum NovaError {
   /// returned if the provided number of steps is zero
   #[error("InvalidNumSteps")]
   InvalidNumSteps,
-  /// returned when an invalid inner product argument is provided
-  #[error("InvalidIPA")]
-  InvalidIPA,
+  /// returned if there is an error in the proof/verification of a PCS
+  #[error("PCSError")]
+  PCSError(#[from] PCSError),
   /// returned when an invalid sum-check proof is provided
   #[error("InvalidSumcheckProof")]
   InvalidSumcheckProof,
@@ -59,4 +59,18 @@ pub enum NovaError {
   /// return when error during synthesis
   #[error("SynthesisError")]
   SynthesisError,
+}
+
+/// Errors specific to the Polynomial commitment scheme
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+pub enum PCSError {
+  /// returned when an invalid inner product argument is provided
+  #[error("InvalidIPA")]
+  InvalidIPA,
+  /// returned when there is a Zeromorph error
+  #[error("ZMError")]
+  ZMError,
+  /// returned when a length check fails in a PCS
+  #[error("LengthError")]
+  LengthError,
 }
