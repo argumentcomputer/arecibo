@@ -16,29 +16,15 @@ pub trait StepCircuit<F: PrimeField>: Send + Sync + Clone {
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc: &AllocatedNum<F>,
+    pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError>;
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError>;
 }
 
 /// A trivial step circuit that simply returns the input
 #[derive(Clone, Debug, Default)]
 pub struct TrivialTestCircuit<F: PrimeField> {
   _p: PhantomData<F>,
-  rom_size: usize,
-}
-
-impl<F> TrivialTestCircuit<F>
-where
-  F: PrimeField,
-{
-  /// new TrivialTestCircuit
-  pub fn new(rom_size: usize) -> Self {
-    TrivialTestCircuit {
-      rom_size,
-      _p: PhantomData,
-    }
-  }
 }
 
 impl<F> StepCircuit<F> for TrivialTestCircuit<F>
@@ -46,15 +32,42 @@ where
   F: PrimeField,
 {
   fn arity(&self) -> usize {
-    1 + self.rom_size // value + rom[].len()
+    1
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     _cs: &mut CS,
-    _pc_counter: &AllocatedNum<F>,
+    program_counter: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(AllocatedNum<F>, Vec<AllocatedNum<F>>), SynthesisError> {
-    Ok((_pc_counter.clone(), z.to_vec()))
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+    Ok((program_counter.cloned(), z.to_vec()))
+  }
+}
+
+/// A trivial step circuit that simply returns the input, for use on the secondary circuit when implementing NIVC.
+/// NOTE: This should not be needed. The secondary circuit doesn't need the program counter at all.
+/// Ideally, the need this fills could be met byt `traits::circuit::TrivialTestCircuit` (or equivalent).
+#[derive(Clone, Debug, Default)]
+pub struct TrivialSecondaryCircuit<F: PrimeField> {
+  _p: PhantomData<F>,
+}
+
+impl<F> StepCircuit<F> for TrivialSecondaryCircuit<F>
+where
+  F: PrimeField,
+{
+  fn arity(&self) -> usize {
+    1
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    _cs: &mut CS,
+    program_counter: Option<&AllocatedNum<F>>,
+    z: &[AllocatedNum<F>],
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+    assert!(program_counter.is_none());
+    Ok((None, z.to_vec()))
   }
 }

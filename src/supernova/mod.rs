@@ -259,7 +259,7 @@ where
   pub fn iter_base_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
     claim: &RunningClaim<G1, G2, C1, C2>,
     pp_digest: G1::Scalar,
-    initial_program_counter: G1::Scalar,
+    initial_program_counter: Option<G1::Scalar>,
     first_augmented_circuit_index: usize,
     num_augmented_circuits: usize,
     z0_primary: &[G1::Scalar],
@@ -329,7 +329,7 @@ where
         None,
         Some(&u_primary),
         None,
-        G2::Scalar::ZERO, // secondary circuit never constrain/bump program counter
+        None,
         G2::Scalar::from(claim.augmented_circuit_index as u64),
       );
     let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
@@ -379,6 +379,7 @@ where
       })
       .collect::<Result<Vec<<G1 as Group>::Scalar>, SuperNovaError>>()?;
     let zi_primary_pc_next = zi_primary_pc_next
+      .expect("zi_primary_pc_next missing")
       .get_value()
       .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))?;
     let zi_secondary = zi_secondary
@@ -473,7 +474,7 @@ where
         Some(&self.r_U_secondary),
         Some(&self.l_u_secondary),
         Some(&T),
-        self.program_counter,
+        Some(self.program_counter),
         G1::Scalar::ZERO,
       );
 
@@ -540,7 +541,7 @@ where
         Some(&self.r_U_primary),
         Some(&l_u_primary),
         Some(&binding),
-        G2::Scalar::ZERO, // secondary circuit never constrain/bump program counter
+        None,
         G2::Scalar::from(claim.get_augmented_circuit_index() as u64),
       );
 
@@ -573,6 +574,7 @@ where
       })
       .collect::<Result<Vec<<G1 as Group>::Scalar>, SuperNovaError>>()?;
     let zi_primary_pc_next = zi_primary_pc_next
+      .expect("zi_primary_pc_next missing")
       .get_value()
       .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))?;
     let zi_secondary = zi_secondary
@@ -659,7 +661,7 @@ where
 
     // secondary circuit
     let num_field_secondary_ro = 2 // params_next, i_new
-    + 2 * pp.F_arity_primary // zo, z1
+    + 2 * pp.F_arity_secondary // zo, z1
     + self.num_augmented_circuits * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
 
     let (hash_primary, hash_secondary) = {
@@ -809,4 +811,15 @@ where
   let ck_secondary = commitment_key(shape_secondary, None);
 
   (ck_primary, ck_secondary)
+}
+
+/// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC.
+pub trait CircuitSet<G: Group> {
+  /// Initial program counter, defaults to zero.
+  fn initial_program_counter(&self) -> G::Scalar {
+    G::Scalar::ZERO
+  }
+
+  /// How many augmented circuits are provided?
+  fn num_augmented_circuits(&self) -> usize;
 }
