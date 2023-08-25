@@ -103,7 +103,7 @@ where
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
-    let pc = pc.unwrap();
+    let pc = pc.expect("primary circuit requires program counter");
     constrain_augmented_circuit_index(
       cs.namespace(|| "CubicCircuit agumented circuit constraint"),
       pc,
@@ -187,7 +187,7 @@ where
       cs.namespace(|| "circuit_index"),
       F::from(self.circuit_index as u64),
     )?;
-    let pc = pc.unwrap();
+    let pc = pc.expect("primary circuit requires program counter");
     constrain_augmented_circuit_index(
       cs.namespace(|| "SquareCircuit agumented circuit constraint"),
       pc,
