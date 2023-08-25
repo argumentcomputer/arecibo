@@ -12,8 +12,9 @@ use crate::{
   },
   scalar_as_base,
   traits::{
-    circuit_supernova::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Group,
-    ROConstants, ROConstantsCircuit, ROTrait,
+    circuit_supernova::{StepCircuit, TrivialSecondaryCircuit},
+    commitment::CommitmentTrait,
+    AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
   },
   Commitment, CommitmentKey,
 };
@@ -28,6 +29,7 @@ use crate::bellpepper::{
 };
 use bellpepper_core::ConstraintSystem;
 
+use crate::compute_digest;
 use crate::nifs::NIFS;
 
 mod circuit; // declare the module first
@@ -198,9 +200,12 @@ where
     }
   }
 
-  /// get augmented_circuit_index
-  pub fn get_augmented_circuit_index(&self) -> usize {
-    self.augmented_circuit_index
+  /// get primary/secondary circuit r1cs shape
+  pub fn get_r1cs_shape(&self) -> (&R1CSShape<G1>, &R1CSShape<G2>) {
+    (
+      &self.params.r1cs_shape_primary,
+      &self.params.r1cs_shape_secondary,
+    )
   }
 
   /// set primary/secondary commitment key
@@ -213,17 +218,14 @@ where
     self.params.ck_secondary = Some(ck_secondary);
   }
 
-  /// get primary/secondary circuit r1cs shape
-  pub fn get_r1cs_shape(&self) -> (&R1CSShape<G1>, &R1CSShape<G2>) {
-    (
-      &self.params.r1cs_shape_primary,
-      &self.params.r1cs_shape_secondary,
-    )
-  }
-
-  /// get augmented_circuit_index
+  /// Get the `PublicParams`.
   pub fn get_public_params(&self) -> &PublicParams<G1, G2> {
     &self.params
+  }
+
+  /// Get this `RunningClaim`'s augmented circuit index.
+  pub fn get_circuit_index(&self) -> usize {
+    self.augmented_circuit_index
   }
 }
 
@@ -265,7 +267,7 @@ where
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
   ) -> Result<Self, SuperNovaError> {
-    let pp = &claim.params;
+    let pp = &claim.get_public_params();
     let c_primary = &claim.c_primary;
     let c_secondary = &claim.c_secondary;
     // commitment key for primary & secondary circuit
@@ -330,7 +332,7 @@ where
         Some(&u_primary),
         None,
         None,
-        G2::Scalar::from(claim.augmented_circuit_index as u64),
+        G2::Scalar::from(claim.get_circuit_index() as u64),
       );
     let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_secondary,
@@ -502,8 +504,8 @@ where
     // Split into `if let`/`else` statement
     // to avoid `returns a value referencing data owned by closure` error on `&RelaxedR1CSInstance::default` and `RelaxedR1CSWitness::default`
     let (nifs_primary, (r_U_primary_folded, r_W_primary_folded)) = match (
-      self.r_U_primary.get(claim.get_augmented_circuit_index()),
-      self.r_W_primary.get(claim.get_augmented_circuit_index()),
+      self.r_U_primary.get(claim.get_circuit_index()),
+      self.r_W_primary.get(claim.get_circuit_index()),
     ) {
       (Some(Some(r_U_primary)), Some(Some(r_W_primary))) => NIFS::prove(
         ck_primary,
@@ -542,7 +544,7 @@ where
         Some(&l_u_primary),
         Some(&binding),
         None,
-        G2::Scalar::from(claim.get_augmented_circuit_index() as u64),
+        G2::Scalar::from(claim.get_circuit_index() as u64),
       );
 
     let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
@@ -592,8 +594,8 @@ where
     }
 
     // clone and updated running instance on respective circuit_index
-    self.r_U_primary[claim.get_augmented_circuit_index()] = Some(r_U_primary_folded);
-    self.r_W_primary[claim.get_augmented_circuit_index()] = Some(r_W_primary_folded);
+    self.r_U_primary[claim.get_circuit_index()] = Some(r_U_primary_folded);
+    self.r_W_primary[claim.get_circuit_index()] = Some(r_W_primary_folded);
     self.r_W_secondary = vec![Some(r_W_secondary_next)];
     self.r_U_secondary = vec![Some(r_U_secondary_next)];
     self.l_w_secondary = l_w_secondary_next;
@@ -602,7 +604,7 @@ where
     self.zi_primary = zi_primary;
     self.zi_secondary = zi_secondary;
     self.program_counter = zi_primary_pc_next;
-    self.augmented_circuit_index = claim.get_augmented_circuit_index();
+    self.augmented_circuit_index = claim.get_circuit_index();
     Ok(())
   }
 
@@ -631,7 +633,7 @@ where
     let pp = &claim.params;
     let ck_primary = pp.ck_primary.as_ref().ok_or(SuperNovaError::MissingCK)?;
 
-    self.r_U_primary[claim.get_augmented_circuit_index()]
+    self.r_U_primary[claim.get_circuit_index()]
       .as_ref()
       .map_or(Ok(()), |U| {
         if U.X.len() != 2 {
@@ -730,10 +732,10 @@ where
       || {
         pp.r1cs_shape_primary.is_sat_relaxed(
           pp.ck_primary.as_ref().unwrap(),
-          self.r_U_primary[claim.get_augmented_circuit_index()]
+          self.r_U_primary[claim.get_circuit_index()]
             .as_ref()
             .unwrap_or(&default_instance),
-          self.r_W_primary[claim.get_augmented_circuit_index()]
+          self.r_W_primary[claim.get_circuit_index()]
             .as_ref()
             .unwrap_or(&default_witness),
         )
@@ -813,13 +815,74 @@ where
   (ck_primary, ck_secondary)
 }
 
-/// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC.
-pub trait CircuitSet<G: Group> {
+/// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
+/// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
+/// `self.num_circuits()`.
+pub trait NonUniformCircuit<G1, G2, C1>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+{
   /// Initial program counter, defaults to zero.
-  fn initial_program_counter(&self) -> G::Scalar {
-    G::Scalar::ZERO
+  fn initial_program_counter(&self) -> G1::Scalar {
+    G1::Scalar::ZERO
   }
 
-  /// How many augmented circuits are provided?
-  fn num_augmented_circuits(&self) -> usize;
+  /// Return the initial running claims for `NonUniformCircuit`'s sub-circuits.
+  fn initial_running_claims(
+    &self,
+  ) -> Vec<RunningClaim<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>>> {
+    (0..self.num_circuits())
+      .map(|i| {
+        RunningClaim::new(
+          i,
+          self.primary_circuit(i),
+          self.secondary_circuit(),
+          self.num_circuits(),
+        )
+      })
+      .collect()
+  }
+
+  /// Return digest and initial running claims.
+  fn compute_digest_and_initial_running_claims(
+    &self,
+  ) -> (
+    G1::Scalar,
+    Vec<RunningClaim<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>>>,
+  ) {
+    let mut running_claims = self.initial_running_claims();
+
+    let running_claim_params = running_claims
+      .iter()
+      .map(|c| c.get_public_params())
+      .collect::<Vec<_>>();
+
+    let (ck_primary, ck_secondary) = compute_commitment_keys(&running_claim_params);
+
+    for claim in &mut running_claims {
+      claim.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
+    }
+
+    let public_params = running_claims
+      .iter()
+      .map(|c| c.get_public_params())
+      .collect::<Vec<_>>();
+
+    let digest = compute_digest::<G1, PublicParams<G1, G2>>(&public_params);
+
+    (digest, running_claims)
+  }
+
+  /// How many circuits are provided?
+  fn num_circuits(&self) -> usize;
+
+  /// Return a new instance of the primary circuit at `index`.
+  fn primary_circuit(&self, circuit_index: usize) -> C1;
+
+  /// Return a new instance of the secondary circuit.
+  fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G2::Scalar> {
+    Default::default()
+  }
 }

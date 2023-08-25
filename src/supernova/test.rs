@@ -2,12 +2,9 @@ use crate::bellpepper::test_shape_cs::TestShapeCS;
 use crate::gadgets::utils::alloc_const;
 use crate::gadgets::utils::alloc_num_equals;
 use crate::gadgets::utils::conditionally_select;
+use crate::gadgets::utils::{add_allocated_num, alloc_one, alloc_zero};
 use crate::provider::poseidon::PoseidonConstantsCircuit;
 use crate::traits::circuit_supernova::{TrivialSecondaryCircuit, TrivialTestCircuit};
-use crate::{
-  compute_digest,
-  gadgets::utils::{add_allocated_num, alloc_one, alloc_zero},
-};
 use bellpepper::gadgets::boolean::Boolean;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
@@ -276,26 +273,74 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
 const OPCODE_0: usize = 0;
 const OPCODE_1: usize = 1;
 
-#[derive(Clone, Debug)]
-struct TestROM<G: Group> {
-  op0: CubicCircuit<G::Scalar>,
-  op1: SquareCircuit<G::Scalar>,
+struct TestROM<G1, G2, S>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  S: StepCircuit<G2::Scalar> + Default,
+{
   rom: Vec<usize>,
-  _p: PhantomData<G>,
+  _p: PhantomData<(G1, G2, S)>,
 }
 
-impl<G: Group> CircuitSet<G> for TestROM<G> {
-  fn num_augmented_circuits(&self) -> usize {
-    2
+#[derive(Debug, Clone)]
+enum TestRomCircuit<F: PrimeField> {
+  Cubic(CubicCircuit<F>),
+  Square(SquareCircuit<F>),
+}
+
+impl<F: PrimeField> StepCircuit<F> for TestRomCircuit<F> {
+  fn arity(&self) -> usize {
+    match self {
+      Self::Cubic(x) => x.arity(),
+      Self::Square(x) => x.arity(),
+    }
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    pc: Option<&AllocatedNum<F>>,
+    z: &[AllocatedNum<F>],
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+    match self {
+      Self::Cubic(x) => x.synthesize(cs, pc, z),
+      Self::Square(x) => x.synthesize(cs, pc, z),
+    }
   }
 }
 
-impl<G: Group> TestROM<G> {
+impl<G1, G2> NonUniformCircuit<G1, G2, TestRomCircuit<G1::Scalar>>
+  for TestROM<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+{
+  fn num_circuits(&self) -> usize {
+    2
+  }
+
+  fn primary_circuit(&self, circuit_index: usize) -> TestRomCircuit<G1::Scalar> {
+    match circuit_index {
+      0 => TestRomCircuit::Cubic(CubicCircuit::new(circuit_index, self.rom.len())),
+      1 => TestRomCircuit::Square(SquareCircuit::new(circuit_index, self.rom.len())),
+      _ => unimplemented!(),
+    }
+  }
+
+  fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G2::Scalar> {
+    Default::default()
+  }
+}
+
+impl<G1, G2, S> TestROM<G1, G2, S>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  S: StepCircuit<G2::Scalar> + Default,
+{
   fn new(rom: Vec<usize>) -> Self {
-    let rom_len = rom.len();
     Self {
-      op0: CubicCircuit::new(0, rom_len),
-      op1: SquareCircuit::new(1, rom_len),
       rom,
       _p: Default::default(),
     }
@@ -333,49 +378,12 @@ where
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
     OPCODE_1,
   ]; // Rom can be arbitrary length.
-  let circuit_secondary = TrivialSecondaryCircuit::default();
 
-  let test_rom = TestROM::<G1>::new(rom);
-  // Structuring running claims
-  let mut running_claim1 = RunningClaim::<
-    G1,
-    G2,
-    CubicCircuit<<G1 as Group>::Scalar>,
-    TrivialSecondaryCircuit<<G2 as Group>::Scalar>,
-  >::new(
-    OPCODE_0,
-    test_rom.op0.clone(),
-    circuit_secondary.clone(),
-    test_rom.num_augmented_circuits(),
-  );
-
-  let mut running_claim2 = RunningClaim::<
-    G1,
-    G2,
-    SquareCircuit<<G1 as Group>::Scalar>,
-    TrivialSecondaryCircuit<<G2 as Group>::Scalar>,
-  >::new(
-    OPCODE_1,
-    test_rom.op1.clone(),
-    circuit_secondary,
-    test_rom.num_augmented_circuits(),
-  );
-
-  // generate the commitkey based on max num of constraints and reused it for all other augmented circuit
-  let (ck_primary, ck_secondary) =
-    compute_commitment_keys(&[&running_claim1.params, &running_claim2.params]);
-
-  // set unified ck_primary, ck_secondary and update digest
-  running_claim1.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
-  running_claim2.set_commitment_key(ck_primary, ck_secondary);
-
-  let digest = compute_digest::<G1, PublicParams<G1, G2>>(&[
-    running_claim1.get_public_params(),
-    running_claim2.get_public_params(),
-  ]);
-
+  let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
   let num_steps = test_rom.num_steps();
   let initial_program_counter = test_rom.initial_program_counter();
+
+  let (digest, running_claims) = test_rom.compute_digest_and_initial_running_claims();
 
   // extend z0_primary/secondary with rom content
   let mut z0_primary = vec![<G1 as Group>::Scalar::ONE];
@@ -399,62 +407,47 @@ where
       program_counter.to_repr().as_ref()[0..4].try_into().unwrap(),
     ) as usize];
 
-    let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-      if augmented_circuit_index == OPCODE_0 {
-        RecursiveSNARK::iter_base_step(
-          &running_claim1,
+    let mut recursive_snark =
+      recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
+        OPCODE_0 | OPCODE_1 => RecursiveSNARK::iter_base_step(
+          &running_claims[augmented_circuit_index],
           digest,
           Some(program_counter),
           augmented_circuit_index,
-          test_rom.num_augmented_circuits(),
+          test_rom.num_circuits(),
           &z0_primary,
           &z0_secondary,
         )
-        .unwrap()
-      } else if augmented_circuit_index == OPCODE_1 {
-        RecursiveSNARK::iter_base_step(
-          &running_claim2,
-          digest,
-          Some(program_counter),
-          augmented_circuit_index,
-          test_rom.num_augmented_circuits(),
-          &z0_primary,
-          &z0_secondary,
-        )
-        .unwrap()
-      } else {
-        unimplemented!()
+        .unwrap(),
+        _ => {
+          unimplemented!()
+        }
+      });
+    match augmented_circuit_index {
+      OPCODE_0 | OPCODE_1 => {
+        recursive_snark
+          .prove_step(
+            &running_claims[augmented_circuit_index],
+            &z0_primary,
+            &z0_secondary,
+          )
+          .unwrap();
+        recursive_snark
+          .verify(
+            &running_claims[augmented_circuit_index],
+            &z0_primary,
+            &z0_secondary,
+          )
+          .map_err(|err| {
+            print_constraints_name_on_error_index(
+              err,
+              &running_claims[augmented_circuit_index],
+              test_rom.num_circuits(),
+            )
+          })
+          .unwrap();
       }
-    });
-
-    if augmented_circuit_index == OPCODE_0 {
-      recursive_snark
-        .prove_step(&running_claim1, &z0_primary, &z0_secondary)
-        .unwrap();
-      recursive_snark
-        .verify(&running_claim1, &z0_primary, &z0_secondary)
-        .map_err(|err| {
-          print_constraints_name_on_error_index(
-            err,
-            &running_claim1,
-            test_rom.num_augmented_circuits(),
-          )
-        })
-        .unwrap();
-    } else if augmented_circuit_index == OPCODE_1 {
-      recursive_snark
-        .prove_step(&running_claim2, &z0_primary, &z0_secondary)
-        .unwrap();
-      recursive_snark
-        .verify(&running_claim2, &z0_primary, &z0_secondary)
-        .map_err(|err| {
-          print_constraints_name_on_error_index(
-            err,
-            &running_claim2,
-            test_rom.num_augmented_circuits(),
-          )
-        })
-        .unwrap();
+      _ => (),
     }
     recursive_snark_option = Some(recursive_snark)
   }
