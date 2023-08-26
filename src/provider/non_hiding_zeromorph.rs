@@ -187,7 +187,7 @@ where
     // TODO: this should be a Cow
     let quotients_polys = quotients
       .into_iter()
-      .map(|q| UVKZGPoly::new(q))
+      .map(UVKZGPoly::new)
       .collect::<Vec<_>>();
 
     let q_comms = quotients_polys
@@ -219,7 +219,7 @@ where
               .par_iter_mut()
               .zip(q)
               .for_each(|(q_hat, q)| {
-                *q_hat = *q_hat + *power_of_y * *q;
+                *q_hat += *power_of_y * *q;
               });
             q_hat
           },
@@ -249,7 +249,7 @@ where
     debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
     // hence uveval == Fr::ZERO
     let (uvproof, _uveval): (UVKZGProof<_>, UVKZGEvaluation<_>) =
-      UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof.into(), eval.into()))?;
+      UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof, eval))?;
 
     let proof = ZMProof {
       pi: uvproof.proof,
