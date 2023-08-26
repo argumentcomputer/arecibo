@@ -20,7 +20,7 @@ use super::non_hiding_kzg::{
   UVKZGCommitment, UVKZGPoly, UVKZGProverKey, UVKZGVerifierKey,
   UVUniversalKZGParam, UVKZGPCS,
 };
-use std::ops::{Add, Mul};
+use std::ops::{Add, Sub, Mul};
 
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -163,14 +163,10 @@ fn compute_cr_phi_helper<E: Engine>(x: E::Fr, c: Vec<E::G1Affine>, u: &[E::Fr], 
 
 
 
-
-
 impl<E: MultiMillerLoop> ZMPCS<E>
 where
   E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
 {
-
-
 
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
@@ -234,7 +230,6 @@ where
     q_comms.iter().for_each(|c| transcript.absorb(b"quo", c));
 
     let y = transcript.squeeze(b"y")?;
-    dbg!(y);
 
     let powers_of_y = (0..num_vars)
       .scan(y, |acc, _| {
@@ -264,9 +259,7 @@ where
     transcript.absorb(b"q_hat", &q_hat_comm);
 
     let x = transcript.squeeze(b"x")?;
-    dbg!(x);
     let z = transcript.squeeze(b"z")?;
-    dbg!(z);
 
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
 
@@ -298,6 +291,7 @@ where
   /// Verifies that `value` is the evaluation at `x` of the polynomial
   /// committed inside `comm`.
   pub fn verify(
+    pp: &impl Borrow<ZMProverKey<E>>,
     vk: &impl Borrow<ZMVerifierKey<E>>,
     comm: &ZMCommitment<E>,
     point: &[E::Fr],
@@ -305,6 +299,7 @@ where
     evaluation: ZMEvaluation<E>,
     transcript: &mut impl TranscriptEngineTrait<E::G1>,
   ) -> Result<bool, NovaError> {
+    let pp = pp.borrow();
 
     ///////////////////////////////////////////////////////////////////////////
     ///////////////////// Verifier's first message ////////////////////////////
@@ -315,44 +310,83 @@ where
 
     proof.ck.iter().for_each(|c| transcript.absorb(b"quo", c));
     let y = transcript.squeeze(b"y")?;
-    dbg!(y);
-
-    transcript.absorb(b"q_hat", &proof.cqhat);
 
     ///////////////////////////////////////////////////////////////////////////
     ///////////////////// Verifier's second message ///////////////////////////
     ///////////////////////////////////////////////////////////////////////////
 
+    transcript.absorb(b"q_hat", &proof.cqhat);
     let x = transcript.squeeze(b"x")?;
-    dbg!(x);
     let z = transcript.squeeze(b"z")?;
-    dbg!(z);
-
 
     // Compute Cv,x
+    let vphix = eval_phi::<E>(x, 1, num_vars as u32) * evaluation.0; // TODO: replace eval_phi by inline calculation
+    let mut vphix_poly = vec![E::Fr::ZERO; num_vars];
+    vphix_poly[0] = vphix;
+    let cvx = UVKZGPCS::commit(&pp.commit_pp, &UVKZGPoly::new(vphix_poly))?;
+
+    // Compute Czx
     //// Compute xˆ2ˆk.phi_n-k-1(xˆ2ˆk+1) - u_k.phi_n-k(xˆ2ˆk)
     let comm_points: Vec<_> =  proof.ck.iter().map(|c| c.0).collect();
-    let cr_phi: E::G1Affine = compute_cr_phi_helper::<E>(x, comm_points.clone(), point, num_vars as u32).into();
-    dbg!(cr_phi);
+    let sum_phix_ck: E::G1Affine = compute_cr_phi_helper::<E>(x, comm_points.clone(), point, num_vars as u32).into();
 
-
-    // TODO: Compute Czx
+    let mut czx = E::G1::identity();
+    czx = czx.add(comm.0);
+    czx = czx.sub(cvx.0);
+    czx = czx.sub(sum_phix_ck);
 
     ///////////////////////////////////////////////////////////////////////////
+    ///////////////////// Verifier's third message ////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
 
-    // TODO: Compute CZetax
-    // TODO: Compute CZetaZ
+    // Compute CZetax
+    let squares_of_x = iter::successors(Some(x), |&x| Some(x.square()))
+      .take(num_vars + 1)
+      .collect::<Vec<_>>();
+    let offsets_of_x = {
+      let mut offsets_of_x = squares_of_x
+        .iter()
+        .rev()
+        .skip(1)
+        .scan(E::Fr::ONE, |state, power_of_x| {
+          *state *= power_of_x;
+          Some(*state)
+        })
+        .collect::<Vec<_>>();
+      offsets_of_x.reverse();
+      offsets_of_x
+    };
+    let deg_check_factors = iter::successors(Some(y), |acc| Some(*acc * y))
+      .zip(offsets_of_x)
+      .zip(comm_points.clone())
+      .map(
+        |((power_of_y, offset_of_x), ck)| {
+          ck * power_of_y * offset_of_x
+        },
+      );
+      // TODO: use fold
+      //.fold(E::G1::identity(), |sum: E::G1, i: E::G1Affine| sum.add(i));
 
-    // TODO: Adjust pairings
-    let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
-    let scalars = [vec![E::Fr::ONE, z, eval_scalar * evaluation.0], q_scalars].concat();
-    let bases = [vec![proof.cqhat.0, comm.0, vk.vp.g], comm_points.to_vec()].concat();
-    let c = <E::G1 as Group>::vartime_multiscalar_mul(&scalars, &bases).to_affine();
+    let mut deg_check_factors_sum = E::G1::identity();
+    for factor in deg_check_factors {
+      deg_check_factors_sum = deg_check_factors_sum.add(factor);
+    }
+
+    // Compute CZetax
+    let mut czetax = E::G1::identity();
+    czetax = czetax.add(proof.cqhat.0);
+    czetax = czetax.sub(deg_check_factors_sum);
+
+    // Compute CZeta,Z
+    let mut czetaz = E::G1::identity();
+    czetaz = czetaz.add(czetax);
+    let zczx: E::G1 = czx * z;
+    czetaz = czetaz.add(zczx);
 
     let pi = proof.pi;
 
     let pairing_inputs = [
-      (&c, &(-vk.s_offset_h).into()),
+      (&czetaz.to_affine(), &(-vk.s_offset_h).into()),
       (
         &pi,
         &(E::G2::from(vk.vp.beta_h) - (vk.vp.h * x))
@@ -467,7 +501,7 @@ mod test {
       // Verify
 
       let mut transcript_verifier = Keccak256Transcript::new(b"test");
-      let result = ZMPCS::verify(&vk, &comm, point.as_slice(), proof, eval, &mut transcript_verifier);
+      let result = ZMPCS::verify(&pp, &vk, &comm, point.as_slice(), proof, eval, &mut transcript_verifier);
 
       // check both random oracles are synced, as expected
       assert_eq!(transcript_prover.squeeze(b"test"), transcript_verifier.squeeze(b"test"));
