@@ -151,7 +151,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
           .par_iter_mut()
           .zip(remainder_hi)
           .for_each(|(r_lo, r_hi)| {
-            *r_lo += (*r_hi - &*r_lo) * x_i;
+            *r_lo += (*r_hi - r_lo as &_) * x_i;
           });
 
         remainder.truncate(1 << num_var);
