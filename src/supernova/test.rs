@@ -324,7 +324,7 @@ where
     match circuit_index {
       0 => TestRomCircuit::Cubic(CubicCircuit::new(circuit_index, self.rom.len())),
       1 => TestRomCircuit::Square(SquareCircuit::new(circuit_index, self.rom.len())),
-      _ => unimplemented!(),
+      _ => panic!("unsupported primary circuit index"),
     }
   }
 
