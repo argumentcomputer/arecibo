@@ -228,7 +228,7 @@ where
 }
 
 fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
-  err: SuperNovaError,
+  err: &SuperNovaError,
   running_claim: &RunningClaim<G1, G2, C1, C2>,
   num_augmented_circuits: usize,
 ) where
@@ -238,7 +238,7 @@ fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
   C2: StepCircuit<G2::Scalar>,
 {
   match err {
-    SuperNovaError::UnSatIndex(msg, index) if msg == "r_primary" => {
+    SuperNovaError::UnSatIndex(msg, index) if *msg == "r_primary" => {
       let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
         &running_claim.params.augmented_circuit_params_primary,
         None,
@@ -249,10 +249,10 @@ fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
       let mut cs: TestShapeCS<G1> = TestShapeCS::new();
       let _ = circuit_primary.synthesize(&mut cs);
       cs.constraints
-        .get(index)
+        .get(*index)
         .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
-    SuperNovaError::UnSatIndex(msg, index) if msg == "r_secondary" || msg == "l_secondary" => {
+    SuperNovaError::UnSatIndex(msg, index) if *msg == "r_secondary" || *msg == "l_secondary" => {
       let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
         &running_claim.params.augmented_circuit_params_secondary,
         None,
@@ -263,7 +263,7 @@ fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
       let mut cs: TestShapeCS<G2> = TestShapeCS::new();
       let _ = circuit_secondary.synthesize(&mut cs);
       cs.constraints
-        .get(index)
+        .get(*index)
         .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
     _ => (),
@@ -440,7 +440,7 @@ where
           )
           .map_err(|err| {
             print_constraints_name_on_error_index(
-              err,
+              &err,
               &running_claims[augmented_circuit_index],
               test_rom.num_circuits(),
             )
@@ -478,8 +478,8 @@ fn test_trivial_nivc() {
 
 // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
 fn test_recursive_circuit_with<G1, G2>(
-  primary_params: SuperNovaAugmentedCircuitParams,
-  secondary_params: SuperNovaAugmentedCircuitParams,
+  primary_params: &SuperNovaAugmentedCircuitParams,
+  secondary_params: &SuperNovaAugmentedCircuitParams,
   ro_consts1: ROConstantsCircuit<G2>,
   ro_consts2: ROConstantsCircuit<G1>,
   num_constraints_primary: usize,
@@ -492,7 +492,7 @@ fn test_recursive_circuit_with<G1, G2>(
   let step_circuit1 = TrivialTestCircuit::default();
   let arity1 = step_circuit1.arity();
   let circuit1: SuperNovaAugmentedCircuit<'_, G2, TrivialTestCircuit<<G2 as Group>::Base>> =
-    SuperNovaAugmentedCircuit::new(&primary_params, None, &step_circuit1, ro_consts1.clone(), 2);
+    SuperNovaAugmentedCircuit::new(primary_params, None, &step_circuit1, ro_consts1.clone(), 2);
   let mut cs: ShapeCS<G1> = ShapeCS::new();
   if let Err(e) = circuit1.synthesize(&mut cs) {
     panic!("{}", e)
@@ -505,7 +505,7 @@ fn test_recursive_circuit_with<G1, G2>(
   let arity2 = step_circuit2.arity();
   let circuit2: SuperNovaAugmentedCircuit<'_, G1, TrivialSecondaryCircuit<<G1 as Group>::Base>> =
     SuperNovaAugmentedCircuit::new(
-      &secondary_params,
+      secondary_params,
       None,
       &step_circuit2,
       ro_consts2.clone(),
@@ -535,7 +535,7 @@ fn test_recursive_circuit_with<G1, G2>(
   );
   let step_circuit = TrivialTestCircuit::default();
   let circuit1: SuperNovaAugmentedCircuit<'_, G2, TrivialTestCircuit<<G2 as Group>::Base>> =
-    SuperNovaAugmentedCircuit::new(&primary_params, Some(inputs1), &step_circuit, ro_consts1, 2);
+    SuperNovaAugmentedCircuit::new(primary_params, Some(inputs1), &step_circuit, ro_consts1, 2);
   if let Err(e) = circuit1.synthesize(&mut cs1) {
     panic!("{}", e)
   }
@@ -561,7 +561,7 @@ fn test_recursive_circuit_with<G1, G2>(
   let step_circuit = TrivialSecondaryCircuit::default();
   let circuit2: SuperNovaAugmentedCircuit<'_, G1, TrivialSecondaryCircuit<<G1 as Group>::Base>> =
     SuperNovaAugmentedCircuit::new(
-      &secondary_params,
+      secondary_params,
       Some(inputs2),
       &step_circuit,
       ro_consts2,
@@ -584,5 +584,5 @@ fn test_recursive_circuit() {
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::default();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
-  test_recursive_circuit_with::<G1, G2>(params1, params2, ro_consts1, ro_consts2, 9835, 12035);
+  test_recursive_circuit_with::<G1, G2>(&params1, &params2, ro_consts1, ro_consts2, 9835, 12035);
 }

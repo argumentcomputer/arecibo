@@ -7,7 +7,6 @@
 xclippy = [
     "clippy", "--all-targets", "--",
     "-Wclippy::all",
-    "-Wclippy::all",
     "-Wclippy::match_same_arms",
     "-Wclippy::cast_lossless",
     "-Wclippy::dbg_macro",

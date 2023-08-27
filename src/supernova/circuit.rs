@@ -315,16 +315,16 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
   fn synthesize_non_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
     &self,
     mut cs: CS,
-    params: AllocatedNum<G::Base>,
-    i: AllocatedNum<G::Base>,
-    z_0: Vec<AllocatedNum<G::Base>>,
-    z_i: Vec<AllocatedNum<G::Base>>,
+    params: &AllocatedNum<G::Base>,
+    i: &AllocatedNum<G::Base>,
+    z_0: &[AllocatedNum<G::Base>],
+    z_i: &[AllocatedNum<G::Base>],
     U: &[AllocatedRelaxedR1CSInstance<G>],
-    u: AllocatedR1CSInstance<G>,
-    T: AllocatedPoint<G>,
+    u: &AllocatedR1CSInstance<G>,
+    T: &AllocatedPoint<G>,
     arity: usize,
     last_augmented_circuit_index: &AllocatedNum<G::Base>,
-    program_counter: Option<AllocatedNum<G::Base>>,
+    program_counter: &Option<AllocatedNum<G::Base>>,
     num_augmented_circuits: usize,
   ) -> Result<
     (
@@ -344,8 +344,8 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
         + 2 * arity // zo, z1
         + num_augmented_circuits * (7 + 2 * self.params.n_limbs), // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
     );
-    ro.absorb(&params);
-    ro.absorb(&i);
+    ro.absorb(params);
+    ro.absorb(i);
 
     if self.params.is_primary_circuit {
       if let Some(program_counter) = program_counter.as_ref() {
@@ -355,10 +355,10 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
       }
     }
 
-    for e in &z_0 {
+    for e in z_0 {
       ro.absorb(e);
     }
-    for e in &z_i {
+    for e in z_i {
       ro.absorb(e);
     }
 
@@ -382,9 +382,9 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
     )?;
     let U_fold = U_to_fold.fold_with_r1cs(
       cs.namespace(|| "compute fold of U and u"),
-      &params,
-      &u,
-      &T,
+      params,
+      u,
+      T,
       self.ro_consts.clone(),
       self.params.limb_width,
       self.params.n_limbs,
@@ -488,16 +488,16 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
     let (last_augmented_circuit_index_checked, U_next_non_base, check_non_base_pass) = self
       .synthesize_non_base_case(
         cs.namespace(|| "synthesize non base case"),
-        params.clone(),
-        i.clone(),
-        z_0.clone(),
-        z_i.clone(),
+        &params,
+        &i,
+        &z_0,
+        &z_i,
         &U,
-        u.clone(),
-        T,
+        &u,
+        &T,
         arity,
         &last_augmented_circuit_index,
-        program_counter.clone(),
+        &program_counter,
         num_augmented_circuits,
       )?;
 
