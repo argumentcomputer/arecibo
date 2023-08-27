@@ -227,19 +227,19 @@ where
   }
 }
 
-fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
+fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
   err: SuperNovaError,
-  running_claim: &RunningClaim<G1, G2, Ca, Cb>,
+  running_claim: &RunningClaim<G1, G2, C1, C2>,
   num_augmented_circuits: usize,
 ) where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  Ca: StepCircuit<G1::Scalar>,
-  Cb: StepCircuit<G2::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
 {
   match err {
     SuperNovaError::UnSatIndex(msg, index) if msg == "r_primary" => {
-      let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, Ca> = SuperNovaAugmentedCircuit::new(
+      let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
         &running_claim.params.augmented_circuit_params_primary,
         None,
         &running_claim.c_primary,
@@ -253,7 +253,7 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
         .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
     SuperNovaError::UnSatIndex(msg, index) if msg == "r_secondary" || msg == "l_secondary" => {
-      let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, Cb> = SuperNovaAugmentedCircuit::new(
+      let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
         &running_claim.params.augmented_circuit_params_secondary,
         None,
         &running_claim.c_secondary,

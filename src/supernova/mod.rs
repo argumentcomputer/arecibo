@@ -155,32 +155,32 @@ where
 
 /// SuperNova takes Ui a list of running instances.
 /// One instance of Ui is a struct called RunningClaim.
-pub struct RunningClaim<G1, G2, Ca, Cb>
+pub struct RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  Ca: StepCircuit<G1::Scalar>,
-  Cb: StepCircuit<G2::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
 {
   _phantom: PhantomData<G1>,
   augmented_circuit_index: usize,
-  c_primary: Ca,
-  c_secondary: Cb,
+  c_primary: C1,
+  c_secondary: C2,
   params: PublicParams<G1, G2>,
 }
 
-impl<G1, G2, Ca, Cb> RunningClaim<G1, G2, Ca, Cb>
+impl<G1, G2, C1, C2> RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  Ca: StepCircuit<G1::Scalar>,
-  Cb: StepCircuit<G2::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
 {
   /// new a running claim
   pub fn new(
     augmented_circuit_index: usize,
-    circuit_primary: Ca,
-    circuit_secondary: Cb,
+    circuit_primary: C1,
+    circuit_secondary: C2,
     num_augmented_circuits: usize,
   ) -> Self {
     let claim = circuit_primary;
