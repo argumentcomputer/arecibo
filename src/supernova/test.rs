@@ -284,12 +284,12 @@ where
 }
 
 #[derive(Debug, Clone)]
-enum TestRomCircuit<F: PrimeField> {
+enum TestROMCircuit<F: PrimeField> {
   Cubic(CubicCircuit<F>),
   Square(SquareCircuit<F>),
 }
 
-impl<F: PrimeField> StepCircuit<F> for TestRomCircuit<F> {
+impl<F: PrimeField> StepCircuit<F> for TestROMCircuit<F> {
   fn arity(&self) -> usize {
     match self {
       Self::Cubic(x) => x.arity(),
@@ -310,7 +310,7 @@ impl<F: PrimeField> StepCircuit<F> for TestRomCircuit<F> {
   }
 }
 
-impl<G1, G2> NonUniformCircuit<G1, G2, TestRomCircuit<G1::Scalar>>
+impl<G1, G2> NonUniformCircuit<G1, G2, TestROMCircuit<G1::Scalar>>
   for TestROM<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -320,10 +320,10 @@ where
     2
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> TestRomCircuit<G1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> TestROMCircuit<G1::Scalar> {
     match circuit_index {
-      0 => TestRomCircuit::Cubic(CubicCircuit::new(circuit_index, self.rom.len())),
-      1 => TestRomCircuit::Square(SquareCircuit::new(circuit_index, self.rom.len())),
+      0 => TestROMCircuit::Cubic(CubicCircuit::new(circuit_index, self.rom.len())),
+      1 => TestROMCircuit::Square(SquareCircuit::new(circuit_index, self.rom.len())),
       _ => panic!("unsupported primary circuit index"),
     }
   }
