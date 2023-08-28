@@ -227,19 +227,19 @@ where
   }
 }
 
-fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
+fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
   err: SuperNovaError,
-  running_claim: &RunningClaim<G1, G2, Ca, Cb>,
+  running_claim: &RunningClaim<G1, G2, C1, C2>,
   num_augmented_circuits: usize,
 ) where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  Ca: StepCircuit<G1::Scalar>,
-  Cb: StepCircuit<G2::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
 {
   match err {
     SuperNovaError::UnSatIndex(msg, index) if msg == "r_primary" => {
-      let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, Ca> = SuperNovaAugmentedCircuit::new(
+      let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
         &running_claim.params.augmented_circuit_params_primary,
         None,
         &running_claim.c_primary,
@@ -253,7 +253,7 @@ fn print_constraints_name_on_error_index<G1, G2, Ca, Cb>(
         .tap_some(|constraint| debug!("{msg} failed at constraint {}", constraint.3));
     }
     SuperNovaError::UnSatIndex(msg, index) if msg == "r_secondary" || msg == "l_secondary" => {
-      let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, Cb> = SuperNovaAugmentedCircuit::new(
+      let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
         &running_claim.params.augmented_circuit_params_secondary,
         None,
         &running_claim.c_secondary,
@@ -284,12 +284,12 @@ where
 }
 
 #[derive(Debug, Clone)]
-enum TestRomCircuit<F: PrimeField> {
+enum TestROMCircuit<F: PrimeField> {
   Cubic(CubicCircuit<F>),
   Square(SquareCircuit<F>),
 }
 
-impl<F: PrimeField> StepCircuit<F> for TestRomCircuit<F> {
+impl<F: PrimeField> StepCircuit<F> for TestROMCircuit<F> {
   fn arity(&self) -> usize {
     match self {
       Self::Cubic(x) => x.arity(),
@@ -310,7 +310,7 @@ impl<F: PrimeField> StepCircuit<F> for TestRomCircuit<F> {
   }
 }
 
-impl<G1, G2> NonUniformCircuit<G1, G2, TestRomCircuit<G1::Scalar>>
+impl<G1, G2> NonUniformCircuit<G1, G2, TestROMCircuit<G1::Scalar>>
   for TestROM<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -320,10 +320,10 @@ where
     2
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> TestRomCircuit<G1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> TestROMCircuit<G1::Scalar> {
     match circuit_index {
-      0 => TestRomCircuit::Cubic(CubicCircuit::new(circuit_index, self.rom.len())),
-      1 => TestRomCircuit::Square(SquareCircuit::new(circuit_index, self.rom.len())),
+      0 => TestROMCircuit::Cubic(CubicCircuit::new(circuit_index, self.rom.len())),
+      1 => TestROMCircuit::Square(SquareCircuit::new(circuit_index, self.rom.len())),
       _ => panic!("unsupported primary circuit index"),
     }
   }
