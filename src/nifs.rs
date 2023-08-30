@@ -45,16 +45,13 @@ impl<G: Group> NIFS<G> {
     // initialize a new RO
     let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 
-    tracing::info_span!("> absorb").in_scope(|| {});
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<G>(*pp_digest));
 
-    tracing::info_span!("> absorb_in_ro").in_scope(|| {});
     // append U1 and U2 to transcript
     U1.absorb_in_ro(&mut ro);
     U2.absorb_in_ro(&mut ro);
 
-    tracing::info_span!("> commit_T").in_scope(|| {});
     // compute a commitment to the cross-term
     let (T, comm_T) = S.commit_T(ck, U1, W1, U2, W2)?;
 
