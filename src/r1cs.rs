@@ -285,7 +285,6 @@ impl<G: Group> R1CSShape<G> {
 
   /// A method to compute a commitment to the cross-term `T` given a
   /// Relaxed R1CS instance-witness pair and an R1CS instance-witness pair
-  #[tracing::instrument(skip_all, name = "commit_T")]
   pub fn commit_T(
     &self,
     ck: &CommitmentKey<G>,
