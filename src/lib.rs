@@ -413,18 +413,18 @@ where
       pp.ro_consts_circuit_primary.clone(),
     );
 
-    tracing::event!(Level::INFO, "synthesize primary");
+    tracing::info_span!("> synthesize primary").in_scope(|| {});
     let zi_primary = circuit_primary
       .synthesize(&mut cs_primary)
       .map_err(|_| NovaError::SynthesisError)?;
 
-    tracing::event!(Level::INFO, "r1cs_instance_and_witness primary");
+    tracing::info_span!("> r1cs_instance_and_witness primary").in_scope(|| {});
     let (l_u_primary, l_w_primary) = cs_primary
       .r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
-    tracing::event!(Level::INFO, "NIFS::prove primary");
+    tracing::info_span!("> NIFS::prove primary").in_scope(|| {});
     // fold the primary circuit's instance
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
       &pp.ck_primary,
