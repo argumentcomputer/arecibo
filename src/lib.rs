@@ -413,12 +413,10 @@ where
       pp.ro_consts_circuit_primary.clone(),
     );
 
-    tracing::info_span!("> synthesize primary").in_scope(|| {});
     let zi_primary = circuit_primary
       .synthesize(&mut cs_primary)
       .map_err(|_| NovaError::SynthesisError)?;
 
-    tracing::info_span!("> r1cs_instance_and_witness primary").in_scope(|| {});
     let (l_u_primary, l_w_primary) = cs_primary
       .r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
