@@ -20,7 +20,7 @@ use crate::{
 };
 
 use ff::Field;
-use log::debug;
+use tracing::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::bellpepper::{
