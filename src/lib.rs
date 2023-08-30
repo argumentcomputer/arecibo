@@ -37,6 +37,7 @@ use abomonation_derive::Abomonation;
 use bellpepper_core::ConstraintSystem;
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
+use tracing::Level;
 use core::marker::PhantomData;
 use errors::NovaError;
 use ff::{Field, PrimeField};
@@ -411,15 +412,19 @@ where
       c_primary,
       pp.ro_consts_circuit_primary.clone(),
     );
+
+    tracing::event!(Level::INFO, "synthesize primary");
     let zi_primary = circuit_primary
       .synthesize(&mut cs_primary)
       .map_err(|_| NovaError::SynthesisError)?;
 
+    tracing::event!(Level::INFO, "r1cs_instance_and_witness primary");
     let (l_u_primary, l_w_primary) = cs_primary
       .r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
+    tracing::event!(Level::INFO, "NIFS::prove primary");
     // fold the primary circuit's instance
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
       &pp.ck_primary,
