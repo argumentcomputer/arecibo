@@ -424,7 +424,6 @@ where
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
-    tracing::info_span!("> NIFS::prove primary").in_scope(|| {});
     // fold the primary circuit's instance
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
       &pp.ck_primary,

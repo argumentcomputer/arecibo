@@ -31,6 +31,7 @@ impl<G: Group> NIFS<G> {
   /// with the guarantee that the folded witness `W` satisfies the folded instance `U`
   /// if and only if `W1` satisfies `U1` and `W2` satisfies `U2`.
   #[allow(clippy::too_many_arguments)]
+  #[tracing::instrument(skip_all, name = "NIFS::prove")]
   pub fn prove(
     ck: &CommitmentKey<G>,
     ro_consts: &ROConstants<G>,
@@ -60,12 +61,15 @@ impl<G: Group> NIFS<G> {
     // compute a challenge from the RO
     let r = ro.squeeze(NUM_CHALLENGE_BITS);
 
+    tracing::info_span!("> fold instance").in_scope(|| {});
     // fold the instance using `r` and `comm_T`
     let U = U1.fold(U2, &comm_T, &r)?;
 
+    tracing::info_span!("> fold witness").in_scope(|| {});
     // fold the witness using `r` and `T`
     let W = W1.fold(W2, &T, &r)?;
 
+    tracing::info_span!("> fold witness").in_scope(|| {});
     // return the folded instance and witness
     Ok((
       Self {
