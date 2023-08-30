@@ -45,13 +45,16 @@ impl<G: Group> NIFS<G> {
     // initialize a new RO
     let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 
+    tracing::info_span!("> absorb").in_scope(|| {});
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<G>(*pp_digest));
 
+    tracing::info_span!("> absorb_in_ro").in_scope(|| {});
     // append U1 and U2 to transcript
     U1.absorb_in_ro(&mut ro);
     U2.absorb_in_ro(&mut ro);
 
+    tracing::info_span!("> commit_T").in_scope(|| {});
     // compute a commitment to the cross-term
     let (T, comm_T) = S.commit_T(ck, U1, W1, U2, W2)?;
 
@@ -61,15 +64,12 @@ impl<G: Group> NIFS<G> {
     // compute a challenge from the RO
     let r = ro.squeeze(NUM_CHALLENGE_BITS);
 
-    tracing::info_span!("> fold instance").in_scope(|| {});
     // fold the instance using `r` and `comm_T`
     let U = U1.fold(U2, &comm_T, &r)?;
 
-    tracing::info_span!("> fold witness").in_scope(|| {});
     // fold the witness using `r` and `T`
     let W = W1.fold(W2, &T, &r)?;
 
-    tracing::info_span!("> fold witness").in_scope(|| {});
     // return the folded instance and witness
     Ok((
       Self {
