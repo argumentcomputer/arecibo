@@ -362,6 +362,7 @@ where
 
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
   /// by executing a step of the incremental computation
+  #[tracing::instrument(skip_all, name = "RecursiveSNARK::prove_step")]
   pub fn prove_step(
     &mut self,
     pp: &PublicParams<G1, G2, C1, C2>,
