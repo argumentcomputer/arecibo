@@ -902,6 +902,33 @@ type Commitment<G> = <<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment;
 type CompressedCommitment<G> = <<<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment as CommitmentTrait<G>>::CompressedCommitment;
 type CE<G> = <G as Group>::CE;
 
+/// Compute the circuit digest of a [StepCircuit].
+pub fn circuit_digest<
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C: StepCircuit<G1::Scalar>,
+>(
+  circuit: &C,
+  is_primary_circuit: bool,
+) -> G1::Scalar {
+  let augmented_circuit_params =
+    NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, is_primary_circuit);
+
+  // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
+  let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
+
+  // Initialize ck for the primary
+  let augmented_circuit: NovaAugmentedCircuit<'_, G2, C> = NovaAugmentedCircuit::new(
+    &augmented_circuit_params,
+    None,
+    circuit,
+    ro_consts_circuit.clone(),
+  );
+  let mut cs: ShapeCS<G1> = ShapeCS::new();
+  let _ = augmented_circuit.synthesize(&mut cs);
+  cs.r1cs_shape().digest
+}
+
 #[cfg(test)]
 mod tests {
   use crate::provider::bn256_grumpkin::{bn256, grumpkin};
