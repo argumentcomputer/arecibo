@@ -1,5 +1,7 @@
 //! This module defines R1CS related types and a folding scheme for Relaxed R1CS
 #![allow(clippy::type_complexity)]
+pub mod sparse;
+
 use crate::{
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
   errors::NovaError,
@@ -20,6 +22,10 @@ use ff::Field;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "csr")]
+use self::sparse::SparseMatrix;
+
+#[cfg(not(feature = "csr"))]
 /// A type that holds the shape of the R1CS matrices
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
@@ -33,6 +39,21 @@ pub struct R1CSShape<G: Group> {
   pub(crate) B: Vec<(usize, usize, G::Scalar)>,
   #[abomonate_with(Vec<(usize, usize, <G::Scalar as ff::PrimeField>::Repr)>)]
   pub(crate) C: Vec<(usize, usize, G::Scalar)>,
+}
+
+#[cfg(feature = "csr")]
+/// A type that holds the shape of the R1CS matrices
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
+pub struct R1CSShape<G: Group> {
+  pub(crate) num_cons: usize,
+  pub(crate) num_vars: usize,
+  pub(crate) num_io: usize,
+  pub(crate) A: SparseMatrix<G::Scalar>,
+  pub(crate) B: SparseMatrix<G::Scalar>,
+  pub(crate) C: SparseMatrix<G::Scalar>,
+  #[abomonate_with(<G::Scalar as ff::PrimeField>::Repr)]
+  pub(crate) digest: G::Scalar, // digest of everything else with this field set to G::Scalar::ZERO
 }
 
 /// A type that holds a witness for a given R1CS instance
@@ -146,14 +167,30 @@ impl<G: Group> R1CSShape<G> {
       return Err(NovaError::OddInputLength);
     }
 
-    Ok(R1CSShape {
-      num_cons,
-      num_vars,
-      num_io,
-      A: A.to_owned(),
-      B: B.to_owned(),
-      C: C.to_owned(),
-    })
+    cfg_if::cfg_if! {
+      if #[cfg(feature = "csr")] {
+        let rows = num_cons;
+        let cols = num_vars + num_io + 1;
+
+        Ok(R1CSShape {
+          num_cons,
+          num_vars,
+          num_io,
+          A: SparseMatrix::new(A, rows, cols),
+          B: SparseMatrix::new(B, rows, cols),
+          C: SparseMatrix::new(C, rows, cols),
+        })
+      } else {
+        Ok(R1CSShape {
+          num_cons,
+          num_vars,
+          num_io,
+          A: A.to_owned(),
+          B: B.to_owned(),
+          C: C.to_owned(),
+        })
+      }
+    }
   }
 
   // Checks regularity conditions on the R1CSShape, required in Spartan-class SNARKs
@@ -166,6 +203,7 @@ impl<G: Group> R1CSShape<G> {
     assert!(self.num_io < self.num_vars);
   }
 
+  #[cfg(not(feature = "csr"))]
   pub(crate) fn multiply_vec(
     &self,
     z: &[G::Scalar],
@@ -198,6 +236,23 @@ impl<G: Group> R1CSShape<G> {
           || sparse_matrix_vec_product(&self.C, self.num_cons, z),
         )
       },
+    );
+
+    Ok((Az, Bz, Cz))
+  }
+
+  #[cfg(feature = "csr")]
+  pub(crate) fn multiply_vec(
+    &self,
+    z: &[G::Scalar],
+  ) -> Result<(Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>), NovaError> {
+    if z.len() != self.num_io + self.num_vars + 1 {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    let (Az, (Bz, Cz)) = rayon::join(
+      || self.A.multiply_vec(z),
+      || rayon::join(|| self.B.multiply_vec(z), || self.C.multiply_vec(z)),
     );
 
     Ok((Az, Bz, Cz))
@@ -303,7 +358,6 @@ impl<G: Group> R1CSShape<G> {
       self.multiply_vec(&Z2)
     })?;
 
-    // forgive the horror here, but it's for grouping into one span
     let (AZ_1_circ_BZ_2, AZ_2_circ_BZ_1, u_1_cdot_CZ_2, u_2_cdot_CZ_1) =
       tracing::info_span!("cross terms").in_scope(|| {
         let AZ_1_circ_BZ_2 = (0..AZ_1.len())
@@ -367,25 +421,35 @@ impl<G: Group> R1CSShape<G> {
     // otherwise, we need to pad the number of variables and renumber variable accesses
     let num_vars_padded = m;
     let num_cons_padded = m;
-    let apply_pad = |M: &[(usize, usize, G::Scalar)]| -> Vec<(usize, usize, G::Scalar)> {
-      M.par_iter()
-        .map(|(r, c, v)| {
-          (
-            *r,
-            if c >= &self.num_vars {
-              c + num_vars_padded - self.num_vars
-            } else {
-              *c
-            },
-            *v,
-          )
-        })
-        .collect::<Vec<_>>()
-    };
 
-    let A_padded = apply_pad(&self.A);
-    let B_padded = apply_pad(&self.B);
-    let C_padded = apply_pad(&self.C);
+    cfg_if::cfg_if! {
+      if #[cfg(feature = "csr")] {
+        let apply_pad = |mut M: SparseMatrix<G::Scalar>| -> SparseMatrix<G::Scalar> {
+          M.pad(num_cons_padded, num_vars_padded, self.num_vars);
+          M
+        };
+      } else {
+        let apply_pad = |M: Vec<(usize, usize, G::Scalar)>| -> Vec<(usize, usize, G::Scalar)> {
+          M.into_par_iter()
+            .map(|(r, c, v)| {
+              (
+                r,
+                if c >= self.num_vars {
+                  c + num_vars_padded - self.num_vars
+                } else {
+                  c
+                },
+                v,
+              )
+            })
+            .collect::<Vec<_>>()
+        };
+      }
+    }
+
+    let A_padded = apply_pad(self.A.clone());
+    let B_padded = apply_pad(self.B.clone());
+    let C_padded = apply_pad(self.C.clone());
 
     R1CSShape {
       num_cons: num_cons_padded,

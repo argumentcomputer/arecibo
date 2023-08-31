@@ -15,6 +15,8 @@ use nova_snark::{
 };
 use num_bigint::BigUint;
 use std::time::Instant;
+use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
+use tracing_texray::TeXRayLayer;
 
 #[derive(Clone, Debug)]
 struct MinRootIteration<F: PrimeField> {
@@ -129,12 +131,19 @@ where
   }
 }
 
+/// cargo run --release --features csr --examples minroot
 fn main() {
+  let subscriber = Registry::default()
+    .with(fmt::layer().pretty())
+    .with(EnvFilter::from_default_env())
+    .with(TeXRayLayer::new());
+  tracing::subscriber::set_global_default(subscriber).unwrap();
+
   println!("Nova-based VDF with MinRoot delay function");
   println!("=========================================================");
 
   let num_steps = 10;
-  for num_iters_per_step in [1024, 2048, 4096, 8192, 16384, 32768, 65535] {
+  for num_iters_per_step in [65536, 524288] {
     // number of iterations of MinRoot per Nova's recursive step
     let circuit_primary = MinRootCircuit {
       seq: vec![

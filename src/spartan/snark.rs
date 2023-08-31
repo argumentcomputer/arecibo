@@ -19,6 +19,10 @@ use crate::{
   },
   Commitment, CommitmentKey,
 };
+
+#[cfg(feature = "csr")]
+use crate::r1cs::sparse::SparseMatrix;
+
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::Field;
@@ -195,11 +199,21 @@ where
         |S: &R1CSShape<G>, rx: &[G::Scalar]| -> (Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>) {
           assert_eq!(rx.len(), S.num_cons);
 
-          let inner = |M: &Vec<(usize, usize, G::Scalar)>, M_evals: &mut Vec<G::Scalar>| {
-            for (row, col, val) in M {
-              M_evals[*col] += rx[*row] * val;
+          cfg_if::cfg_if! {
+            if #[cfg(feature = "csr")] {
+              let inner = |M: &SparseMatrix<G::Scalar>, M_evals: &mut Vec<G::Scalar>| {
+                for (row, col, val) in M.iter() {
+                  M_evals[col] += rx[row] * val;
+                }
+              };
+            } else {
+              let inner = |M: &Vec<(usize, usize, G::Scalar)>, M_evals: &mut Vec<G::Scalar>| {
+                for (row, col, val) in M.iter() {
+                  M_evals[*col] += rx[*row] * val;
+                }
+              };
             }
-          };
+          }
 
           let (A_evals, (B_evals, C_evals)) = rayon::join(
             || {
@@ -433,31 +447,57 @@ where
     };
 
     // compute evaluations of R1CS matrices
-    let multi_evaluate = |M_vec: &[&[(usize, usize, G::Scalar)]],
-                          r_x: &[G::Scalar],
-                          r_y: &[G::Scalar]|
-     -> Vec<G::Scalar> {
-      let evaluate_with_table =
-        |M: &[(usize, usize, G::Scalar)], T_x: &[G::Scalar], T_y: &[G::Scalar]| -> G::Scalar {
-          (0..M.len())
-            .into_par_iter()
-            .map(|i| {
-              let (row, col, val) = M[i];
-              T_x[row] * T_y[col] * val
-            })
-            .sum()
+    cfg_if::cfg_if! {
+      if #[cfg(feature = "csr")] {
+        let multi_evaluate = |M_vec: &[&SparseMatrix<G::Scalar>],
+                  r_x: &[G::Scalar],
+                  r_y: &[G::Scalar]|
+        -> Vec<G::Scalar> {
+          let evaluate_with_table =
+          |M: &SparseMatrix<G::Scalar>, T_x: &[G::Scalar], T_y: &[G::Scalar]| -> G::Scalar {
+          M.iter()
+          .map(|(row, col, val)| T_x[row] * T_y[col] * val)
+          .sum()
+          };
+
+          let (T_x, T_y) = rayon::join(
+          || EqPolynomial::new(r_x.to_vec()).evals(),
+          || EqPolynomial::new(r_y.to_vec()).evals(),
+          );
+
+          (0..M_vec.len())
+          .into_par_iter()
+          .map(|i| evaluate_with_table(M_vec[i], &T_x, &T_y))
+          .collect()
         };
+      } else {
+        let multi_evaluate = |M_vec: &[&[(usize, usize, G::Scalar)]],
+                              r_x: &[G::Scalar],
+                              r_y: &[G::Scalar]|
+        -> Vec<G::Scalar> {
+          let evaluate_with_table =
+            |M: &[(usize, usize, G::Scalar)], T_x: &[G::Scalar], T_y: &[G::Scalar]| -> G::Scalar {
+              (0..M.len())
+                .into_par_iter()
+                .map(|i| {
+                  let (row, col, val) = M[i];
+                  T_x[row] * T_y[col] * val
+                })
+                .sum()
+            };
 
-      let (T_x, T_y) = rayon::join(
-        || EqPolynomial::new(r_x.to_vec()).evals(),
-        || EqPolynomial::new(r_y.to_vec()).evals(),
-      );
+          let (T_x, T_y) = rayon::join(
+            || EqPolynomial::new(r_x.to_vec()).evals(),
+            || EqPolynomial::new(r_y.to_vec()).evals(),
+          );
 
-      (0..M_vec.len())
-        .into_par_iter()
-        .map(|i| evaluate_with_table(M_vec[i], &T_x, &T_y))
-        .collect()
-    };
+          (0..M_vec.len())
+            .into_par_iter()
+            .map(|i| evaluate_with_table(M_vec[i], &T_x, &T_y))
+            .collect()
+        };
+      }
+    }
 
     let evals = multi_evaluate(&[&vk.S.A, &vk.S.B, &vk.S.C], &r_x, &r_y);
 

@@ -145,14 +145,26 @@ impl<G: Group> R1CSShapeSparkRepr<G> {
     let (mut row, mut col) = (vec![0usize; N], vec![0usize; N]);
 
     for (i, (r, c, _)) in S.A.iter().chain(S.B.iter()).chain(S.C.iter()).enumerate() {
-      row[i] = *r;
-      col[i] = *c;
+      cfg_if::cfg_if! {
+        if #[cfg(feature = "csr")] {
+          row[i] = r;
+          col[i] = c;
+        } else {
+          row[i] = *r;
+          col[i] = *c;
+        }
+      }
     }
-
     let val_A = {
       let mut val = vec![G::Scalar::ZERO; N];
       for (i, (_, _, v)) in S.A.iter().enumerate() {
-        val[i] = *v;
+        cfg_if::cfg_if! {
+          if #[cfg(feature = "csr")] {
+            val[i] = v;
+          } else {
+            val[i] = *v;
+          }
+        }
       }
       val
     };
@@ -160,7 +172,13 @@ impl<G: Group> R1CSShapeSparkRepr<G> {
     let val_B = {
       let mut val = vec![G::Scalar::ZERO; N];
       for (i, (_, _, v)) in S.B.iter().enumerate() {
-        val[S.A.len() + i] = *v;
+        cfg_if::cfg_if! {
+          if #[cfg(feature = "csr")] {
+            val[S.A.len() + i] = v;
+          } else {
+            val[S.A.len() + i] = *v;
+          }
+        }
       }
       val
     };
@@ -168,7 +186,13 @@ impl<G: Group> R1CSShapeSparkRepr<G> {
     let val_C = {
       let mut val = vec![G::Scalar::ZERO; N];
       for (i, (_, _, v)) in S.C.iter().enumerate() {
-        val[S.A.len() + S.B.len() + i] = *v;
+        cfg_if::cfg_if! {
+          if #[cfg(feature = "csr")] {
+            val[S.A.len() + S.B.len() + i] = v;
+          } else {
+            val[S.A.len() + S.B.len() + i] = *v;
+          }
+        }
       }
       val
     };
@@ -287,7 +311,15 @@ impl<G: Group> R1CSShapeSparkRepr<G> {
         .iter()
         .chain(S.B.iter())
         .chain(S.C.iter())
-        .map(|(r, c, _)| (mem_row[*r], mem_col[*c]))
+        .map(|(r, c, _)| {
+          cfg_if::cfg_if! {
+            if #[cfg(feature = "csr")] {
+              (mem_row[r], mem_col[c])
+            } else {
+              (mem_row[*r], mem_col[*c])
+            }
+          }
+        })
         .enumerate()
       {
         E_row[i] = val_r;
