@@ -86,6 +86,10 @@ cuda = ["neptune/cuda", "neptune/pasta", "neptune/arity24"]
 opencl = ["neptune/opencl", "neptune/pasta", "neptune/arity24"]
 flamegraph = ["pprof/flamegraph", "pprof/criterion"]
 
+# This is needed to ensure halo2curves, which imports pasta-curves, uses the *same* traits in bn256_grumpkin
+[patch.crates-io]
+pasta_curves = { git = "https://github.com/lurk-lab/pasta_curves", branch = "dev" }
+
 [profile.dev-ci]
 inherits = "dev"
 # By compiling dependencies with optimizations, performing tests gets much faster.

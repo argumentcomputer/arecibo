@@ -37,7 +37,6 @@ use abomonation_derive::Abomonation;
 use bellpepper_core::ConstraintSystem;
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
-use tracing::Level;
 use core::marker::PhantomData;
 use errors::NovaError;
 use ff::{Field, PrimeField};
