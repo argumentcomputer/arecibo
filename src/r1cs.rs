@@ -1,6 +1,7 @@
 //! This module defines R1CS related types and a folding scheme for Relaxed R1CS
 #![allow(clippy::type_complexity)]
 use crate::{
+  compute_digest,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
   errors::NovaError,
   gadgets::{
@@ -33,6 +34,8 @@ pub struct R1CSShape<G: Group> {
   pub(crate) B: Vec<(usize, usize, G::Scalar)>,
   #[abomonate_with(Vec<(usize, usize, <G::Scalar as ff::PrimeField>::Repr)>)]
   pub(crate) C: Vec<(usize, usize, G::Scalar)>,
+  #[abomonate_with(<G::Scalar as ff::PrimeField>::Repr)]
+  pub(crate) digest: G::Scalar, // digest of everything else with this field set to G::Scalar::ZERO
 }
 
 /// A type that holds a witness for a given R1CS instance
@@ -146,14 +149,19 @@ impl<G: Group> R1CSShape<G> {
       return Err(NovaError::OddInputLength);
     }
 
-    Ok(R1CSShape {
+    let mut r1cs_shape = R1CSShape {
       num_cons,
       num_vars,
       num_io,
       A: A.to_owned(),
       B: B.to_owned(),
       C: C.to_owned(),
-    })
+      digest: G::Scalar::ZERO,
+    };
+
+    r1cs_shape.digest = compute_digest::<G, R1CSShape<G>>(&[&r1cs_shape]);
+
+    Ok(r1cs_shape)
   }
 
   // Checks regularity conditions on the R1CSShape, required in Spartan-class SNARKs
@@ -354,14 +362,19 @@ impl<G: Group> R1CSShape<G> {
     // check if the number of variables are as expected, then
     // we simply set the number of constraints to the next power of two
     if self.num_vars == m {
-      return R1CSShape {
+      let mut r1cs_shape = R1CSShape {
         num_cons: m,
         num_vars: m,
         num_io: self.num_io,
         A: self.A.clone(),
         B: self.B.clone(),
         C: self.C.clone(),
+        digest: G::Scalar::ZERO,
       };
+
+      // it's a shame we have to recompute everything here; perhaps we can optimize this somehow
+      r1cs_shape.digest = compute_digest::<G, R1CSShape<G>>(&[&r1cs_shape]);
+      return r1cs_shape;
     }
 
     // otherwise, we need to pad the number of variables and renumber variable accesses
@@ -387,14 +400,19 @@ impl<G: Group> R1CSShape<G> {
     let B_padded = apply_pad(&self.B);
     let C_padded = apply_pad(&self.C);
 
-    R1CSShape {
+    let mut r1cs_shape = R1CSShape {
       num_cons: num_cons_padded,
       num_vars: num_vars_padded,
       num_io: self.num_io,
       A: A_padded,
       B: B_padded,
       C: C_padded,
-    }
+      digest: G::Scalar::ZERO,
+    };
+
+    r1cs_shape.digest = compute_digest::<G, R1CSShape<G>>(&[&r1cs_shape]);
+
+    r1cs_shape
   }
 }
 
