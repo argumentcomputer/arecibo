@@ -20,8 +20,8 @@ use crate::{
 };
 
 use ff::Field;
-use log::debug;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::bellpepper::{
   r1cs::{NovaShape, NovaWitness},

@@ -911,6 +911,7 @@ where
   }
 
   /// produces a succinct proof of satisfiability of a `RelaxedR1CS` instance
+  #[tracing::instrument(skip_all, name = "PPSNARK::prove")]
   fn prove(
     ck: &CommitmentKey<G>,
     pk: &Self::ProverKey,

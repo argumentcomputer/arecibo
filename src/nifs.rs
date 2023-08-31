@@ -31,6 +31,7 @@ impl<G: Group> NIFS<G> {
   /// with the guarantee that the folded witness `W` satisfies the folded instance `U`
   /// if and only if `W1` satisfies `U1` and `W2` satisfies `U2`.
   #[allow(clippy::too_many_arguments)]
+  #[tracing::instrument(skip_all, name = "NIFS::prove")]
   pub fn prove(
     ck: &CommitmentKey<G>,
     ro_consts: &ROConstants<G>,

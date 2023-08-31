@@ -293,40 +293,47 @@ impl<G: Group> R1CSShape<G> {
     U2: &R1CSInstance<G>,
     W2: &R1CSWitness<G>,
   ) -> Result<(Vec<G::Scalar>, Commitment<G>), NovaError> {
-    let (AZ_1, BZ_1, CZ_1) = {
+    let (AZ_1, BZ_1, CZ_1) = tracing::info_span!("AZ_1, BZ_1, CZ_1").in_scope(|| {
       let Z1 = [W1.W.clone(), vec![U1.u], U1.X.clone()].concat();
-      self.multiply_vec(&Z1)?
-    };
+      self.multiply_vec(&Z1)
+    })?;
 
-    let (AZ_2, BZ_2, CZ_2) = {
+    let (AZ_2, BZ_2, CZ_2) = tracing::info_span!("AZ_2, BZ_2, CZ_2").in_scope(|| {
       let Z2 = [W2.W.clone(), vec![G::Scalar::ONE], U2.X.clone()].concat();
-      self.multiply_vec(&Z2)?
-    };
+      self.multiply_vec(&Z2)
+    })?;
 
-    let AZ_1_circ_BZ_2 = (0..AZ_1.len())
-      .into_par_iter()
-      .map(|i| AZ_1[i] * BZ_2[i])
-      .collect::<Vec<G::Scalar>>();
-    let AZ_2_circ_BZ_1 = (0..AZ_2.len())
-      .into_par_iter()
-      .map(|i| AZ_2[i] * BZ_1[i])
-      .collect::<Vec<G::Scalar>>();
-    let u_1_cdot_CZ_2 = (0..CZ_2.len())
-      .into_par_iter()
-      .map(|i| U1.u * CZ_2[i])
-      .collect::<Vec<G::Scalar>>();
-    let u_2_cdot_CZ_1 = (0..CZ_1.len())
-      .into_par_iter()
-      .map(|i| CZ_1[i])
-      .collect::<Vec<G::Scalar>>();
+    // forgive the horror here, but it's for grouping into one span
+    let (AZ_1_circ_BZ_2, AZ_2_circ_BZ_1, u_1_cdot_CZ_2, u_2_cdot_CZ_1) =
+      tracing::info_span!("cross terms").in_scope(|| {
+        let AZ_1_circ_BZ_2 = (0..AZ_1.len())
+          .into_par_iter()
+          .map(|i| AZ_1[i] * BZ_2[i])
+          .collect::<Vec<G::Scalar>>();
+        let AZ_2_circ_BZ_1 = (0..AZ_2.len())
+          .into_par_iter()
+          .map(|i| AZ_2[i] * BZ_1[i])
+          .collect::<Vec<G::Scalar>>();
+        let u_1_cdot_CZ_2 = (0..CZ_2.len())
+          .into_par_iter()
+          .map(|i| U1.u * CZ_2[i])
+          .collect::<Vec<G::Scalar>>();
+        let u_2_cdot_CZ_1 = (0..CZ_1.len())
+          .into_par_iter()
+          .map(|i| CZ_1[i])
+          .collect::<Vec<G::Scalar>>();
+        (AZ_1_circ_BZ_2, AZ_2_circ_BZ_1, u_1_cdot_CZ_2, u_2_cdot_CZ_1)
+      });
 
-    let T = AZ_1_circ_BZ_2
-      .par_iter()
-      .zip(&AZ_2_circ_BZ_1)
-      .zip(&u_1_cdot_CZ_2)
-      .zip(&u_2_cdot_CZ_1)
-      .map(|(((a, b), c), d)| *a + *b - *c - *d)
-      .collect::<Vec<G::Scalar>>();
+    let T = tracing::info_span!("T").in_scope(|| {
+      AZ_1_circ_BZ_2
+        .par_iter()
+        .zip(&AZ_2_circ_BZ_1)
+        .zip(&u_1_cdot_CZ_2)
+        .zip(&u_2_cdot_CZ_1)
+        .map(|(((a, b), c), d)| *a + *b - *c - *d)
+        .collect::<Vec<G::Scalar>>()
+    });
 
     let comm_T = CE::<G>::commit(ck, &T);
 
