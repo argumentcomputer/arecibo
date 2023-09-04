@@ -383,7 +383,7 @@ where
   let num_steps = test_rom.num_steps();
   let initial_program_counter = test_rom.initial_program_counter();
 
-  let (digest, running_claims) = test_rom.compute_digest_and_initial_running_claims();
+  let running_claims = test_rom.setup_running_claims();
 
   // extend z0_primary/secondary with rom content
   let mut z0_primary = vec![<G1 as Group>::Scalar::ONE];
@@ -411,7 +411,7 @@ where
       recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
         OPCODE_0 | OPCODE_1 => RecursiveSNARK::iter_base_step(
           &running_claims[augmented_circuit_index],
-          digest,
+          running_claims.digest,
           Some(program_counter),
           augmented_circuit_index,
           test_rom.num_circuits(),

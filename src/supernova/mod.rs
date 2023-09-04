@@ -1,10 +1,12 @@
 //! This library implements SuperNova, a Non-Uniform IVC based on Nova.
 
 use std::marker::PhantomData;
+use std::ops::Index;
 
 use crate::{
   bellpepper::shape_cs::ShapeCS,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
+  digest::{DigestBuilder, Digestible, HasDigest, SimpleDigestible},
   errors::NovaError,
   r1cs::{
     commitment_key, commitment_key_size, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
@@ -29,7 +31,6 @@ use crate::bellpepper::{
 };
 use bellpepper_core::ConstraintSystem;
 
-use crate::compute_digest;
 use crate::nifs::NIFS;
 
 mod circuit; // declare the module first
@@ -65,6 +66,13 @@ where
   r1cs_shape_secondary: R1CSShape<G2>,
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
+}
+
+impl<G1, G2> SimpleDigestible for PublicParams<G1, G2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+{
 }
 
 impl<G1, G2> PublicParams<G1, G2>
@@ -167,6 +175,108 @@ where
   c_primary: C1,
   c_secondary: C2,
   params: PublicParams<G1, G2>,
+}
+
+/// Indexed list of `RunningClaim`s representing an NIVC computation in process.
+pub struct RunningClaims<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  /// Indexed `RunningClaim`s
+  pub claims: Vec<RunningClaim<G1, G2, C1, C2>>,
+  /// Digest constructed from these `RunningClaim`s' parameters
+  pub digest: G1::Scalar,
+}
+
+impl<G1, G2, C1, C2> Index<usize> for RunningClaims<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  type Output = RunningClaim<G1, G2, C1, C2>;
+
+  fn index(&self, index: usize) -> &Self::Output {
+    &self.claims[index]
+  }
+}
+
+impl<G1, G2, C1, C2> HasDigest<G1::Scalar> for RunningClaims<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  fn set_digest(&mut self, digest: G1::Scalar) {
+    self.digest = digest;
+  }
+}
+
+impl<G1, G2, C1, C2> Digestible for RunningClaims<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  fn extend_bytes<X: Extend<u8>>(&self, bytes: &mut X) {
+    for claim in &self.claims {
+      claim.get_public_params().extend_bytes(bytes);
+    }
+  }
+}
+
+impl<G1, G2, C1, C2> DigestBuilder<G1::Scalar, RunningClaims<G1, G2, C1, C2>>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  fn setup(&mut self, mut claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> &mut Self {
+    let running_claim_params = claims
+      .iter()
+      .map(|c| c.get_public_params())
+      .collect::<Vec<_>>();
+
+    let (ck_primary, ck_secondary) = compute_commitment_keys(&running_claim_params);
+
+    for claim in &mut claims {
+      claim.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
+    }
+
+    let running_claims = RunningClaims::new(claims);
+
+    self.init(running_claims);
+    self
+  }
+}
+
+impl<G1, G2, C1, C2> RunningClaims<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  fn new(claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
+    Self {
+      claims,
+      digest: Default::default(),
+    }
+  }
+
+  fn setup(claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
+    let mut digest_builder = DigestBuilder::<G1::Scalar, RunningClaims<G1, G2, C1, C2>>::new();
+    digest_builder.setup(claims);
+
+    digest_builder.build()
+  }
 }
 
 impl<G1, G2, C1, C2> RunningClaim<G1, G2, C1, C2>
@@ -829,11 +939,9 @@ where
     G1::Scalar::ZERO
   }
 
-  /// Return the initial running claims for `NonUniformCircuit`'s sub-circuits.
-  fn initial_running_claims(
-    &self,
-  ) -> Vec<RunningClaim<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>>> {
-    (0..self.num_circuits())
+  /// Initialize and return initial running claims.
+  fn setup_running_claims(&self) -> RunningClaims<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>> {
+    let running_claims = (0..self.num_circuits())
       .map(|i| {
         RunningClaim::new(
           i,
@@ -842,37 +950,9 @@ where
           self.num_circuits(),
         )
       })
-      .collect()
-  }
+      .collect();
 
-  /// Return digest and initial running claims.
-  fn compute_digest_and_initial_running_claims(
-    &self,
-  ) -> (
-    G1::Scalar,
-    Vec<RunningClaim<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>>>,
-  ) {
-    let mut running_claims = self.initial_running_claims();
-
-    let running_claim_params = running_claims
-      .iter()
-      .map(|c| c.get_public_params())
-      .collect::<Vec<_>>();
-
-    let (ck_primary, ck_secondary) = compute_commitment_keys(&running_claim_params);
-
-    for claim in &mut running_claims {
-      claim.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
-    }
-
-    let public_params = running_claims
-      .iter()
-      .map(|c| c.get_public_params())
-      .collect::<Vec<_>>();
-
-    let digest = compute_digest::<G1, PublicParams<G1, G2>>(&public_params);
-
-    (digest, running_claims)
+    RunningClaims::setup(running_claims)
   }
 
   /// How many circuits are provided?

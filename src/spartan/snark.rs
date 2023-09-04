@@ -5,7 +5,7 @@
 //! an IPA-based polynomial commitment scheme.
 
 use crate::{
-  compute_digest,
+  digest::{DigestBuilder, HasDigest, SimpleDigestible},
   errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
   spartan::{
@@ -48,6 +48,26 @@ pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
   digest: G::Scalar,
 }
 
+impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
+
+impl<G: Group, EE: EvaluationEngineTrait<G>> HasDigest<G::Scalar> for VerifierKey<G, EE> {
+  fn set_digest(&mut self, digest: G::Scalar) {
+    self.digest = digest;
+  }
+}
+
+impl<G: Group, EE: EvaluationEngineTrait<G>> DigestBuilder<G::Scalar, VerifierKey<G, EE>> {
+  fn setup(&mut self, shape: R1CSShape<G>, vk_ee: EE::VerifierKey) -> &mut Self {
+    let vk = VerifierKey {
+      vk_ee,
+      S: shape,
+      digest: G::Scalar::ZERO,
+    };
+    self.init(vk);
+    self
+  }
+}
+
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
 /// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
@@ -79,15 +99,9 @@ where
 
     let S = S.pad();
 
-    let vk = {
-      let mut vk = VerifierKey {
-        vk_ee,
-        S: S.clone(),
-        digest: G::Scalar::ZERO,
-      };
-      vk.digest = compute_digest::<G, VerifierKey<G, EE>>(&[&vk]);
-      vk
-    };
+    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::new()
+      .setup(S.clone(), vk_ee)
+      .build();
 
     let pk = ProverKey {
       pk_ee,
