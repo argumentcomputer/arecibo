@@ -12,7 +12,7 @@ use crate::{
   },
   scalar_as_base,
   traits::{
-    circuit_supernova::{StepCircuit, TrivialSecondaryCircuit},
+    circuit_supernova::{EnforcingStepCircuit, TrivialSecondaryCircuit},
     commitment::CommitmentTrait,
     AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
   },
@@ -73,7 +73,10 @@ where
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
   /// Create a new `PublicParams`
-  pub fn setup_without_commitkey<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn setup_without_commitkey<
+    C1: EnforcingStepCircuit<G1::Scalar>,
+    C2: EnforcingStepCircuit<G2::Scalar>,
+  >(
     c_primary: &C1,
     c_secondary: &C2,
     num_augmented_circuits: usize,
@@ -159,8 +162,8 @@ pub struct RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
+  C2: EnforcingStepCircuit<G2::Scalar>,
 {
   _phantom: PhantomData<G1>,
   augmented_circuit_index: usize,
@@ -173,8 +176,8 @@ impl<G1, G2, C1, C2> RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
+  C2: EnforcingStepCircuit<G2::Scalar>,
 {
   /// new a running claim
   pub fn new(
@@ -258,7 +261,10 @@ where
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
   /// iterate base step to get new instance of recursive SNARK
-  pub fn iter_base_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn iter_base_step<
+    C1: EnforcingStepCircuit<G1::Scalar>,
+    C2: EnforcingStepCircuit<G2::Scalar>,
+  >(
     claim: &RunningClaim<G1, G2, C1, C2>,
     pp_digest: G1::Scalar,
     initial_program_counter: Option<G1::Scalar>,
@@ -418,7 +424,7 @@ where
     })
   }
   /// executing a step of the incremental computation
-  pub fn prove_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn prove_step<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
     &mut self,
     claim: &RunningClaim<G1, G2, C1, C2>,
     z0_primary: &[G1::Scalar],
@@ -609,7 +615,7 @@ where
   }
 
   /// verify recursive snark
-  pub fn verify<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn verify<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
     &mut self,
     claim: &RunningClaim<G1, G2, C1, C2>,
     z0_primary: &[G1::Scalar],
@@ -822,7 +828,7 @@ pub trait NonUniformCircuit<G1, G2, C1>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
 {
   /// Initial program counter, defaults to zero.
   fn initial_program_counter(&self) -> G1::Scalar {

@@ -4,7 +4,9 @@ use crate::gadgets::utils::alloc_num_equals;
 use crate::gadgets::utils::conditionally_select;
 use crate::gadgets::utils::{add_allocated_num, alloc_one, alloc_zero};
 use crate::provider::poseidon::PoseidonConstantsCircuit;
-use crate::traits::circuit_supernova::{TrivialSecondaryCircuit, TrivialTestCircuit};
+use crate::traits::circuit_supernova::{
+  EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
+};
 use bellpepper::gadgets::boolean::Boolean;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
@@ -86,34 +88,47 @@ where
   F: PrimeField,
 {
   fn arity(&self) -> usize {
-    1 + self.rom_size // value + rom[].len()
+    2 + self.rom_size // value + pseudo-pc + rom[].len()
+  }
+
+  fn circuit_index(&self) -> usize {
+    self.circuit_index
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc: Option<&AllocatedNum<F>>,
+    _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
-    // constrain rom[pc] equal to `self.circuit_index`
-    let circuit_index = alloc_const(
-      cs.namespace(|| "circuit_index"),
-      F::from(self.circuit_index as u64),
+    let one = alloc_one(cs.namespace(|| "alloc one"))?;
+
+    let pseudo_pc = &z[1];
+    let allocated_rom = &z[2..];
+
+    let pseudo_pc_next = add_allocated_num(
+      // pseudo_pc = pseudo_pc + 1
+      cs.namespace(|| "pseudo_pc = pseudo_pc + 1".to_string()),
+      pseudo_pc,
+      &one,
     )?;
-    let pc = pc.expect("primary circuit requires program counter");
+    let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
+      pseudo_pc_next
+        .get_value()
+        .and_then(|f| {
+          let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
+          allocated_rom
+            .get(n as usize)
+            .and_then(|x| x.get_value())
+            .or(Some(F::ZERO))
+        })
+        .ok_or(SynthesisError::AssignmentMissing)
+    })?;
     constrain_augmented_circuit_index(
       cs.namespace(|| "CubicCircuit agumented circuit constraint"),
-      pc,
-      &z[1..],
-      &circuit_index,
-    )?;
-
-    let one = alloc_one(cs.namespace(|| "alloc one"))?;
-    let pc_next = add_allocated_num(
-      // pc = pc + 1
-      cs.namespace(|| "pc = pc + 1".to_string()),
-      pc,
-      &one,
+      &pseudo_pc_next,
+      allocated_rom,
+      &pc_next,
     )?;
 
     // Consider a cubic equation: `x^3 + x + 5 = y`, where `x` and `y` are respectively the input and output.
@@ -140,7 +155,8 @@ where
     );
 
     let mut z_next = vec![y];
-    z_next.extend(z[1..].iter().cloned());
+    z_next.push(pseudo_pc_next);
+    z_next.extend(z[2..].iter().cloned());
     Ok((Some(pc_next), z_next))
   }
 }
@@ -170,33 +186,46 @@ where
   F: PrimeField,
 {
   fn arity(&self) -> usize {
-    1 + self.rom_size // value + rom[].len()
+    2 + self.rom_size // value + pseudo-pc + rom[].len()
+  }
+
+  fn circuit_index(&self) -> usize {
+    self.circuit_index
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    pc: Option<&AllocatedNum<F>>,
+    _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
-    // constrain rom[pc] equal to `self.circuit_index`
-    let circuit_index = alloc_const(
-      cs.namespace(|| "circuit_index"),
-      F::from(self.circuit_index as u64),
+    let pseudo_pc = &z[1];
+    let allocated_rom = &z[2..];
+    let one = alloc_one(cs.namespace(|| "alloc one"))?;
+
+    let pseudo_pc_next = add_allocated_num(
+      // pseudo_pc = pseudo_pc + 1
+      cs.namespace(|| "pseudo_pc = pseudo_pc + 1".to_string()),
+      pseudo_pc,
+      &one,
     )?;
-    let pc = pc.expect("primary circuit requires program counter");
+    let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
+      pseudo_pc_next
+        .get_value()
+        .and_then(|f| {
+          let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
+          allocated_rom
+            .get(n as usize)
+            .and_then(|x| x.get_value())
+            .or(Some(F::ZERO))
+        })
+        .ok_or(SynthesisError::AssignmentMissing)
+    })?;
     constrain_augmented_circuit_index(
       cs.namespace(|| "SquareCircuit agumented circuit constraint"),
-      pc,
-      &z[1..],
-      &circuit_index,
-    )?;
-    let one = alloc_one(cs.namespace(|| "alloc one"))?;
-    let pc_next = add_allocated_num(
-      // pc = pc + 1
-      cs.namespace(|| "pc = pc + 1"),
-      pc,
-      &one,
+      &pseudo_pc_next,
+      allocated_rom,
+      &pc_next,
     )?;
 
     // Consider an equation: `x^2 + x + 5 = y`, where `x` and `y` are respectively the input and output.
@@ -222,7 +251,8 @@ where
     );
 
     let mut z_next = vec![y];
-    z_next.extend(z[1..].iter().cloned());
+    z_next.push(pseudo_pc_next);
+    z_next.extend(z[2..].iter().cloned());
     Ok((Some(pc_next), z_next))
   }
 }
@@ -234,8 +264,8 @@ fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
 ) where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
+  C2: EnforcingStepCircuit<G2::Scalar>,
 {
   match err {
     SuperNovaError::UnSatIndex(msg, index) if *msg == "r_primary" => {
@@ -277,7 +307,7 @@ struct TestROM<G1, G2, S>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  S: StepCircuit<G2::Scalar> + Default,
+  S: EnforcingStepCircuit<G2::Scalar> + Default,
 {
   rom: Vec<usize>,
   _p: PhantomData<(G1, G2, S)>,
@@ -294,6 +324,13 @@ impl<F: PrimeField> StepCircuit<F> for TestROMCircuit<F> {
     match self {
       Self::Cubic(x) => x.arity(),
       Self::Square(x) => x.arity(),
+    }
+  }
+
+  fn circuit_index(&self) -> usize {
+    match self {
+      Self::Cubic(x) => x.circuit_index(),
+      Self::Square(x) => x.circuit_index(),
     }
   }
 
@@ -331,13 +368,17 @@ where
   fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G2::Scalar> {
     Default::default()
   }
+
+  fn initial_program_counter(&self) -> G1::Scalar {
+    G1::Scalar::from(self.rom[0] as u64)
+  }
 }
 
 impl<G1, G2, S> TestROM<G1, G2, S>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  S: StepCircuit<G2::Scalar> + Default,
+  S: EnforcingStepCircuit<G2::Scalar> + Default,
 {
   fn new(rom: Vec<usize>) -> Self {
     Self {
@@ -381,12 +422,13 @@ where
 
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
   let num_steps = test_rom.num_steps();
-  let initial_program_counter = test_rom.initial_program_counter();
-
   let (digest, running_claims) = test_rom.compute_digest_and_initial_running_claims();
+
+  let initial_program_counter = test_rom.initial_program_counter();
 
   // extend z0_primary/secondary with rom content
   let mut z0_primary = vec![<G1 as Group>::Scalar::ONE];
+  z0_primary.push(initial_program_counter);
   z0_primary.extend(
     test_rom
       .rom
@@ -402,10 +444,12 @@ where
       || initial_program_counter,
       |recursive_snark| recursive_snark.program_counter,
     );
-    let augmented_circuit_index = test_rom.rom[u32::from_le_bytes(
+
+    // The program counter directly specifies the next circuit index.
+    let augmented_circuit_index = u32::from_le_bytes(
       // convert program counter from field to usize (only took le 4 bytes)
       program_counter.to_repr().as_ref()[0..4].try_into().unwrap(),
-    ) as usize];
+    ) as usize;
 
     let mut recursive_snark =
       recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
@@ -468,6 +512,7 @@ where
 }
 
 #[test]
+#[tracing_test::traced_test]
 fn test_trivial_nivc() {
   type G1 = pasta_curves::pallas::Point;
   type G2 = pasta_curves::vesta::Point;
@@ -584,5 +629,5 @@ fn test_recursive_circuit() {
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::default();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
-  test_recursive_circuit_with::<G1, G2>(&params1, &params2, ro_consts1, ro_consts2, 9835, 12035);
+  test_recursive_circuit_with::<G1, G2>(&params1, &params2, ro_consts1, ro_consts2, 9836, 12035);
 }
