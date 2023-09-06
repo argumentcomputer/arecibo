@@ -189,9 +189,9 @@ where
   C2: StepCircuit<G2::Scalar>,
 {
   /// Indexed `RunningClaim`s
-  pub claims: Vec<RunningClaim<G1, G2, C1, C2>>,
+  claims: Vec<RunningClaim<G1, G2, C1, C2>>,
   /// Digest constructed from these `RunningClaim`s' parameters
-  pub digest: G1::Scalar,
+  digest: G1::Scalar,
 }
 
 impl<G1, G2, C1, C2> Index<usize> for RunningClaims<G1, G2, C1, C2>
@@ -279,6 +279,11 @@ where
     digest_builder.setup(claims);
 
     digest_builder.build()
+  }
+
+  /// Return the `RunningClaims`' digest.
+  pub fn digest(&self) -> G1::Scalar {
+    self.digest
   }
 }
 
