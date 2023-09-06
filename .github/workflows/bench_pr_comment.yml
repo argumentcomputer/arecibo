@@ -1,0 +1,40 @@
+# Creates a PR benchmark comment with a comparison to main
+name: Benchmark pull requests
+on:
+  issue_comment:
+    types: [created]
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  runBenchmark:
+    name: run benchmark
+    runs-on: [self-hosted, bench]
+    if:
+      github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && contains(github.event.comment.body, '!benchmark')
+      && (github.event.comment.author_association == 'MEMBER'
+      || github.event.comment.author_association == 'OWNER')
+    steps:
+      - uses: xt0rted/pull-request-comment-branch@v2
+        id: comment-branch
+
+      - uses: actions/checkout@v4
+        if: success()
+        with:
+          ref: ${{ steps.comment-branch.outputs.head_ref }}
+      # Set the Rust env vars
+      - uses: actions-rs/toolchain@v1
+      - uses: Swatinem/rust-cache@v2
+      - uses: boa-dev/criterion-compare-action@v3
+        with:
+          # Optional. Compare only this benchmark target
+          benchName: "sha256"
+          # Needed. The name of the branch to compare with
+          branchName: ${{ github.ref_name }}
