@@ -12,15 +12,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  runBenchmark:
-    name: run benchmark
-    runs-on: [self-hosted, bench]
+  changes:
+    runs-on: ubuntu-latest
     if:
       github.event.issue.pull_request
       && github.event.issue.state == 'open'
       && contains(github.event.comment.body, '!benchmark')
-      && (github.event.comment.author_association == 'MEMBER'
-      || github.event.comment.author_association == 'OWNER')
+      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
+    # Required permissions
+    permissions:
+      pull-requests: read
+    # Set job outputs to values from filter step
+    outputs:
+      spartan: ${{ steps.filter.outputs.spartan }}
+      supernova: ${{ steps.filter.outputs.supernova }}
+    steps:
+      # For pull requests it's not necessary to checkout the code
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            spartan:
+              - 'src/spartan/**'
+            supernova:
+              - 'src/supernova/**'
+
+  recursive-benchmark:
+    name: run benchmark
+    runs-on: ubuntu-latest
+    if:
+      github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && contains(github.event.comment.body, '!benchmark')
+      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
     steps:
       - uses: xt0rted/pull-request-comment-branch@v2
         id: comment-branch
@@ -37,23 +61,55 @@ jobs:
           benchName: "recursive-snark"
           # Needed. The name of the branch to compare with
           branchName: ${{ github.ref_name }}
-      - uses: dorny/paths-filter@v2
-        id: changes
+
+  spartan-benchmark:
+    name: run benchmark
+    runs-on: ubuntu-latest
+    needs: changes
+    if:
+      github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && contains(github.event.comment.body, '!benchmark')
+      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
+      && ${{ needs.changes.outputs.spartan == 'true' }}
+    steps:
+      - uses: xt0rted/pull-request-comment-branch@v2
+        id: comment-branch
+      - uses: actions/checkout@v4
+        if: success()
         with:
-          filters: |
-            spartan:
-              - 'src/spartan/**'
-            supernova:
-              - 'src/supernova/**'
-      - if steps.changes.outputs.spartan == 'true'
-        uses: boa-dev/criterion-compare-action@v3
+          ref: ${{ steps.comment-branch.outputs.head_ref }}
+      # Set the Rust env vars
+      - uses: actions-rs/toolchain@v1
+      - uses: Swatinem/rust-cache@v2
+      - uses: boa-dev/criterion-compare-action@v3
         with:
           # Optional. Compare only this benchmark target
           benchName: "compressed-snark"
           # Needed. The name of the branch to compare with
           branchName: ${{ github.ref_name }}
-      - if steps.changes.outputs.supernova == 'true'
-        uses: boa-dev/criterion-compare-action@v3
+
+  supernova-benchmark:
+    name: run benchmark
+    runs-on: ubuntu-latest
+    needs: changes
+    if:
+      github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && contains(github.event.comment.body, '!benchmark')
+      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
+      && ${{ needs.changes.outputs.supernova == 'true' }}
+    steps:
+      - uses: xt0rted/pull-request-comment-branch@v2
+        id: comment-branch
+      - uses: actions/checkout@v4
+        if: success()
+        with:
+          ref: ${{ steps.comment-branch.outputs.head_ref }}
+      # Set the Rust env vars
+      - uses: actions-rs/toolchain@v1
+      - uses: Swatinem/rust-cache@v2
+      - uses: boa-dev/criterion-compare-action@v3
         with:
           # Optional. Compare only this benchmark target
           benchName: "recursive-snark-supernova"
