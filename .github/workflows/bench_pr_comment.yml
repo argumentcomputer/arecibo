@@ -24,7 +24,6 @@ jobs:
     steps:
       - uses: xt0rted/pull-request-comment-branch@v2
         id: comment-branch
-
       - uses: actions/checkout@v4
         if: success()
         with:
@@ -35,6 +34,28 @@ jobs:
       - uses: boa-dev/criterion-compare-action@v3
         with:
           # Optional. Compare only this benchmark target
-          benchName: "sha256"
+          benchName: "recursive-snark"
+          # Needed. The name of the branch to compare with
+          branchName: ${{ github.ref_name }}
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            spartan:
+              - 'src/spartan/**'
+            supernova:
+              - 'src/supernova/**'
+      - if steps.changes.outputs.spartan == 'true'
+        uses: boa-dev/criterion-compare-action@v3
+        with:
+          # Optional. Compare only this benchmark target
+          benchName: "compressed-snark"
+          # Needed. The name of the branch to compare with
+          branchName: ${{ github.ref_name }}
+      - if steps.changes.outputs.supernova == 'true'
+        uses: boa-dev/criterion-compare-action@v3
+        with:
+          # Optional. Compare only this benchmark target
+          benchName: "recursive-snark-supernova"
           # Needed. The name of the branch to compare with
           branchName: ${{ github.ref_name }}
