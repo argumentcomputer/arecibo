@@ -411,7 +411,7 @@ where
       recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
         OPCODE_0 | OPCODE_1 => RecursiveSNARK::iter_base_step(
           &running_claims[augmented_circuit_index],
-          running_claims.digest,
+          running_claims.digest(),
           Some(program_counter),
           augmented_circuit_index,
           test_rom.num_circuits(),

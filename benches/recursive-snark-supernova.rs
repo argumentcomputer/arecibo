@@ -120,7 +120,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(
           &running_claims[0],
-          running_claims.digest,
+          running_claims.digest(),
           Some(program_counter),
           0,
           1,
@@ -214,7 +214,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(
           &running_claims[0],
-          running_claims.digest,
+          running_claims.digest(),
           Some(program_counter),
           0,
           2,
