@@ -5,7 +5,9 @@
 use super::{shape_cs::ShapeCS, solver::SatisfyingAssignment, test_shape_cs::TestShapeCS};
 use crate::{
   errors::NovaError,
-  r1cs::{commitment_key, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness},
+  r1cs::{
+    commitment_key, sparse::SparseMatrix, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness,
+  },
   traits::Group,
   CommitmentKey,
 };
@@ -65,17 +67,15 @@ macro_rules! impl_nova_shape {
       G::Scalar: PrimeField,
     {
       fn r1cs_shape(&self) -> R1CSShape<G> {
-        let mut A: Vec<(usize, usize, G::Scalar)> = Vec::new();
-        let mut B: Vec<(usize, usize, G::Scalar)> = Vec::new();
-        let mut C: Vec<(usize, usize, G::Scalar)> = Vec::new();
+        let mut A = SparseMatrix::<G::Scalar>::empty();
+        let mut B = SparseMatrix::<G::Scalar>::empty();
+        let mut C: SparseMatrix<<G as Group>::Scalar> = SparseMatrix::<G::Scalar>::empty();
 
         let mut num_cons_added = 0;
         let mut X = (&mut A, &mut B, &mut C, &mut num_cons_added);
-
         let num_inputs = self.num_inputs();
         let num_constraints = self.num_constraints();
         let num_vars = self.num_aux();
-
         for constraint in self.constraints.iter() {
           add_constraint(
             &mut X,
@@ -85,29 +85,61 @@ macro_rules! impl_nova_shape {
             &constraint.2,
           );
         }
-
         assert_eq!(num_cons_added, num_constraints);
-
         let S: R1CSShape<G> = {
-          // Don't count One as an input for shape's purposes.
-          let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, &A, &B, &C);
+          let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C);
           res.unwrap()
         };
-
         S
       }
     }
   };
 }
 
-impl_nova_shape!(ShapeCS);
+impl<G: Group> NovaShape<G> for ShapeCS<G>
+where
+  G::Scalar: PrimeField,
+{
+  fn r1cs_shape(&self) -> R1CSShape<G> {
+    let mut A = SparseMatrix::<G::Scalar>::empty();
+    let mut B = SparseMatrix::<G::Scalar>::empty();
+    let mut C: SparseMatrix<<G as Group>::Scalar> = SparseMatrix::<G::Scalar>::empty();
+    let mut num_cons_added = 0;
+    let mut X = (&mut A, &mut B, &mut C, &mut num_cons_added);
+
+    let num_inputs = self.num_inputs();
+    let num_constraints = self.num_constraints();
+    let num_vars = self.num_aux();
+
+    for constraint in self.constraints.iter() {
+      add_constraint(
+        &mut X,
+        num_vars,
+        &constraint.0,
+        &constraint.1,
+        &constraint.2,
+      );
+    }
+    assert_eq!(num_cons_added, num_constraints);
+
+    A.cols = num_vars + self.num_inputs();
+    B.cols = num_vars + self.num_inputs();
+    C.cols = num_vars + self.num_inputs();
+    
+    let S: R1CSShape<G> = {
+      let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C);
+      res.unwrap()
+    };
+    S
+  }
+}
 impl_nova_shape!(TestShapeCS);
 
 fn add_constraint<S: PrimeField>(
   X: &mut (
-    &mut Vec<(usize, usize, S)>,
-    &mut Vec<(usize, usize, S)>,
-    &mut Vec<(usize, usize, S)>,
+    &mut SparseMatrix<S>,
+    &mut SparseMatrix<S>,
+    &mut SparseMatrix<S>,
     &mut usize,
   ),
   num_vars: usize,
@@ -117,29 +149,40 @@ fn add_constraint<S: PrimeField>(
 ) {
   let (A, B, C, nn) = X;
   let n = **nn;
-  let one = S::ONE;
+  assert_eq!(n + 1, A.indptr.len(), "A: invalid shape");
+  assert_eq!(n + 1, B.indptr.len(), "B: invalid shape");
+  assert_eq!(n + 1, C.indptr.len(), "C: invalid shape");
 
-  let add_constraint_component = |index: Index, coeff, V: &mut Vec<_>| {
+  let add_constraint_component = |index: Index, coeff: &S, M: &mut SparseMatrix<S>| {
     match index {
       Index::Input(idx) => {
         // Inputs come last, with input 0, reprsenting 'one',
         // at position num_vars within the witness vector.
-        let i = idx + num_vars;
-        V.push((n, i, one * coeff))
+        let idx = idx + num_vars;
+        M.data.push(*coeff);
+        M.indices.push(idx);
       }
-      Index::Aux(idx) => V.push((n, idx, one * coeff)),
+      Index::Aux(idx) => {
+        M.data.push(*coeff);
+        M.indices.push(idx);
+      }
     }
   };
 
   for (index, coeff) in a_lc.iter() {
     add_constraint_component(index.0, coeff, A);
   }
+  A.indptr.push(A.indices.len());
+
   for (index, coeff) in b_lc.iter() {
     add_constraint_component(index.0, coeff, B)
   }
+  B.indptr.push(B.indices.len());
+
   for (index, coeff) in c_lc.iter() {
     add_constraint_component(index.0, coeff, C)
   }
+  C.indptr.push(C.indices.len());
 
   **nn += 1;
 }

@@ -116,7 +116,10 @@ impl<G: Group> NIFS<G> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::{r1cs::commitment_key, traits::Group};
+  use crate::{
+    r1cs::{commitment_key, sparse::SparseMatrix},
+    traits::Group,
+  };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use ff::{Field, PrimeField};
   use rand::rngs::OsRng;
@@ -314,8 +317,17 @@ mod tests {
     };
 
     // create a shape object
+    let rows = num_cons;
+    let cols = num_vars + num_io + 1;
     let S = {
-      let res = R1CSShape::new(num_cons, num_vars, num_io, &A, &B, &C);
+      let res = R1CSShape::new(
+        num_cons,
+        num_vars,
+        num_io,
+        SparseMatrix::new(&A, rows, cols),
+        SparseMatrix::new(&B, rows, cols),
+        SparseMatrix::new(&C, rows, cols),
+      );
       assert!(res.is_ok());
       res.unwrap()
     };

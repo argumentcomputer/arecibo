@@ -36,6 +36,16 @@ pub struct SparseMatrix<F: PrimeField> {
 }
 
 impl<F: PrimeField> SparseMatrix<F> {
+  /// 0x0 empty matrix
+  pub fn empty() -> Self {
+    SparseMatrix {
+      data: vec![],
+      indices: vec![],
+      indptr: vec![0],
+      cols: 0,
+    }
+  }
+
   /// construct from Vec<usize(row), usize(col), F>
   pub fn new(matrix: &[(usize, usize, F)], rows: usize, cols: usize) -> Self {
     let mut new_matrix = vec![vec![]; rows];
@@ -89,32 +99,12 @@ impl<F: PrimeField> SparseMatrix<F> {
       .collect()
   }
 
-  /// multiply by dense vector; should use rayon/gpu
-  /// we don't check dimensions
-  #[tracing::instrument(skip_all, name = "SparseMatrix::multiply_vec_unchecked")]
-  pub fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
-    // naive implementation for now
-    self
-      .indptr
-      .par_windows(2)
-      .map(|ptrs| {
-        let data = &self.data[ptrs[0]..ptrs[1]];
-        let indices = &self.indices[ptrs[0]..ptrs[1]];
-        data
-          .iter()
-          .zip(indices)
-          .map(|(val, col_idx)| *val * vector[*col_idx])
-          .sum()
-      })
-      .collect()
-  }
-
   /// number of non-zero entries
   pub fn len(&self) -> usize {
     *self.indptr.last().unwrap()
   }
 
-  /// number of non-zero entries
+  /// empty matrix
   pub fn is_empty(&self) -> bool {
     self.len() == 0
   }

@@ -85,7 +85,6 @@ portable = ["pasta-msm/portable"]
 cuda = ["neptune/cuda", "neptune/pasta", "neptune/arity24"]
 opencl = ["neptune/opencl", "neptune/pasta", "neptune/arity24"]
 flamegraph = ["pprof/flamegraph", "pprof/criterion"]
-csr = []
 
 # This is needed to ensure halo2curves, which imports pasta-curves, uses the *same* traits in bn256_grumpkin
 [patch.crates-io]
