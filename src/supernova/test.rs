@@ -88,7 +88,7 @@ where
   F: PrimeField,
 {
   fn arity(&self) -> usize {
-    2 + self.rom_size // value + pseudo-pc + rom[].len()
+    2 + self.rom_size // value + rom_pc + rom[].len()
   }
 
   fn circuit_index(&self) -> usize {
@@ -103,17 +103,17 @@ where
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let one = alloc_one(cs.namespace(|| "alloc one"))?;
 
-    let pseudo_pc = &z[1];
+    let rom_index = &z[1];
     let allocated_rom = &z[2..];
 
-    let pseudo_pc_next = add_allocated_num(
-      // pseudo_pc = pseudo_pc + 1
-      cs.namespace(|| "pseudo_pc = pseudo_pc + 1".to_string()),
-      pseudo_pc,
+    let rom_index_next = add_allocated_num(
+      // rom_index = rom_index + 1
+      cs.namespace(|| "rom_index = rom_index + 1".to_string()),
+      rom_index,
       &one,
     )?;
     let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
-      pseudo_pc_next
+      rom_index_next
         .get_value()
         .and_then(|f| {
           let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
@@ -126,7 +126,7 @@ where
     })?;
     constrain_augmented_circuit_index(
       cs.namespace(|| "CubicCircuit agumented circuit constraint"),
-      &pseudo_pc_next,
+      &rom_index_next,
       allocated_rom,
       &pc_next,
     )?;
@@ -155,7 +155,7 @@ where
     );
 
     let mut z_next = vec![y];
-    z_next.push(pseudo_pc_next);
+    z_next.push(rom_index_next);
     z_next.extend(z[2..].iter().cloned());
     Ok((Some(pc_next), z_next))
   }
@@ -186,7 +186,7 @@ where
   F: PrimeField,
 {
   fn arity(&self) -> usize {
-    2 + self.rom_size // value + pseudo-pc + rom[].len()
+    2 + self.rom_size // value + rom_pc + rom[].len()
   }
 
   fn circuit_index(&self) -> usize {
@@ -199,18 +199,18 @@ where
     _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
-    let pseudo_pc = &z[1];
+    let rom_index = &z[1];
     let allocated_rom = &z[2..];
     let one = alloc_one(cs.namespace(|| "alloc one"))?;
 
-    let pseudo_pc_next = add_allocated_num(
-      // pseudo_pc = pseudo_pc + 1
-      cs.namespace(|| "pseudo_pc = pseudo_pc + 1".to_string()),
-      pseudo_pc,
+    let rom_index_next = add_allocated_num(
+      // rom_index = rom_index + 1
+      cs.namespace(|| "rom_index = rom_index + 1".to_string()),
+      rom_index,
       &one,
     )?;
     let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
-      pseudo_pc_next
+      rom_index_next
         .get_value()
         .and_then(|f| {
           let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
@@ -223,7 +223,7 @@ where
     })?;
     constrain_augmented_circuit_index(
       cs.namespace(|| "SquareCircuit agumented circuit constraint"),
-      &pseudo_pc_next,
+      &rom_index_next,
       allocated_rom,
       &pc_next,
     )?;
@@ -251,7 +251,7 @@ where
     );
 
     let mut z_next = vec![y];
-    z_next.push(pseudo_pc_next);
+    z_next.push(rom_index_next);
     z_next.extend(z[2..].iter().cloned());
     Ok((Some(pc_next), z_next))
   }
