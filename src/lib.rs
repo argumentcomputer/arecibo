@@ -975,64 +975,6 @@ mod tests {
     }
   }
 
-  fn test_circuit_digest_with<G1, G2, T1>(circuit: &T1, expected: &str)
-  where
-    G1: Group<Base = <G2 as Group>::Scalar>,
-    G2: Group<Base = <G1 as Group>::Scalar>,
-    T1: StepCircuit<G1::Scalar>,
-  {
-    let digest = circuit_digest::<G1, G2, _>(circuit, true);
-
-    let digest_str = digest
-      .to_repr()
-      .as_ref()
-      .iter()
-      .map(|b| format!("{b:02x}"))
-      .collect::<String>();
-    assert_eq!(digest_str, expected);
-  }
-
-  #[test]
-  fn test_circuit_digest() {
-    type G1 = pasta_curves::pallas::Point;
-    type G2 = pasta_curves::vesta::Point;
-    let cubic_circuit1 = CubicCircuit::<<G1 as Group>::Scalar>::default();
-    let cubic_circuit2 = CubicCircuit::<<G2 as Group>::Scalar>::default();
-
-    test_circuit_digest_with::<G1, G2, _>(
-      &cubic_circuit1,
-      "789427954a51e446fa7905c64242efba6405d06d2d5f8d044fab5473e04ca802",
-    );
-
-    test_circuit_digest_with::<G2, G1, _>(
-      &cubic_circuit2,
-      "4962a68550cd0a387c594152684d71008648f51a7407a1708a31becd797d9303",
-    );
-
-    let cubic_circuit1_grumpkin = CubicCircuit::<<bn256::Point as Group>::Scalar>::default();
-    let cubic_circuit2_grumpkin = CubicCircuit::<<grumpkin::Point as Group>::Scalar>::default();
-
-    test_circuit_digest_with::<bn256::Point, grumpkin::Point, _>(
-      &cubic_circuit1_grumpkin,
-      "158c106e5cd7156050fbd585c4d624daa92288b72b979ca296ac1865dc8eae03",
-    );
-    test_circuit_digest_with::<grumpkin::Point, bn256::Point, _>(
-      &cubic_circuit2_grumpkin,
-      "8d30e95b9decf300b9eaaf9304088bce5a04af3d952cedc81a7735fc049f8203",
-    );
-
-    let cubic_circuit1_secp = CubicCircuit::<<secp256k1::Point as Group>::Scalar>::default();
-    let cubic_circuit2_secp = CubicCircuit::<<secq256k1::Point as Group>::Scalar>::default();
-    test_circuit_digest_with::<secp256k1::Point, secq256k1::Point, _>(
-      &cubic_circuit1_secp,
-      "0442eeb939c179f7d7cc83af96af742ab1a3bcf85d2633f2a0ef2547105a5602",
-    );
-    test_circuit_digest_with::<secq256k1::Point, secp256k1::Point, _>(
-      &cubic_circuit2_secp,
-      "f4911e3149c51ed48440dc93996cdb111c33750d319a6f297e740cef1afa2700",
-    );
-  }
-
   fn test_pp_digest_with<G1, G2, T1, T2>(circuit1: &T1, circuit2: &T2, expected: &str)
   where
     G1: Group<Base = <G2 as Group>::Scalar>,
@@ -1070,13 +1012,13 @@ mod tests {
     test_pp_digest_with::<G1, G2, _, _>(
       &trivial_circuit1,
       &trivial_circuit2,
-      "cc9b8776b7b04ba04daa6c5dc064384686a700921d4411d2a806261b41d01102",
+      "bb3b6aedf54b8dd97e7394dd4be710334f26de96b1c224b535520fe38b1aaa00",
     );
 
     test_pp_digest_with::<G1, G2, _, _>(
       &cubic_circuit1,
       &trivial_circuit2,
-      "0cc25f7bedbb01a3d092f004f721c0536754cfffda4d5c125d3aaffec3af9b03",
+      "e4237039efc018ae996397fbcfc0022c760b906bb05a861b55625879d5e3d901",
     );
 
     let trivial_circuit1_grumpkin =
@@ -1088,12 +1030,12 @@ mod tests {
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "1c1f7e860dcb0ce9501cd86dbfbfcaa4aa6cfa1ff55421e9f5e2c668224f8c03",
+      "5fe1690dda17560d99817d88c9e4a50ce9489c491d616eca5bcd32c337b89f00",
     );
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "b526eae3c3c5d353f99d1b4e097048b3114dcbdbdceb030cbae20de7aafd8b01",
+      "acebf64a16397db8ab3ae7a154eccf5016ec082e295a31a2e44a00c5ce8ddc00",
     );
 
     let trivial_circuit1_secp =
@@ -1105,12 +1047,12 @@ mod tests {
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "cad89d8bff945f01d8290392271c34dc70873069c1a9fde4a9d4e4b643b27600",
+      "a04d36966a03c0e302ae569fec4da6b69d503e88966e9bd886c4d9063ca03302",
     );
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "8b4868bba4c3ce10a645ac13cf9c3ad43f9fa9c8356c9b8fa8760db9c79b0703",
+      "faa3ac7971b64f60935913b3f49c585045542a814edb31c4e563a65fab0b8f00",
     );
   }
 

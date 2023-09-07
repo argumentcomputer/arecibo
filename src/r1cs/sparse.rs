@@ -171,7 +171,7 @@ impl<'a, F: PrimeField> Iterator for Iter<'a, F> {
     self.i += 1;
     // edge case at the end
     if self.i == self.nnz {
-      return Some(curr_item); // well this is ugly :(
+      return Some(curr_item);
     }
     // if `i` has moved to next row
     while self.i >= self.matrix.indptr[self.row + 1] {

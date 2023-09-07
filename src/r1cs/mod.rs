@@ -152,7 +152,7 @@ impl<G: Group> R1CSShape<G> {
       num_vars,
       num_io,
       A,
-      B, 
+      B,
       C,
     })
   }

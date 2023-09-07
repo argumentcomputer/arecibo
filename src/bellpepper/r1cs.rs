@@ -76,6 +76,7 @@ macro_rules! impl_nova_shape {
         let num_inputs = self.num_inputs();
         let num_constraints = self.num_constraints();
         let num_vars = self.num_aux();
+
         for constraint in self.constraints.iter() {
           add_constraint(
             &mut X,
@@ -86,6 +87,11 @@ macro_rules! impl_nova_shape {
           );
         }
         assert_eq!(num_cons_added, num_constraints);
+
+        A.cols = num_vars + num_inputs;
+        B.cols = num_vars + num_inputs;
+        C.cols = num_vars + num_inputs;
+
         let S: R1CSShape<G> = {
           let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C);
           res.unwrap()
@@ -125,7 +131,7 @@ where
     A.cols = num_vars + self.num_inputs();
     B.cols = num_vars + self.num_inputs();
     C.cols = num_vars + self.num_inputs();
-    
+
     let S: R1CSShape<G> = {
       let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C);
       res.unwrap()
