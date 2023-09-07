@@ -2,12 +2,12 @@ use crate::bellpepper::test_shape_cs::TestShapeCS;
 use crate::gadgets::utils::alloc_const;
 use crate::gadgets::utils::alloc_num_equals;
 use crate::gadgets::utils::conditionally_select;
-use crate::gadgets::utils::{add_allocated_num, alloc_one, alloc_zero};
+use crate::gadgets::utils::{alloc_one, alloc_zero};
 use crate::provider::poseidon::PoseidonConstantsCircuit;
 use crate::traits::circuit_supernova::{
   EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
 };
-use bellpepper::gadgets::boolean::Boolean;
+use bellpepper::gadgets::{boolean::Boolean, Assignment};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use core::marker::PhantomData;
@@ -82,6 +82,57 @@ where
     }
   }
 }
+/// c = a + b where a, b is AllocatedNum
+pub fn add_allocated_num<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError> {
+  let c = AllocatedNum::alloc(cs.namespace(|| "c"), || {
+    Ok(*a.get_value().get()? + b.get_value().get()?)
+  })?;
+  cs.enforce(
+    || "Check u_fold",
+    |lc| lc + a.get_variable() + b.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + c.get_variable(),
+  );
+  Ok(c)
+}
+
+fn next_rom_index_and_pc<F: PrimeField, CS: ConstraintSystem<F>>(
+  cs: &mut CS,
+  rom_index: &AllocatedNum<F>,
+  allocated_rom: &[AllocatedNum<F>],
+) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError> {
+  let one = alloc_one(cs.namespace(|| "alloc one"))?;
+
+  let rom_index_next = add_allocated_num(
+    // rom_index = rom_index + 1
+    cs.namespace(|| "rom_index = rom_index + 1".to_string()),
+    rom_index,
+    &one,
+  )?;
+  let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
+    rom_index_next
+      .get_value()
+      .and_then(|f| {
+        let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
+        allocated_rom
+          .get(n as usize)
+          .and_then(|x| x.get_value())
+          .or(Some(F::ZERO))
+      })
+      .ok_or(SynthesisError::AssignmentMissing)
+  })?;
+  constrain_augmented_circuit_index(
+    cs.namespace(|| "CubicCircuit agumented circuit constraint"),
+    &rom_index_next,
+    allocated_rom,
+    &pc_next,
+  )?;
+  Ok((rom_index_next, pc_next))
+}
 
 impl<F> StepCircuit<F> for CubicCircuit<F>
 where
@@ -101,34 +152,13 @@ where
     _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
-    let one = alloc_one(cs.namespace(|| "alloc one"))?;
-
     let rom_index = &z[1];
     let allocated_rom = &z[2..];
 
-    let rom_index_next = add_allocated_num(
-      // rom_index = rom_index + 1
-      cs.namespace(|| "rom_index = rom_index + 1".to_string()),
+    let (rom_index_next, pc_next) = next_rom_index_and_pc(
+      &mut cs.namespace(|| "next and rom_index and pc"),
       rom_index,
-      &one,
-    )?;
-    let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
-      rom_index_next
-        .get_value()
-        .and_then(|f| {
-          let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
-          allocated_rom
-            .get(n as usize)
-            .and_then(|x| x.get_value())
-            .or(Some(F::ZERO))
-        })
-        .ok_or(SynthesisError::AssignmentMissing)
-    })?;
-    constrain_augmented_circuit_index(
-      cs.namespace(|| "CubicCircuit agumented circuit constraint"),
-      &rom_index_next,
       allocated_rom,
-      &pc_next,
     )?;
 
     // Consider a cubic equation: `x^3 + x + 5 = y`, where `x` and `y` are respectively the input and output.
@@ -201,26 +231,13 @@ where
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let rom_index = &z[1];
     let allocated_rom = &z[2..];
-    let one = alloc_one(cs.namespace(|| "alloc one"))?;
 
-    let rom_index_next = add_allocated_num(
-      // rom_index = rom_index + 1
-      cs.namespace(|| "rom_index = rom_index + 1".to_string()),
+    let (rom_index_next, pc_next) = next_rom_index_and_pc(
+      &mut cs.namespace(|| "next and rom_index and pc"),
       rom_index,
-      &one,
+      allocated_rom,
     )?;
-    let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
-      rom_index_next
-        .get_value()
-        .and_then(|f| {
-          let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
-          allocated_rom
-            .get(n as usize)
-            .and_then(|x| x.get_value())
-            .or(Some(F::ZERO))
-        })
-        .ok_or(SynthesisError::AssignmentMissing)
-    })?;
+
     constrain_augmented_circuit_index(
       cs.namespace(|| "SquareCircuit agumented circuit constraint"),
       &rom_index_next,
