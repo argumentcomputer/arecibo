@@ -3,7 +3,8 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
 use ff::PrimeField;
 
-/// A helper trait for a step of the incremental computation for SuperNova (i.e., circuit for F)
+/// A helper trait for a step of the incremental computation for SuperNova (i.e., circuit for F) -- to be implemented by
+/// applications.
 pub trait StepCircuit<F: PrimeField>: Send + Sync + Clone {
   /// Return the the number of inputs or outputs of each step
   /// (this method is called only at circuit synthesis time)
@@ -26,7 +27,9 @@ pub trait StepCircuit<F: PrimeField>: Send + Sync + Clone {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError>;
 }
 
-/// A helper trait for a step of the incremental computation for SuperNova (i.e., circuit for F)
+/// A helper trait for a step of the incremental computation for SuperNova (i.e., circuit for F) -- automatically
+/// implemented for `StepCircuit` and used internally to enforce that the circuit selected by the program counter is used
+/// at each step.
 pub trait EnforcingStepCircuit<F: PrimeField>: Send + Sync + Clone + StepCircuit<F> {
   /// Delegate synthesis to `StepCircuit::synthesize`, and additionally, enforce the constraint that program counter
   /// `pc`, if supplied, is equal to the circuit's assigned index.
