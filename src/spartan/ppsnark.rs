@@ -869,12 +869,11 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> HasDigest<G::Scalar> for VerifierKe
 
 impl<G: Group, EE: EvaluationEngineTrait<G>> DigestBuilder<G::Scalar, VerifierKey<G, EE>> {
   fn setup(
-    &mut self,
     num_cons: usize,
     num_vars: usize,
     S_comm: R1CSShapeSparkCommitment<G>,
     vk_ee: EE::VerifierKey,
-  ) -> &mut Self {
+  ) -> Self {
     let vk = VerifierKey {
       num_cons,
       num_vars,
@@ -882,8 +881,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> DigestBuilder<G::Scalar, VerifierKe
       vk_ee,
       digest: Default::default(),
     };
-    self.init(vk);
-    self
+    Self::new(vk)
   }
 }
 
@@ -915,9 +913,14 @@ where
     let S_repr = R1CSShapeSparkRepr::new(&S);
     let S_comm = S_repr.commit(ck);
 
-    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::new()
-      .setup(S.num_cons, S.num_vars, S_comm.clone(), vk_ee)
-      .build();
+    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::setup(
+      S.num_cons,
+      S.num_vars,
+      S_comm.clone(),
+      vk_ee,
+    )
+    .build()
+    .map_err(|_| NovaError::DigestError)?;
 
     let pk = ProverKey {
       pk_ee,

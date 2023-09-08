@@ -57,14 +57,13 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> HasDigest<G::Scalar> for VerifierKe
 }
 
 impl<G: Group, EE: EvaluationEngineTrait<G>> DigestBuilder<G::Scalar, VerifierKey<G, EE>> {
-  fn setup(&mut self, shape: R1CSShape<G>, vk_ee: EE::VerifierKey) -> &mut Self {
+  fn setup(shape: R1CSShape<G>, vk_ee: EE::VerifierKey) -> Self {
     let vk = VerifierKey {
       vk_ee,
       S: shape,
       digest: G::Scalar::ZERO,
     };
-    self.init(vk);
-    self
+    Self::new(vk)
   }
 }
 
@@ -99,9 +98,9 @@ where
 
     let S = S.pad();
 
-    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::new()
-      .setup(S.clone(), vk_ee)
-      .build();
+    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::setup(S.clone(), vk_ee)
+      .build()
+      .map_err(|_| NovaError::DigestError)?;
 
     let pk = ProverKey {
       pk_ee,

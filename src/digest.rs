@@ -79,19 +79,16 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
     digest
   }
 
-  /// Extend `DigestBuilder` with the bytes provided by the underlying inner `HasDigest`.
-  fn compute_digest(&mut self, value: &T) -> Result<F, io::Error> {
-    let mut hasher = Self::hasher();
-    value.write_bytes(&mut hasher)?;
-    let mut bytes: [u8; 32] = hasher.finalize().into();
-    Ok(Self::map_to_field(&mut bytes))
-  }
-
   /// Build and return inner `Digestible`.
   pub fn build(mut self) -> Result<T, io::Error> {
-    let digest = self.compute_digest(&self.inner)?;
+    let mut hasher = Self::hasher();
+    self.inner.write_bytes(&mut hasher)?;
+    let mut bytes: [u8; 32] = hasher.finalize().into();
+    self.inner.set_digest(Self::map_to_field(&mut bytes));
 
-    self.inner.set_digest(digest);
+    // let digest = self.compute_digest(&self.inner)?;
+
+    // self.inner.set_digest(digest);
     Ok(self.inner)
   }
 }

@@ -1,5 +1,6 @@
 //! This library implements SuperNova, a Non-Uniform IVC based on Nova.
 
+use std::io;
 use std::marker::PhantomData;
 use std::ops::Index;
 
@@ -224,10 +225,11 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  fn extend_bytes<X: Extend<u8>>(&self, bytes: &mut X) {
+  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
     for claim in &self.claims {
-      claim.get_public_params().extend_bytes(bytes);
+      claim.get_public_params().write_bytes(byte_sink)?;
     }
+    Ok(())
   }
 }
 
@@ -238,7 +240,7 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  fn setup(&mut self, mut claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> &mut Self {
+  fn setup(mut claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
     let running_claim_params = claims
       .iter()
       .map(|c| c.get_public_params())
@@ -252,8 +254,7 @@ where
 
     let running_claims = RunningClaims::new(claims);
 
-    self.init(running_claims);
-    self
+    Self::new(running_claims)
   }
 }
 
@@ -271,9 +272,8 @@ where
     }
   }
 
-  fn setup(claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
-    let mut digest_builder = DigestBuilder::<G1::Scalar, RunningClaims<G1, G2, C1, C2>>::new();
-    digest_builder.setup(claims);
+  fn setup(claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Result<Self, io::Error> {
+    let digest_builder = DigestBuilder::<G1::Scalar, RunningClaims<G1, G2, C1, C2>>::setup(claims);
 
     digest_builder.build()
   }
@@ -945,7 +945,9 @@ where
   }
 
   /// Initialize and return initial running claims.
-  fn setup_running_claims(&self) -> RunningClaims<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>> {
+  fn setup_running_claims(
+    &self,
+  ) -> Result<RunningClaims<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>>, io::Error> {
     let running_claims = (0..self.num_circuits())
       .map(|i| {
         RunningClaim::new(
