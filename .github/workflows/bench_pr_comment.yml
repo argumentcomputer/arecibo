@@ -19,18 +19,18 @@ jobs:
       && github.event.issue.state == 'open'
       && contains(github.event.comment.body, '!benchmark')
       && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
-    # Required permissions
-    permissions:
-      pull-requests: read
     # Set job outputs to values from filter step
     outputs:
       spartan: ${{ steps.filter.outputs.spartan }}
       supernova: ${{ steps.filter.outputs.supernova }}
     steps:
-      # For pull requests it's not necessary to checkout the code
+      - uses: xt0rted/pull-request-comment-branch@v2
+        id: comment-branch
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v2
         id: filter
         with:
+          ref: ${{ steps.comment-branch.outputs.head_ref }}
           filters: |
             spartan:
               - 'src/spartan/**'
