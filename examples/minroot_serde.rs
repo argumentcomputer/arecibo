@@ -167,7 +167,8 @@ fn main() {
       G2,
       MinRootCircuit<<G1 as Group>::Scalar>,
       TrivialTestCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None);
+    >::setup(&circuit_primary, &circuit_secondary, None, None)
+    .unwrap();
     println!("PublicParams::setup, took {:?} ", start.elapsed());
     encode(&pp, &mut file).unwrap()
   };
@@ -193,7 +194,8 @@ fn main() {
       G2,
       MinRootCircuit<<G1 as Group>::Scalar>,
       TrivialTestCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None);
+    >::setup(&circuit_primary, &circuit_secondary, None, None)
+    .unwrap();
     assert!(result.clone() == pp, "not equal!");
     assert!(remaining.is_empty());
   } else {

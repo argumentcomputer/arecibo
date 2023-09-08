@@ -46,6 +46,10 @@ impl<T: SimpleDigestible> Digestible for T {
 impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
   /// Return a new `DigestBuilder` for a value
   pub fn new(value: T) -> Self {
+    dbg!(
+      NUM_HASH_BITS,
+      <Sha3_256 as OutputSizeUser>::OutputSize::to_usize()
+    );
     assert!(
       NUM_HASH_BITS <= <Sha3_256 as OutputSizeUser>::OutputSize::to_usize(),
       "DigestBuilder only supports hashes with output over 250 bits"
