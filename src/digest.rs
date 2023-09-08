@@ -90,9 +90,6 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
     let mut bytes: [u8; 32] = hasher.finalize().into();
     self.inner.set_digest(Self::map_to_field(&mut bytes));
 
-    // let digest = self.compute_digest(&self.inner)?;
-
-    // self.inner.set_digest(digest);
     Ok(self.inner)
   }
 }
