@@ -1,7 +1,8 @@
+use digest::{typenum::Unsigned, OutputSizeUser};
 use ff::PrimeField;
 use serde::Serialize;
 use sha3::{Digest, Sha3_256};
-use std::iter::Extend;
+use std::io;
 use std::marker::PhantomData;
 
 use crate::constants::NUM_HASH_BITS;
@@ -9,26 +10,26 @@ use crate::constants::NUM_HASH_BITS;
 /// For building digests
 #[derive(Clone)]
 pub struct DigestBuilder<F: PrimeField, T: HasDigest<F>> {
-  bytes: Vec<u8>,
-  hasher: Option<Sha3_256>,
-  bytes_digest: [u8; 32],
-  inner: Option<T>,
-  _p: PhantomData<(F, T)>,
+  inner: T,
+  _phantom: PhantomData<(F, T)>,
 }
 
 /// Trait to be implemented by types whose digests can be built with `DigestBuilder`.
 pub trait HasDigest<F: PrimeField> {
   /// Extend `bytes` with raw bytes or digest summarizing `Digestible`.
   fn set_digest(&mut self, digest: F);
-  fn set_bytes_digest(&mut self, _bytes_digest: [u8; 32]) {
-    unimplemented!()
-  }
 }
 
 /// Trait for components with potentially discrete digests to be included in their container's digest.
 pub trait Digestible {
-  /// Extend a byte sink with the bytes to be digested.
-  fn extend_bytes<X: Extend<u8>>(&self, bytes: &mut X);
+  /// Write the byte representation of Self in a byte buffer
+  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error>;
+  /// allocate and exhibit the bytes for the type in question
+  fn to_bytes(&self) -> Result<Vec<u8>, io::Error> {
+    let mut v: Vec<u8> = Vec::new();
+    self.write_bytes(&mut v)?;
+    Ok(v)
+  }
 }
 
 /// Marker trait to be implemented for types that implement `Digestible` and `Serialize`.
@@ -36,51 +37,30 @@ pub trait Digestible {
 pub trait SimpleDigestible: Serialize {}
 
 impl<T: SimpleDigestible> Digestible for T {
-  fn extend_bytes<X: Extend<u8>>(&self, bytes: &mut X) {
-    (*bytes).extend(bincode::serialize(self).unwrap());
+  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
+    bincode::serialize_into(byte_sink, self)
+      .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
   }
 }
 
 impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
-  /// Return a new `DigestBuilder`.
-  pub fn new() -> Self {
+  /// Return a new `DigestBuilder` for a value
+  pub fn new(value: T) -> Self {
+    assert!(
+      NUM_HASH_BITS <= <Sha3_256 as OutputSizeUser>::OutputSize::to_usize(),
+      "DigestBuilder only supports hashes with output over 250 bits"
+    );
     Self {
-      bytes: Default::default(),
-      hasher: Some(Sha3_256::new()),
-      bytes_digest: [0; 32],
-      inner: None,
-      _p: Default::default(),
+      inner: value,
+      _phantom: Default::default(),
     }
   }
 
-  /// Initialize `DigestBuilder` with `inner`.
-  pub fn init(&mut self, inner: T) {
-    self.inner = Some(inner)
+  fn hasher() -> Sha3_256 {
+    Sha3_256::new()
   }
 
-  /// Update builder's hasher.
-  pub fn update(&mut self) {
-    if let Some(hasher) = self.hasher.as_mut() {
-      hasher.update(&self.bytes);
-    } else {
-      panic!("hasher missing");
-    };
-
-    self.bytes.truncate(0);
-  }
-
-  pub fn finalize_bytes_digest(&mut self) {
-    self.update();
-
-    let Some(hasher) = self.hasher.take() else {panic!("hasher missing");};
-    self.bytes_digest = hasher.finalize().into();
-  }
-
-  /// Finalize digest.
-  pub fn finalize(&mut self) -> F {
-    self.finalize_bytes_digest();
-
-    let digest = self.bytes_digest;
+  fn map_to_field(digest: &mut [u8]) -> F {
     let bv = (0..NUM_HASH_BITS).map(|i| {
       let (byte_pos, bit_pos) = (i / 8, i % 8);
       let bit = (digest[byte_pos] >> bit_pos) & 1;
@@ -100,20 +80,18 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
   }
 
   /// Extend `DigestBuilder` with the bytes provided by the underlying inner `HasDigest`.
-  pub fn compute_digest(&mut self) -> F {
-    let o = self.inner.as_ref().expect("inner Digestible missing");
-    o.extend_bytes(&mut self.bytes);
-
-    self.finalize()
+  fn compute_digest(&mut self, value: &T) -> Result<F, io::Error> {
+    let mut hasher = Self::hasher();
+    value.write_bytes(&mut hasher)?;
+    let mut bytes: [u8; 32] = hasher.finalize().into();
+    Ok(Self::map_to_field(&mut bytes))
   }
 
   /// Build and return inner `Digestible`.
-  pub fn build(&mut self) -> T {
-    let digest = self.compute_digest();
+  pub fn build(mut self) -> Result<T, io::Error> {
+    let digest = self.compute_digest(&self.inner)?;
 
-    if let Some(d) = self.inner.as_mut() {
-      d.set_digest(digest)
-    }
-    self.inner.take().expect("inner Digestible missing")
+    self.inner.set_digest(digest);
+    Ok(self.inner)
   }
 }
