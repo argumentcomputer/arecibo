@@ -51,8 +51,8 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
       <Sha3_256 as OutputSizeUser>::OutputSize::to_usize()
     );
     assert!(
-      NUM_HASH_BITS <= <Sha3_256 as OutputSizeUser>::OutputSize::to_usize(),
-      "DigestBuilder only supports hashes with output over 250 bits"
+      NUM_HASH_BITS <= <Sha3_256 as OutputSizeUser>::OutputSize::to_usize() * 8,
+      "DigestBuilder only supports hashes with output over {NUM_HASH_BITS} bits"
     );
     Self {
       inner: value,
