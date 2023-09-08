@@ -28,6 +28,8 @@ pub mod traits;
 
 pub mod supernova;
 
+use std::io;
+
 use crate::bellpepper::{
   r1cs::{NovaShape, NovaWitness},
   shape_cs::ShapeCS,
@@ -105,12 +107,11 @@ where
   /// let pp = PublicParams::setup(&circuit1, &circuit2, pp_hint1, pp_hint2);
   /// ```
   pub fn setup(
-    &mut self,
     c_primary: &C1,
     c_secondary: &C2,
     optfn1: Option<CommitmentKeyHint<G1>>,
     optfn2: Option<CommitmentKeyHint<G2>>,
-  ) -> &mut Self {
+  ) -> Self {
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let augmented_circuit_params_secondary =
@@ -166,8 +167,7 @@ where
       _p_c2: Default::default(),
     };
 
-    self.init(pp);
-    self
+    Self::new(pp)
   }
 }
 
@@ -241,10 +241,8 @@ where
     c_secondary: &C2,
     optfn1: Option<CommitmentKeyHint<G1>>,
     optfn2: Option<CommitmentKeyHint<G2>>,
-  ) -> Self {
-    DigestBuilder::<G1::Scalar, Self>::new()
-      .setup(c_primary, c_secondary, optfn1, optfn2)
-      .build()
+  ) -> Result<Self, io::Error> {
+    DigestBuilder::<G1::Scalar, Self>::setup(c_primary, c_secondary, optfn1, optfn2).build()
   }
   /// Returns the number of constraints in the primary and secondary circuits
   pub const fn num_constraints(&self) -> (usize, usize) {
