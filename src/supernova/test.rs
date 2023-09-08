@@ -383,7 +383,7 @@ where
   let num_steps = test_rom.num_steps();
   let initial_program_counter = test_rom.initial_program_counter();
 
-  let running_claims = test_rom.setup_running_claims();
+  let running_claims = test_rom.setup_running_claims().unwrap();
 
   // extend z0_primary/secondary with rom content
   let mut z0_primary = vec![<G1 as Group>::Scalar::ONE];

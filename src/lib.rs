@@ -989,7 +989,7 @@ mod tests {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let pp_hint1 = Some(S1Prime::<G1>::commitment_key_floor());
     let pp_hint2 = Some(S2Prime::<G2>::commitment_key_floor());
-    let pp = PublicParams::<G1, G2, T1, T2>::setup(circuit1, circuit2, pp_hint1, pp_hint2);
+    let pp = PublicParams::<G1, G2, T1, T2>::setup(circuit1, circuit2, pp_hint1, pp_hint2).unwrap();
 
     let digest_str = pp
       .digest
@@ -1070,7 +1070,8 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       TrivialTestCircuit<<G2 as Group>::Scalar>,
-    >::setup(&test_circuit1, &test_circuit2, None, None);
+    >::setup(&test_circuit1, &test_circuit2, None, None)
+    .unwrap();
 
     let num_steps = 1;
 
@@ -1127,7 +1128,8 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None);
+    >::setup(&circuit_primary, &circuit_secondary, None, None)
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1216,7 +1218,8 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None);
+    >::setup(&circuit_primary, &circuit_secondary, None, None)
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1318,7 +1321,8 @@ mod tests {
       &circuit_secondary,
       Some(S1Prime::commitment_key_floor()),
       Some(S2Prime::commitment_key_floor()),
-    );
+    )
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1481,7 +1485,8 @@ mod tests {
       G2,
       FifthRootCheckingCircuit<<G1 as Group>::Scalar>,
       TrivialTestCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None);
+    >::setup(&circuit_primary, &circuit_secondary, None, None)
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1560,7 +1565,8 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::setup(&test_circuit1, &test_circuit2, None, None);
+    >::setup(&test_circuit1, &test_circuit2, None, None)
+    .unwrap();
 
     let num_steps = 1;
 
