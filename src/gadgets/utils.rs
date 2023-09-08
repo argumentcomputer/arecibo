@@ -450,22 +450,3 @@ pub fn select_num_or_one<F: PrimeField, CS: ConstraintSystem<F>>(
 
   Ok(c)
 }
-
-#[allow(dead_code)]
-/// c = a + b where a, b is AllocatedNum
-pub fn add_allocated_num<F: PrimeField, CS: ConstraintSystem<F>>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: &AllocatedNum<F>,
-) -> Result<AllocatedNum<F>, SynthesisError> {
-  let c = AllocatedNum::alloc(cs.namespace(|| "c"), || {
-    Ok(*a.get_value().get()? + b.get_value().get()?)
-  })?;
-  cs.enforce(
-    || "Check u_fold",
-    |lc| lc + a.get_variable() + b.get_variable(),
-    |lc| lc + CS::one(),
-    |lc| lc + c.get_variable(),
-  );
-  Ok(c)
-}

@@ -28,7 +28,7 @@ use crate::{
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{
-    circuit_supernova::StepCircuit, commitment::CommitmentTrait, Group, ROCircuitTrait,
+    circuit_supernova::EnforcingStepCircuit, commitment::CommitmentTrait, Group, ROCircuitTrait,
     ROConstantsCircuit,
   },
   Commitment,
@@ -111,7 +111,7 @@ impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
 /// The augmented circuit F' in SuperNova that includes a step circuit F
 /// and the circuit for the verifier in SuperNova's non-interactive folding scheme,
 /// SuperNova NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance U[last_augmented_circuit_index]
-pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: StepCircuit<G::Base>> {
+pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> {
   params: &'a SuperNovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<G>,
   inputs: Option<SuperNovaAugmentedCircuitInputs<'a, G>>,
@@ -119,7 +119,7 @@ pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: StepCircuit<G::Base>> {
   num_augmented_circuits: usize, // number of overall augmented circuits
 }
 
-impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC> {
+impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC> {
   /// Create a new verification circuit for the input relaxed r1cs instances
   pub const fn new(
     params: &'a SuperNovaAugmentedCircuitParams,
@@ -418,7 +418,7 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
   }
 }
 
-impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC> {
+impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC> {
   pub fn synthesize<CS: ConstraintSystem<<G as Group>::Base>>(
     self,
     cs: &mut CS,
@@ -549,7 +549,7 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC
       &Boolean::from(is_base_case),
     )?;
 
-    let (program_counter_new, z_next) = self.step_circuit.synthesize(
+    let (program_counter_new, z_next) = self.step_circuit.enforcing_synthesize(
       &mut cs.namespace(|| "F"),
       program_counter.as_ref(),
       &z_input,
