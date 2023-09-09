@@ -3,7 +3,7 @@
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
 //! polynomial commitment scheme in which the verifier's costs is succinct.
 use crate::{
-  compute_digest,
+  digest::{DigestBuilder, HasDigest, SimpleDigestible},
   errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
   spartan::{
@@ -690,6 +690,8 @@ pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
   digest: G::Scalar,
 }
 
+impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
+
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
 /// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
@@ -859,6 +861,30 @@ where
   }
 }
 
+impl<G: Group, EE: EvaluationEngineTrait<G>> HasDigest<G::Scalar> for VerifierKey<G, EE> {
+  fn set_digest(&mut self, digest: G::Scalar) {
+    self.digest = digest;
+  }
+}
+
+impl<G: Group, EE: EvaluationEngineTrait<G>> DigestBuilder<G::Scalar, VerifierKey<G, EE>> {
+  fn setup(
+    num_cons: usize,
+    num_vars: usize,
+    S_comm: R1CSShapeSparkCommitment<G>,
+    vk_ee: EE::VerifierKey,
+  ) -> Self {
+    let vk = VerifierKey {
+      num_cons,
+      num_vars,
+      S_comm,
+      vk_ee,
+      digest: Default::default(),
+    };
+    Self::new(vk)
+  }
+}
+
 impl<G: Group, EE: EvaluationEngineTrait<G>> RelaxedR1CSSNARKTrait<G> for RelaxedR1CSSNARK<G, EE>
 where
   <G::Scalar as PrimeField>::Repr: Abomonation,
@@ -887,17 +913,14 @@ where
     let S_repr = R1CSShapeSparkRepr::new(&S);
     let S_comm = S_repr.commit(ck);
 
-    let vk = {
-      let mut vk = VerifierKey {
-        num_cons: S.num_cons,
-        num_vars: S.num_vars,
-        S_comm: S_comm.clone(),
-        vk_ee,
-        digest: G::Scalar::ZERO,
-      };
-      vk.digest = compute_digest::<G, VerifierKey<G, EE>>(&[&vk]);
-      vk
-    };
+    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::setup(
+      S.num_cons,
+      S.num_vars,
+      S_comm.clone(),
+      vk_ee,
+    )
+    .build()
+    .map_err(|_| NovaError::DigestError)?;
 
     let pk = ProverKey {
       pk_ee,

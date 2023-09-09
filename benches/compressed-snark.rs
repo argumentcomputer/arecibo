@@ -71,7 +71,8 @@ fn bench_compressed_snark(c: &mut Criterion) {
       &c_secondary,
       Some(S1::commitment_key_floor()),
       Some(S2::commitment_key_floor()),
-    );
+    )
+    .unwrap();
 
     // Produce prover and verifier keys for CompressedSNARK
     let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
@@ -163,7 +164,8 @@ fn bench_compressed_snark_with_computational_commitments(c: &mut Criterion) {
       &c_secondary,
       Some(SS1::commitment_key_floor()),
       Some(SS2::commitment_key_floor()),
-    );
+    )
+    .unwrap();
     // Produce prover and verifier keys for CompressedSNARK
     let (pk, vk) = CompressedSNARK::<_, _, _, _, SS1, SS2>::setup(&pp).unwrap();
 
