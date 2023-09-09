@@ -41,12 +41,13 @@ use bellpepper_core::{
 
 use bellpepper::gadgets::Assignment;
 
+use abomonation_derive::Abomonation;
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
 use super::utils::get_from_vec_alloc_relaxed_r1cs;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct SuperNovaAugmentedCircuitParams {
   limb_width: usize,
   n_limbs: usize,

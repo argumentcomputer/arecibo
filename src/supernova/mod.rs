@@ -22,7 +22,9 @@ use crate::{
   Commitment, CommitmentKey,
 };
 
-use ff::Field;
+use abomonation::Abomonation;
+use abomonation_derive::Abomonation;
+use ff::{Field, PrimeField};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -48,8 +50,16 @@ pub(crate) mod utils;
 mod test;
 
 /// A type that holds public parameters of Nova
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
+#[abomonation_bounds(
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  <G1::Scalar as PrimeField>::Repr: Abomonation,
+  <G2::Scalar as PrimeField>::Repr: Abomonation,
+)]
+
 pub struct PublicParams<G1, G2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
