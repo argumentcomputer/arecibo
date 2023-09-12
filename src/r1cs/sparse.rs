@@ -3,15 +3,6 @@
 //! This module defines a custom implementation of CSR/CSC sparse matrices.
 //! Specifically, we implement sparse matrix / dense vector multiplication
 //! to compute the `A z`, `B z`, and `C z` in Nova.
-//!
-//! Notes:
-//!
-//! There are many sparse matrix crates available in rust. However, most of
-//! these crates are do not parallelize, or are not compatiable with field elements.
-//!
-//! For example, [sprs](https://crates.io/crates/sprs/0.2.1) does not parallelize
-//! its sparse matrix / dense vector multiplication. It's traits also require
-//! `num_traits::Zero`, which is not compatiable with `ff::PrimeField`.
 
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -78,21 +69,30 @@ impl<F: PrimeField> SparseMatrix<F> {
     }
   }
 
-  /// multiply by dense vector; should use rayon/gpu
-  #[tracing::instrument(skip_all, name = "SparseMatrix::multiply_vec")]
+  /// retrieves the data for row slice [i..j] from ptrs
+  pub fn get_row_unchecked(&self, ptrs: &[usize]) -> impl Iterator<Item = (&F, &usize)> {
+    self.data[ptrs[0]..ptrs[1]]
+      .iter()
+      .zip(&self.indices[ptrs[0]..ptrs[1]])
+  }
+
+  /// multiply by dense vector; uses rayon/gpu
   pub fn multiply_vec(&self, vector: &[F]) -> Vec<F> {
     assert_eq!(self.cols, vector.len(), "invalid shape");
 
-    // naive implementation for now
+    self.multiply_vec_unchecked(vector)
+  }
+
+  /// multiply by dense vector; uses rayon/gpu
+  /// this does not check the shape of the matrix/vector
+  #[tracing::instrument(skip_all, name = "SparseMatrix::multiply_vec_unchecked")]
+  pub fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
     self
       .indptr
       .par_windows(2)
       .map(|ptrs| {
-        let data = &self.data[ptrs[0]..ptrs[1]];
-        let indices = &self.indices[ptrs[0]..ptrs[1]];
-        data
-          .iter()
-          .zip(indices)
+        self
+          .get_row_unchecked(ptrs)
           .map(|(val, col_idx)| *val * vector[*col_idx])
           .sum()
       })

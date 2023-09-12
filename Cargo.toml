@@ -57,6 +57,7 @@ hex = "0.4.3"
 pprof = { version = "0.11" }
 sha2 = "0.10.7"
 proptest = "1.2.0"
+tracing-test = "0.2.4"
 
 [[bench]]
 name = "recursive-snark"
