@@ -92,53 +92,15 @@ macro_rules! impl_nova_shape {
         B.cols = num_vars + num_inputs;
         C.cols = num_vars + num_inputs;
 
-        let S: R1CSShape<G> = {
-          let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C);
-          res.unwrap()
-        };
-        S
+        // Don't count One as an input for shape's purposes.
+        let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C);
+        res.unwrap()
       }
     }
   };
 }
 
-impl<G: Group> NovaShape<G> for ShapeCS<G>
-where
-  G::Scalar: PrimeField,
-{
-  fn r1cs_shape(&self) -> R1CSShape<G> {
-    let mut A = SparseMatrix::<G::Scalar>::empty();
-    let mut B = SparseMatrix::<G::Scalar>::empty();
-    let mut C: SparseMatrix<<G as Group>::Scalar> = SparseMatrix::<G::Scalar>::empty();
-    let mut num_cons_added = 0;
-    let mut X = (&mut A, &mut B, &mut C, &mut num_cons_added);
-
-    let num_inputs = self.num_inputs();
-    let num_constraints = self.num_constraints();
-    let num_vars = self.num_aux();
-
-    for constraint in self.constraints.iter() {
-      add_constraint(
-        &mut X,
-        num_vars,
-        &constraint.0,
-        &constraint.1,
-        &constraint.2,
-      );
-    }
-    assert_eq!(num_cons_added, num_constraints);
-
-    A.cols = num_vars + self.num_inputs();
-    B.cols = num_vars + self.num_inputs();
-    C.cols = num_vars + self.num_inputs();
-
-    let S: R1CSShape<G> = {
-      let res = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C);
-      res.unwrap()
-    };
-    S
-  }
-}
+impl_nova_shape!(ShapeCS);
 impl_nova_shape!(TestShapeCS);
 
 fn add_constraint<S: PrimeField>(

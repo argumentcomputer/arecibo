@@ -69,7 +69,9 @@ impl<F: PrimeField> SparseMatrix<F> {
     }
   }
 
-  /// retrieves the data for row slice [i..j] from ptrs
+  /// Retrieves the data for row slice [i..j] from `ptrs`.
+  /// We assume that `ptrs` is indexed from `indptrs` and do not check if the
+  /// returned slice is actually a valid row.
   pub fn get_row_unchecked(&self, ptrs: &[usize]) -> impl Iterator<Item = (&F, &usize)> {
     self.data[ptrs[0]..ptrs[1]]
       .iter()
@@ -83,8 +85,8 @@ impl<F: PrimeField> SparseMatrix<F> {
     self.multiply_vec_unchecked(vector)
   }
 
-  /// multiply by dense vector; uses rayon/gpu
-  /// this does not check the shape of the matrix/vector
+  /// Multiply by a dense vector; uses rayon/gpu.
+  /// This does not check that the shape of the matrix/vector are compatible.
   #[tracing::instrument(skip_all, name = "SparseMatrix::multiply_vec_unchecked")]
   pub fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
     self
@@ -121,25 +123,6 @@ impl<F: PrimeField> SparseMatrix<F> {
       i: 0,
       nnz: *self.indptr.last().unwrap(),
     }
-  }
-
-  /// pad to specific dimensions, which must be bigger
-  pub fn pad(&mut self, rows: usize, num_vars_padded: usize, num_vars: usize) {
-    assert!(rows + 1 >= self.indptr.len(), "row size must be bigger");
-
-    self.indices.par_iter_mut().for_each(|c| {
-      if *c >= num_vars {
-        *c += num_vars_padded - num_vars
-      }
-    });
-
-    self.cols += num_vars_padded - num_vars;
-
-    let ex = {
-      let nnz = self.indptr.last().unwrap();
-      vec![*nnz; rows - self.indptr.len() + 1]
-    };
-    self.indptr.extend(ex);
   }
 }
 
@@ -180,11 +163,6 @@ impl<'a, F: PrimeField> Iterator for Iter<'a, F> {
 
     Some(curr_item)
   }
-}
-
-/// sorts a matrix by (row, col)
-pub fn sort_sparse<F: PrimeField>(matrix: &mut [(usize, usize, F)]) {
-  matrix.sort_by(|(r1, c1, _), (r2, c2, _)| (r1, c1).cmp(&(r2, c2)))
 }
 
 #[cfg(test)]

@@ -348,7 +348,19 @@ impl<G: Group> R1CSShape<G> {
     let num_cons_padded = m;
 
     let apply_pad = |mut M: SparseMatrix<G::Scalar>| -> SparseMatrix<G::Scalar> {
-      M.pad(num_cons_padded, num_vars_padded, self.num_vars);
+      M.indices.par_iter_mut().for_each(|c| {
+        if *c >= self.num_vars {
+          *c += num_vars_padded - self.num_vars
+        }
+      });
+
+      M.cols += num_vars_padded - self.num_vars;
+
+      let ex = {
+        let nnz = M.indptr.last().unwrap();
+        vec![*nnz; num_cons_padded - M.indptr.len() + 1]
+      };
+      M.indptr.extend(ex);
       M
     };
 

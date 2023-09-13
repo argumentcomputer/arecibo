@@ -197,9 +197,9 @@ where
           assert_eq!(rx.len(), S.num_cons);
 
           let inner = |M: &SparseMatrix<G::Scalar>, M_evals: &mut Vec<G::Scalar>| {
-            for (row, ptrs) in M.indptr.windows(2).enumerate() {
-              for (val, col) in M.get_row_unchecked(ptrs) {
-                M_evals[*col] += rx[row] * val;
+            for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {
+              for (val, col_idx) in M.get_row_unchecked(ptrs) {
+                M_evals[*col_idx] += rx[row_idx] * val;
               }
             }
           };
@@ -445,9 +445,9 @@ where
           M.indptr
             .par_windows(2)
             .enumerate()
-            .map(|(row, ptrs)| {
+            .map(|(row_idx, ptrs)| {
               M.get_row_unchecked(ptrs)
-                .map(|(val, col)| T_x[row] * T_y[*col] * val)
+                .map(|(val, col_idx)| T_x[row_idx] * T_y[*col_idx] * val)
                 .sum::<G::Scalar>()
             })
             .sum()
