@@ -37,7 +37,8 @@ impl<F: PrimeField> SparseMatrix<F> {
     }
   }
 
-  /// construct from Vec<usize(row), usize(col), F>
+  /// Construct from the COO representation; Vec<usize(row), usize(col), F>.
+  /// We implicitly sort the columns during construction.
   pub fn new(matrix: &[(usize, usize, F)], rows: usize, cols: usize) -> Self {
     let mut new_matrix = vec![vec![]; rows];
     for (row, col, val) in matrix {

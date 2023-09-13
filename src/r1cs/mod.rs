@@ -358,7 +358,7 @@ impl<G: Group> R1CSShape<G> {
 
       let ex = {
         let nnz = M.indptr.last().unwrap();
-        vec![*nnz; num_cons_padded - M.indptr.len() + 1]
+        vec![*nnz; num_cons_padded - self.num_cons]
       };
       M.indptr.extend(ex);
       M
@@ -582,5 +582,95 @@ impl<G: Group> AbsorbInROTrait<G> for RelaxedR1CSInstance<G> {
         ro.absorb(scalar_as_base::<G>(limb));
       }
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use ff::Field;
+
+  use super::*;
+  use crate::{r1cs::sparse::SparseMatrix, traits::Group};
+
+  fn tiny_r1cs<G: Group>(num_vars: usize) -> R1CSShape<G> {
+    let one = <G::Scalar as Field>::ONE;
+    let (num_cons, num_vars, num_io, A, B, C) = {
+      let num_cons = 4;
+      let num_io = 2;
+
+      // Consider a cubic equation: `x^3 + x + 5 = y`, where `x` and `y` are respectively the input and output.
+      // The R1CS for this problem consists of the following constraints:
+      // `I0 * I0 - Z0 = 0`
+      // `Z0 * I0 - Z1 = 0`
+      // `(Z1 + I0) * 1 - Z2 = 0`
+      // `(Z2 + 5) * 1 - I1 = 0`
+
+      // Relaxed R1CS is a set of three sparse matrices (A B C), where there is a row for every
+      // constraint and a column for every entry in z = (vars, u, inputs)
+      // An R1CS instance is satisfiable iff:
+      // Az \circ Bz = u \cdot Cz + E, where z = (vars, 1, inputs)
+      let mut A: Vec<(usize, usize, G::Scalar)> = Vec::new();
+      let mut B: Vec<(usize, usize, G::Scalar)> = Vec::new();
+      let mut C: Vec<(usize, usize, G::Scalar)> = Vec::new();
+
+      // constraint 0 entries in (A,B,C)
+      // `I0 * I0 - Z0 = 0`
+      A.push((0, num_vars + 1, one));
+      B.push((0, num_vars + 1, one));
+      C.push((0, 0, one));
+
+      // constraint 1 entries in (A,B,C)
+      // `Z0 * I0 - Z1 = 0`
+      A.push((1, 0, one));
+      B.push((1, num_vars + 1, one));
+      C.push((1, 1, one));
+
+      // constraint 2 entries in (A,B,C)
+      // `(Z1 + I0) * 1 - Z2 = 0`
+      A.push((2, 1, one));
+      A.push((2, num_vars + 1, one));
+      B.push((2, num_vars, one));
+      C.push((2, 2, one));
+
+      // constraint 3 entries in (A,B,C)
+      // `(Z2 + 5) * 1 - I1 = 0`
+      A.push((3, 2, one));
+      A.push((3, num_vars, one + one + one + one + one));
+      B.push((3, num_vars, one));
+      C.push((3, num_vars + 2, one));
+
+      (num_cons, num_vars, num_io, A, B, C)
+    };
+
+    // create a shape object
+    let rows = num_cons;
+    let cols = num_vars + num_io + 1;
+
+    let res = R1CSShape::new(
+      num_cons,
+      num_vars,
+      num_io,
+      SparseMatrix::new(&A, rows, cols),
+      SparseMatrix::new(&B, rows, cols),
+      SparseMatrix::new(&C, rows, cols),
+    );
+    assert!(res.is_ok());
+    res.unwrap()
+  }
+
+  fn test_pad_tiny_r1cs_with<G: Group>() {
+    let padded_r1cs = tiny_r1cs::<G>(3).pad();
+    padded_r1cs.check_regular_shape();
+
+    let expected_r1cs = tiny_r1cs::<G>(4);
+
+    assert_eq!(padded_r1cs, expected_r1cs);
+  }
+
+  #[test]
+  fn test_pad_tiny_r1cs() {
+    test_pad_tiny_r1cs_with::<pasta_curves::pallas::Point>();
+    test_pad_tiny_r1cs_with::<crate::provider::bn256_grumpkin::bn256::Point>();
+    test_pad_tiny_r1cs_with::<crate::provider::secp_secq::secp256k1::Point>();
   }
 }
