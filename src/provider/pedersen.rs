@@ -1,5 +1,6 @@
 //! This module provides an implementation of a commitment engine
 use crate::{
+  digest::SimpleDigestible,
   errors::NovaError,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
@@ -23,6 +24,8 @@ pub struct CommitmentKey<G: Group> {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<G::PreprocessedGroupElement>,
 }
+
+impl<G: Group> SimpleDigestible for CommitmentKey<G> {}
 
 impl<G: Group> Len for CommitmentKey<G> {
   fn length(&self) -> usize {

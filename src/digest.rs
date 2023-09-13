@@ -22,24 +22,34 @@ pub trait HasDigest<F: PrimeField> {
 
 /// Trait for components with potentially discrete digests to be included in their container's digest.
 pub trait Digestible {
-  /// Write the byte representation of Self in a byte buffer
-  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error>;
+  /// Write the digest representation of Self in a byte buffer
+  /// this is what you want to write when Self is being digested into another digest
+  fn write_digestable_bytes<W: Sized + io::Write>(
+    &self,
+    byte_sink: &mut W,
+  ) -> Result<(), io::Error>;
   /// allocate and exhibit the bytes for the type in question
-  fn to_bytes(&self) -> Result<Vec<u8>, io::Error> {
-    let mut v: Vec<u8> = Vec::new();
-    self.write_bytes(&mut v)?;
-    Ok(v)
-  }
+  /// this is what you want when you need the representation of Self to compute its digest
+  fn to_bytes(&self) -> Result<Vec<u8>, io::Error>;
 }
 
 /// Marker trait to be implemented for types that implement `Digestible` and `Serialize`.
 /// Their instances will be serialized to bytes then digested.
 pub trait SimpleDigestible: Serialize {}
 
+/// In the case where the digest is "simple", the digest is the byte representation
 impl<T: SimpleDigestible> Digestible for T {
-  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
+  fn write_digestable_bytes<W: Sized + io::Write>(
+    &self,
+    byte_sink: &mut W,
+  ) -> Result<(), io::Error> {
     bincode::serialize_into(byte_sink, self)
       .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+  }
+  fn to_bytes(&self) -> Result<Vec<u8>, io::Error> {
+    let mut v: Vec<u8> = Vec::new();
+    self.write_digestable_bytes(&mut v)?;
+    Ok(v)
   }
 }
 
@@ -82,10 +92,16 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
   /// Build and return inner `Digestible`.
   pub fn build(mut self) -> Result<T, io::Error> {
     let mut hasher = Self::hasher();
-    self.inner.write_bytes(&mut hasher)?;
+    let bytes = self.inner.to_bytes()?;
+    hasher.update(&bytes);
     let mut bytes: [u8; 32] = hasher.finalize().into();
+
     self.inner.set_digest(Self::map_to_field(&mut bytes));
 
     Ok(self.inner)
   }
 }
+
+impl SimpleDigestible for usize {}
+impl<T> SimpleDigestible for PhantomData<T> {}
+impl<T: Serialize> SimpleDigestible for Vec<T> {}

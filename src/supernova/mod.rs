@@ -238,11 +238,21 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
+  fn write_digestable_bytes<W: Sized + io::Write>(
+    &self,
+    byte_sink: &mut W,
+  ) -> Result<(), io::Error> {
+    self.digest.write_digestable_bytes(byte_sink)
+  }
+
+  fn to_bytes(&self) -> Result<Vec<u8>, io::Error> {
+    let mut byte_sink = vec![];
     for claim in &self.claims {
-      claim.get_public_params().write_bytes(byte_sink)?;
+      claim
+        .get_public_params()
+        .write_digestable_bytes(&mut byte_sink)?;
     }
-    Ok(())
+    Ok(byte_sink)
   }
 }
 

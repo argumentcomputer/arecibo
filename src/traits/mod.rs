@@ -1,5 +1,5 @@
 //! This module defines various traits required by the users of the library to implement.
-use crate::errors::NovaError;
+use crate::{digest::Digestible, errors::NovaError};
 use abomonation::Abomonation;
 use bellpepper_core::{boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::{
@@ -40,7 +40,8 @@ pub trait Group:
     + Sync
     + TranscriptReprTrait<Self>
     + Serialize
-    + for<'de> Deserialize<'de>;
+    + for<'de> Deserialize<'de>
+    + Digestible;
 
   /// A type representing the compressed version of the group element
   type CompressedGroupElement: CompressedGroup<GroupElement = Self>;
@@ -134,7 +135,8 @@ pub trait ROTrait<Base: PrimeField, Scalar> {
     + Sync
     + Serialize
     + for<'de> Deserialize<'de>
-    + Abomonation;
+    + Abomonation
+    + Digestible;
 
   /// Initializes the hash function
   fn new(constants: Self::Constants, num_absorbs: usize) -> Self;
@@ -159,7 +161,8 @@ pub trait ROCircuitTrait<Base: PrimeField> {
     + Sync
     + Serialize
     + for<'de> Deserialize<'de>
-    + Abomonation;
+    + Abomonation
+    + Digestible;
 
   /// Initializes the hash function
   fn new(constants: Self::Constants, num_absorbs: usize) -> Self;

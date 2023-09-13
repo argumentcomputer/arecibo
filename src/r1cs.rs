@@ -1,8 +1,8 @@
 //! This module defines R1CS related types and a folding scheme for Relaxed R1CS
 #![allow(clippy::type_complexity)]
 use crate::{
-  compute_digest,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
+  digest::{DigestBuilder, Digestible, HasDigest},
   errors::NovaError,
   gadgets::{
     nonnative::{bignat::nat_to_limbs, util::f_to_nat},
@@ -36,6 +36,33 @@ pub struct R1CSShape<G: Group> {
   pub(crate) C: Vec<(usize, usize, G::Scalar)>,
   #[abomonate_with(<G::Scalar as ff::PrimeField>::Repr)]
   pub(crate) digest: G::Scalar, // digest of everything else with this field set to G::Scalar::ZERO
+}
+
+impl<G: Group> Digestible for R1CSShape<G> {
+  fn write_digestable_bytes<W: Sized + std::io::Write>(
+    &self,
+    byte_sink: &mut W,
+  ) -> Result<(), std::io::Error> {
+    self.digest.write_digestable_bytes(byte_sink)
+  }
+
+  fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+    let mut byte_sink = vec![];
+    self.num_cons.write_digestable_bytes(&mut byte_sink)?;
+    self.num_vars.write_digestable_bytes(&mut byte_sink)?;
+    self.num_io.write_digestable_bytes(&mut byte_sink)?;
+    self.A.write_digestable_bytes(&mut byte_sink)?;
+    self.B.write_digestable_bytes(&mut byte_sink)?;
+    self.C.write_digestable_bytes(&mut byte_sink)?;
+    self.digest.write_digestable_bytes(&mut byte_sink)?;
+    Ok(byte_sink)
+  }
+}
+
+impl<G: Group> HasDigest<G::Scalar> for R1CSShape<G> {
+  fn set_digest(&mut self, digest: G::Scalar) {
+    self.digest = digest;
+  }
 }
 
 /// A type that holds a witness for a given R1CS instance
@@ -103,6 +130,29 @@ pub fn commitment_key_size<G: Group>(
   max(max(num_cons, num_vars), generators_hint)
 }
 
+impl<G: Group> DigestBuilder<G::Scalar, R1CSShape<G>> {
+  pub fn setup(
+    num_cons: usize,
+    num_vars: usize,
+    num_io: usize,
+    A: &[(usize, usize, G::Scalar)],
+    B: &[(usize, usize, G::Scalar)],
+    C: &[(usize, usize, G::Scalar)],
+  ) -> Self {
+    let r1cs_shape = R1CSShape {
+      num_cons,
+      num_vars,
+      num_io,
+      A: A.to_owned(),
+      B: B.to_owned(),
+      C: C.to_owned(),
+      digest: G::Scalar::ZERO,
+    };
+
+    Self::new(r1cs_shape)
+  }
+}
+
 impl<G: Group> R1CSShape<G> {
   /// Create an object of type `R1CSShape` from the explicitly specified R1CS matrices
   pub fn new(
@@ -149,17 +199,9 @@ impl<G: Group> R1CSShape<G> {
       return Err(NovaError::OddInputLength);
     }
 
-    let mut r1cs_shape = R1CSShape {
-      num_cons,
-      num_vars,
-      num_io,
-      A: A.to_owned(),
-      B: B.to_owned(),
-      C: C.to_owned(),
-      digest: G::Scalar::ZERO,
-    };
-
-    r1cs_shape.digest = compute_digest::<G, R1CSShape<G>>(&[&r1cs_shape]);
+    let r1cs_shape = DigestBuilder::<G::Scalar, Self>::setup(num_cons, num_vars, num_io, A, B, C)
+      .build()
+      .map_err(|_| NovaError::DigestError)?;
 
     Ok(r1cs_shape)
   }
@@ -362,18 +404,21 @@ impl<G: Group> R1CSShape<G> {
     // check if the number of variables are as expected, then
     // we simply set the number of constraints to the next power of two
     if self.num_vars == m {
-      let mut r1cs_shape = R1CSShape {
+      let r1cs_shape = R1CSShape {
         num_cons: m,
         num_vars: m,
         num_io: self.num_io,
         A: self.A.clone(),
         B: self.B.clone(),
         C: self.C.clone(),
-        digest: G::Scalar::ZERO,
+        // TODO: at this point within the proving pipeline, we assume that `R1CSShape::pad`
+        // is called only in the ppsnark/snark setup process. Thus, the digest's use as a check
+        // to prevent drifting public params is not a concern, and we can avoid doing a massive
+        // recomputation for a new digest that will never be used. However, this is ad-hoc and
+        // we should find a nicer solution
+        digest: self.digest,
       };
 
-      // it's a shame we have to recompute everything here; perhaps we can optimize this somehow
-      r1cs_shape.digest = compute_digest::<G, R1CSShape<G>>(&[&r1cs_shape]);
       return r1cs_shape;
     }
 
@@ -400,19 +445,20 @@ impl<G: Group> R1CSShape<G> {
     let B_padded = apply_pad(&self.B);
     let C_padded = apply_pad(&self.C);
 
-    let mut r1cs_shape = R1CSShape {
+    R1CSShape {
       num_cons: num_cons_padded,
       num_vars: num_vars_padded,
       num_io: self.num_io,
       A: A_padded,
       B: B_padded,
       C: C_padded,
-      digest: G::Scalar::ZERO,
-    };
-
-    r1cs_shape.digest = compute_digest::<G, R1CSShape<G>>(&[&r1cs_shape]);
-
-    r1cs_shape
+      // TODO: at this point within the proving pipeline, we assume that `R1CSShape::pad`
+      // is called only in the ppsnark/snark setup process. Thus, the digest's use as a check
+      // to prevent drifting public params is not a concern, and we can avoid doing a massive
+      // recomputation for a new digest that will never be used. However, this is ad-hoc and
+      // we should find a nicer solution
+      digest: self.digest,
+    }
   }
 }
 

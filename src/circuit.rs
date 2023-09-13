@@ -8,6 +8,7 @@
 
 use crate::{
   constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
+  digest::SimpleDigestible,
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
@@ -37,6 +38,8 @@ pub struct NovaAugmentedCircuitParams {
   n_limbs: usize,
   is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
 }
+
+impl SimpleDigestible for NovaAugmentedCircuitParams {}
 
 impl NovaAugmentedCircuitParams {
   pub const fn new(limb_width: usize, n_limbs: usize, is_primary_circuit: bool) -> Self {

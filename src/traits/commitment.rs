@@ -1,6 +1,7 @@
 //! This module defines a collection of traits that define the behavior of a commitment engine
 //! We require the commitment engine to provide a commitment to vectors with a single group element
 use crate::{
+  digest::Digestible,
   errors::NovaError,
   traits::{AbsorbInROTrait, Group, TranscriptReprTrait},
 };
@@ -93,7 +94,8 @@ pub trait CommitmentEngineTrait<G: Group>: Clone + Send + Sync {
     + Sync
     + Serialize
     + for<'de> Deserialize<'de>
-    + Abomonation;
+    + Abomonation
+    + Digestible;
 
   /// Holds the type of the commitment
   type Commitment: CommitmentTrait<G>;

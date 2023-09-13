@@ -274,5 +274,7 @@ macro_rules! impl_traits {
         Some($name_curve::from_bytes(&self).unwrap())
       }
     }
+
+    impl SimpleDigestible for $name::Scalar {}
   };
 }

@@ -1,5 +1,6 @@
 //! This module implements the Nova traits for `pallas::Point`, `pallas::Scalar`, `vesta::Point`, `vesta::Scalar`.
 use crate::{
+  digest::SimpleDigestible,
   provider::{
     cpu_best_multiexp,
     keccak::Keccak256Transcript,
@@ -188,6 +189,8 @@ macro_rules! impl_traits {
         Some($name_curve::from_bytes(&self.repr).unwrap())
       }
     }
+
+    impl SimpleDigestible for $name::Scalar {}
   };
 }
 

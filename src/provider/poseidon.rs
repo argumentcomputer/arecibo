@@ -1,5 +1,8 @@
 //! Poseidon Constants and Poseidon-based RO used in Nova
-use crate::traits::{ROCircuitTrait, ROTrait};
+use crate::{
+  digest::SimpleDigestible,
+  traits::{ROCircuitTrait, ROTrait},
+};
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use bellpepper_core::{
@@ -26,6 +29,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_bounds(where Scalar::Repr: Abomonation)]
 pub struct PoseidonConstantsCircuit<Scalar: PrimeField>(PoseidonConstants<Scalar, U24>);
+
+impl<Scalar: PrimeField + Serialize> SimpleDigestible for PoseidonConstantsCircuit<Scalar> {}
 
 impl<Scalar: PrimeField> Default for PoseidonConstantsCircuit<Scalar> {
   /// Generate Poseidon constants

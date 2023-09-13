@@ -50,7 +50,7 @@ use r1cs::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::digest::{DigestBuilder, HasDigest, SimpleDigestible};
+use crate::digest::{DigestBuilder, Digestible, HasDigest};
 use traits::{
   circuit::StepCircuit,
   commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -208,13 +208,60 @@ where
   _p_c2: PhantomData<C2>,
 }
 
-impl<G1, G2, C1, C2> SimpleDigestible for PublicParams<G1, G2, C1, C2>
+impl<G1, G2, C1, C2> Digestible for PublicParams<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
+  G1::Scalar: Serialize,
 {
+  fn write_digestable_bytes<W: Sized + io::Write>(
+    &self,
+    byte_sink: &mut W,
+  ) -> Result<(), io::Error> {
+    self.digest.write_digestable_bytes(byte_sink)
+  }
+
+  fn to_bytes(&self) -> Result<Vec<u8>, io::Error> {
+    let mut byte_sink = vec![];
+    self
+      .F_arity_primary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self
+      .F_arity_secondary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self
+      .ro_consts_primary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self
+      .ro_consts_circuit_primary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self.ck_primary.write_digestable_bytes(&mut byte_sink)?;
+    self
+      .r1cs_shape_primary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self
+      .ro_consts_secondary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self
+      .ro_consts_circuit_secondary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self.ck_secondary.write_digestable_bytes(&mut byte_sink)?;
+    self
+      .r1cs_shape_secondary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self
+      .augmented_circuit_params_primary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self
+      .augmented_circuit_params_secondary
+      .write_digestable_bytes(&mut byte_sink)?;
+    self.digest.write_digestable_bytes(&mut byte_sink)?;
+    self._p_c1.write_digestable_bytes(&mut byte_sink)?;
+    self._p_c2.write_digestable_bytes(&mut byte_sink)?;
+    Ok(byte_sink)
+  }
 }
 
 impl<G1, G2, C1, C2> HasDigest<G1::Scalar> for PublicParams<G1, G2, C1, C2>
@@ -918,12 +965,8 @@ pub fn circuit_digest<
   let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
 
   // Initialize ck for the primary
-  let augmented_circuit: NovaAugmentedCircuit<'_, G2, C> = NovaAugmentedCircuit::new(
-    &augmented_circuit_params,
-    None,
-    circuit,
-    ro_consts_circuit.clone(),
-  );
+  let augmented_circuit: NovaAugmentedCircuit<'_, G2, C> =
+    NovaAugmentedCircuit::new(&augmented_circuit_params, None, circuit, ro_consts_circuit);
   let mut cs: ShapeCS<G1> = ShapeCS::new();
   let _ = augmented_circuit.synthesize(&mut cs);
   cs.r1cs_shape().digest
@@ -1097,13 +1140,13 @@ mod tests {
     test_pp_digest_with::<G1, G2, _, _>(
       &trivial_circuit1,
       &trivial_circuit2,
-      "cc9b8776b7b04ba04daa6c5dc064384686a700921d4411d2a806261b41d01102",
+      "f5f19b8d08a55c5d92d882dc6fe98da5774f6433d1f2b6353cd24c592e9ae501",
     );
 
     test_pp_digest_with::<G1, G2, _, _>(
       &cubic_circuit1,
       &trivial_circuit2,
-      "0cc25f7bedbb01a3d092f004f721c0536754cfffda4d5c125d3aaffec3af9b03",
+      "4756bca70aa61d5cd6f96dff48b6d6a46f128c8a1f6c1de2912215150f157b01",
     );
 
     let trivial_circuit1_grumpkin =
@@ -1115,12 +1158,12 @@ mod tests {
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "1c1f7e860dcb0ce9501cd86dbfbfcaa4aa6cfa1ff55421e9f5e2c668224f8c03",
+      "42d14fd63ee9399cfdeab0ef24d897f329bd58818110bd1f600ab1c684413b00",
     );
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "b526eae3c3c5d353f99d1b4e097048b3114dcbdbdceb030cbae20de7aafd8b01",
+      "0fa391b2e50fe1574f686f5d7e0374017d056fba3803ab4d4d6c714c1a4f2700",
     );
 
     let trivial_circuit1_secp =
@@ -1132,12 +1175,12 @@ mod tests {
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "cad89d8bff945f01d8290392271c34dc70873069c1a9fde4a9d4e4b643b27600",
+      "c34d7df50b58d2d7332ee25d0f53235442f752282877fe49394bbbcdb659db03",
     );
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "8b4868bba4c3ce10a645ac13cf9c3ad43f9fa9c8356c9b8fa8760db9c79b0703",
+      "1a4b51a73e53ae6d18fe07d2c152f187eaf9e52ab1dcabca6beeb03428659202",
     );
   }
 
