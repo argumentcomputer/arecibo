@@ -1,3 +1,4 @@
+// Temporary source modification to trigger Supernova benchmark comment
 //! This library implements SuperNova, a Non-Uniform IVC based on Nova.
 
 use std::io;
