@@ -181,6 +181,7 @@ pub struct RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
   C2: EnforcingStepCircuit<G2::Scalar>,
 {
   _phantom: PhantomData<C1>,
