@@ -251,7 +251,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
       } else if selected_augmented_circuit == 1 {
         let res = recursive_snark.prove_step(
           &running_claims[1],
-          &bench.primary_circuit(0),
+          &bench.primary_circuit(1),
           &z0_primary,
           &z0_secondary,
         );
