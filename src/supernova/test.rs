@@ -277,6 +277,7 @@ where
 fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
   err: &SuperNovaError,
   running_claim: &RunningClaim<G1, G2, C1, C2>,
+  c_primary: &C1,
   num_augmented_circuits: usize,
 ) where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -289,7 +290,7 @@ fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
       let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
         &running_claim.params.augmented_circuit_params_primary,
         None,
-        &running_claim.c_primary,
+        c_primary,
         running_claim.params.ro_consts_circuit_primary.clone(),
         num_augmented_circuits,
       );
@@ -473,6 +474,7 @@ where
       recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
         OPCODE_0 | OPCODE_1 => RecursiveSNARK::iter_base_step(
           &running_claims[augmented_circuit_index],
+          &test_rom.primary_circuit(augmented_circuit_index),
           running_claims.digest(),
           Some(program_counter),
           augmented_circuit_index,
@@ -487,9 +489,11 @@ where
       });
     match augmented_circuit_index {
       OPCODE_0 | OPCODE_1 => {
+        let circuit_primary = test_rom.primary_circuit(augmented_circuit_index);
         recursive_snark
           .prove_step(
             &running_claims[augmented_circuit_index],
+            &circuit_primary,
             &z0_primary,
             &z0_secondary,
           )
@@ -504,6 +508,7 @@ where
             print_constraints_name_on_error_index(
               &err,
               &running_claims[augmented_circuit_index],
+              &circuit_primary,
               test_rom.num_circuits(),
             )
           })
