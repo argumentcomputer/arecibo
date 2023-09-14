@@ -120,6 +120,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(
           &running_claims[0],
+          &bench.primary_circuit(0),
           running_claims.digest(),
           Some(program_counter),
           0,
@@ -130,7 +131,12 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         .unwrap()
       });
 
-      let res = recursive_snark.prove_step(&running_claims[0], &z0_primary, &z0_secondary);
+      let res = recursive_snark.prove_step(
+        &running_claims[0],
+        &bench.primary_circuit(0),
+        &z0_primary,
+        &z0_secondary,
+      );
       if let Err(e) = &res {
         println!("res failed {:?}", e);
       }
@@ -153,6 +159,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         assert!(black_box(&mut recursive_snark.clone())
           .prove_step(
             black_box(&running_claims[0]),
+            &bench.primary_circuit(0),
             black_box(&[<G1 as Group>::Scalar::from(2u64)]),
             black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )
@@ -214,6 +221,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(
           &running_claims[0],
+          &bench.primary_circuit(0),
           running_claims.digest(),
           Some(program_counter),
           0,
@@ -225,7 +233,12 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
       });
 
       if selected_augmented_circuit == 0 {
-        let res = recursive_snark.prove_step(&running_claims[0], &z0_primary, &z0_secondary);
+        let res = recursive_snark.prove_step(
+          &running_claims[0],
+          &bench.primary_circuit(0),
+          &z0_primary,
+          &z0_secondary,
+        );
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -236,7 +249,12 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
         }
         assert!(res.is_ok());
       } else if selected_augmented_circuit == 1 {
-        let res = recursive_snark.prove_step(&running_claims[1], &z0_primary, &z0_secondary);
+        let res = recursive_snark.prove_step(
+          &running_claims[1],
+          &bench.primary_circuit(1),
+          &z0_primary,
+          &z0_secondary,
+        );
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -263,6 +281,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
         assert!(black_box(&mut recursive_snark.clone())
           .prove_step(
             black_box(&running_claims[0]),
+            &bench.primary_circuit(0),
             black_box(&[<G1 as Group>::Scalar::from(2u64)]),
             black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )

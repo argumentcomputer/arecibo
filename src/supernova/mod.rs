@@ -184,9 +184,8 @@ where
   C1: EnforcingStepCircuit<G1::Scalar>,
   C2: EnforcingStepCircuit<G2::Scalar>,
 {
-  _phantom: PhantomData<G1>,
+  _phantom: PhantomData<C1>,
   augmented_circuit_index: usize,
-  c_primary: C1,
   c_secondary: C2,
   params: PublicParams<G1, G2>,
 }
@@ -311,18 +310,17 @@ where
     circuit_secondary: C2,
     num_augmented_circuits: usize,
   ) -> Self {
-    let claim = circuit_primary;
-
     let pp = PublicParams::<G1, G2>::setup_without_commitkey(
-      &claim,
+      &circuit_primary,
       &circuit_secondary,
       num_augmented_circuits,
     );
 
+    // The `PublicParams` reflect the primary circuit, so there is no need to hold an independent copy, since that copy
+    // would lack step-specific non-deterministic hints.
     Self {
       augmented_circuit_index,
       _phantom: PhantomData,
-      c_primary: claim,
       c_secondary: circuit_secondary,
       params: pp,
     }
@@ -386,11 +384,13 @@ where
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
   /// iterate base step to get new instance of recursive SNARK
+  #[allow(clippy::too_many_arguments)]
   pub fn iter_base_step<
     C1: EnforcingStepCircuit<G1::Scalar>,
     C2: EnforcingStepCircuit<G2::Scalar>,
   >(
     claim: &RunningClaim<G1, G2, C1, C2>,
+    c_primary: &C1,
     pp_digest: G1::Scalar,
     initial_program_counter: Option<G1::Scalar>,
     first_augmented_circuit_index: usize,
@@ -399,7 +399,6 @@ where
     z0_secondary: &[G2::Scalar],
   ) -> Result<Self, SuperNovaError> {
     let pp = &claim.get_public_params();
-    let c_primary = &claim.c_primary;
     let c_secondary = &claim.c_secondary;
     // commitment key for primary & secondary circuit
     let ck_primary = pp.ck_primary.as_ref().ok_or(SuperNovaError::MissingCK)?;
@@ -549,9 +548,11 @@ where
     })
   }
   /// executing a step of the incremental computation
+  #[allow(clippy::too_many_arguments)]
   pub fn prove_step<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
     &mut self,
     claim: &RunningClaim<G1, G2, C1, C2>,
+    c_primary: &C1,
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
   ) -> Result<(), SuperNovaError> {
@@ -566,7 +567,6 @@ where
     }
 
     let pp = &claim.params;
-    let c_primary = &claim.c_primary;
     let c_secondary = &claim.c_secondary;
     // commitment key for primary & secondary circuit
     let ck_primary = pp.ck_primary.as_ref().ok_or(SuperNovaError::MissingCK)?;
