@@ -38,15 +38,15 @@ impl<F: PrimeField> SparseMatrix<F> {
   }
 
   /// Construct from the COO representation; Vec<usize(row), usize(col), F>.
-  /// We implicitly sort the columns during construction.
+  /// We assume that the rows are sorted during construction.
   pub fn new(matrix: &[(usize, usize, F)], rows: usize, cols: usize) -> Self {
     let mut new_matrix = vec![vec![]; rows];
     for (row, col, val) in matrix {
       new_matrix[*row].push((*col, *val));
     }
 
-    for col in new_matrix.iter_mut() {
-      col.sort_by(|(x, _), (y, _)| x.cmp(y));
+    for row in new_matrix.iter() {
+      assert!(row.windows(2).all(|w| w[0].0 < w[1].0));
     }
 
     let mut indptr = vec![0; rows + 1];
@@ -73,13 +73,13 @@ impl<F: PrimeField> SparseMatrix<F> {
   /// Retrieves the data for row slice [i..j] from `ptrs`.
   /// We assume that `ptrs` is indexed from `indptrs` and do not check if the
   /// returned slice is actually a valid row.
-  pub fn get_row_unchecked(&self, ptrs: &[usize]) -> impl Iterator<Item = (&F, &usize)> {
+  pub fn get_row_unchecked(&self, ptrs: &[usize; 2]) -> impl Iterator<Item = (&F, &usize)> {
     self.data[ptrs[0]..ptrs[1]]
       .iter()
       .zip(&self.indices[ptrs[0]..ptrs[1]])
   }
 
-  /// multiply by dense vector; uses rayon/gpu
+  /// Multiply by a dense vector; uses rayon/gpu.
   pub fn multiply_vec(&self, vector: &[F]) -> Vec<F> {
     assert_eq!(self.cols, vector.len(), "invalid shape");
 
@@ -95,7 +95,7 @@ impl<F: PrimeField> SparseMatrix<F> {
       .par_windows(2)
       .map(|ptrs| {
         self
-          .get_row_unchecked(ptrs)
+          .get_row_unchecked(ptrs.try_into().unwrap())
           .map(|(val, col_idx)| *val * vector[*col_idx])
           .sum()
       })
@@ -168,14 +168,19 @@ impl<'a, F: PrimeField> Iterator for Iter<'a, F> {
 
 #[cfg(test)]
 mod tests {
-  use crate::traits::Group;
+  use crate::{r1cs::util::FWrap, traits::Group};
 
   use super::SparseMatrix;
   use pasta_curves::pallas::Point as G;
+  use proptest::{
+    prelude::*,
+    strategy::{BoxedStrategy, Just, Strategy},
+  };
+
+  type Fr = <G as Group>::Scalar;
 
   #[test]
   fn test_matrix_creation() {
-    type Fr = <G as Group>::Scalar;
     let matrix_data = vec![
       (0, 1, Fr::from(2)),
       (1, 2, Fr::from(3)),
@@ -193,9 +198,9 @@ mod tests {
 
   #[test]
   fn test_matrix_vector_multiplication() {
-    type Fr = <G as Group>::Scalar;
     let matrix_data = vec![
       (0, 1, Fr::from(2)),
+      (0, 2, Fr::from(7)),
       (1, 2, Fr::from(3)),
       (2, 0, Fr::from(4)),
     ];
@@ -204,25 +209,25 @@ mod tests {
 
     let result = sparse_matrix.multiply_vec(&vector);
 
-    // Assuming the multiplication is done row by row,
-    // Result[0] = 2.0 * 2.0 = 4.0
-    // Result[1] = 3.0 * 3.0 = 9.0
-    // Result[2] = 4.0 * 1.0 = 4.0
-    assert_eq!(result, vec![Fr::from(4), Fr::from(9), Fr::from(4)]);
+    assert_eq!(result, vec![Fr::from(25), Fr::from(9), Fr::from(4)]);
   }
 
-  #[test]
-  fn test_matrix_iter() {
-    type Fr = <G as Group>::Scalar;
-    let matrix_data = vec![
-      (0, 1, Fr::from(2)),
-      (1, 2, Fr::from(3)),
-      (2, 0, Fr::from(4)),
-    ];
-    let sparse_matrix = SparseMatrix::<Fr>::new(&matrix_data, 3, 3);
+  fn coo_strategy() -> BoxedStrategy<Vec<(usize, usize, FWrap<Fr>)>> {
+    let coo_strategy = any::<FWrap<Fr>>().prop_flat_map(|f| (0usize..100, 0usize..100, Just(f)));
+    proptest::collection::vec(coo_strategy, 10).boxed()
+  }
 
-    for val in sparse_matrix.iter() {
-      println!("{:?}", val);
+  proptest! {
+      #[test]
+      fn test_matrix_iter(mut coo_matrix in coo_strategy()) {
+        // process the randomly generated coo matrix
+        coo_matrix.sort_by_key(|(row, col, _val)| (*row, *col));
+        coo_matrix.dedup_by_key(|(row, col, _val)| (*row, *col));
+        let coo_matrix = coo_matrix.into_iter().map(|(row, col, val)| { (row, col, val.0) }).collect::<Vec<_>>();
+
+        let matrix = SparseMatrix::new(&coo_matrix, 100, 100);
+
+        prop_assert_eq!(coo_matrix, matrix.iter().collect::<Vec<_>>());
     }
   }
 }

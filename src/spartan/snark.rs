@@ -198,7 +198,7 @@ where
 
           let inner = |M: &SparseMatrix<G::Scalar>, M_evals: &mut Vec<G::Scalar>| {
             for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {
-              for (val, col_idx) in M.get_row_unchecked(ptrs) {
+              for (val, col_idx) in M.get_row_unchecked(ptrs.try_into().unwrap()) {
                 M_evals[*col_idx] += rx[row_idx] * val;
               }
             }
@@ -446,7 +446,7 @@ where
             .par_windows(2)
             .enumerate()
             .map(|(row_idx, ptrs)| {
-              M.get_row_unchecked(ptrs)
+              M.get_row_unchecked(ptrs.try_into().unwrap())
                 .map(|(val, col_idx)| T_x[row_idx] * T_y[*col_idx] * val)
                 .sum::<G::Scalar>()
             })
