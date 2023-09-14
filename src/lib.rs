@@ -15,10 +15,10 @@
 mod bellpepper;
 mod circuit;
 mod constants;
-mod digest;
 mod nifs;
 
 // public modules
+pub mod digest;
 pub mod errors;
 pub mod gadgets;
 pub mod provider;

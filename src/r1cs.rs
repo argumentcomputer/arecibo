@@ -131,6 +131,7 @@ pub fn commitment_key_size<G: Group>(
 }
 
 impl<G: Group> DigestBuilder<G::Scalar, R1CSShape<G>> {
+  /// Set up builder to create `R1CSShape` from a triple `A`, `B`, `C`
   pub fn setup(
     num_cons: usize,
     num_vars: usize,

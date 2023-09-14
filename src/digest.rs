@@ -1,3 +1,4 @@
+//! This module provides a unified interface for working with digests of this libraries data.
 use digest::{typenum::Unsigned, OutputSizeUser};
 use ff::PrimeField;
 use serde::Serialize;
@@ -70,7 +71,8 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
     Sha3_256::new()
   }
 
-  fn map_to_field(digest: &mut [u8]) -> F {
+  /// Hash an arbitrary amount of bytes to a field element
+  pub fn map_to_field(digest: &mut [u8]) -> F {
     let bv = (0..NUM_HASH_BITS).map(|i| {
       let (byte_pos, bit_pos) = (i / 8, i % 8);
       let bit = (digest[byte_pos] >> bit_pos) & 1;
@@ -102,6 +104,7 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
   }
 }
 
+impl SimpleDigestible for bool {}
 impl SimpleDigestible for usize {}
 impl<T> SimpleDigestible for PhantomData<T> {}
 impl<T: Serialize> SimpleDigestible for Vec<T> {}
