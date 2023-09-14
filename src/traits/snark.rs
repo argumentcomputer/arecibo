@@ -6,6 +6,7 @@ use crate::{
   CommitmentKey,
 };
 
+use crate::gadgets::lookup::Lookup;
 use abomonation::Abomonation;
 use serde::{Deserialize, Serialize};
 
@@ -59,6 +60,69 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
 
   /// Verifies a SNARK for a relaxed R1CS
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError>;
+}
+
+/// A trait that defines the behavior of a `zkSNARK`
+pub trait RelaxedR1CSSNARKTraitV2<E: Engine>:
+  Send + Sync + Serialize + for<'de> Deserialize<'de>
+{
+  /// A type that represents the prover's key
+  type ProverKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + Abomonation;
+
+  /// A type that represents the verifier's key
+  type VerifierKey: Send
+    + Sync
+    + Serialize
+    + for<'de> Deserialize<'de>
+    + DigestHelperTrait<E>
+    + Abomonation;
+
+  /// This associated function (not a method) provides a hint that offers
+  /// a minimum sizing cue for the commitment key used by this SNARK
+  /// implementation. The commitment key passed in setup should then
+  /// be at least as large as this hint.
+  fn ck_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<E>) -> usize> {
+    // The default is to not put an additional floor on the size of the commitment key
+    default_ck_hint()
+  }
+
+  /// Produces the keys for the prover and the verifier
+  fn setup(
+    ck: &CommitmentKey<E>,
+    S: &R1CSShape<E>,
+    initial_table: &Lookup<E::Scalar>,
+  ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError>
+  where
+    <E as Engine>::Scalar: Ord;
+
+  /// Produces a new SNARK for a relaxed R1CS
+  ///
+  fn prove(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    S: &R1CSShape<E>,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+    challenges: (E::Scalar, E::Scalar),
+    read_row: E::Scalar,
+    write_row: E::Scalar,
+    initial_table: Lookup<E::Scalar>,
+    final_table: Lookup<E::Scalar>,
+  ) -> Result<Self, NovaError>;
+
+  /// Verifies a SNARK for a relaxed R1CS
+  fn verify<E2: Engine>(
+    &self,
+    vk: &Self::VerifierKey,
+    U: &RelaxedR1CSInstance<E>,
+    fingerprint_intermediate_gamma: E::Scalar,
+    read_row: E::Scalar,
+    write_row: E::Scalar,
+    challenges: (E::Scalar, E::Scalar),
+  ) -> Result<(), NovaError>
+  where
+    E: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E as Engine>::Scalar>;
 }
 
 /// A trait that defines the behavior of a `zkSNARK` to prove knowledge of satisfying witness to batches of relaxed R1CS instances.
