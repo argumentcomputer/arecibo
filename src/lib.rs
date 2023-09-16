@@ -1012,13 +1012,13 @@ mod tests {
     test_pp_digest_with::<G1, G2, _, _>(
       &trivial_circuit1,
       &trivial_circuit2,
-      "39a4ea9dd384346fdeb6b5857c7be56fa035153b616d55311f3191dfbceea603",
+      "bb3b6aedf54b8dd97e7394dd4be710334f26de96b1c224b535520fe38b1aaa00",
     );
 
     test_pp_digest_with::<G1, G2, _, _>(
       &cubic_circuit1,
       &trivial_circuit2,
-      "3f7b25f589f2da5ab26254beba98faa54f6442ebf5fa5860caf7b08b576cab00",
+      "e4237039efc018ae996397fbcfc0022c760b906bb05a861b55625879d5e3d901",
     );
 
     let trivial_circuit1_grumpkin =
@@ -1030,12 +1030,12 @@ mod tests {
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "967acca1d6b4731cd65d4072c12bbaca9648f24d7bcc2877aee720e4265d4302",
+      "5fe1690dda17560d99817d88c9e4a50ce9489c491d616eca5bcd32c337b89f00",
     );
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "44629f26a78bf6c4e3077f940232050d1793d304fdba5e221d0cf66f76a37903",
+      "acebf64a16397db8ab3ae7a154eccf5016ec082e295a31a2e44a00c5ce8ddc00",
     );
 
     let trivial_circuit1_secp =
@@ -1047,12 +1047,12 @@ mod tests {
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "b99760668a42354643e17b2f0a2d54f173d237eb213e7e758b20a88b4c653c01",
+      "a04d36966a03c0e302ae569fec4da6b69d503e88966e9bd886c4d9063ca03302",
     );
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "68db620e610a3cd75146a1e1bdd168f486b82c0b670277ad1e3d50441c501502",
+      "faa3ac7971b64f60935913b3f49c585045542a814edb31c4e563a65fab0b8f00",
     );
   }
 
