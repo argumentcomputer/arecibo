@@ -648,7 +648,7 @@ where
   ro_consts_primary: ROConstants<G1>,
   ro_consts_secondary: ROConstants<G2>,
   #[abomonate_with(<G1::Scalar as PrimeField>::Repr)]
-  digest: G1::Scalar,
+  pp_digest: G1::Scalar,
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
   _p_c1: PhantomData<C1>,
@@ -716,7 +716,7 @@ where
       F_arity_secondary: pp.F_arity_secondary,
       ro_consts_primary: pp.ro_consts_primary.clone(),
       ro_consts_secondary: pp.ro_consts_secondary.clone(),
-      digest: pp.digest(),
+      pp_digest: pp.digest(),
       vk_primary,
       vk_secondary,
       _p_c1: Default::default(),
@@ -810,7 +810,7 @@ where
         vk.ro_consts_secondary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_primary,
       );
-      hasher.absorb(vk.digest);
+      hasher.absorb(vk.pp_digest);
       hasher.absorb(G1::Scalar::from(num_steps as u64));
       for e in z0_primary {
         hasher.absorb(e);
@@ -824,7 +824,7 @@ where
         vk.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_secondary,
       );
-      hasher2.absorb(scalar_as_base::<G1>(vk.digest));
+      hasher2.absorb(scalar_as_base::<G1>(vk.pp_digest));
       hasher2.absorb(G2::Scalar::from(num_steps as u64));
       for e in z0_secondary {
         hasher2.absorb(e);
@@ -849,7 +849,7 @@ where
     // fold the running instance and last instance to get a folded instance
     let f_U_secondary = self.nifs_secondary.verify(
       &vk.ro_consts_secondary,
-      &scalar_as_base::<G1>(vk.digest),
+      &scalar_as_base::<G1>(vk.pp_digest),
       &self.r_U_secondary,
       &self.l_u_secondary,
     )?;
