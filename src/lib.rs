@@ -150,7 +150,7 @@ where
   /// let pp_hint1 = Some(S1Prime::<G1>::commitment_key_floor());
   /// let pp_hint2 = Some(S2Prime::<G2>::commitment_key_floor());
   ///
-  /// let pp = PublicParams::setup(&circuit1, &circuit2, pp_hint1, pp_hint2);
+  /// let pp = PublicParams::new(&circuit1, &circuit2, pp_hint1, pp_hint2);
   /// ```
   pub fn new(
     c_primary: &C1,

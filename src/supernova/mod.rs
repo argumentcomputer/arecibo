@@ -229,6 +229,7 @@ where
   C2: StepCircuit<G2::Scalar>,
 {
   fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
+    assert!(!self.claims.is_empty());
     for claim in &self.claims {
       claim.get_public_params().write_bytes(byte_sink)?;
     }
@@ -280,7 +281,7 @@ where
   C1: EnforcingStepCircuit<G1::Scalar>,
   C2: EnforcingStepCircuit<G2::Scalar>,
 {
-  /// new a running claim
+  /// create a running claim
   pub fn new(
     augmented_circuit_index: usize,
     circuit_primary: C1,
