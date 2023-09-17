@@ -441,7 +441,7 @@ where
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
   let num_steps = test_rom.num_steps();
 
-  let running_claims = test_rom.setup_running_claims().unwrap();
+  let running_claims = test_rom.setup_running_claims();
 
   let initial_program_counter = test_rom.initial_program_counter();
 

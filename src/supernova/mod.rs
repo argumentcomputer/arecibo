@@ -7,7 +7,7 @@ use std::ops::Index;
 use crate::{
   bellpepper::shape_cs::ShapeCS,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
-  digest::{DigestBuilder, Digestible, HasDigest, SimpleDigestible},
+  digest::{DigestComputer, Digestible, SimpleDigestible},
   errors::NovaError,
   r1cs::{
     commitment_key, commitment_key_size, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
@@ -25,6 +25,7 @@ use crate::{
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField};
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -201,7 +202,9 @@ where
   /// Indexed `RunningClaim`s
   claims: Vec<RunningClaim<G1, G2, C1, C2>>,
   /// Digest constructed from these `RunningClaim`s' parameters
-  digest: G1::Scalar,
+  // Once we serialize this struct, it's important to add this
+  // annotaiton to the digest field for it to be treated properly: #[serde(skip, default = "OnceCell::new")]
+  digest: OnceCell<G1::Scalar>,
 }
 
 impl<G1, G2, C1, C2> Index<usize> for RunningClaims<G1, G2, C1, C2>
@@ -215,18 +218,6 @@ where
 
   fn index(&self, index: usize) -> &Self::Output {
     &self.claims[index]
-  }
-}
-
-impl<G1, G2, C1, C2> HasDigest<G1::Scalar> for RunningClaims<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  fn set_digest(&mut self, digest: G1::Scalar) {
-    self.digest = digest;
   }
 }
 
@@ -245,14 +236,14 @@ where
   }
 }
 
-impl<G1, G2, C1, C2> DigestBuilder<G1::Scalar, RunningClaims<G1, G2, C1, C2>>
+impl<G1, G2, C1, C2> RunningClaims<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  fn setup(mut claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
+  fn new(mut claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
     let running_claim_params = claims
       .iter()
       .map(|c| c.get_public_params())
@@ -263,36 +254,22 @@ where
     for claim in &mut claims {
       claim.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
     }
-
-    let running_claims = RunningClaims::new(claims);
-
-    Self::new(running_claims)
-  }
-}
-
-impl<G1, G2, C1, C2> RunningClaims<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  fn new(claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
-    Self {
+    RunningClaims {
       claims,
-      digest: Default::default(),
+      digest: OnceCell::new(),
     }
-  }
-
-  fn setup(claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Result<Self, io::Error> {
-    let digest_builder = DigestBuilder::<G1::Scalar, RunningClaims<G1, G2, C1, C2>>::setup(claims);
-
-    digest_builder.build()
   }
 
   /// Return the `RunningClaims`' digest.
   pub fn digest(&self) -> G1::Scalar {
-    self.digest
+    self
+      .digest
+      .get_or_try_init(|| {
+        let dc = DigestComputer::new(self);
+        dc.digest()
+      })
+      .cloned()
+      .expect("Failure in retrieving digest")
   }
 }
 
@@ -961,9 +938,7 @@ where
   }
 
   /// Initialize and return initial running claims.
-  fn setup_running_claims(
-    &self,
-  ) -> Result<RunningClaims<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>>, io::Error> {
+  fn setup_running_claims(&self) -> RunningClaims<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>> {
     let running_claims = (0..self.num_circuits())
       .map(|i| {
         RunningClaim::new(
@@ -975,7 +950,7 @@ where
       })
       .collect();
 
-    RunningClaims::setup(running_claims)
+    RunningClaims::new(running_claims)
   }
 
   /// How many circuits are provided?

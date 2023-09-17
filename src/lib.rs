@@ -28,7 +28,7 @@ pub mod traits;
 
 pub mod supernova;
 
-use std::io;
+use once_cell::sync::OnceCell;
 
 use crate::bellpepper::{
   r1cs::{NovaShape, NovaWitness},
@@ -50,7 +50,7 @@ use r1cs::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::digest::{DigestBuilder, HasDigest, SimpleDigestible};
+use crate::digest::{DigestComputer, SimpleDigestible};
 use traits::{
   circuit::StepCircuit,
   commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -58,7 +58,53 @@ use traits::{
   AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
 };
 
-impl<G1, G2, C1, C2> DigestBuilder<G1::Scalar, PublicParams<G1, G2, C1, C2>>
+/// A type that holds public parameters of Nova
+#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[serde(bound = "")]
+#[abomonation_bounds(
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+  <G1::Scalar as PrimeField>::Repr: Abomonation,
+  <G2::Scalar as PrimeField>::Repr: Abomonation,
+)]
+pub struct PublicParams<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  F_arity_primary: usize,
+  F_arity_secondary: usize,
+  ro_consts_primary: ROConstants<G1>,
+  ro_consts_circuit_primary: ROConstantsCircuit<G2>,
+  ck_primary: CommitmentKey<G1>,
+  r1cs_shape_primary: R1CSShape<G1>,
+  ro_consts_secondary: ROConstants<G2>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
+  ck_secondary: CommitmentKey<G2>,
+  r1cs_shape_secondary: R1CSShape<G2>,
+  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
+  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
+  #[abomonation_skip]
+  #[serde(skip, default = "OnceCell::new")]
+  digest: OnceCell<G1::Scalar>,
+  _p: PhantomData<(C1, C2)>,
+}
+
+impl<G1, G2, C1, C2> SimpleDigestible for PublicParams<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+}
+
+impl<G1, G2, C1, C2> PublicParams<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
@@ -106,7 +152,7 @@ where
   ///
   /// let pp = PublicParams::setup(&circuit1, &circuit2, pp_hint1, pp_hint2);
   /// ```
-  pub fn setup(
+  pub fn new(
     c_primary: &C1,
     c_secondary: &C2,
     optfn1: Option<CommitmentKeyHint<G1>>,
@@ -149,7 +195,7 @@ where
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(optfn2);
 
-    let pp = PublicParams {
+    PublicParams {
       F_arity_primary,
       F_arity_secondary,
       ro_consts_primary,
@@ -162,88 +208,20 @@ where
       r1cs_shape_secondary,
       augmented_circuit_params_primary,
       augmented_circuit_params_secondary,
-      digest: G1::Scalar::ZERO,
-      _p_c1: Default::default(),
-      _p_c2: Default::default(),
-    };
-
-    Self::new(pp)
+      digest: OnceCell::new(),
+      _p: Default::default(),
+    }
   }
-}
 
-/// A type that holds public parameters of Nova
-#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-  <G1::Scalar as PrimeField>::Repr: Abomonation,
-  <G2::Scalar as PrimeField>::Repr: Abomonation,
-)]
-pub struct PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  F_arity_primary: usize,
-  F_arity_secondary: usize,
-  ro_consts_primary: ROConstants<G1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<G2>,
-  ck_primary: CommitmentKey<G1>,
-  r1cs_shape_primary: R1CSShape<G1>,
-  ro_consts_secondary: ROConstants<G2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
-  ck_secondary: CommitmentKey<G2>,
-  r1cs_shape_secondary: R1CSShape<G2>,
-  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
-  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  #[abomonate_with(<G1::Scalar as PrimeField>::Repr)]
-  digest: G1::Scalar, // digest of everything else with this field set to G1::Scalar::ZERO
-  _p_c1: PhantomData<C1>,
-  _p_c2: PhantomData<C2>,
-}
-
-impl<G1, G2, C1, C2> SimpleDigestible for PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-}
-
-impl<G1, G2, C1, C2> HasDigest<G1::Scalar> for PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  fn set_digest(&mut self, digest: G1::Scalar) {
-    self.digest = digest;
+  /// Retrieve the digest of the public parameters.
+  pub fn digest(&self) -> G1::Scalar {
+    self
+      .digest
+      .get_or_try_init(|| DigestComputer::new(self).digest())
+      .cloned()
+      .expect("Failure in retrieving digest")
   }
-}
-impl<G1, G2, C1, C2> PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  /// Convenience method to construct `PublicParams` via `PublicParamsBuilder`.
-  pub fn setup(
-    c_primary: &C1,
-    c_secondary: &C2,
-    optfn1: Option<CommitmentKeyHint<G1>>,
-    optfn2: Option<CommitmentKeyHint<G2>>,
-  ) -> Result<Self, io::Error> {
-    DigestBuilder::<G1::Scalar, Self>::setup(c_primary, c_secondary, optfn1, optfn2).build()
-  }
+
   /// Returns the number of constraints in the primary and secondary circuits
   pub const fn num_constraints(&self) -> (usize, usize) {
     (
@@ -302,7 +280,7 @@ where
     // base case for the primary
     let mut cs_primary: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<G1>(pp.digest),
+      scalar_as_base::<G1>(pp.digest()),
       G1::Scalar::ZERO,
       z0_primary,
       None,
@@ -329,7 +307,7 @@ where
     // base case for the secondary
     let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
     let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
-      pp.digest,
+      pp.digest(),
       G2::Scalar::ZERO,
       z0_secondary,
       None,
@@ -423,7 +401,7 @@ where
     let (nifs_secondary, (r_U_secondary, r_W_secondary)) = NIFS::prove(
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
-      &scalar_as_base::<G1>(pp.digest),
+      &scalar_as_base::<G1>(pp.digest()),
       &pp.r1cs_shape_secondary,
       &self.r_U_secondary,
       &self.r_W_secondary,
@@ -434,7 +412,7 @@ where
 
     let mut cs_primary: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<G1>(pp.digest),
+      scalar_as_base::<G1>(pp.digest()),
       G1::Scalar::from(self.i as u64),
       z0_primary,
       Some(self.zi_primary.clone()),
@@ -463,7 +441,7 @@ where
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
       &pp.ck_primary,
       &pp.ro_consts_primary,
-      &pp.digest,
+      &pp.digest(),
       &pp.r1cs_shape_primary,
       &self.r_U_primary,
       &self.r_W_primary,
@@ -474,7 +452,7 @@ where
 
     let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
     let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
-      pp.digest,
+      pp.digest(),
       G2::Scalar::from(self.i as u64),
       z0_secondary,
       Some(self.zi_secondary.clone()),
@@ -553,7 +531,7 @@ where
         pp.ro_consts_secondary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
       );
-      hasher.absorb(pp.digest);
+      hasher.absorb(pp.digest());
       hasher.absorb(G1::Scalar::from(num_steps as u64));
       for e in z0_primary {
         hasher.absorb(*e);
@@ -567,7 +545,7 @@ where
         pp.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_secondary,
       );
-      hasher2.absorb(scalar_as_base::<G1>(pp.digest));
+      hasher2.absorb(scalar_as_base::<G1>(pp.digest()));
       hasher2.absorb(G2::Scalar::from(num_steps as u64));
       for e in z0_secondary {
         hasher2.absorb(*e);
@@ -738,7 +716,7 @@ where
       F_arity_secondary: pp.F_arity_secondary,
       ro_consts_primary: pp.ro_consts_primary.clone(),
       ro_consts_secondary: pp.ro_consts_secondary.clone(),
-      digest: pp.digest,
+      digest: pp.digest(),
       vk_primary,
       vk_secondary,
       _p_c1: Default::default(),
@@ -758,7 +736,7 @@ where
     let res_secondary = NIFS::prove(
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
-      &scalar_as_base::<G1>(pp.digest),
+      &scalar_as_base::<G1>(pp.digest()),
       &pp.r1cs_shape_secondary,
       &recursive_snark.r_U_secondary,
       &recursive_snark.r_W_secondary,
@@ -989,10 +967,10 @@ mod tests {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let pp_hint1 = Some(S1Prime::<G1>::commitment_key_floor());
     let pp_hint2 = Some(S2Prime::<G2>::commitment_key_floor());
-    let pp = PublicParams::<G1, G2, T1, T2>::setup(circuit1, circuit2, pp_hint1, pp_hint2).unwrap();
+    let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, pp_hint1, pp_hint2);
 
     let digest_str = pp
-      .digest
+      .digest()
       .to_repr()
       .as_ref()
       .iter()
@@ -1012,13 +990,13 @@ mod tests {
     test_pp_digest_with::<G1, G2, _, _>(
       &trivial_circuit1,
       &trivial_circuit2,
-      "bb3b6aedf54b8dd97e7394dd4be710334f26de96b1c224b535520fe38b1aaa00",
+      "117ac6f33d66d377346e420f0d8caa09f8f4ec7db0c336dcc65995bf3058bf01",
     );
 
     test_pp_digest_with::<G1, G2, _, _>(
       &cubic_circuit1,
       &trivial_circuit2,
-      "e4237039efc018ae996397fbcfc0022c760b906bb05a861b55625879d5e3d901",
+      "583c9964e180332e63a59450870a72b4cbf663ce0d274ac5bd0d052d4cd92903",
     );
 
     let trivial_circuit1_grumpkin =
@@ -1030,12 +1008,12 @@ mod tests {
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "5fe1690dda17560d99817d88c9e4a50ce9489c491d616eca5bcd32c337b89f00",
+      "fb6805b7197f41ae2af71dc0130d4bfd1d28fa63b8221741b597dfbb2e48d603",
     );
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "acebf64a16397db8ab3ae7a154eccf5016ec082e295a31a2e44a00c5ce8ddc00",
+      "684b2f7151031a79310f6fb553ab1480e290d73731fa34e74c27e004d589f102",
     );
 
     let trivial_circuit1_secp =
@@ -1047,12 +1025,12 @@ mod tests {
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "a04d36966a03c0e302ae569fec4da6b69d503e88966e9bd886c4d9063ca03302",
+      "dbffd48ae0d05f3aeb217e971fbf3b2b7a759668221f6d6cb9032cfa0445aa01",
     );
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "faa3ac7971b64f60935913b3f49c585045542a814edb31c4e563a65fab0b8f00",
+      "24e4e8044310e3167196276cc66b4f71b5d0e3e57701dddb17695ae968fba802",
     );
   }
 
@@ -1070,9 +1048,7 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       TrivialTestCircuit<<G2 as Group>::Scalar>,
-    >::setup(&test_circuit1, &test_circuit2, None, None)
-    .unwrap();
-
+    >::new(&test_circuit1, &test_circuit2, None, None);
     let num_steps = 1;
 
     // produce a recursive SNARK
@@ -1128,8 +1104,7 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None)
-    .unwrap();
+    >::new(&circuit_primary, &circuit_secondary, None, None);
 
     let num_steps = 3;
 
@@ -1218,8 +1193,7 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None)
-    .unwrap();
+    >::new(&circuit_primary, &circuit_secondary, None, None);
 
     let num_steps = 3;
 
@@ -1316,13 +1290,12 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::setup(
+    >::new(
       &circuit_primary,
       &circuit_secondary,
       Some(S1Prime::commitment_key_floor()),
       Some(S2Prime::commitment_key_floor()),
-    )
-    .unwrap();
+    );
 
     let num_steps = 3;
 
@@ -1485,8 +1458,7 @@ mod tests {
       G2,
       FifthRootCheckingCircuit<<G1 as Group>::Scalar>,
       TrivialTestCircuit<<G2 as Group>::Scalar>,
-    >::setup(&circuit_primary, &circuit_secondary, None, None)
-    .unwrap();
+    >::new(&circuit_primary, &circuit_secondary, None, None);
 
     let num_steps = 3;
 
@@ -1565,8 +1537,7 @@ mod tests {
       G2,
       TrivialTestCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::setup(&test_circuit1, &test_circuit2, None, None)
-    .unwrap();
+    >::new(&test_circuit1, &test_circuit2, None, None);
 
     let num_steps = 1;
 
