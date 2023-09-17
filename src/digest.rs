@@ -24,12 +24,6 @@ pub trait HasDigest<F: PrimeField> {
 pub trait Digestible {
   /// Write the byte representation of Self in a byte buffer
   fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error>;
-  /// allocate and exhibit the bytes for the type in question
-  fn to_bytes(&self) -> Result<Vec<u8>, io::Error> {
-    let mut v: Vec<u8> = Vec::new();
-    self.write_bytes(&mut v)?;
-    Ok(v)
-  }
 }
 
 /// Marker trait to be implemented for types that implement `Digestible` and `Serialize`.
