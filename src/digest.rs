@@ -1,3 +1,4 @@
+use bincode::Options;
 use digest::{typenum::Unsigned, OutputSizeUser};
 use ff::PrimeField;
 use serde::Serialize;
@@ -32,7 +33,12 @@ pub trait SimpleDigestible: Serialize {}
 
 impl<T: SimpleDigestible> Digestible for T {
   fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
-    bincode::serialize_into(byte_sink, self)
+    let config = bincode::DefaultOptions::new()
+      .with_little_endian()
+      .with_fixint_encoding();
+    // Note: bincode recursively length-prefixes every field!
+    config
+      .serialize_into(byte_sink, self)
       .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
   }
 }
