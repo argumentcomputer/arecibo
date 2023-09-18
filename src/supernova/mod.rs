@@ -741,7 +741,7 @@ where
 
   /// verify recursive snark
   pub fn verify<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
-    &mut self,
+    &self,
     claim: &RunningClaim<G1, G2, C1, C2>,
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
