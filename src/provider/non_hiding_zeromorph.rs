@@ -2,6 +2,7 @@
 //!
 //!
 
+use abomonation_derive::Abomonation;
 use ff::{BatchInvert, Field};
 use group::{Curve, Group as _};
 use itertools::Itertools as _;
@@ -9,13 +10,13 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::{
   errors::NovaError,
   spartan::polys::multilinear::MultilinearPolynomial,
-  traits::{Engine as NovaEngine, TranscriptEngineTrait},
+  traits::{Engine as NovaEngine, TranscriptEngineTrait, evaluation::EvaluationEngineTrait}, CommitmentKey, Commitment,
 };
 
 use super::{
@@ -27,7 +28,8 @@ use super::{
 };
 
 /// `ZMProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
+#[abomonation_omit_bounds]
 #[serde(bound(
   serialize = "E::G1Affine: Serialize",
   deserialize = "E::G1Affine: Deserialize<'de>"
@@ -39,13 +41,15 @@ pub struct ZMProverKey<E: Engine> {
 
 /// `ZMVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
+#[abomonation_omit_bounds]
 #[serde(bound(
   serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
   deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
 ))]
 pub struct ZMVerifierKey<E: Engine> {
   vp: UVKZGVerifierKey<E>,
+  #[abomonate_with([u64; 16])] // this is a hack; we just assume the size of the element.
   s_offset_h: E::G2Affine,
 }
 
@@ -109,7 +113,10 @@ impl<E: Engine> From<UVKZGEvaluation<E>> for ZMEvaluation<E> {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
-
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>"
+))]
 /// Proofs
 pub struct ZMProof<E: Engine> {
   /// proof
@@ -354,6 +361,49 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
     .collect::<Vec<_>>();
 
   (-vs[0] * z, q_scalars)
+}
+
+
+impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>> EvaluationEngineTrait<NE> for ZMPCS<E, NE> 
+where
+  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>, 
+  E::G1Affine: Serialize + DeserializeOwned,
+  E::G2Affine: Serialize + DeserializeOwned,
+{
+    type ProverKey = ZMProverKey<E>;
+
+    type VerifierKey = ZMVerifierKey<E>;
+
+    type EvaluationArgument = ZMProof<E>;
+
+    fn setup(
+        ck: &CommitmentKey<NE>,
+      ) -> (Self::ProverKey, Self::VerifierKey) {
+        todo!()
+    }
+
+    fn prove(
+        ck: &CommitmentKey<NE>,
+        pk: &Self::ProverKey,
+        transcript: &mut NE::TE,
+        comm: &Commitment<NE>,
+        poly: &[NE::Scalar],
+        point: &[NE::Scalar],
+        eval: &NE::Scalar,
+      ) -> Result<Self::EvaluationArgument, NovaError> {
+        todo!()
+    }
+
+    fn verify(
+        vk: &Self::VerifierKey,
+        transcript: &mut NE::TE,
+        comm: &Commitment<NE>,
+        point: &[NE::Scalar],
+        eval: &NE::Scalar,
+        arg: &Self::EvaluationArgument,
+      ) -> Result<(), NovaError> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
