@@ -99,7 +99,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(1, num_cons);
-    let running_claims = bench.setup_running_claims().unwrap();
+    let running_claims = bench.setup_running_claims();
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -199,7 +199,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(2, num_cons);
-    let running_claims = bench.setup_running_claims().unwrap();
+    let running_claims = bench.setup_running_claims();
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing

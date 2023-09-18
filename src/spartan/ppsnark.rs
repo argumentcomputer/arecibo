@@ -3,7 +3,7 @@
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
 //! polynomial commitment scheme in which the verifier's costs is succinct.
 use crate::{
-  digest::{DigestBuilder, HasDigest, SimpleDigestible},
+  digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
   spartan::{
@@ -29,6 +29,7 @@ use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use core::{cmp::max, marker::PhantomData};
 use ff::{Field, PrimeField};
+use once_cell::sync::OnceCell;
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -685,8 +686,9 @@ pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
   num_vars: usize,
   vk_ee: EE::VerifierKey,
   S_comm: R1CSShapeSparkCommitment<G>,
-  #[abomonate_with(<G::Scalar as PrimeField>::Repr)]
-  digest: G::Scalar,
+  #[abomonation_skip]
+  #[serde(skip, default = "OnceCell::new")]
+  digest: OnceCell<G::Scalar>,
 }
 
 impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
@@ -860,27 +862,32 @@ where
   }
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> HasDigest<G::Scalar> for VerifierKey<G, EE> {
-  fn set_digest(&mut self, digest: G::Scalar) {
-    self.digest = digest;
-  }
-}
-
-impl<G: Group, EE: EvaluationEngineTrait<G>> DigestBuilder<G::Scalar, VerifierKey<G, EE>> {
-  fn setup(
+impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
+  fn new(
     num_cons: usize,
     num_vars: usize,
     S_comm: R1CSShapeSparkCommitment<G>,
     vk_ee: EE::VerifierKey,
   ) -> Self {
-    let vk = VerifierKey {
+    VerifierKey {
       num_cons,
       num_vars,
       S_comm,
       vk_ee,
       digest: Default::default(),
-    };
-    Self::new(vk)
+    }
+  }
+
+  /// Returns the digest of the verifier's key
+  pub fn digest(&self) -> G::Scalar {
+    self
+      .digest
+      .get_or_try_init(|| {
+        let dc = DigestComputer::new(self);
+        dc.digest()
+      })
+      .cloned()
+      .expect("Failure to retrieve digest!")
   }
 }
 
@@ -912,21 +919,14 @@ where
     let S_repr = R1CSShapeSparkRepr::new(&S);
     let S_comm = S_repr.commit(ck);
 
-    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::setup(
-      S.num_cons,
-      S.num_vars,
-      S_comm.clone(),
-      vk_ee,
-    )
-    .build()
-    .map_err(|_| NovaError::DigestError)?;
+    let vk = VerifierKey::new(S.num_cons, S.num_vars, S_comm.clone(), vk_ee);
 
     let pk = ProverKey {
       pk_ee,
       S,
       S_repr,
       S_comm,
-      vk_digest: vk.digest,
+      vk_digest: vk.digest(),
     };
 
     Ok((pk, vk))
@@ -1549,7 +1549,7 @@ where
     let mut u_vec: Vec<PolyEvalInstance<G>> = Vec::new();
 
     // append the verifier key (including commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
-    transcript.absorb(b"vk", &vk.digest);
+    transcript.absorb(b"vk", &vk.digest());
     transcript.absorb(b"U", U);
 
     let comm_Az = Commitment::<G>::decompress(&self.comm_Az)?;

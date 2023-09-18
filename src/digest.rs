@@ -1,4 +1,4 @@
-use digest::{typenum::Unsigned, OutputSizeUser};
+use bincode::Options;
 use ff::PrimeField;
 use serde::Serialize;
 use sha3::{Digest, Sha3_256};
@@ -7,29 +7,10 @@ use std::marker::PhantomData;
 
 use crate::constants::NUM_HASH_BITS;
 
-/// For building digests
-#[derive(Clone)]
-pub struct DigestBuilder<F: PrimeField, T: HasDigest<F>> {
-  inner: T,
-  _phantom: PhantomData<(F, T)>,
-}
-
-/// Trait to be implemented by types whose digests can be built with `DigestBuilder`.
-pub trait HasDigest<F: PrimeField> {
-  /// Extend `bytes` with raw bytes or digest summarizing `Digestible`.
-  fn set_digest(&mut self, digest: F);
-}
-
 /// Trait for components with potentially discrete digests to be included in their container's digest.
 pub trait Digestible {
   /// Write the byte representation of Self in a byte buffer
   fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error>;
-  /// allocate and exhibit the bytes for the type in question
-  fn to_bytes(&self) -> Result<Vec<u8>, io::Error> {
-    let mut v: Vec<u8> = Vec::new();
-    self.write_bytes(&mut v)?;
-    Ok(v)
-  }
 }
 
 /// Marker trait to be implemented for types that implement `Digestible` and `Serialize`.
@@ -38,24 +19,22 @@ pub trait SimpleDigestible: Serialize {}
 
 impl<T: SimpleDigestible> Digestible for T {
   fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
-    bincode::serialize_into(byte_sink, self)
+    let config = bincode::DefaultOptions::new()
+      .with_little_endian()
+      .with_fixint_encoding();
+    // Note: bincode recursively length-prefixes every field!
+    config
+      .serialize_into(byte_sink, self)
       .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
   }
 }
 
-impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
-  /// Return a new `DigestBuilder` for a value
-  pub fn new(value: T) -> Self {
-    assert!(
-      NUM_HASH_BITS <= <Sha3_256 as OutputSizeUser>::OutputSize::to_usize() * 8,
-      "DigestBuilder only supports hashes with output over {NUM_HASH_BITS} bits"
-    );
-    Self {
-      inner: value,
-      _phantom: Default::default(),
-    }
-  }
+pub struct DigestComputer<'a, F: PrimeField, T> {
+  inner: &'a T,
+  _phantom: PhantomData<F>,
+}
 
+impl<'a, F: PrimeField, T: Digestible> DigestComputer<'a, F, T> {
   fn hasher() -> Sha3_256 {
     Sha3_256::new()
   }
@@ -79,13 +58,109 @@ impl<F: PrimeField, T: HasDigest<F> + Digestible> DigestBuilder<F, T> {
     digest
   }
 
-  /// Build and return inner `Digestible`.
-  pub fn build(mut self) -> Result<T, io::Error> {
-    let mut hasher = Self::hasher();
-    self.inner.write_bytes(&mut hasher)?;
-    let mut bytes: [u8; 32] = hasher.finalize().into();
-    self.inner.set_digest(Self::map_to_field(&mut bytes));
+  /// Create a new DigestComputer
+  pub fn new(inner: &'a T) -> Self {
+    DigestComputer {
+      inner,
+      _phantom: PhantomData,
+    }
+  }
 
-    Ok(self.inner)
+  /// Compute the digest of a `Digestible` instance.
+  pub fn digest(&self) -> Result<F, io::Error> {
+    let mut hasher = Self::hasher();
+    self
+      .inner
+      .write_bytes(&mut hasher)
+      .expect("Serialization error");
+    let mut bytes: [u8; 32] = hasher.finalize().into();
+    Ok(Self::map_to_field(&mut bytes))
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use ff::Field;
+  use once_cell::sync::OnceCell;
+  use pasta_curves::pallas;
+  use serde::{Deserialize, Serialize};
+
+  use crate::traits::Group;
+
+  use super::{DigestComputer, SimpleDigestible};
+
+  #[derive(Serialize, Deserialize)]
+  struct S<G: Group> {
+    i: usize,
+    #[serde(skip, default = "OnceCell::new")]
+    digest: OnceCell<G::Scalar>,
+  }
+
+  impl<G: Group> SimpleDigestible for S<G> {}
+
+  impl<G: Group> S<G> {
+    fn new(i: usize) -> Self {
+      S {
+        i,
+        digest: OnceCell::new(),
+      }
+    }
+
+    fn digest(&self) -> G::Scalar {
+      self
+        .digest
+        .get_or_try_init(|| DigestComputer::new(self).digest())
+        .cloned()
+        .unwrap()
+    }
+  }
+
+  type G = pallas::Point;
+
+  #[test]
+  fn test_digest_field_not_ingested_in_computation() {
+    let s1 = S::<G>::new(42);
+
+    // let's set up a struct with a weird digest field to make sure the digest computation does not depend of it
+    let oc = OnceCell::new();
+    oc.set(<G as Group>::Scalar::ONE).unwrap();
+
+    let s2: S<G> = S { i: 42, digest: oc };
+
+    assert_eq!(
+      DigestComputer::<<G as Group>::Scalar, _>::new(&s1)
+        .digest()
+        .unwrap(),
+      DigestComputer::<<G as Group>::Scalar, _>::new(&s2)
+        .digest()
+        .unwrap()
+    );
+
+    // note: because of the semantics of `OnceCell::get_or_try_init`, the above
+    // equality will not result in `s1.digest() == s2.digest`
+    assert_ne!(
+      s2.digest(),
+      DigestComputer::<<G as Group>::Scalar, _>::new(&s2)
+        .digest()
+        .unwrap()
+    );
+  }
+
+  #[test]
+  fn test_digest_impervious_to_serialization() {
+    let good_s = S::<G>::new(42);
+
+    // let's set up a struct with a weird digest field to confuse deserializers
+    let oc = OnceCell::new();
+    oc.set(<G as Group>::Scalar::ONE).unwrap();
+
+    let bad_s: S<G> = S { i: 42, digest: oc };
+    // this justifies the adjective "bad"
+    assert_ne!(good_s.digest(), bad_s.digest());
+
+    let naughty_bytes = bincode::serialize(&bad_s).unwrap();
+
+    let retrieved_s: S<G> = bincode::deserialize(&naughty_bytes).unwrap();
+    assert_eq!(good_s.digest(), retrieved_s.digest())
   }
 }

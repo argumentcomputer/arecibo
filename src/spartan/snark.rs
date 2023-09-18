@@ -5,7 +5,7 @@
 //! an IPA-based polynomial commitment scheme.
 
 use crate::{
-  digest::{DigestBuilder, HasDigest, SimpleDigestible},
+  digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
   r1cs::{sparse::SparseMatrix, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
   spartan::{
@@ -23,6 +23,7 @@ use crate::{
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::Field;
+use once_cell::sync::OnceCell;
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -45,26 +46,32 @@ pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
 pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
   vk_ee: EE::VerifierKey,
   S: R1CSShape<G>,
-  #[abomonate_with(<G::Scalar as ff::PrimeField>::Repr)]
-  digest: G::Scalar,
+  #[abomonation_skip]
+  #[serde(skip, default = "OnceCell::new")]
+  digest: OnceCell<G::Scalar>,
 }
 
 impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> HasDigest<G::Scalar> for VerifierKey<G, EE> {
-  fn set_digest(&mut self, digest: G::Scalar) {
-    self.digest = digest;
-  }
-}
-
-impl<G: Group, EE: EvaluationEngineTrait<G>> DigestBuilder<G::Scalar, VerifierKey<G, EE>> {
-  fn setup(shape: R1CSShape<G>, vk_ee: EE::VerifierKey) -> Self {
-    let vk = VerifierKey {
+impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
+  fn new(shape: R1CSShape<G>, vk_ee: EE::VerifierKey) -> Self {
+    VerifierKey {
       vk_ee,
       S: shape,
-      digest: G::Scalar::ZERO,
-    };
-    Self::new(vk)
+      digest: OnceCell::new(),
+    }
+  }
+
+  /// Returns the digest of the verifier's key.
+  pub fn digest(&self) -> G::Scalar {
+    self
+      .digest
+      .get_or_try_init(|| {
+        let dc = DigestComputer::<G::Scalar, _>::new(self);
+        dc.digest()
+      })
+      .cloned()
+      .expect("Failure to retrieve digest!")
   }
 }
 
@@ -99,14 +106,12 @@ where
 
     let S = S.pad();
 
-    let vk = DigestBuilder::<G::Scalar, VerifierKey<G, EE>>::setup(S.clone(), vk_ee)
-      .build()
-      .map_err(|_| NovaError::DigestError)?;
+    let vk: VerifierKey<G, EE> = VerifierKey::new(S.clone(), vk_ee);
 
     let pk = ProverKey {
       pk_ee,
       S,
-      vk_digest: vk.digest,
+      vk_digest: vk.digest(),
     };
 
     Ok((pk, vk))
@@ -370,7 +375,7 @@ where
     let mut transcript = G::TE::new(b"RelaxedR1CSSNARK");
 
     // append the digest of R1CS matrices and the RelaxedR1CSInstance to the transcript
-    transcript.absorb(b"vk", &vk.digest);
+    transcript.absorb(b"vk", &vk.digest());
     transcript.absorb(b"U", U);
 
     let (num_rounds_x, num_rounds_y) = (
