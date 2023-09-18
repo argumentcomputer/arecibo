@@ -1,4 +1,5 @@
 //! Non-hiding variant of KZG10 scheme for univariate polynomials.
+use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField};
 use group::{prime::PrimeCurveAffine, Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
@@ -24,29 +25,35 @@ pub struct UVUniversalKZGParam<E: Engine> {
   pub powers_of_h: Vec<E::G2Affine>,
 }
 /// `UnivariateProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
+#[abomonation_omit_bounds]
 #[serde(bound(
   serialize = "E::G1Affine: Serialize",
   deserialize = "E::G1Affine: Deserialize<'de>"
 ))]
 pub struct UVKZGProverKey<E: Engine> {
   /// generators
+  #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   pub powers_of_g: Vec<E::G1Affine>,
 }
 
 /// `UVKZGVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
+#[abomonation_omit_bounds]
 #[serde(bound(
   serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
   deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
 ))]
 pub struct UVKZGVerifierKey<E: Engine> {
   /// The generator of G1.
+  #[abomonate_with([u64; 8])] // this is a hack; we just assume the size of the element.
   pub g: E::G1Affine,
   /// The generator of G2.
+  #[abomonate_with([u64; 16])] // this is a hack; we just assume the size of the element.
   pub h: E::G2Affine,
   /// \beta times the above generator of G2.
+  #[abomonate_with([u64; 16])] // this is a hack; we just assume the size of the element.
   pub beta_h: E::G2Affine,
 }
 
@@ -139,6 +146,10 @@ impl<E: Engine> UVUniversalKZGParam<E> {
 
 /// Commitments
 #[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>"
+))]
 pub struct UVKZGCommitment<E: Engine>(
   /// the actual commitment is an affine point.
   pub E::G1Affine,
