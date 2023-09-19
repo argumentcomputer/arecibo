@@ -70,11 +70,11 @@ where
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<G1>,
   ro_consts_circuit_primary: ROConstantsCircuit<G2>,
-  ck_primary: Option<CommitmentKey<G1>>,
+  ck_primary: Option<CommitmentKey<G1>>, // This is shared between all public params of the `RunningClaims`
   r1cs_shape_primary: R1CSShape<G1>,
   ro_consts_secondary: ROConstants<G2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
-  ck_secondary: Option<CommitmentKey<G2>>,
+  ck_secondary: Option<CommitmentKey<G2>>, // This is shared between all public params of the `RunningClaims`
   r1cs_shape_secondary: R1CSShape<G2>,
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
@@ -176,8 +176,155 @@ where
   }
 }
 
-/// `SuperNova` takes Ui a list of running instances.
-/// One instance of Ui is a struct called `RunningClaim`.
+/// A vector of [PublicParams] corresponding to a set of [RunningClaims]
+pub struct RunningClaimParams<G1, G2, C1>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
+{
+  /// The internal public params
+  pub pp_vec: Vec<PublicParams<G1, G2>>,
+  /// Digest constructed from these `RunningClaim`s' parameters
+  // Once we serialize this struct, it's important to add this
+  // annotaiton to the digest field for it to be treated properly: #[serde(skip, default = "OnceCell::new")]
+  digest: OnceCell<G1::Scalar>,
+  _p: PhantomData<C1>,
+}
+
+impl<G1, G2, C1> Index<usize> for RunningClaimParams<G1, G2, C1>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
+{
+  type Output = PublicParams<G1, G2>;
+
+  fn index(&self, index: usize) -> &Self::Output {
+    &self.pp_vec[index]
+  }
+}
+
+impl<G1, G2, C1> Digestible for RunningClaimParams<G1, G2, C1>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
+{
+  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
+    assert!(!self.pp_vec.is_empty());
+    for pp in &self.pp_vec {
+      pp.write_bytes(byte_sink)?;
+    }
+    Ok(())
+  }
+}
+
+impl<G1, G2, C1> RunningClaimParams<G1, G2, C1>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: EnforcingStepCircuit<G1::Scalar>,
+{
+  /// new running claim params
+  pub fn new<NC: NonUniformCircuit<G1, G2, C1>>(
+    non_unifrom_circuit: &NC,
+    // optfn1: Option<CommitmentKeyHint<G1>>,
+    // optfn2: Option<CommitmentKeyHint<G2>>,
+  ) -> Self {
+    // uhhh if this aint zero this doesn't work
+    let _initial_pc = non_unifrom_circuit.initial_program_counter();
+    let num_circuits = non_unifrom_circuit.num_circuits();
+
+    let c_primarys = (0..num_circuits)
+      .map(|i| non_unifrom_circuit.primary_circuit(i))
+      .collect::<Vec<_>>();
+    let c_secondary = non_unifrom_circuit.secondary_circuit();
+
+    let pp_vec = c_primarys
+      .iter()
+      .map(|c_primary| PublicParams::setup_without_commitkey(c_primary, &c_secondary, num_circuits))
+      .collect::<Vec<_>>();
+
+    let mut running_claim_params = RunningClaimParams {
+      pp_vec,
+      digest: OnceCell::new(),
+      _p: PhantomData,
+    };
+
+    running_claim_params.set_commitment_keys();
+    running_claim_params
+  }
+
+  /// AHHHH
+  pub fn from_pp_vec(pp_vec: Vec<PublicParams<G1, G2>>) -> Self {
+    RunningClaimParams {
+      pp_vec,
+      digest: OnceCell::new(),
+      _p: PhantomData,
+    }
+  }
+
+  /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
+  /// `PublicParams`.
+  pub fn compute_commitment_keys(&self) -> (CommitmentKey<G1>, CommitmentKey<G2>) {
+    macro_rules! max_shape {
+      ($shape_getter:ident) => {
+        self
+          .pp_vec
+          .iter()
+          .map(|params| {
+            let shape = &params.$shape_getter;
+            let size = commitment_key_size(&shape, None);
+            (shape, size)
+          })
+          .max_by(|a, b| a.1.cmp(&b.1))
+          .unwrap()
+          .0
+      };
+    }
+
+    let shape_primary = max_shape!(r1cs_shape_primary);
+    let shape_secondary = max_shape!(r1cs_shape_secondary);
+
+    let ck_primary = commitment_key(shape_primary, None);
+    let ck_secondary = commitment_key(shape_secondary, None);
+
+    (ck_primary, ck_secondary)
+  }
+
+  /// get primary/secondary circuit r1cs shape
+  // pub fn get_r1cs_shape(&self) -> (&R1CSShape<G1>, &R1CSShape<G2>) {
+  //   (
+  //     &self.params.r1cs_shape_primary,
+  //     &self.params.r1cs_shape_secondary,
+  //   )
+  // }
+
+  /// set primary/secondary commitment key for all the params
+  pub fn set_commitment_keys(&mut self) {
+    let (ck_primary, ck_secondary) = self.compute_commitment_keys();
+    for pp in self.pp_vec.iter_mut() {
+      pp.ck_primary = Some(ck_primary.clone()); // TODO: the keys should be shared across all the params
+      pp.ck_secondary = Some(ck_secondary.clone()); // TODO: the keys should be shared across all the params
+    }
+  }
+
+  /// Return the [RunningClaimParams]' digest.
+  pub fn digest(&self) -> G1::Scalar {
+    self
+      .digest
+      .get_or_try_init(|| {
+        let dc = DigestComputer::new(self);
+        dc.digest()
+      })
+      .cloned()
+      .expect("Failure in retrieving digest")
+  }
+}
+
+/// SuperNova takes Ui a list of running instances.
+/// One instance of Ui is a struct called RunningClaim.
 pub struct RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -185,10 +332,10 @@ where
   C1: EnforcingStepCircuit<G1::Scalar>,
   C2: EnforcingStepCircuit<G2::Scalar>,
 {
-  _phantom: PhantomData<C1>,
   augmented_circuit_index: usize,
   c_secondary: C2,
-  params: PublicParams<G1, G2>,
+  _phantom: PhantomData<(C1, G1, G2)>,
+  // params: PublicParams<G1, G2>, I think this is the only way
 }
 
 /// Indexed list of `RunningClaim`s representing an NIVC computation in process.
@@ -201,10 +348,6 @@ where
 {
   /// Indexed `RunningClaim`s
   claims: Vec<RunningClaim<G1, G2, C1, C2>>,
-  /// Digest constructed from these `RunningClaim`s' parameters
-  // Once we serialize this struct, it's important to add this
-  // annotaiton to the digest field for it to be treated properly: #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<G1::Scalar>,
 }
 
 impl<G1, G2, C1, C2> Index<usize> for RunningClaims<G1, G2, C1, C2>
@@ -221,22 +364,6 @@ where
   }
 }
 
-impl<G1, G2, C1, C2> Digestible for RunningClaims<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  fn write_bytes<W: Sized + io::Write>(&self, byte_sink: &mut W) -> Result<(), io::Error> {
-    assert!(!self.claims.is_empty());
-    for claim in &self.claims {
-      claim.get_public_params().write_bytes(byte_sink)?;
-    }
-    Ok(())
-  }
-}
-
 impl<G1, G2, C1, C2> RunningClaims<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -244,33 +371,10 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  fn new(mut claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
-    let running_claim_params = claims
-      .iter()
-      .map(|c| c.get_public_params())
-      .collect::<Vec<_>>();
-
-    let (ck_primary, ck_secondary) = compute_commitment_keys(&running_claim_params);
-
-    for claim in &mut claims {
-      claim.set_commitment_key(ck_primary.clone(), ck_secondary.clone());
-    }
+  fn new(running_claims: Vec<RunningClaim<G1, G2, C1, C2>>) -> Self {
     RunningClaims {
-      claims,
-      digest: OnceCell::new(),
+      claims: running_claims,
     }
-  }
-
-  /// Return the `RunningClaims`' digest.
-  pub fn digest(&self) -> G1::Scalar {
-    self
-      .digest
-      .get_or_try_init(|| {
-        let dc = DigestComputer::new(self);
-        dc.digest()
-      })
-      .cloned()
-      .expect("Failure in retrieving digest")
   }
 }
 
@@ -283,49 +387,43 @@ where
 {
   /// create a running claim
   pub fn new(
+    _pp: &PublicParams<G1, G2>,
     augmented_circuit_index: usize,
-    circuit_primary: C1,
+    _circuit_primary: C1,
     circuit_secondary: C2,
-    num_augmented_circuits: usize,
+    _num_augmented_circuits: usize,
   ) -> Self {
-    let pp = PublicParams::<G1, G2>::setup_without_commitkey(
-      &circuit_primary,
-      &circuit_secondary,
-      num_augmented_circuits,
-    );
-
     // The `PublicParams` reflect the primary circuit, so there is no need to hold an independent copy, since that copy
     // would lack step-specific non-deterministic hints.
     Self {
       augmented_circuit_index,
-      _phantom: PhantomData,
       c_secondary: circuit_secondary,
-      params: pp,
+      _phantom: PhantomData,
     }
   }
 
   /// get primary/secondary circuit r1cs shape
-  pub fn get_r1cs_shape(&self) -> (&R1CSShape<G1>, &R1CSShape<G2>) {
-    (
-      &self.params.r1cs_shape_primary,
-      &self.params.r1cs_shape_secondary,
-    )
-  }
+  // pub fn get_r1cs_shape(&self) -> (&R1CSShape<G1>, &R1CSShape<G2>) {
+  //   (
+  //     &self.params.r1cs_shape_primary,
+  //     &self.params.r1cs_shape_secondary,
+  //   )
+  // }
 
   /// set primary/secondary commitment key
-  pub fn set_commitment_key(
-    &mut self,
-    ck_primary: CommitmentKey<G1>,
-    ck_secondary: CommitmentKey<G2>,
-  ) {
-    self.params.ck_primary = Some(ck_primary);
-    self.params.ck_secondary = Some(ck_secondary);
-  }
+  // pub fn set_commitment_key(
+  //   &mut self,
+  //   ck_primary: CommitmentKey<G1>,
+  //   ck_secondary: CommitmentKey<G2>,
+  // ) {
+  //   self.params.ck_primary = Some(ck_primary);
+  //   self.params.ck_secondary = Some(ck_secondary);
+  // }
 
   /// Get the `PublicParams`.
-  pub fn get_public_params(&self) -> &PublicParams<G1, G2> {
-    &self.params
-  }
+  // pub fn get_public_params(&self) -> &PublicParams<G1, G2> {
+  //   &self.params
+  // }
 
   /// Get this `RunningClaim`'s augmented circuit index.
   pub fn get_circuit_index(&self) -> usize {
@@ -366,6 +464,7 @@ where
     C1: EnforcingStepCircuit<G1::Scalar>,
     C2: EnforcingStepCircuit<G2::Scalar>,
   >(
+    pp: &PublicParams<G1, G2>,
     claim: &RunningClaim<G1, G2, C1, C2>,
     c_primary: &C1,
     pp_digest: G1::Scalar,
@@ -375,7 +474,7 @@ where
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
   ) -> Result<Self, SuperNovaError> {
-    let pp = &claim.get_public_params();
+    // let pp = &claim.get_public_params();
     let c_secondary = &claim.c_secondary;
     // commitment key for primary & secondary circuit
     let ck_primary = pp.ck_primary.as_ref().ok_or(SuperNovaError::MissingCK)?;
@@ -513,8 +612,11 @@ where
     })
   }
   /// executing a step of the incremental computation
+  #[allow(clippy::too_many_arguments)]
+  #[tracing::instrument(skip_all, name = "supernova::prove_step")]
   pub fn prove_step<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
     &mut self,
+    pp: &PublicParams<G1, G2>,
     claim: &RunningClaim<G1, G2, C1, C2>,
     c_primary: &C1,
     z0_primary: &[G1::Scalar],
@@ -530,7 +632,7 @@ where
       return Err(NovaError::ProofVerifyError.into());
     }
 
-    let pp = &claim.params;
+    // let pp = &claim.params;
     let c_secondary = &claim.c_secondary;
     // commitment key for primary & secondary circuit
     let ck_primary = pp.ck_primary.as_ref().ok_or(SuperNovaError::MissingCK)?;
@@ -704,6 +806,7 @@ where
   /// verify recursive snark
   pub fn verify<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
     &self,
+    pp: &PublicParams<G1, G2>,
     claim: &RunningClaim<G1, G2, C1, C2>,
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
@@ -723,7 +826,7 @@ where
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
-    let pp = &claim.params;
+    // let pp = &claim.params;
     let ck_primary = pp.ck_primary.as_ref().ok_or(SuperNovaError::MissingCK)?;
 
     self.r_U_primary[claim.get_circuit_index()]
@@ -875,40 +978,7 @@ where
   }
 }
 
-/// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
-/// `PublicParams`.
-pub fn compute_commitment_keys<G1: Group, G2: Group>(
-  circuit_public_params: &[&PublicParams<G1, G2>],
-) -> (CommitmentKey<G1>, CommitmentKey<G2>)
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-{
-  macro_rules! max_shape {
-    ($shape_getter:ident) => {
-      circuit_public_params
-        .iter()
-        .map(|params| {
-          let shape = &params.$shape_getter;
-          let size = commitment_key_size(&shape, None);
-          (shape, size)
-        })
-        .max_by(|a, b| a.1.cmp(&b.1))
-        .unwrap()
-        .0
-    };
-  }
-
-  let shape_primary = max_shape!(r1cs_shape_primary);
-  let shape_secondary = max_shape!(r1cs_shape_secondary);
-
-  let ck_primary = commitment_key(shape_primary, None);
-  let ck_secondary = commitment_key(shape_secondary, None);
-
-  (ck_primary, ck_secondary)
-}
-
-/// `SuperNova` helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
+/// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
 /// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
 /// `self.num_circuits()`.
 pub trait NonUniformCircuit<G1, G2, C1>
@@ -923,17 +993,24 @@ where
   }
 
   /// Initialize and return initial running claims.
-  fn setup_running_claims(&self) -> RunningClaims<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>> {
-    let running_claims = (0..self.num_circuits())
-      .map(|i| {
+  fn setup_running_claims(
+    &self,
+    running_claim_params: &RunningClaimParams<G1, G2, C1>,
+  ) -> RunningClaims<G1, G2, C1, TrivialSecondaryCircuit<G2::Scalar>> {
+    let running_claims = running_claim_params
+      .pp_vec
+      .iter()
+      .enumerate()
+      .map(|(i, pp)| {
         RunningClaim::new(
+          pp,
           i,
           self.primary_circuit(i),
           self.secondary_circuit(),
           self.num_circuits(),
         )
       })
-      .collect();
+      .collect::<Vec<_>>();
 
     RunningClaims::new(running_claims)
   }
@@ -948,4 +1025,33 @@ where
   fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G2::Scalar> {
     Default::default()
   }
+}
+
+/// Compute the circuit digest of a supernova [StepCircuit].
+pub fn circuit_digest<
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C: StepCircuit<G1::Scalar>,
+>(
+  circuit: &C,
+  is_primary_circuit: bool,
+  num_augmented_circuits: usize,
+) -> G1::Scalar {
+  let augmented_circuit_params =
+    SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, is_primary_circuit);
+
+  // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
+  let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
+
+  // Initialize ck for the primary
+  let augmented_circuit: SuperNovaAugmentedCircuit<'_, G2, C> = SuperNovaAugmentedCircuit::new(
+    &augmented_circuit_params,
+    None,
+    circuit,
+    ro_consts_circuit,
+    num_augmented_circuits,
+  );
+  let mut cs: ShapeCS<G1> = ShapeCS::new();
+  let _ = augmented_circuit.synthesize(&mut cs);
+  cs.r1cs_shape().digest()
 }
