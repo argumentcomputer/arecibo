@@ -325,6 +325,7 @@ where
 
 /// SuperNova takes Ui a list of running instances.
 /// One instance of Ui is a struct called RunningClaim.
+#[derive(Debug, Clone)]
 pub struct RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -474,6 +475,7 @@ where
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
   ) -> Result<Self, SuperNovaError> {
+    tracing::info_span!("bang!").in_scope(|| {});
     // let pp = &claim.get_public_params();
     let c_secondary = &claim.c_secondary;
     // commitment key for primary & secondary circuit
@@ -483,6 +485,8 @@ where
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
       return Err(NovaError::InvalidStepOutputLength.into());
     }
+
+    tracing::info_span!("bang!").in_scope(|| {});
 
     // base case for the primary
     let mut cs_primary: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
@@ -499,6 +503,8 @@ where
         G1::Scalar::ZERO, // set augmented circuit index selector to 0 in base case
       );
 
+    tracing::info_span!("bang!").in_scope(|| {});
+
     let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_primary,
       Some(inputs_primary),
@@ -506,6 +512,8 @@ where
       pp.ro_consts_circuit_primary.clone(),
       num_augmented_circuits,
     );
+
+    tracing::info_span!("bang!").in_scope(|| {});
 
     let (zi_primary_pc_next, zi_primary) =
       circuit_primary.synthesize(&mut cs_primary).map_err(|err| {
@@ -521,6 +529,8 @@ where
         debug!("err {:?}", err);
         NovaError::SynthesisError
       })?;
+
+    tracing::info_span!("bang!").in_scope(|| {});
 
     // base case for the secondary
     let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
@@ -553,6 +563,8 @@ where
       .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, ck_secondary)
       .map_err(|_| NovaError::UnSat)?;
 
+    tracing::info_span!("bang!").in_scope(|| {});
+
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
@@ -560,6 +572,8 @@ where
 
     let r_U_primary =
       RelaxedR1CSInstance::from_r1cs_instance(ck_primary, &pp.r1cs_shape_primary, &l_u_primary);
+
+    tracing::info_span!("bang!").in_scope(|| {});
 
     // IVC proof of the secondary circuit
     let l_w_secondary = w_secondary;
@@ -571,6 +585,8 @@ where
       ck_secondary,
       &pp.r1cs_shape_secondary,
     ))];
+
+    tracing::info_span!("bang!").in_scope(|| {});
 
     // Outputs of the two circuits and next program counter thus far.
     let zi_primary = zi_primary
@@ -586,6 +602,8 @@ where
       .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
       .collect::<Result<Vec<<G2 as Group>::Scalar>, SuperNovaError>>()?;
 
+    tracing::info_span!("bang!").in_scope(|| {});
+
     // handle the base case by initialize U_next in next round
     let r_W_primary_initial_list = (0..num_augmented_circuits)
       .map(|i| (i == first_augmented_circuit_index).then(|| r_W_primary.clone()))
@@ -594,6 +612,8 @@ where
     let r_U_primary_initial_list = (0..num_augmented_circuits)
       .map(|i| (i == first_augmented_circuit_index).then(|| r_U_primary.clone()))
       .collect::<Vec<Option<RelaxedR1CSInstance<G1>>>>();
+
+    tracing::info_span!("bang!").in_scope(|| {});
 
     Ok(Self {
       r_W_primary: r_W_primary_initial_list,

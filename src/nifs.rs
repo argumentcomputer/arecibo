@@ -29,7 +29,8 @@ impl<G: Group> NIFS<G> {
   /// a folded Relaxed R1CS instance-witness tuple `(U, W)` of the same shape `shape`,
   /// with the guarantee that the folded witness `W` satisfies the folded instance `U`
   /// if and only if `W1` satisfies `U1` and `W2` satisfies `U2`.
-  #[tracing::instrument(skip_all, name = "NIFS::prove")]
+  #[allow(clippy::too_many_arguments)]
+  #[tracing::instrument(skip_all, level = "trace", name = "NIFS::prove")]
   pub fn prove(
     ck: &CommitmentKey<G>,
     ro_consts: &ROConstants<G>,
