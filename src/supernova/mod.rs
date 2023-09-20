@@ -1,8 +1,8 @@
 //! This library implements `SuperNova`, a Non-Uniform IVC based on Nova.
 
-use std::io;
 use std::marker::PhantomData;
 use std::ops::Index;
+use std::{cmp::max, io};
 
 use crate::{
   bellpepper::shape_cs::ShapeCS,
@@ -10,13 +10,13 @@ use crate::{
   digest::{DigestComputer, Digestible, SimpleDigestible},
   errors::NovaError,
   r1cs::{
-    commitment_key, commitment_key_size, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
+    commitment_key_size, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
     RelaxedR1CSWitness,
   },
   scalar_as_base,
   traits::{
     circuit_supernova::{EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit},
-    commitment::CommitmentTrait,
+    commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
   },
   Commitment, CommitmentKey,
@@ -189,7 +189,12 @@ where
   // Once we serialize this struct, it's important to add this
   // annotaiton to the digest field for it to be treated properly: #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<G1::Scalar>,
+  stage: Stage,
   _p: PhantomData<C1>,
+}
+enum Stage {
+  Incomplete,
+  Complete,
 }
 
 impl<G1, G2, C1> Index<usize> for RunningClaimParams<G1, G2, C1>
@@ -249,65 +254,101 @@ where
     let mut running_claim_params = RunningClaimParams {
       pp_vec,
       digest: OnceCell::new(),
+      stage: Stage::Incomplete,
       _p: PhantomData,
     };
 
-    running_claim_params.set_commitment_keys();
+    running_claim_params.complete();
     running_claim_params
   }
 
-  /// AHHHH
-  pub fn from_pp_vec(pp_vec: Vec<PublicParams<G1, G2>>) -> Self {
-    RunningClaimParams {
+  /// Create a [RunningClaimParams] from a vector of raw [PublicParams].
+  /// We check the state of the commitment keys of the given params and
+  /// realign them if necessary. If a digest is given, we assume that it
+  /// will correctly match the public params after realigning them, and
+  /// we do not check for its validity.
+  pub fn from_pp_vec(pp_vec: Vec<PublicParams<G1, G2>>, digest: OnceCell<G1::Scalar>) -> Self {
+    let num_pp = pp_vec.len();
+    let primary_len = &pp_vec[0].ck_primary.as_ref().map_or(0, Len::length);
+    let secondary_len = &pp_vec[0].ck_secondary.as_ref().map_or(0, Len::length);
+    let num_complete = pp_vec
+      .iter()
+      .filter(|pp| {
+        pp.ck_primary.is_some()
+          && pp.ck_secondary.is_some()
+          && &pp.ck_primary.as_ref().unwrap().length() == primary_len
+          && &pp.ck_secondary.as_ref().unwrap().length() == secondary_len
+      })
+      .count();
+
+    let stage = if num_complete == num_pp {
+      Stage::Complete
+    } else {
+      Stage::Incomplete
+    };
+
+    let mut running_claim_params = RunningClaimParams {
       pp_vec,
-      digest: OnceCell::new(),
+      digest,
+      stage,
       _p: PhantomData,
-    }
+    };
+
+    running_claim_params.complete();
+    running_claim_params
   }
 
   /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
   /// `PublicParams`.
-  pub fn compute_commitment_keys(&self) -> (CommitmentKey<G1>, CommitmentKey<G2>) {
-    macro_rules! max_shape {
-      ($shape_getter:ident) => {
+  fn compute_commitment_keys(&self) -> (CommitmentKey<G1>, CommitmentKey<G2>) {
+    macro_rules! max_size {
+      ($shape_getter:ident, $ck_getter:ident) => {
         self
           .pp_vec
           .iter()
-          .map(|params| {
-            let shape = &params.$shape_getter;
-            let size = commitment_key_size(&shape, None);
-            (shape, size)
+          .map(|pp| {
+            let ck_len = if let Some(ck) = &pp.$ck_getter {
+              ck.length()
+            } else {
+              0
+            };
+            max(ck_len, commitment_key_size(&pp.$shape_getter, None))
           })
-          .max_by(|a, b| a.1.cmp(&b.1))
+          .max()
           .unwrap()
-          .0
       };
     }
 
-    let shape_primary = max_shape!(r1cs_shape_primary);
-    let shape_secondary = max_shape!(r1cs_shape_secondary);
+    let size_primary = max_size!(r1cs_shape_primary, ck_primary);
+    let size_secondary = max_size!(r1cs_shape_secondary, ck_secondary);
 
-    let ck_primary = commitment_key(shape_primary, None);
-    let ck_secondary = commitment_key(shape_secondary, None);
+    let ck_primary = G1::CE::setup(b"ck", size_primary);
+    let ck_secondary = G2::CE::setup(b"ck", size_secondary);
 
     (ck_primary, ck_secondary)
   }
 
-  /// get primary/secondary circuit r1cs shape
-  // pub fn get_r1cs_shape(&self) -> (&R1CSShape<G1>, &R1CSShape<G2>) {
-  //   (
-  //     &self.params.r1cs_shape_primary,
-  //     &self.params.r1cs_shape_secondary,
-  //   )
-  // }
+  /// Completes the set of public params
+  pub fn complete(&mut self) {
+    if matches!(self.stage, Stage::Complete) {
+      return;
+    }
+
+    self.set_commitment_keys();
+    self.digest();
+  }
 
   /// set primary/secondary commitment key for all the params
-  pub fn set_commitment_keys(&mut self) {
+  fn set_commitment_keys(&mut self) {
+    if matches!(self.stage, Stage::Complete) {
+      return;
+    }
     let (ck_primary, ck_secondary) = self.compute_commitment_keys();
     for pp in self.pp_vec.iter_mut() {
       pp.ck_primary = Some(ck_primary.clone()); // TODO: the keys should be shared across all the params
       pp.ck_secondary = Some(ck_secondary.clone()); // TODO: the keys should be shared across all the params
     }
+    self.stage = Stage::Complete;
   }
 
   /// Return the [RunningClaimParams]' digest.
@@ -403,29 +444,6 @@ where
     }
   }
 
-  /// get primary/secondary circuit r1cs shape
-  // pub fn get_r1cs_shape(&self) -> (&R1CSShape<G1>, &R1CSShape<G2>) {
-  //   (
-  //     &self.params.r1cs_shape_primary,
-  //     &self.params.r1cs_shape_secondary,
-  //   )
-  // }
-
-  /// set primary/secondary commitment key
-  // pub fn set_commitment_key(
-  //   &mut self,
-  //   ck_primary: CommitmentKey<G1>,
-  //   ck_secondary: CommitmentKey<G2>,
-  // ) {
-  //   self.params.ck_primary = Some(ck_primary);
-  //   self.params.ck_secondary = Some(ck_secondary);
-  // }
-
-  /// Get the `PublicParams`.
-  // pub fn get_public_params(&self) -> &PublicParams<G1, G2> {
-  //   &self.params
-  // }
-
   /// Get this `RunningClaim`'s augmented circuit index.
   pub fn get_circuit_index(&self) -> usize {
     self.augmented_circuit_index
@@ -475,8 +493,6 @@ where
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
   ) -> Result<Self, SuperNovaError> {
-    tracing::info_span!("bang!").in_scope(|| {});
-    // let pp = &claim.get_public_params();
     let c_secondary = &claim.c_secondary;
     // commitment key for primary & secondary circuit
     let ck_primary = pp.ck_primary.as_ref().ok_or(SuperNovaError::MissingCK)?;
@@ -485,8 +501,6 @@ where
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
       return Err(NovaError::InvalidStepOutputLength.into());
     }
-
-    tracing::info_span!("bang!").in_scope(|| {});
 
     // base case for the primary
     let mut cs_primary: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
@@ -503,8 +517,6 @@ where
         G1::Scalar::ZERO, // set augmented circuit index selector to 0 in base case
       );
 
-    tracing::info_span!("bang!").in_scope(|| {});
-
     let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_primary,
       Some(inputs_primary),
@@ -512,8 +524,6 @@ where
       pp.ro_consts_circuit_primary.clone(),
       num_augmented_circuits,
     );
-
-    tracing::info_span!("bang!").in_scope(|| {});
 
     let (zi_primary_pc_next, zi_primary) =
       circuit_primary.synthesize(&mut cs_primary).map_err(|err| {
@@ -529,8 +539,6 @@ where
         debug!("err {:?}", err);
         NovaError::SynthesisError
       })?;
-
-    tracing::info_span!("bang!").in_scope(|| {});
 
     // base case for the secondary
     let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
@@ -563,8 +571,6 @@ where
       .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, ck_secondary)
       .map_err(|_| NovaError::UnSat)?;
 
-    tracing::info_span!("bang!").in_scope(|| {});
-
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
@@ -572,8 +578,6 @@ where
 
     let r_U_primary =
       RelaxedR1CSInstance::from_r1cs_instance(ck_primary, &pp.r1cs_shape_primary, &l_u_primary);
-
-    tracing::info_span!("bang!").in_scope(|| {});
 
     // IVC proof of the secondary circuit
     let l_w_secondary = w_secondary;
@@ -585,8 +589,6 @@ where
       ck_secondary,
       &pp.r1cs_shape_secondary,
     ))];
-
-    tracing::info_span!("bang!").in_scope(|| {});
 
     // Outputs of the two circuits and next program counter thus far.
     let zi_primary = zi_primary
@@ -602,8 +604,6 @@ where
       .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
       .collect::<Result<Vec<<G2 as Group>::Scalar>, SuperNovaError>>()?;
 
-    tracing::info_span!("bang!").in_scope(|| {});
-
     // handle the base case by initialize U_next in next round
     let r_W_primary_initial_list = (0..num_augmented_circuits)
       .map(|i| (i == first_augmented_circuit_index).then(|| r_W_primary.clone()))
@@ -612,8 +612,6 @@ where
     let r_U_primary_initial_list = (0..num_augmented_circuits)
       .map(|i| (i == first_augmented_circuit_index).then(|| r_U_primary.clone()))
       .collect::<Vec<Option<RelaxedR1CSInstance<G1>>>>();
-
-    tracing::info_span!("bang!").in_scope(|| {});
 
     Ok(Self {
       r_W_primary: r_W_primary_initial_list,
