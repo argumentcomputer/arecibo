@@ -372,9 +372,8 @@ where
   l_u_secondary: R1CSInstance<G2>,
   pp_digest: G1::Scalar,
   i: usize,
-  z0_primary: Vec<G1::Scalar>,
-  z0_secondary: Vec<G2::Scalar>,
-  zi_primary: Vec<G1::Scalar>,
+  /// FIX: Change me back
+  pub zi_primary: Vec<G1::Scalar>,
   zi_secondary: Vec<G2::Scalar>,
   program_counter: G1::Scalar,
   augmented_circuit_index: usize,
