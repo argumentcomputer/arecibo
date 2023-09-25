@@ -13,11 +13,11 @@
 // private modules
 mod bellpepper;
 mod circuit;
-mod constants;
 mod digest;
 mod nifs;
 
 // public modules
+pub mod constants;
 pub mod errors;
 pub mod gadgets;
 pub mod provider;
@@ -374,7 +374,7 @@ where
 
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
   /// by executing a step of the incremental computation
-  #[tracing::instrument(skip_all, name = "nova::prove_step")]
+  #[tracing::instrument(skip_all, name = "nova::RecursiveSNARK::prove_step")]
   pub fn prove_step(
     &mut self,
     pp: &PublicParams<G1, G2, C1, C2>,
@@ -872,16 +872,17 @@ where
 }
 
 /// Compute the circuit digest of a [StepCircuit].
+///
+/// Note for callers: This function should be called with its performance characteristics in mind.
+/// It will synthesize and digest the full `circuit` given.
 pub fn circuit_digest<
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
   C: StepCircuit<G1::Scalar>,
 >(
   circuit: &C,
-  is_primary_circuit: bool,
 ) -> G1::Scalar {
-  let augmented_circuit_params =
-    NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, is_primary_circuit);
+  let augmented_circuit_params = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
   let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();

@@ -276,9 +276,9 @@ where
 
 fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
   err: &SuperNovaError,
-  pp: &PublicParams<G1, G2>,
-  running_claim: &RunningClaim<G1, G2, C1, C2>,
+  pp: &PublicParams<G1, G2, C1, C2>,
   c_primary: &C1,
+  c_secondary: &C2,
   num_augmented_circuits: usize,
 ) where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -305,7 +305,7 @@ fn print_constraints_name_on_error_index<G1, G2, C1, C2>(
       let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
         &pp.augmented_circuit_params_secondary,
         None,
-        &running_claim.c_secondary,
+        c_secondary,
         pp.ro_consts_circuit_secondary.clone(),
         num_augmented_circuits,
       );
@@ -366,7 +366,8 @@ impl<F: PrimeField> StepCircuit<F> for TestROMCircuit<F> {
   }
 }
 
-impl<G1, G2> NonUniformCircuit<G1, G2, TestROMCircuit<G1::Scalar>>
+impl<G1, G2>
+  NonUniformCircuit<G1, G2, TestROMCircuit<G1::Scalar>, TrivialSecondaryCircuit<G2::Scalar>>
   for TestROM<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -442,8 +443,7 @@ where
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
   let num_steps = test_rom.num_steps();
 
-  let running_claim_params = RunningClaimParams::new(&test_rom);
-  let running_claims = test_rom.setup_running_claims(&running_claim_params);
+  let pp = PublicParams::new(&test_rom);
 
   let initial_program_counter = test_rom.initial_program_counter();
 
@@ -475,10 +475,10 @@ where
     let mut recursive_snark =
       recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
         OPCODE_0 | OPCODE_1 => RecursiveSNARK::iter_base_step(
-          &running_claim_params[augmented_circuit_index],
-          &running_claims[augmented_circuit_index],
+          &pp,
+          augmented_circuit_index,
           &test_rom.primary_circuit(augmented_circuit_index),
-          running_claim_params.digest(),
+          &test_rom.secondary_circuit(),
           Some(program_counter),
           augmented_circuit_index,
           test_rom.num_circuits(),
@@ -493,28 +493,25 @@ where
     match augmented_circuit_index {
       OPCODE_0 | OPCODE_1 => {
         let circuit_primary = test_rom.primary_circuit(augmented_circuit_index);
+        let circuit_secondary = test_rom.secondary_circuit();
         recursive_snark
           .prove_step(
-            &running_claim_params[augmented_circuit_index],
-            &running_claims[augmented_circuit_index],
+            &pp,
+            augmented_circuit_index,
             &circuit_primary,
+            &circuit_secondary,
             &z0_primary,
             &z0_secondary,
           )
           .unwrap();
         recursive_snark
-          .verify(
-            &running_claim_params[augmented_circuit_index],
-            &running_claims[augmented_circuit_index],
-            &z0_primary,
-            &z0_secondary,
-          )
+          .verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary)
           .map_err(|err| {
             print_constraints_name_on_error_index(
               &err,
-              &running_claim_params[augmented_circuit_index],
-              &running_claims[augmented_circuit_index],
+              &pp,
               &circuit_primary,
+              &circuit_secondary,
               test_rom.num_circuits(),
             )
           })
