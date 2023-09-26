@@ -901,14 +901,19 @@ mod tests {
   use super::*;
   type EE1<G1> = provider::ipa_pc::EvaluationEngine<G1>;
   type EE2<G2> = provider::ipa_pc::EvaluationEngine<G2>;
+  type ZM<E> = provider::non_hiding_zeromorph::ZMPCS<E>;
   type S1<G1> = spartan::snark::RelaxedR1CSSNARK<G1, EE1<G1>>;
   type S2<G2> = spartan::snark::RelaxedR1CSSNARK<G2, EE2<G2>>;
   type S1Prime<G1> = spartan::ppsnark::RelaxedR1CSSNARK<G1, EE1<G1>>;
   type S2Prime<G2> = spartan::ppsnark::RelaxedR1CSSNARK<G2, EE2<G2>>;
+  type S1ZM<G1, E> = spartan::snark::RelaxedR1CSSNARK<G1, ZM<E>>;
+  type S2ZM<G2, E> = spartan::snark::RelaxedR1CSSNARK<G2, ZM<E>>;
 
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::marker::PhantomData;
   use ff::PrimeField;
+  use halo2curves::bn256::Bn256;
+  use pairing::Engine;
   use traits::circuit::TrivialTestCircuit;
 
   #[derive(Clone, Debug, Default)]
@@ -1186,7 +1191,7 @@ mod tests {
     test_ivc_nontrivial_with::<secp256k1::Point, secq256k1::Point>();
   }
 
-  fn test_ivc_nontrivial_with_compression_with<G1, G2>()
+  fn test_ivc_nontrivial_with_compression_with<G1, G2, S1, S2>()
   where
     G1: Group<Base = <G2 as Group>::Scalar>,
     G2: Group<Base = <G1 as Group>::Scalar>,
@@ -1196,6 +1201,8 @@ mod tests {
     // this is due to the reliance on Abomonation
     <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
     <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
+    S1: RelaxedR1CSSNARKTrait<G1>,
+    S2: RelaxedR1CSSNARKTrait<G2>,
   {
     let circuit_primary = TrivialTestCircuit::default();
     let circuit_secondary = CubicCircuit::default();
@@ -1256,10 +1263,10 @@ mod tests {
     assert_eq!(zn_secondary, vec![<G2 as Group>::Scalar::from(2460515u64)]);
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1<G1>, S2<G2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, _, S1<G1>, S2<G2>>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1278,9 +1285,29 @@ mod tests {
     type G1 = pasta_curves::pallas::Point;
     type G2 = pasta_curves::vesta::Point;
 
-    test_ivc_nontrivial_with_compression_with::<G1, G2>();
-    test_ivc_nontrivial_with_compression_with::<bn256::Point, grumpkin::Point>();
-    test_ivc_nontrivial_with_compression_with::<secp256k1::Point, secq256k1::Point>();
+    test_ivc_nontrivial_with_compression_with::<G1, G2, S1<G1>, S2<G2>>();
+    test_ivc_nontrivial_with_compression_with::<
+      bn256::Point,
+      grumpkin::Point,
+      S1<bn256::Point>,
+      S2<grumpkin::Point>,
+    >();
+    test_ivc_nontrivial_with_compression_with::<
+      secp256k1::Point,
+      secq256k1::Point,
+      S1<secp256k1::Point>,
+      S2<secq256k1::Point>,
+    >();
+  }
+
+  #[test]
+  fn test_ivc_nontrivial_with_zm_compression() {
+    test_ivc_nontrivial_with_compression_with::<
+      <Bn256 as Engine>::G1,
+      <Bn256 as Engine>::G2,
+      S1ZM<<Bn256 as Engine>::G1, Bn256>,
+      S2ZM<<Bn256 as Engine>::G2, Bn256>,
+    >();
   }
 
   fn test_ivc_nontrivial_with_spark_compression_with<G1, G2>()
