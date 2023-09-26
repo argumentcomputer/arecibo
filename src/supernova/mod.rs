@@ -383,9 +383,7 @@ where
     let ck_secondary = pp.ck_secondary.as_ref().ok_or(SuperNovaError::MissingCK)?;
 
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
-      return Err(SuperNovaError::NovaError(
-        NovaError::InvalidStepOutputLength,
-      ));
+      return Err(NovaError::InvalidStepOutputLength.into());
     }
 
     // base case for the primary
@@ -414,18 +412,16 @@ where
     let (zi_primary_pc_next, zi_primary) =
       circuit_primary.synthesize(&mut cs_primary).map_err(|err| {
         debug!("err {:?}", err);
-        SuperNovaError::NovaError(NovaError::SynthesisError)
+        NovaError::SynthesisError
       })?;
     if zi_primary.len() != pp.F_arity_primary {
-      return Err(SuperNovaError::NovaError(
-        NovaError::InvalidStepOutputLength,
-      ));
+      return Err(NovaError::InvalidStepOutputLength.into());
     }
     let (u_primary, w_primary) = cs_primary
       .r1cs_instance_and_witness(&pp.r1cs_shape_primary, ck_primary)
       .map_err(|err| {
         debug!("err {:?}", err);
-        SuperNovaError::NovaError(NovaError::SynthesisError)
+        NovaError::SynthesisError
       })?;
 
     // base case for the secondary
@@ -451,15 +447,13 @@ where
     );
     let (_, zi_secondary) = circuit_secondary
       .synthesize(&mut cs_secondary)
-      .map_err(|_| SuperNovaError::NovaError(NovaError::SynthesisError))?;
+      .map_err(|_| NovaError::SynthesisError)?;
     if zi_secondary.len() != pp.F_arity_secondary {
-      return Err(SuperNovaError::NovaError(
-        NovaError::InvalidStepOutputLength,
-      ));
+      return Err(NovaError::InvalidStepOutputLength.into());
     }
     let (u_secondary, w_secondary) = cs_secondary
       .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, ck_secondary)
-      .map_err(|_| SuperNovaError::NovaError(NovaError::UnSat))?;
+      .map_err(|_| NovaError::UnSat)?;
 
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
@@ -483,21 +477,15 @@ where
     // Outputs of the two circuits and next program counter thus far.
     let zi_primary = zi_primary
       .iter()
-      .map(|v| {
-        v.get_value()
-          .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))
-      })
+      .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
       .collect::<Result<Vec<<G1 as Group>::Scalar>, SuperNovaError>>()?;
     let zi_primary_pc_next = zi_primary_pc_next
       .expect("zi_primary_pc_next missing")
       .get_value()
-      .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))?;
+      .ok_or::<SuperNovaError>(NovaError::SynthesisError.into())?;
     let zi_secondary = zi_secondary
       .iter()
-      .map(|v| {
-        v.get_value()
-          .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))
-      })
+      .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
       .collect::<Result<Vec<<G2 as Group>::Scalar>, SuperNovaError>>()?;
 
     // handle the base case by initialize U_next in next round
@@ -541,7 +529,7 @@ where
     }
 
     if self.r_U_secondary.len() != 1 || self.r_W_secondary.len() != 1 {
-      return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
+      return Err(NovaError::ProofVerifyError.into());
     }
 
     let pp = &claim.params;
@@ -551,9 +539,7 @@ where
     let ck_secondary = pp.ck_secondary.as_ref().ok_or(SuperNovaError::MissingCK)?;
 
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
-      return Err(SuperNovaError::NovaError(
-        NovaError::InvalidInitialInputLength,
-      ));
+      return Err(NovaError::InvalidInitialInputLength.into());
     }
 
     // fold the secondary circuit's instance
