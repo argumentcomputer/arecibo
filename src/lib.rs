@@ -958,9 +958,13 @@ mod tests {
   use core::fmt::Write;
 
   use super::*;
+  #[allow(dead_code)]
+  type ZM<E> = provider::non_hiding_zeromorph::ZMEvaluation<E>;
   type EE<G> = provider::ipa_pc::EvaluationEngine<G>;
   type S<G, EE> = spartan::snark::RelaxedR1CSSNARK<G, EE>;
   type SPrime<G, EE> = spartan::ppsnark::RelaxedR1CSSNARK<G, EE>;
+  #[allow(dead_code)]
+  type SZM<G1, E> = spartan::snark::RelaxedR1CSSNARK<G1, ZM<E>>;
 
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::marker::PhantomData;
@@ -1240,15 +1244,15 @@ mod tests {
     test_ivc_nontrivial_with::<secp256k1::Point, secq256k1::Point>();
   }
 
-  fn test_ivc_nontrivial_with_compression_with<G1, G2, E1, E2>()
+  fn test_ivc_nontrivial_with_compression_with<G1, G2, S1, S2>()
   where
     G1: Group<Base = <G2 as Group>::Scalar>,
     G2: Group<Base = <G1 as Group>::Scalar>,
-    E1: EvaluationEngineTrait<G1>,
-    E2: EvaluationEngineTrait<G2>,
     // this is due to the reliance on Abomonation
     <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
     <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
+    S1: RelaxedR1CSSNARKTrait<G1>,
+    S2: RelaxedR1CSSNARKTrait<G2>,
   {
     let circuit_primary = TrivialCircuit::default();
     let circuit_secondary = CubicCircuit::default();
@@ -1309,11 +1313,11 @@ mod tests {
     assert_eq!(zn_secondary, vec![<G2 as Group>::Scalar::from(2460515u64)]);
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S<G1, E1>, S<G2, E2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
     let res =
-      CompressedSNARK::<_, _, _, _, S<G1, E1>, S<G2, E2>>::prove(&pp, &pk, &recursive_snark);
+      CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1332,9 +1336,29 @@ mod tests {
     type G1 = pasta_curves::pallas::Point;
     type G2 = pasta_curves::vesta::Point;
 
-    test_ivc_nontrivial_with_compression_with::<G1, G2, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_compression_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_compression_with::<secp256k1::Point, secq256k1::Point, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<G1, G2, S<_, EE<_>>, S<_, EE<_>>>();
+    test_ivc_nontrivial_with_compression_with::<
+      bn256::Point,
+      grumpkin::Point,
+      S<bn256::Point, EE<_>>, // SZM<bn256::Point, halo2curves::bn256::Bn256>,
+      S<grumpkin::Point, EE<_>>,
+    >();
+    test_ivc_nontrivial_with_compression_with::<
+      secp256k1::Point,
+      secq256k1::Point,
+      S<secp256k1::Point, EE<_>>,
+      S<secq256k1::Point, EE<_>>,
+    >();
+  }
+
+  #[test]
+  fn test_ivc_nontrivial_with_zm_compression() {
+    test_ivc_nontrivial_with_compression_with::<
+      bn256::Point,
+      grumpkin::Point,
+      S<bn256::Point, EE<_>>, // SZM<bn256::Point, halo2curves::bn256::Bn256>,
+      S<grumpkin::Point, EE<_>>,
+    >();
   }
 
   fn test_ivc_nontrivial_with_spark_compression_with<G1, G2, E1, E2>()
