@@ -2,29 +2,29 @@
 //!
 //!
 
+use crate::{
+  errors::{NovaError, PCSError},
+  spartan::{math::Math, polys::multilinear::MultilinearPolynomial},
+  traits::{commitment::Len, Engine as NovaEngine, evaluation::EvaluationEngineTrait, TranscriptEngineTrait},
+  Commitment, CommitmentKey,
+  provider::{
+    non_hiding_kzg::{
+      UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof, UVKZGProverKey, UVKZGVerifierKey,
+      UVUniversalKZGParam, UVKZGPCS,
+    },
+    DlogGroup,
+  }
+};
 use abomonation_derive::Abomonation;
 use ff::{BatchInvert, Field};
 use group::{Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
+use rand::thread_rng;
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
-
-use crate::{
-  errors::{NovaError, PCSError},
-  spartan::polys::multilinear::MultilinearPolynomial,
-  traits::{Engine as NovaEngine, TranscriptEngineTrait, evaluation::EvaluationEngineTrait}, CommitmentKey, Commitment,
-};
-
-use super::{
-  non_hiding_kzg::{
-    UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof, UVKZGProverKey, UVKZGVerifierKey,
-    UVUniversalKZGParam, UVKZGPCS,
-  },
-  DlogGroup,
-};
 
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
@@ -373,40 +373,43 @@ where
   E::G1Affine: Serialize + DeserializeOwned,
   E::G2Affine: Serialize + DeserializeOwned,
 {
-    type ProverKey = ZMProverKey<E>;
+  type ProverKey = ZMProverKey<E>;
 
-    type VerifierKey = ZMVerifierKey<E>;
+  type VerifierKey = ZMVerifierKey<E>;
 
-    type EvaluationArgument = ZMProof<E>;
+  type EvaluationArgument = ZMProof<E>;
 
-    fn setup(
-        ck: &CommitmentKey<NE>,
-      ) -> (Self::ProverKey, Self::VerifierKey) {
-        todo!()
-    }
+  fn setup(ck: &CommitmentKey<NE>) -> (Self::ProverKey, Self::VerifierKey) {
+    let max_vars = ck.length().log_2();
+    let mut rng = thread_rng();
+    let max_poly_size = 1 << (max_vars + 1);
+    let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
 
-    fn prove(
-        ck: &CommitmentKey<NE>,
-        pk: &Self::ProverKey,
-        transcript: &mut NE::TE,
-        comm: &Commitment<NE>,
-        poly: &[NE::Scalar],
-        point: &[NE::Scalar],
-        eval: &NE::Scalar,
-      ) -> Result<Self::EvaluationArgument, NovaError> {
-        todo!()
-    }
+    trim(&universal_setup, max_poly_size)
+  }
 
-    fn verify(
-        vk: &Self::VerifierKey,
-        transcript: &mut NE::TE,
-        comm: &Commitment<NE>,
-        point: &[NE::Scalar],
-        eval: &NE::Scalar,
-        arg: &Self::EvaluationArgument,
-      ) -> Result<(), NovaError> {
-        todo!()
-    }
+  fn prove(
+    ck: &CommitmentKey<NE>,
+    pk: &Self::ProverKey,
+    transcript: &mut NE::TE,
+    comm: &Commitment<NE>,
+    poly: &[NE::Scalar],
+    point: &[NE::Scalar],
+    eval: &NE::Scalar,
+  ) -> Result<Self::EvaluationArgument, NovaError> {
+    todo!()
+  }
+
+  fn verify(
+    vk: &Self::VerifierKey,
+    transcript: &mut NE::TE,
+    comm: &Commitment<NE>,
+    point: &[NE::Scalar],
+    eval: &NE::Scalar,
+    arg: &Self::EvaluationArgument,
+  ) -> Result<(), NovaError> {
+    todo!()
+  }
 }
 
 #[cfg(test)]
