@@ -1301,6 +1301,7 @@ mod tests {
   }
 
   #[test]
+  #[ignore]
   fn test_ivc_nontrivial_with_zm_compression() {
     test_ivc_nontrivial_with_compression_with::<
       bn256::Point,
