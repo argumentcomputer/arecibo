@@ -1386,6 +1386,16 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
   }
 
+  #[test]
+  fn test_ivc_nontrivial_with_zm_compression() {
+    test_ivc_nontrivial_with_compression_with::<
+      Bn256Engine,
+      GrumpkinEngine,
+      EE<_>,
+      EE<_>,
+    >();
+  }
+
   fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
