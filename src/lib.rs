@@ -7,6 +7,7 @@
   rust_2018_idioms,
   missing_docs
 )]
+#![allow(unused_variables)] // TODO: remove before merging!!!
 #![allow(non_snake_case)]
 #![allow(clippy::type_complexity)]
 // #![forbid(unsafe_code)] // Commented for development with `Abomonation`
@@ -907,13 +908,12 @@ mod tests {
   type S1Prime<G1> = spartan::ppsnark::RelaxedR1CSSNARK<G1, EE1<G1>>;
   type S2Prime<G2> = spartan::ppsnark::RelaxedR1CSSNARK<G2, EE2<G2>>;
   type S1ZM<G1, E> = spartan::snark::RelaxedR1CSSNARK<G1, ZM<E>>;
-  type S2ZM<G2, E> = spartan::snark::RelaxedR1CSSNARK<G2, ZM<E>>;
+  type S2ZM<G2> = spartan::snark::RelaxedR1CSSNARK<G2, EE2<G2>>;
 
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::marker::PhantomData;
   use ff::PrimeField;
   use halo2curves::bn256::Bn256;
-  use pairing::Engine;
   use traits::circuit::TrivialTestCircuit;
 
   #[derive(Clone, Debug, Default)]
@@ -1303,10 +1303,10 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_zm_compression() {
     test_ivc_nontrivial_with_compression_with::<
-      <Bn256 as Engine>::G1,
-      <Bn256 as Engine>::G2,
-      S1ZM<<Bn256 as Engine>::G1, Bn256>,
-      S2ZM<<Bn256 as Engine>::G2, Bn256>,
+      bn256::Point,
+      grumpkin::Point,
+      S1ZM<bn256::Point, Bn256>,
+      S2ZM<grumpkin::Point>,
     >();
   }
 
