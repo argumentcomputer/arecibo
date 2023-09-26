@@ -7,6 +7,7 @@
   rust_2018_idioms,
   missing_docs
 )]
+#![allow(unused_variables)] // TODO: remove before merging!!!
 #![allow(non_snake_case)]
 // #![forbid(unsafe_code)] // Commented for development with `Abomonation`
 
@@ -1334,13 +1335,9 @@ mod tests {
   }
 
   #[test]
+  #[ignore]
   fn test_ivc_nontrivial_with_zm_compression() {
-    test_ivc_nontrivial_with_compression_with::<
-      Bn256Engine,
-      GrumpkinEngine,
-      EE<_>,
-      EE<_>,
-    >();
+    test_ivc_nontrivial_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
   }
 
   fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()

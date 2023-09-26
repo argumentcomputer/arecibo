@@ -45,6 +45,11 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     }
   }
 
+  /// evaluations of the polynomial in all the 2^num_vars Boolean inputs
+  pub fn evaluations(&self) -> &[Scalar] {
+    &self.Z[..]
+  }
+
   /// Returns the number of variables in the multilinear polynomial
   pub const fn get_num_vars(&self) -> usize {
     self.num_vars
@@ -110,51 +115,51 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
       .sum()
   }
 
-  /// Compute quotient polynomials of the polynomial w.r.t. an input point
-  /// i.e. q_k s.t. $$self - v = \Sum_{k=0}^(n-1) q_k (X_k-point_k)$$
-  pub fn quotients(&self, point: &[Scalar]) -> (Vec<Vec<Scalar>>, Scalar) {
-    assert_eq!(self.get_num_vars(), point.len());
-
-    let mut remainder = self.Z.to_vec();
-    let mut quotients = point
-      .iter()
-      .enumerate()
-      .rev()
-      .map(|(num_var, x_i)| {
-        let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << num_var);
-        let mut quotient = vec![Scalar::ZERO; remainder_lo.len()];
-
-        quotient
-          .par_iter_mut()
-          .zip(&*remainder_lo)
-          .zip(&*remainder_hi)
-          .for_each(|((q, r_lo), r_hi)| {
-            *q = *r_hi - *r_lo;
-          });
-        remainder_lo
-          .par_iter_mut()
-          .zip(remainder_hi)
-          .for_each(|(r_lo, r_hi)| {
-            *r_lo += (*r_hi - r_lo as &_) * x_i;
-          });
-
-        remainder.truncate(1 << num_var);
-
-        quotient
-      })
-      .collect::<Vec<Vec<Scalar>>>();
-    quotients.reverse();
-
-    (quotients, remainder[0])
-  }
-
-  /// Evaluate the MLE at a point
+  /// Evaluate the dense MLE at the given point. The MLE is assumed to be in
+  /// monomial basis.
+  ///
+  /// # Example
+  /// ```
+  /// use pasta_curves::pallas::Scalar as Fr;
+  /// use nova_snark::spartan::polys::multilinear::MultilinearPolynomial;
+  ///
+  /// // The two-variate polynomial x_0 + 3 * x_0 * x_1 + 2 evaluates to [2, 3, 2, 6]
+  /// // in the two-dimensional hypercube with points [00, 10, 01, 11]
+  /// let mle = MultilinearPolynomial::new(
+  ///     vec![2, 3, 2, 6].iter().map(|x| Fr::from(*x as u64)).collect()
+  /// );
+  ///
+  /// // By the uniqueness of MLEs, `mle` is precisely the above polynomial, which
+  /// // takes the value 54 at the point (1, 17)
+  /// let eval = mle.evaluate_opt(&[Fr::one(), Fr::from(17)]);
+  /// assert_eq!(eval, Fr::from(54));
+  /// ```
   pub fn evaluate_opt(&self, point: &[Scalar]) -> Scalar {
     assert_eq!(self.num_vars, point.len());
     self.fix_variables(point).Z[0]
   }
 
-  /// Fix one variable of the MLE
+  /// Return the MLE resulting from binding the first variables of self
+  /// to the values in `partial_point` (from left to right).
+  ///
+  /// # Example
+  /// ```
+  /// use pasta_curves::pallas::Scalar as Fr;
+  /// use nova_snark::spartan::polys::multilinear::MultilinearPolynomial;
+  ///
+  /// // Constructing the two-variate multilinear polynomial x_0 + 2 * x_1 + 3 * x_0 * x_1
+  /// // by specifying its evaluations at [00, 10, 01, 11]
+  /// let mle = MultilinearPolynomial::new(
+  ///     vec![0, 1, 2, 6].iter().map(|x| Fr::from(*x as u64)).collect()
+  /// );
+  ///
+  /// // Bind the first variable of the MLE to the value 5, resulting in
+  /// // the new polynomial 5 + 17 * x_1
+  /// let bound = mle.fix_variables(&[Fr::from(5)]);
+  ///
+  /// assert_eq!(bound.evaluations(), vec![Fr::from(5), Fr::from(22)]);
+  /// ```
+  /// }
   pub fn fix_variables(&self, partial_point: &[Scalar]) -> Self {
     assert!(
       partial_point.len() <= self.num_vars,
@@ -267,9 +272,7 @@ mod tests {
   use crate::provider::{self, bn256_grumpkin::bn256, secp_secq::secp256k1};
 
   use super::*;
-  use pasta_curves::Fp;
-  use rand_chacha::ChaCha20Rng;
-  use rand_core::{CryptoRng, RngCore, SeedableRng};
+  use pasta_curves::{pallas::Scalar, Fp};
 
   fn make_mlp<F: PrimeField>(len: usize, value: F) -> MultilinearPolynomial<F> {
     MultilinearPolynomial {
@@ -349,7 +352,7 @@ mod tests {
     let num_evals = 4;
     let mut evals: Vec<F> = Vec::with_capacity(num_evals);
     for _ in 0..num_evals {
-      evals.push(F::from_u128(8));
+      evals.push(F::from(8));
     }
     let dense_poly: MultilinearPolynomial<F> = MultilinearPolynomial::new(evals.clone());
 
@@ -378,118 +381,29 @@ mod tests {
     test_evaluation_with::<provider::secp_secq::secp256k1::Scalar>();
   }
 
-  /// Returns a random ML polynomial
-  fn random<R: RngCore + CryptoRng, Scalar: PrimeField>(
-    num_vars: usize,
-    mut rng: &mut R,
-  ) -> MultilinearPolynomial<Scalar> {
-    MultilinearPolynomial::new(
-      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
-        .take(1 << num_vars)
-        .collect(),
-    )
-  }
-
-  /// This evaluates a multilinear polynomial at a partial point in the evaluation domain,
-  /// which forces us to model how we pass coordinates to the evaluation function precisely.
-  fn partial_eval<F: PrimeField>(
-    poly: &MultilinearPolynomial<F>,
-    point: &[F],
-  ) -> MultilinearPolynomial<F> {
-    // Get size of partial evaluation point u = (u_0,...,u_{m-1})
-    let m = point.len();
-
-    // Assert that the size of the polynomial being evaluated is a power of 2 greater than (1 << m)
-    assert!(poly.Z.len().is_power_of_two());
-    assert!(poly.Z.len() >= 1 << m);
-    let n = poly.Z.len().trailing_zeros() as usize;
-
-    // Partial evaluation is done in m rounds l = 0,...,m-1.
-
-    // Temporary buffer of half the size of the polynomial
-    let mut n_l = 1 << (n - 1);
-    let mut tmp = vec![F::ZERO; n_l];
-
-    let prev = &poly.Z;
-    // Evaluate variable X_{n-1} at u_{m-1}
-    let u_l = point[m - 1];
-    for i in 0..n_l {
-      tmp[i] = prev[i] + u_l * (prev[i + n_l] - prev[i]);
-    }
-
-    // Evaluate m-1 variables X_{n-l-1}, ..., X_{n-2} at m-1 remaining values u_0,...,u_{m-2})
-    for l in 1..m {
-      n_l = 1 << (n - l - 1);
-      let u_l = point[m - l - 1];
-      for i in 0..n_l {
-        tmp[i] = tmp[i] + u_l * (tmp[i + n_l] - tmp[i]);
-      }
-    }
-    tmp.truncate(1 << (poly.num_vars - m));
-
-    MultilinearPolynomial::new(tmp)
-  }
-
-  fn partial_evaluate_mle_with<F: PrimeField>() {
-    // Initialize a random polynomial
-    let n = 5;
-    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
-    let poly = random(n, &mut rng);
-
-    // Define a random multivariate evaluation point u = (u_0, u_1, u_2, u_3, u_4)
-    let u_0 = F::random(&mut rng);
-    let u_1 = F::random(&mut rng);
-    let u_2 = F::random(&mut rng);
-    let u_3 = F::random(&mut rng);
-    let u_4 = F::random(&mut rng);
-    let u_challenge = [u_4, u_3, u_2, u_1, u_0];
-
-    // Directly computing v = p(u_0,...,u_4) and comparing it with the result of
-    // first computing the partial evaluation in the last 3 variables
-    // g(X_0,X_1) = p(X_0,X_1,u_2,u_3,u_4), then v = g(u_0,u_1)
-
-    // Compute v = p(u_0,...,u_4)
-    let v_expected = poly.evaluate(&u_challenge[..]);
-
-    // Compute g(X_0,X_1) = p(X_0,X_1,u_2,u_3,u_4), then v = g(u_0,u_1)
-    let u_part_1 = [u_1, u_0]; // note the endianness difference
-    let u_part_2 = [u_2, u_3, u_4];
-
-    // Note how we start with part 2, and continue with part 1
-    let partial_evaluated_poly = partial_eval(&poly, &u_part_2);
-    let v_result = partial_evaluated_poly.evaluate(&u_part_1);
-
-    assert_eq!(v_result, v_expected);
-  }
-
   #[test]
-  fn test_partial_evaluate_mle() {
-    partial_evaluate_mle_with::<Fp>();
-    partial_evaluate_mle_with::<bn256::Scalar>();
-    partial_evaluate_mle_with::<secp256k1::Scalar>();
-  }
+  fn test_dense_evaluations() {
+    let num_vars = 2;
+    let Z = vec![
+      Scalar::one(),
+      Scalar::from(2u64),
+      Scalar::one(),
+      Scalar::from(4u64),
+    ];
+    let poly = MultilinearPolynomial::new(Z);
 
-  fn partial_and_evaluate_with<F: PrimeField>() {
-    for _i in 0..50 {
-      // Initialize a random polynomial
-      let n = 7;
-      let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
-      let poly = random(n, &mut rng);
+    // r = [4,3]
+    let r = vec![Scalar::from(4u64), Scalar::from(3u64)];
+    // interpreted as ~eq (in the Lagrange basis)
+    // g(x_0,x_1) => c_0*(1 - x_0)(1 - x_1) + c_1*(1-x_0)(x_1) + c_2*(x_0)(1-x_1) + c_3*(x_0)(x_1)
+    // g(4, 3) = 1*(1 - 4)(1 - 3) + 2*(1-4)(3) + 1*(4)(1-3) + 4*(4)(3) = 6 - 18 - 8 + 48 = 28
+    let eval = poly.evaluate(&r);
+    assert_eq!(eval, Scalar::from(28u64));
 
-      // draw a random point
-      let pt: Vec<_> = std::iter::from_fn(|| Some(F::random(&mut rng)))
-        .take(n)
-        .collect();
-      // this shows the order in which coordinates are evaluated
-      let rev_pt: Vec<_> = pt.iter().cloned().rev().collect();
-      assert_eq!(poly.evaluate(&pt), partial_eval(&poly, &rev_pt).Z[0])
-    }
-  }
-
-  #[test]
-  fn test_partial_and_evaluate() {
-    partial_and_evaluate_with::<Fp>();
-    partial_and_evaluate_with::<bn256::Scalar>();
-    partial_and_evaluate_with::<secp256k1::Scalar>();
+    // interpreted in the monomial basis
+    // [1, 2, 1, 4] -> 1 + 1 * x0 + 0 * x1+ 2 x0 * x1
+    // at x0 = 4, x1 = 3 -> 1 + 1 * 4 + 0 * 3 + 2 * 4 * 3 = 29
+    let eval_opt = poly.evaluate_opt(&r[..]);
+    assert_eq!(eval_opt, Scalar::from(29u64));
   }
 }
