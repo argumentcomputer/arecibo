@@ -7,6 +7,7 @@
   rust_2018_idioms,
   missing_docs
 )]
+#![allow(unused_variables)] // TODO: remove before merging!!!
 #![allow(non_snake_case)]
 // #![forbid(unsafe_code)] // Commented for development with `Abomonation`
 
