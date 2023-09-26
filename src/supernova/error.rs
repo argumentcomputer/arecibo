@@ -9,7 +9,7 @@ use crate::errors::NovaError;
 pub enum SuperNovaError {
   /// Nova error
   #[error("NovaError")]
-  NovaError(NovaError),
+  NovaError(#[from] NovaError),
   /// missig commitment key
   #[error("MissingCK")]
   MissingCK,
