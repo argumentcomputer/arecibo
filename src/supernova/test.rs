@@ -82,7 +82,7 @@ where
     }
   }
 }
-/// c = a + b where a, b is AllocatedNum
+/// c = a + b where a, b is `AllocatedNum`
 pub fn add_allocated_num<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   a: &AllocatedNum<F>,

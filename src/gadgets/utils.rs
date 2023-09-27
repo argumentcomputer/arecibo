@@ -73,7 +73,7 @@ pub fn alloc_one<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// alloc a field as a constant
-/// implemented refer from https://github.com/lurk-lab/lurk-rs/blob/4335fbb3290ed1a1176e29428f7daacb47f8033d/src/circuit/gadgets/data.rs#L387-L402
+/// implemented refer from <https://github.com/lurk-lab/lurk-rs/blob/4335fbb3290ed1a1176e29428f7daacb47f8033d/src/circuit/gadgets/data.rs#L387-L402>
 pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   val: F,

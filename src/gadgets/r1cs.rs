@@ -326,7 +326,7 @@ impl<G: Group> AllocatedRelaxedR1CSInstance<G> {
   }
 }
 
-/// c = cond ? a: b, where a, b: AllocatedRelaxedR1CSInstance
+/// c = cond ? a: b, where a, b: `AllocatedRelaxedR1CSInstance`
 pub fn conditionally_select_alloc_relaxed_r1cs<
   G: Group,
   CS: ConstraintSystem<<G as Group>::Base>,
@@ -372,7 +372,7 @@ pub fn conditionally_select_alloc_relaxed_r1cs<
 }
 
 #[allow(dead_code)]
-/// c = cond ? a: b, where a, b: vec[AllocatedRelaxedR1CSInstance]
+/// c = cond ? a: b, where a, b: `Vec<AllocatedRelaxedR1CSInstance>`
 pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
   G: Group,
   CS: ConstraintSystem<<G as Group>::Base>,
@@ -395,7 +395,7 @@ pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
     .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<G>>, _>>()
 }
 
-/// c = cond ? a: b, where a, b: AllocatedPoint
+/// c = cond ? a: b, where a, b: `AllocatedPoint`
 pub fn conditionally_select_point<G: Group, CS: ConstraintSystem<<G as Group>::Base>>(
   mut cs: CS,
   a: &AllocatedPoint<G>,

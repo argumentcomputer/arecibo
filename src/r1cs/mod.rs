@@ -86,8 +86,8 @@ pub type CommitmentKeyHint<G> = Box<dyn Fn(&R1CSShape<G>) -> usize>;
 ///
 /// * `S`: The shape of the R1CS matrices.
 /// * `commitment_key_hint`: An optional function that provides a floor for the number of
-///   generators. A good function to provide is the commitment_key_floor field in the trait `RelaxedR1CSSNARKTrait`.
-///   If no floor function is provided, the default number of generators will be max(S.num_cons, S.num_vars).
+///   generators. A good function to provide is the `commitment_key_floor` field in the trait `RelaxedR1CSSNARKTrait`.
+///   If no floor function is provided, the default number of generators will be `max(S.num_cons`, `S.num_vars`).
 ///
 pub fn commitment_key<G: Group>(
   S: &R1CSShape<G>,

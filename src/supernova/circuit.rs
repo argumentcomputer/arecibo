@@ -3,14 +3,14 @@
 //! Each of them is over a Pasta curve but
 //! only the primary executes the next step of the computation.
 //! Each circuit takes as input 2 hashes.
-//! Each circuit folds the last invocation of the other into the respective running instance, specified by augmented_circuit_index
+//! Each circuit folds the last invocation of the other into the respective running instance, specified by `augmented_circuit_index`
 //!
-//! The augmented circuit F' for SuperNova that includes everything from Nova
+//! The augmented circuit F' for `SuperNova` that includes everything from Nova
 //!   and additionally checks:
 //!    1. Ui[] are contained in X[0] hash pre-image.
 //!    2. R1CS Instance u is folded into Ui[augmented_circuit_index] correctly; just like Nova IVC.
-//!    3. (optional by F logic) F circuit might check program_counter_{i} invoked current F circuit is legal or not.
-//!    3. F circuit produce program_counter_{i+1} and sent to next round for optionally constraint the next F' argumented circuit.
+//!    3. (optional by F logic) F circuit might check `program_counter_{i}` invoked current F circuit is legal or not.
+//!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F' argumented circuit.
 
 use crate::{
   constants::NUM_HASH_BITS,
@@ -108,9 +108,9 @@ impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
   }
 }
 
-/// The augmented circuit F' in SuperNova that includes a step circuit F
-/// and the circuit for the verifier in SuperNova's non-interactive folding scheme,
-/// SuperNova NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance U[last_augmented_circuit_index]
+/// The augmented circuit F' in `SuperNova` that includes a step circuit F
+/// and the circuit for the verifier in `SuperNova`'s non-interactive folding scheme,
+/// `SuperNova` NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance `U[last_augmented_circuit_index]`
 pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> {
   params: &'a SuperNovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<G>,
@@ -251,7 +251,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     ))
   }
 
-  /// Synthesizes base case and returns the new relaxed R1CSInstance
+  /// Synthesizes base case and returns the new relaxed `R1CSInstance`
   fn synthesize_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
     &self,
     mut cs: CS,
@@ -304,7 +304,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     Ok(U_default)
   }
 
-  /// Synthesizes non base case and returns the new relaxed R1CSInstance
+  /// Synthesizes non base case and returns the new relaxed `R1CSInstance`
   /// And a boolean indicating if all checks pass
   fn synthesize_non_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
     &self,
