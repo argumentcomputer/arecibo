@@ -129,7 +129,7 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> NovaAugmentedCircuit<'a, G, SC> {
     // Allocate the params
     let params = alloc_scalar_as_base::<G, _>(
       cs.namespace(|| "params"),
-      self.inputs.get().map_or(None, |inputs| Some(inputs.params)),
+      self.inputs.as_ref().map(|inputs| inputs.params),
     )?;
 
     // Allocate i
@@ -157,9 +157,7 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> NovaAugmentedCircuit<'a, G, SC> {
     // Allocate the running instance
     let U: AllocatedRelaxedR1CSInstance<G> = AllocatedRelaxedR1CSInstance::alloc(
       cs.namespace(|| "Allocate U"),
-      self.inputs.get().as_ref().map_or(None, |inputs| {
-        inputs.U.get().as_ref().map_or(None, |U| Some(U))
-      }),
+      self.inputs.as_ref().and_then(|inputs| inputs.U.as_ref()),
       self.params.limb_width,
       self.params.n_limbs,
     )?;
@@ -167,17 +165,16 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> NovaAugmentedCircuit<'a, G, SC> {
     // Allocate the instance to be folded in
     let u = AllocatedR1CSInstance::alloc(
       cs.namespace(|| "allocate instance u to fold"),
-      self.inputs.get().as_ref().map_or(None, |inputs| {
-        inputs.u.get().as_ref().map_or(None, |u| Some(u))
-      }),
+      self.inputs.as_ref().and_then(|inputs| inputs.u.as_ref()),
     )?;
 
     // Allocate T
     let T = AllocatedPoint::alloc(
       cs.namespace(|| "allocate T"),
-      self.inputs.get().map_or(None, |inputs| {
-        inputs.T.get().map_or(None, |T| Some(T.to_coordinates()))
-      }),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.T.map(|T| T.to_coordinates())),
     )?;
 
     Ok((params, i, z_0, z_i, U, u, T))

@@ -166,10 +166,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     // Allocate the params
     let params = alloc_scalar_as_base::<G, _>(
       cs.namespace(|| "params"),
-      self
-        .inputs
-        .get()
-        .map_or(None, |inputs| Some(inputs.pp_digest)),
+      self.inputs.as_ref().map(|inputs| inputs.pp_digest),
     )?;
 
     // Allocate i
@@ -219,8 +216,8 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
           cs.namespace(|| format!("Allocate U {:?}", i)),
           self
             .inputs
-            .get()
-            .map_or(None, |inputs| inputs.U.and_then(|U| U[i].as_ref())),
+            .as_ref()
+            .and_then(|inputs| inputs.U.and_then(|U| U[i].as_ref())),
           self.params.limb_width,
           self.params.n_limbs,
         )
@@ -230,18 +227,16 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     // Allocate the r1cs instance to be folded in
     let u = AllocatedR1CSInstance::alloc(
       cs.namespace(|| "allocate instance u to fold"),
-      self
-        .inputs
-        .get()
-        .map_or(None, |inputs| inputs.u.get().map_or(None, |u| Some(u))),
+      self.inputs.as_ref().and_then(|inputs| inputs.u),
     )?;
 
     // Allocate T
     let T = AllocatedPoint::alloc(
       cs.namespace(|| "allocate T"),
-      self.inputs.get().map_or(None, |inputs| {
-        inputs.T.get().map_or(None, |T| Some(T.to_coordinates()))
-      }),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.T.map(|T| T.to_coordinates())),
     )?;
 
     Ok((
@@ -452,7 +447,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     };
 
     if self.inputs.is_some() {
-      let z0_len = self.inputs.get().map_or(0, |inputs| inputs.z0.len());
+      let z0_len = self.inputs.as_ref().map_or(0, |inputs| inputs.z0.len());
       if self.step_circuit.arity() != z0_len {
         return Err(SynthesisError::IncompatibleLengthVector(format!(
           "z0_len {:?} != arity lengh {:?}",
