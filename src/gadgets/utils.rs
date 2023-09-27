@@ -72,7 +72,6 @@ pub fn alloc_one<F: PrimeField, CS: ConstraintSystem<F>>(
   Ok(one)
 }
 
-#[allow(dead_code)]
 /// alloc a field as a constant
 /// implemented refer from https://github.com/lurk-lab/lurk-rs/blob/4335fbb3290ed1a1176e29428f7daacb47f8033d/src/circuit/gadgets/data.rs#L387-L402
 pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(
@@ -92,7 +91,7 @@ pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(
   Ok(allocated)
 }
 
-/// Allocate a scalar as a base. Only to be used is the scalar fits in base!
+/// Allocate a scalar as a base. Only to be used if the scalar fits in base!
 pub fn alloc_scalar_as_base<G, CS>(
   mut cs: CS,
   input: Option<G::Scalar>,

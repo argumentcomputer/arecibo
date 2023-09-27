@@ -1,5 +1,4 @@
 //! This module defines R1CS related types and a folding scheme for Relaxed R1CS
-#![allow(clippy::type_complexity)]
 pub mod sparse;
 mod util;
 

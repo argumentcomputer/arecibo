@@ -362,7 +362,6 @@ where
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
   /// iterate base step to get new instance of recursive SNARK
-  #[allow(clippy::too_many_arguments)]
   pub fn iter_base_step<
     C1: EnforcingStepCircuit<G1::Scalar>,
     C2: EnforcingStepCircuit<G2::Scalar>,
@@ -514,7 +513,6 @@ where
     })
   }
   /// executing a step of the incremental computation
-  #[allow(clippy::too_many_arguments)]
   pub fn prove_step<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
     &mut self,
     claim: &RunningClaim<G1, G2, C1, C2>,

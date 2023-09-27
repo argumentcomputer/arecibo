@@ -83,7 +83,6 @@ pub struct SuperNovaAugmentedCircuitInputs<'a, G: Group> {
 
 impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
   /// Create new inputs/witness for the verification circuit
-  #[allow(clippy::too_many_arguments)]
   pub fn new(
     pp_digest: G::Scalar,
     i: G::Base,
@@ -307,7 +306,6 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
 
   /// Synthesizes non base case and returns the new relaxed R1CSInstance
   /// And a boolean indicating if all checks pass
-  #[allow(clippy::too_many_arguments)]
   fn synthesize_non_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
     &self,
     mut cs: CS,

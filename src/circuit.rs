@@ -62,7 +62,6 @@ pub struct NovaAugmentedCircuitInputs<G: Group> {
 
 impl<G: Group> NovaAugmentedCircuitInputs<G> {
   /// Create new inputs/witness for the verification circuit
-  #[allow(clippy::too_many_arguments)]
   pub fn new(
     params: G::Scalar,
     i: G::Base,
@@ -207,7 +206,6 @@ impl<'a, G: Group, SC: StepCircuit<G::Base>> NovaAugmentedCircuit<'a, G, SC> {
 
   /// Synthesizes non base case and returns the new relaxed `R1CSInstance`
   /// And a boolean indicating if all checks pass
-  #[allow(clippy::too_many_arguments)]
   fn synthesize_non_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
     &self,
     mut cs: CS,
