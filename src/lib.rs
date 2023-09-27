@@ -139,16 +139,14 @@ where
   ///
   /// type G1 = pallas::Point;
   /// type G2 = vesta::Point;
-  /// type EE1<G1> = EvaluationEngine<G1>;
-  /// type EE2<G2> = EvaluationEngine<G2>;
-  /// type S1Prime<G1> = RelaxedR1CSSNARK<G1, EE1<G1>>;
-  /// type S2Prime<G2> = RelaxedR1CSSNARK<G2, EE2<G2>>;
+  /// type EE<G> = EvaluationEngine<G>;
+  /// type SPrime<G> = RelaxedR1CSSNARK<G, EE<G>>;
   ///
   /// let circuit1 = TrivialTestCircuit::<<G1 as Group>::Scalar>::default();
   /// let circuit2 = TrivialTestCircuit::<<G2 as Group>::Scalar>::default();
   /// // Only relevant for a SNARK using computational commitments, pass None otherwise.
-  /// let pp_hint1 = Some(S1Prime::<G1>::commitment_key_floor());
-  /// let pp_hint2 = Some(S2Prime::<G2>::commitment_key_floor());
+  /// let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
+  /// let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
   ///
   /// let pp = PublicParams::new(&circuit1, &circuit2, pp_hint1, pp_hint2);
   /// ```
@@ -887,12 +885,9 @@ mod tests {
   use crate::provider::secp_secq::{secp256k1, secq256k1};
 
   use super::*;
-  type EE1<G1> = provider::ipa_pc::EvaluationEngine<G1>;
-  type EE2<G2> = provider::ipa_pc::EvaluationEngine<G2>;
-  type S1<G1> = spartan::snark::RelaxedR1CSSNARK<G1, EE1<G1>>;
-  type S2<G2> = spartan::snark::RelaxedR1CSSNARK<G2, EE2<G2>>;
-  type S1Prime<G1> = spartan::ppsnark::RelaxedR1CSSNARK<G1, EE1<G1>>;
-  type S2Prime<G2> = spartan::ppsnark::RelaxedR1CSSNARK<G2, EE2<G2>>;
+  type EE<G> = provider::ipa_pc::EvaluationEngine<G>;
+  type S<G1> = spartan::snark::RelaxedR1CSSNARK<G1, EE<G1>>;
+  type SPrime<G1> = spartan::ppsnark::RelaxedR1CSSNARK<G1, EE<G1>>;
 
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::marker::PhantomData;
@@ -965,8 +960,8 @@ mod tests {
     <G2::Scalar as PrimeField>::Repr: Abomonation,
   {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
-    let pp_hint1 = Some(S1Prime::<G1>::commitment_key_floor());
-    let pp_hint2 = Some(S2Prime::<G2>::commitment_key_floor());
+    let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
+    let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
     let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, pp_hint1, pp_hint2);
 
     let digest_str = pp
@@ -1243,10 +1238,10 @@ mod tests {
     assert_eq!(zn_secondary, vec![<G2 as Group>::Scalar::from(2460515u64)]);
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1<G1>, S2<G2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, _, S<G1>, S<G2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, _, S1<G1>, S2<G2>>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, _, _, S<G1>, S<G2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1293,8 +1288,8 @@ mod tests {
     >::new(
       &circuit_primary,
       &circuit_secondary,
-      Some(S1Prime::commitment_key_floor()),
-      Some(S2Prime::commitment_key_floor()),
+      Some(SPrime::commitment_key_floor()),
+      Some(SPrime::commitment_key_floor()),
     );
 
     let num_steps = 3;
@@ -1347,11 +1342,11 @@ mod tests {
     // run the compressed snark with Spark compiler
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1Prime<G1>, S2Prime<G2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, _, SPrime<G1>, SPrime<G2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
     let res =
-      CompressedSNARK::<_, _, _, _, S1Prime<G1>, S2Prime<G2>>::prove(&pp, &pk, &recursive_snark);
+      CompressedSNARK::<_, _, _, _, SPrime<G1>, SPrime<G2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1501,10 +1496,10 @@ mod tests {
     assert!(res.is_ok());
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1<G1>, S2<G2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, _, S<G1>, S<G2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, _, S1<G1>, S2<G2>>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, _, _, S<G1>, S<G2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
