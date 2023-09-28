@@ -11,7 +11,7 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use nova_snark::{
   traits::{
-    circuit::{StepCircuit, TrivialTestCircuit},
+    circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
   PublicParams,
@@ -154,7 +154,7 @@ fn main() {
     ],
   };
 
-  let circuit_secondary = TrivialTestCircuit::default();
+  let circuit_secondary = TrivialCircuit::default();
 
   println!("Proving {num_iters_per_step} iterations of MinRoot per step");
 
@@ -166,7 +166,7 @@ fn main() {
       G1,
       G2,
       MinRootCircuit<<G1 as Group>::Scalar>,
-      TrivialTestCircuit<<G2 as Group>::Scalar>,
+      TrivialCircuit<<G2 as Group>::Scalar>,
     >::new(&circuit_primary, &circuit_secondary, None, None);
     println!("PublicParams::setup, took {:?} ", start.elapsed());
     encode(&pp, &mut file).unwrap()
@@ -183,7 +183,7 @@ fn main() {
         G1,
         G2,
         MinRootCircuit<<G1 as Group>::Scalar>,
-        TrivialTestCircuit<<G2 as Group>::Scalar>,
+        TrivialCircuit<<G2 as Group>::Scalar>,
       >,
     >(&mut bytes)
   } {
@@ -192,7 +192,7 @@ fn main() {
       G1,
       G2,
       MinRootCircuit<<G1 as Group>::Scalar>,
-      TrivialTestCircuit<<G2 as Group>::Scalar>,
+      TrivialCircuit<<G2 as Group>::Scalar>,
     >::new(&circuit_primary, &circuit_secondary, None, None);
     assert!(result.clone() == pp, "not equal!");
     assert!(remaining.is_empty());
