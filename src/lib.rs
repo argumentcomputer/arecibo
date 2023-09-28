@@ -133,7 +133,7 @@ where
   /// # use pasta_curves::{vesta, pallas};
   /// # use nova_snark::spartan::ppsnark::RelaxedR1CSSNARK;
   /// # use nova_snark::provider::ipa_pc::EvaluationEngine;
-  /// # use nova_snark::traits::{circuit::TrivialTestCircuit, Group, snark::RelaxedR1CSSNARKTrait};
+  /// # use nova_snark::traits::{circuit::TrivialCircuit, Group, snark::RelaxedR1CSSNARKTrait};
   /// use nova_snark::PublicParams;
   ///
   /// type G1 = pallas::Point;
@@ -141,8 +141,8 @@ where
   /// type EE<G> = EvaluationEngine<G>;
   /// type SPrime<G> = RelaxedR1CSSNARK<G, EE<G>>;
   ///
-  /// let circuit1 = TrivialTestCircuit::<<G1 as Group>::Scalar>::default();
-  /// let circuit2 = TrivialTestCircuit::<<G2 as Group>::Scalar>::default();
+  /// let circuit1 = TrivialCircuit::<<G1 as Group>::Scalar>::default();
+  /// let circuit2 = TrivialCircuit::<<G2 as Group>::Scalar>::default();
   /// // Only relevant for a SNARK using computational commitments, pass None otherwise.
   /// let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   /// let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
