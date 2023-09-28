@@ -3,14 +3,14 @@
 //! Each of them is over a Pasta curve but
 //! only the primary executes the next step of the computation.
 //! Each circuit takes as input 2 hashes.
-//! Each circuit folds the last invocation of the other into the respective running instance, specified by augmented_circuit_index
+//! Each circuit folds the last invocation of the other into the respective running instance, specified by `augmented_circuit_index`
 //!
-//! The augmented circuit F' for SuperNova that includes everything from Nova
+//! The augmented circuit F' for `SuperNova` that includes everything from Nova
 //!   and additionally checks:
 //!    1. Ui[] are contained in X[0] hash pre-image.
 //!    2. R1CS Instance u is folded into Ui[augmented_circuit_index] correctly; just like Nova IVC.
-//!    3. (optional by F logic) F circuit might check program_counter_{i} invoked current F circuit is legal or not.
-//!    3. F circuit produce program_counter_{i+1} and sent to next round for optionally constraint the next F' argumented circuit.
+//!    3. (optional by F logic) F circuit might check `program_counter_{i}` invoked current F circuit is legal or not.
+//!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F' argumented circuit.
 
 use crate::{
   constants::NUM_HASH_BITS,
@@ -83,7 +83,6 @@ pub struct SuperNovaAugmentedCircuitInputs<'a, G: Group> {
 
 impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
   /// Create new inputs/witness for the verification circuit
-  #[allow(clippy::too_many_arguments)]
   pub fn new(
     pp_digest: G::Scalar,
     i: G::Base,
@@ -109,9 +108,9 @@ impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
   }
 }
 
-/// The augmented circuit F' in SuperNova that includes a step circuit F
-/// and the circuit for the verifier in SuperNova's non-interactive folding scheme,
-/// SuperNova NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance U[last_augmented_circuit_index]
+/// The augmented circuit F' in `SuperNova` that includes a step circuit F
+/// and the circuit for the verifier in `SuperNova`'s non-interactive folding scheme,
+/// `SuperNova` NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance `U[last_augmented_circuit_index]`
 pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> {
   params: &'a SuperNovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<G>,
@@ -166,10 +165,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     // Allocate the params
     let params = alloc_scalar_as_base::<G, _>(
       cs.namespace(|| "params"),
-      self
-        .inputs
-        .get()
-        .map_or(None, |inputs| Some(inputs.pp_digest)),
+      self.inputs.as_ref().map(|inputs| inputs.pp_digest),
     )?;
 
     // Allocate i
@@ -219,8 +215,8 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
           cs.namespace(|| format!("Allocate U {:?}", i)),
           self
             .inputs
-            .get()
-            .map_or(None, |inputs| inputs.U.and_then(|U| U[i].as_ref())),
+            .as_ref()
+            .and_then(|inputs| inputs.U.and_then(|U| U[i].as_ref())),
           self.params.limb_width,
           self.params.n_limbs,
         )
@@ -230,18 +226,16 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     // Allocate the r1cs instance to be folded in
     let u = AllocatedR1CSInstance::alloc(
       cs.namespace(|| "allocate instance u to fold"),
-      self
-        .inputs
-        .get()
-        .map_or(None, |inputs| inputs.u.get().map_or(None, |u| Some(u))),
+      self.inputs.as_ref().and_then(|inputs| inputs.u),
     )?;
 
     // Allocate T
     let T = AllocatedPoint::alloc(
       cs.namespace(|| "allocate T"),
-      self.inputs.get().map_or(None, |inputs| {
-        inputs.T.get().map_or(None, |T| Some(T.to_coordinates()))
-      }),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.T.map(|T| T.to_coordinates())),
     )?;
 
     Ok((
@@ -257,7 +251,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     ))
   }
 
-  /// Synthesizes base case and returns the new relaxed R1CSInstance
+  /// Synthesizes base case and returns the new relaxed `R1CSInstance`
   fn synthesize_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
     &self,
     mut cs: CS,
@@ -310,9 +304,8 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     Ok(U_default)
   }
 
-  /// Synthesizes non base case and returns the new relaxed R1CSInstance
+  /// Synthesizes non base case and returns the new relaxed `R1CSInstance`
   /// And a boolean indicating if all checks pass
-  #[allow(clippy::too_many_arguments)]
   fn synthesize_non_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
     &self,
     mut cs: CS,
@@ -452,7 +445,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     };
 
     if self.inputs.is_some() {
-      let z0_len = self.inputs.get().map_or(0, |inputs| inputs.z0.len());
+      let z0_len = self.inputs.as_ref().map_or(0, |inputs| inputs.z0.len());
       if self.step_circuit.arity() != z0_len {
         return Err(SynthesisError::IncompatibleLengthVector(format!(
           "z0_len {:?} != arity lengh {:?}",

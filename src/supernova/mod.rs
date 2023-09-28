@@ -1,4 +1,4 @@
-//! This library implements SuperNova, a Non-Uniform IVC based on Nova.
+//! This library implements `SuperNova`, a Non-Uniform IVC based on Nova.
 
 use std::io;
 use std::marker::PhantomData;
@@ -176,8 +176,8 @@ where
   }
 }
 
-/// SuperNova takes Ui a list of running instances.
-/// One instance of Ui is a struct called RunningClaim.
+/// `SuperNova` takes Ui a list of running instances.
+/// One instance of Ui is a struct called `RunningClaim`.
 pub struct RunningClaim<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -362,7 +362,6 @@ where
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
   /// iterate base step to get new instance of recursive SNARK
-  #[allow(clippy::too_many_arguments)]
   pub fn iter_base_step<
     C1: EnforcingStepCircuit<G1::Scalar>,
     C2: EnforcingStepCircuit<G2::Scalar>,
@@ -514,7 +513,6 @@ where
     })
   }
   /// executing a step of the incremental computation
-  #[allow(clippy::too_many_arguments)]
   pub fn prove_step<C1: EnforcingStepCircuit<G1::Scalar>, C2: EnforcingStepCircuit<G2::Scalar>>(
     &mut self,
     claim: &RunningClaim<G1, G2, C1, C2>,
@@ -910,7 +908,7 @@ where
   (ck_primary, ck_secondary)
 }
 
-/// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
+/// `SuperNova` helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
 /// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
 /// `self.num_circuits()`.
 pub trait NonUniformCircuit<G1, G2, C1>

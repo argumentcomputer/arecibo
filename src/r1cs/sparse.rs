@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// CSR format sparse matrix, We follow the names used by scipy.
-/// Detailed explanation here: https://stackoverflow.com/questions/52299420/scipy-csr-matrix-understand-indptr
+/// Detailed explanation here: <https://stackoverflow.com/questions/52299420/scipy-csr-matrix-understand-indptr>
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_bounds(where <F as PrimeField>::Repr: Abomonation)]
 pub struct SparseMatrix<F: PrimeField> {
