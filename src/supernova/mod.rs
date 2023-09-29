@@ -8,17 +8,14 @@ use crate::{
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
-  r1cs::{
-    commitment_key_size, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
-    RelaxedR1CSWitness,
-  },
+  r1cs::{commitment_key_size, R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
   scalar_as_base,
   traits::{
     circuit_supernova::StepCircuit,
     commitment::{CommitmentEngineTrait, CommitmentTrait},
     AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
   },
-  Commitment, CommitmentKey,
+  CircuitShape, Commitment, CommitmentKey,
 };
 
 use abomonation::Abomonation;
@@ -49,42 +46,15 @@ pub(crate) mod utils;
 #[cfg(test)]
 mod test;
 
-/// A type that holds public parameters of Nova
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
-pub struct CircuitParams<G: Group> {
-  F_arity_primary: usize,
-  r1cs_shape_primary: R1CSShape<G>,
-}
-
-impl<G: Group> SimpleDigestible for CircuitParams<G> {}
-
-impl<G: Group> CircuitParams<G> {
-  /// Create a new `CircuitParams`
-  pub fn new(r1cs_shape_primary: R1CSShape<G>, F_arity_primary: usize) -> Self {
-    Self {
-      F_arity_primary,
-      r1cs_shape_primary,
-    }
-  }
-
-  /// Return the [CircuitParams]' digest.
-  pub fn digest(&self) -> G::Scalar {
-    let dc: DigestComputer<'_, <G as Group>::Scalar, CircuitParams<G>> = DigestComputer::new(self);
-    dc.digest().expect("Failure in computing digest")
-  }
-}
-
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CircuitParamDigests<G: Group> {
+pub struct CircuitDigests<G: Group> {
   digests: Vec<G::Scalar>,
 }
 
-impl<G: Group> SimpleDigestible for CircuitParamDigests<G> {}
+impl<G: Group> SimpleDigestible for CircuitDigests<G> {}
 
-impl<G: Group> std::ops::Deref for CircuitParamDigests<G> {
+impl<G: Group> std::ops::Deref for CircuitDigests<G> {
   type Target = Vec<G::Scalar>;
 
   fn deref(&self) -> &Self::Target {
@@ -92,11 +62,15 @@ impl<G: Group> std::ops::Deref for CircuitParamDigests<G> {
   }
 }
 
-impl<G: Group> CircuitParamDigests<G> {
-  /// Return the [CircuitParamDigests]' digest.
+impl<G: Group> CircuitDigests<G> {
+  /// Construct a new [CircuitDigests]
+  pub fn new(digests: Vec<G::Scalar>) -> Self {
+    CircuitDigests { digests }
+  }
+
+  /// Return the [CircuitDigests]' digest.
   pub fn digest(&self) -> G::Scalar {
-    let dc: DigestComputer<'_, <G as Group>::Scalar, CircuitParamDigests<G>> =
-      DigestComputer::new(self);
+    let dc: DigestComputer<'_, <G as Group>::Scalar, CircuitDigests<G>> = DigestComputer::new(self);
     dc.digest().expect("Failure in computing digest")
   }
 }
@@ -111,19 +85,18 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  /// The internal circuit params
-  pub circuit_params: Vec<CircuitParams<G1>>,
+  /// The internal circuit shapes
+  pub circuit_shapes: Vec<CircuitShape<G1>>,
 
   ro_consts_primary: ROConstants<G1>,
   ro_consts_circuit_primary: ROConstantsCircuit<G2>,
   ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  F_arity_secondary: usize,
   ro_consts_secondary: ROConstants<G2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
   ck_secondary: CommitmentKey<G2>,
-  r1cs_shape_secondary: R1CSShape<G2>,
+  circuit_shape_secondary: CircuitShape<G2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   /// Digest constructed from this `PublicParams`' parameters
@@ -154,11 +127,10 @@ where
   ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  F_arity_secondary: usize,
   ro_consts_secondary: ROConstants<G2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
   ck_secondary: CommitmentKey<G2>,
-  r1cs_shape_secondary: R1CSShape<G2>,
+  circuit_shape_secondary: CircuitShape<G2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   #[abomonate_with(<G1::Scalar as PrimeField>::Repr)]
@@ -172,10 +144,10 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  type Output = CircuitParams<G1>;
+  type Output = CircuitShape<G1>;
 
   fn index(&self, index: usize) -> &Self::Output {
-    &self.circuit_params[index]
+    &self.circuit_shapes[index]
   }
 }
 
@@ -195,7 +167,7 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  /// new running claim params
+  /// Construct a new [PublicParams]
   pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(non_unifrom_circuit: &NC) -> Self {
     let num_circuits = non_unifrom_circuit.num_circuits();
 
@@ -205,10 +177,10 @@ where
     // ro_consts_circuit_primary are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
     let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
 
-    let circuit_params = (0..num_circuits)
+    let circuit_shapes = (0..num_circuits)
       .map(|i| {
         let c_primary = non_unifrom_circuit.primary_circuit(i);
-        let F_arity_primary = c_primary.arity();
+        let F_arity = c_primary.arity();
         // Initialize ck for the primary
         let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
           &augmented_circuit_params_primary,
@@ -221,11 +193,11 @@ where
         let _ = circuit_primary.synthesize(&mut cs);
         // We use the largest commitment_key for all instances
         let r1cs_shape_primary = cs.r1cs_shape();
-        CircuitParams::new(r1cs_shape_primary, F_arity_primary)
+        CircuitShape::new(r1cs_shape_primary, F_arity)
       })
       .collect::<Vec<_>>();
 
-    let ck_primary = Self::compute_primary_ck(&circuit_params);
+    let ck_primary = Self::compute_primary_ck(&circuit_shapes);
 
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
@@ -244,18 +216,18 @@ where
     let mut cs: ShapeCS<G2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(None);
+    let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
     let pp = PublicParams {
-      circuit_params,
+      circuit_shapes,
       ro_consts_primary,
       ro_consts_circuit_primary,
       ck_primary,
       augmented_circuit_params_primary,
-      F_arity_secondary,
       ro_consts_secondary,
       ro_consts_circuit_secondary,
       ck_secondary,
-      r1cs_shape_secondary,
+      circuit_shape_secondary,
       augmented_circuit_params_secondary,
       digest: OnceCell::new(),
       _p: PhantomData,
@@ -268,20 +240,19 @@ where
   }
 
   /// Breaks down an instance of [PublicParams] into the circuit params and auxilliary params.
-  pub fn into_parts(self) -> (Vec<CircuitParams<G1>>, AuxParams<G1, G2>) {
+  pub fn into_parts(self) -> (Vec<CircuitShape<G1>>, AuxParams<G1, G2>) {
     let digest = self.digest();
 
     let PublicParams {
-      circuit_params,
+      circuit_shapes,
       ro_consts_primary,
       ro_consts_circuit_primary,
       ck_primary,
       augmented_circuit_params_primary,
-      F_arity_secondary,
       ro_consts_secondary,
       ro_consts_circuit_secondary,
       ck_secondary,
-      r1cs_shape_secondary,
+      circuit_shape_secondary,
       augmented_circuit_params_secondary,
       digest: _digest,
       _p,
@@ -292,31 +263,29 @@ where
       ro_consts_circuit_primary,
       ck_primary,
       augmented_circuit_params_primary,
-      F_arity_secondary,
       ro_consts_secondary,
       ro_consts_circuit_secondary,
       ck_secondary,
-      r1cs_shape_secondary,
+      circuit_shape_secondary,
       augmented_circuit_params_secondary,
       digest,
     };
 
-    (circuit_params, aux_params)
+    (circuit_shapes, aux_params)
   }
 
-  /// Create a [PublicParams] from a vector of raw [CircuitParams] and auxilliary params.
-  pub fn from_parts(circuit_params: Vec<CircuitParams<G1>>, aux_params: AuxParams<G1, G2>) -> Self {
+  /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
+  pub fn from_parts(circuit_shapes: Vec<CircuitShape<G1>>, aux_params: AuxParams<G1, G2>) -> Self {
     let pp = PublicParams {
-      circuit_params,
+      circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
       ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
       ck_primary: aux_params.ck_primary,
       augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
-      F_arity_secondary: aux_params.F_arity_secondary,
       ro_consts_secondary: aux_params.ro_consts_secondary,
       ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
       ck_secondary: aux_params.ck_secondary,
-      r1cs_shape_secondary: aux_params.r1cs_shape_secondary,
+      circuit_shape_secondary: aux_params.circuit_shape_secondary,
       augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
       digest: OnceCell::new(),
       _p: PhantomData,
@@ -329,23 +298,22 @@ where
     pp
   }
 
-  /// Create a [PublicParams] from a vector of raw [CircuitParams] and auxilliary params.
+  /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
   /// We don't check that the `aux_params.digest` is a valid digest for the created params.
   pub fn from_parts_unchecked(
-    circuit_params: Vec<CircuitParams<G1>>,
+    circuit_shapes: Vec<CircuitShape<G1>>,
     aux_params: AuxParams<G1, G2>,
   ) -> Self {
     PublicParams {
-      circuit_params,
+      circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
       ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
       ck_primary: aux_params.ck_primary,
       augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
-      F_arity_secondary: aux_params.F_arity_secondary,
       ro_consts_secondary: aux_params.ro_consts_secondary,
       ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
       ck_secondary: aux_params.ck_secondary,
-      r1cs_shape_secondary: aux_params.r1cs_shape_secondary,
+      circuit_shape_secondary: aux_params.circuit_shape_secondary,
       augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
       digest: aux_params.digest.into(),
       _p: PhantomData,
@@ -353,11 +321,11 @@ where
   }
 
   /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
-  /// `CircuitParams`.
-  fn compute_primary_ck(circuit_params: &[CircuitParams<G1>]) -> CommitmentKey<G1> {
+  /// `CircuitShape`.
+  fn compute_primary_ck(circuit_params: &[CircuitShape<G1>]) -> CommitmentKey<G1> {
     let size_primary = circuit_params
       .iter()
-      .map(|pp| commitment_key_size(&pp.r1cs_shape_primary, None))
+      .map(|circuit| commitment_key_size(&circuit.r1cs_shape, None))
       .max()
       .unwrap();
 
@@ -378,13 +346,13 @@ where
   }
 
   /// All of the primary circuit digests of this [PublicParams]
-  pub fn circuit_param_digests(&self) -> CircuitParamDigests<G1> {
+  pub fn circuit_param_digests(&self) -> CircuitDigests<G1> {
     let digests = self
-      .circuit_params
+      .circuit_shapes
       .iter()
       .map(|cp| cp.digest())
       .collect::<Vec<_>>();
-    CircuitParamDigests { digests }
+    CircuitDigests { digests }
   }
 }
 
@@ -429,8 +397,8 @@ where
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
   ) -> Result<Self, SuperNovaError> {
-    if z0_primary.len() != pp[circuit_index].F_arity_primary
-      || z0_secondary.len() != pp.F_arity_secondary
+    if z0_primary.len() != pp[circuit_index].F_arity
+      || z0_secondary.len() != pp.circuit_shape_secondary.F_arity
     {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidStepOutputLength,
@@ -465,13 +433,13 @@ where
         debug!("err {:?}", err);
         NovaError::SynthesisError
       })?;
-    if zi_primary.len() != pp[circuit_index].F_arity_primary {
+    if zi_primary.len() != pp[circuit_index].F_arity {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidStepOutputLength,
       ));
     }
     let (u_primary, w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp[circuit_index].r1cs_shape_primary, &pp.ck_primary)
+      .r1cs_instance_and_witness(&pp[circuit_index].r1cs_shape, &pp.ck_primary)
       .map_err(|err| {
         debug!("err {:?}", err);
         NovaError::SynthesisError
@@ -501,22 +469,22 @@ where
     let (_, zi_secondary) = circuit_secondary
       .synthesize(&mut cs_secondary)
       .map_err(|_| NovaError::SynthesisError)?;
-    if zi_secondary.len() != pp.F_arity_secondary {
+    if zi_secondary.len() != pp.circuit_shape_secondary.F_arity {
       return Err(NovaError::InvalidStepOutputLength.into());
     }
     let (u_secondary, w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)
+      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
       .map_err(|_| SuperNovaError::NovaError(NovaError::UnSat))?;
 
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
     let r_W_primary =
-      RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape_primary, &l_w_primary);
+      RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, &l_w_primary);
 
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
       &pp.ck_primary,
-      &pp[circuit_index].r1cs_shape_primary,
+      &pp[circuit_index].r1cs_shape,
       &l_u_primary,
     );
 
@@ -524,11 +492,11 @@ where
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
     let r_W_secondary = vec![Some(RelaxedR1CSWitness::<G2>::default(
-      &pp.r1cs_shape_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
     ))];
     let r_U_secondary = vec![Some(RelaxedR1CSInstance::default(
       &pp.ck_secondary,
-      &pp.r1cs_shape_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
     ))];
 
     // Outputs of the two circuits and next program counter thus far.
@@ -592,8 +560,8 @@ where
       return Err(NovaError::ProofVerifyError.into());
     }
 
-    if z0_primary.len() != pp[circuit_index].F_arity_primary
-      || z0_secondary.len() != pp.F_arity_secondary
+    if z0_primary.len() != pp[circuit_index].F_arity
+      || z0_secondary.len() != pp.circuit_shape_secondary.F_arity
     {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidInitialInputLength,
@@ -605,7 +573,7 @@ where
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<G1>(self.pp_digest),
-      &pp.r1cs_shape_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
       self.r_U_secondary[0].as_ref().unwrap(),
       self.r_W_secondary[0].as_ref().unwrap(),
       &self.l_u_secondary,
@@ -644,14 +612,14 @@ where
     let (zi_primary_pc_next, zi_primary) = circuit_primary
       .synthesize(&mut cs_primary)
       .map_err(|_| SuperNovaError::NovaError(NovaError::SynthesisError))?;
-    if zi_primary.len() != pp[circuit_index].F_arity_primary {
+    if zi_primary.len() != pp[circuit_index].F_arity {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidInitialInputLength,
       ));
     }
 
     let (l_u_primary, l_w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp[circuit_index].r1cs_shape_primary, &pp.ck_primary)
+      .r1cs_instance_and_witness(&pp[circuit_index].r1cs_shape, &pp.ck_primary)
       .map_err(|_| SuperNovaError::NovaError(NovaError::UnSat))?;
 
     // Split into `if let`/`else` statement
@@ -664,7 +632,7 @@ where
         &pp.ck_primary,
         &pp.ro_consts_primary,
         &self.pp_digest,
-        &pp[circuit_index].r1cs_shape_primary,
+        &pp[circuit_index].r1cs_shape,
         r_U_primary,
         r_W_primary,
         &l_u_primary,
@@ -675,9 +643,9 @@ where
         &pp.ck_primary,
         &pp.ro_consts_primary,
         &self.pp_digest,
-        &pp[circuit_index].r1cs_shape_primary,
-        &RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape_primary),
-        &RelaxedR1CSWitness::default(&pp[circuit_index].r1cs_shape_primary),
+        &pp[circuit_index].r1cs_shape,
+        &RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape),
+        &RelaxedR1CSWitness::default(&pp[circuit_index].r1cs_shape),
         &l_u_primary,
         &l_w_primary,
       )
@@ -710,14 +678,14 @@ where
     let (_, zi_secondary) = circuit_secondary
       .synthesize(&mut cs_secondary)
       .map_err(|_| SuperNovaError::NovaError(NovaError::SynthesisError))?;
-    if zi_secondary.len() != pp.F_arity_secondary {
+    if zi_secondary.len() != pp.circuit_shape_secondary.F_arity {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidInitialInputLength,
       ));
     }
 
     let (l_u_secondary_next, l_w_secondary_next) = cs_secondary
-      .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)
+      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
       .map_err(|_| SuperNovaError::NovaError(NovaError::UnSat))?;
 
     // update the running instances and witnesses
@@ -740,8 +708,8 @@ where
       })
       .collect::<Result<Vec<<G2 as Group>::Scalar>, SuperNovaError>>()?;
 
-    if zi_primary.len() != pp[circuit_index].F_arity_primary
-      || zi_secondary.len() != pp.F_arity_secondary
+    if zi_primary.len() != pp[circuit_index].F_arity
+      || zi_secondary.len() != pp.circuit_shape_secondary.F_arity
     {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidStepOutputLength,
@@ -811,12 +779,12 @@ where
     })?;
 
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
-    + 2 * pp[circuit_index].F_arity_primary // zo, z1
+    + 2 * pp[circuit_index].F_arity // zo, z1
     + (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // # 1 * (7 + [X0, X1]*#num_limb)
 
     // secondary circuit
     let num_field_secondary_ro = 2 // params_next, i_new
-    + 2 * pp.F_arity_secondary // zo, z1
+    + 2 * pp.circuit_shape_secondary.F_arity // zo, z1
     + self.num_augmented_circuits * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
 
     let (hash_primary, hash_secondary) = {
@@ -851,7 +819,7 @@ where
         hasher2.absorb(*e);
       }
       let default_value =
-        RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape_primary);
+        RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape);
       self.r_U_primary.iter().for_each(|U| {
         U.as_ref()
           .unwrap_or(&default_value)
@@ -881,11 +849,11 @@ where
 
     // check the satisfiability of the provided `circuit_index` instance
     let default_instance =
-      RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape_primary);
-    let default_witness = RelaxedR1CSWitness::default(&pp[circuit_index].r1cs_shape_primary);
+      RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape);
+    let default_witness = RelaxedR1CSWitness::default(&pp[circuit_index].r1cs_shape);
     let (res_r_primary, (res_r_secondary, res_l_secondary)) = rayon::join(
       || {
-        pp[circuit_index].r1cs_shape_primary.is_sat_relaxed(
+        pp[circuit_index].r1cs_shape.is_sat_relaxed(
           &pp.ck_primary,
           self.r_U_primary[circuit_index]
             .as_ref()
@@ -898,14 +866,14 @@ where
       || {
         rayon::join(
           || {
-            pp.r1cs_shape_secondary.is_sat_relaxed(
+            pp.circuit_shape_secondary.r1cs_shape.is_sat_relaxed(
               &pp.ck_secondary,
               self.r_U_secondary[0].as_ref().unwrap(),
               self.r_W_secondary[0].as_ref().unwrap(),
             )
           },
           || {
-            pp.r1cs_shape_secondary.is_sat(
+            pp.circuit_shape_secondary.r1cs_shape.is_sat(
               &pp.ck_secondary,
               &self.l_u_secondary,
               &self.l_w_secondary,
@@ -992,6 +960,6 @@ pub fn circuit_digest<
   let _ = augmented_circuit.synthesize(&mut cs);
 
   let F_arity = circuit.arity();
-  let circuit_params = CircuitParams::new(cs.r1cs_shape(), F_arity);
+  let circuit_params = CircuitShape::new(cs.r1cs_shape(), F_arity);
   circuit_params.digest()
 }
