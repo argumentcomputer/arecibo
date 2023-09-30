@@ -3,7 +3,11 @@ use crate::gadgets::utils::alloc_const;
 use crate::gadgets::utils::alloc_num_equals;
 use crate::gadgets::utils::conditionally_select;
 use crate::gadgets::utils::{alloc_one, alloc_zero};
+use crate::provider::bn256_grumpkin::bn256;
+use crate::provider::bn256_grumpkin::grumpkin;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
+use crate::provider::secp_secq::secp256k1;
+use crate::provider::secp_secq::secq256k1;
 use crate::traits::circuit_supernova::{
   EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
 };
@@ -13,6 +17,7 @@ use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use core::marker::PhantomData;
 use ff::Field;
 use ff::PrimeField;
+use std::fmt::Write;
 use tap::TapOptional;
 
 use super::*;
@@ -656,4 +661,77 @@ fn test_recursive_circuit() {
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
   test_recursive_circuit_with::<G1, G2>(&params1, &params2, ro_consts1, ro_consts2, 9836, 12035);
+}
+
+fn test_pp_digest_with<G1, G2, T1, T2, NC>(non_uniform_circuit: &NC, expected: &str)
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  T1: StepCircuit<G1::Scalar>,
+  T2: StepCircuit<G2::Scalar>,
+  NC: NonUniformCircuit<G1, G2, T1, T2>,
+{
+  // TODO: add back in https://github.com/lurk-lab/arecibo/issues/53
+  // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
+  // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
+  // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
+  let pp = PublicParams::<G1, G2, T1, T2>::new(non_uniform_circuit);
+
+  let digest_str = pp
+    .digest()
+    .to_repr()
+    .as_ref()
+    .iter()
+    .fold(String::new(), |mut output, b| {
+      let _ = write!(output, "{b:02x}");
+      output
+    });
+  assert_eq!(digest_str, expected);
+}
+
+#[test]
+fn test_supernova_pp_digest() {
+  type G1 = pasta_curves::pallas::Point;
+  type G2 = pasta_curves::vesta::Point;
+
+  let rom = vec![
+    OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
+    OPCODE_1,
+  ]; // Rom can be arbitrary length.
+  let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<<G2 as Group>::Scalar>>::new(rom);
+
+  test_pp_digest_with::<G1, G2, _, _, _>(
+    &test_rom,
+    "989e3756cf76e0af1f0e76ced6fc356404d7beedcee5ad244dad25ed08809e00",
+  );
+
+  let rom = vec![
+    OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
+    OPCODE_1,
+  ]; // Rom can be arbitrary length.
+  let test_rom_grumpkin = TestROM::<
+    bn256::Point,
+    grumpkin::Point,
+    TrivialSecondaryCircuit<<grumpkin::Point as Group>::Scalar>,
+  >::new(rom);
+
+  test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, _>(
+    &test_rom_grumpkin,
+    "0b8c080ffa823b95d1dd75b6a5b49852c53ff60fbead6652af6d2a0bd177b800",
+  );
+
+  let rom = vec![
+    OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
+    OPCODE_1,
+  ]; // Rom can be arbitrary length.
+  let test_rom_secp = TestROM::<
+    secp256k1::Point,
+    secq256k1::Point,
+    TrivialSecondaryCircuit<<secq256k1::Point as Group>::Scalar>,
+  >::new(rom);
+
+  test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, _>(
+    &test_rom_secp,
+    "3ae4759aa0338bcc6ac11b456c17803467a1f44364992e3f1a0c6344b0135703",
+  );
 }
