@@ -19,8 +19,7 @@ pub struct NIFS<G: Group> {
   pub(crate) comm_T: CompressedCommitment<G>,
 }
 
-type ROConstants<G> =
-  <<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants;
+type ROConstants<G> = <<G as Group>::RO as ROTrait>::Constants;
 
 impl<G: Group> NIFS<G> {
   /// Takes as input a Relaxed R1CS instance-witness tuple `(U1, W1)` and
@@ -172,8 +171,7 @@ mod tests {
     let mut cs: TestShapeCS<G> = TestShapeCS::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, None);
     let (shape, ck) = cs.r1cs_shape_and_key(None);
-    let ro_consts =
-      <<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants::default();
+    let ro_consts = <<G as Group>::RO as ROTrait>::Constants::default();
 
     // Now get the instance and assignment for one instance
     let mut cs: SatisfyingAssignment<G> = SatisfyingAssignment::new();
@@ -213,7 +211,7 @@ mod tests {
 
   fn execute_sequence<G>(
     ck: &CommitmentKey<G>,
-    ro_consts: &<<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants,
+    ro_consts: &<<G as Group>::RO as ROTrait>::Constants,
     pp_digest: &<G as Group>::Scalar,
     shape: &R1CSShape<G>,
     U1: &R1CSInstance<G>,
@@ -332,8 +330,7 @@ mod tests {
 
     // generate generators and ro constants
     let ck = commitment_key(&S, None);
-    let ro_consts =
-      <<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants::default();
+    let ro_consts = <<G as Group>::RO as ROTrait>::Constants::default();
 
     let rand_inst_witness_generator =
       |ck: &CommitmentKey<G>, I: &G::Scalar| -> (G::Scalar, R1CSInstance<G>, R1CSWitness<G>) {

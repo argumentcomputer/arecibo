@@ -556,7 +556,7 @@ where
 
     // check if the output hashes in R1CS instances point to the right running instances
     let (hash_primary, hash_secondary) = {
-      let mut hasher = <<G2 as Group>::RO as ROTrait<G2::Base, G2::Scalar>>::new(
+      let mut hasher = <<G2 as Group>::RO as ROTrait>::new(
         pp.ro_consts_secondary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
       );
@@ -570,7 +570,7 @@ where
       }
       self.r_U_secondary.absorb_in_ro(&mut hasher);
 
-      let mut hasher2 = <<G1 as Group>::RO as ROTrait<G1::Base, G1::Scalar>>::new(
+      let mut hasher2 = <<G1 as Group>::RO as ROTrait>::new(
         pp.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_secondary,
       );
@@ -839,7 +839,7 @@ where
 
     // check if the output hashes in R1CS instances point to the right running instances
     let (hash_primary, hash_secondary) = {
-      let mut hasher = <<G2 as Group>::RO as ROTrait<G2::Base, G2::Scalar>>::new(
+      let mut hasher = <<G2 as Group>::RO as ROTrait>::new(
         vk.ro_consts_secondary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_primary,
       );
@@ -853,7 +853,7 @@ where
       }
       self.r_U_secondary.absorb_in_ro(&mut hasher);
 
-      let mut hasher2 = <<G1 as Group>::RO as ROTrait<G1::Base, G1::Scalar>>::new(
+      let mut hasher2 = <<G1 as Group>::RO as ROTrait>::new(
         vk.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_secondary,
       );

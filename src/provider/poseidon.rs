@@ -56,12 +56,14 @@ where
   _p: PhantomData<Scalar>,
 }
 
-impl<Base, Scalar> ROTrait<Base, Scalar> for PoseidonRO<Base, Scalar>
+impl<Base, Scalar> ROTrait for PoseidonRO<Base, Scalar>
 where
   Base: PrimeField + PrimeFieldBits + Serialize + for<'de> Deserialize<'de>,
   Base::Repr: Abomonation,
   Scalar: PrimeField,
 {
+  type Base = Base;
+  type Scalar = Scalar;
   type CircuitRO = PoseidonROCircuit<Base>;
   type Constants = PoseidonConstantsCircuit<Base>;
 
@@ -127,11 +129,12 @@ where
   squeezed: bool,
 }
 
-impl<Scalar> ROCircuitTrait<Scalar> for PoseidonROCircuit<Scalar>
+impl<Scalar> ROCircuitTrait for PoseidonROCircuit<Scalar>
 where
   Scalar: PrimeField + PrimeFieldBits + Serialize + for<'de> Deserialize<'de>,
   Scalar::Repr: Abomonation,
 {
+  type Base = Scalar;
   type NativeRO<T: PrimeField> = PoseidonRO<Scalar, T>;
   type Constants = PoseidonConstantsCircuit<Scalar>;
 

@@ -56,10 +56,10 @@ pub trait Group:
 
   /// A type that represents a circuit-friendly sponge that consumes elements
   /// from the base field and squeezes out elements of the scalar field
-  type RO: ROTrait<Self::Base, Self::Scalar>;
+  type RO: ROTrait<Base = Self::Base, Scalar = Self::Scalar>;
 
   /// An alternate implementation of `Self::RO` in the circuit model
-  type ROCircuit: ROCircuitTrait<Self::Base>;
+  type ROCircuit: ROCircuitTrait<Base = Self::Base>;
 
   /// A type that provides a generic Fiat-Shamir transcript to be used when externalizing proofs
   type TE: TranscriptEngineTrait<Self>;
@@ -122,9 +122,14 @@ pub trait AbsorbInROTrait<G: Group> {
 }
 
 /// A helper trait that defines the behavior of a hash function that we use as an RO
-pub trait ROTrait<Base: PrimeField, Scalar> {
+pub trait ROTrait {
+  /// The type of the base field for the algebraic hash
+  type Base: PrimeField;
+  /// The type of the scalar field for the algebraic hash
+  type Scalar;
+
   /// The circuit alter ego of this trait impl - this constrains it to use the same constants
-  type CircuitRO: ROCircuitTrait<Base, Constants = Self::Constants>;
+  type CircuitRO: ROCircuitTrait<Base = Self::Base, Constants = Self::Constants>;
 
   /// A type representing constants/parameters associated with the hash function
   type Constants: Default
@@ -140,16 +145,19 @@ pub trait ROTrait<Base: PrimeField, Scalar> {
   fn new(constants: Self::Constants, num_absorbs: usize) -> Self;
 
   /// Adds a scalar to the internal state
-  fn absorb(&mut self, e: Base);
+  fn absorb(&mut self, e: Self::Base);
 
   /// Returns a challenge of `num_bits` by hashing the internal state
-  fn squeeze(&mut self, num_bits: usize) -> Scalar;
+  fn squeeze(&mut self, num_bits: usize) -> Self::Scalar;
 }
 
 /// A helper trait that defines the behavior of a hash function that we use as an RO in the circuit model
-pub trait ROCircuitTrait<Base: PrimeField> {
+pub trait ROCircuitTrait {
+  /// the type of the base field for the algebraic hash
+  type Base: PrimeField;
+
   /// the vanilla alter ego of this trait - this constrains it to use the same constants
-  type NativeRO<T: PrimeField>: ROTrait<Base, T, Constants = Self::Constants>;
+  type NativeRO<T: PrimeField>: ROTrait<Base = Self::Base, Constants = Self::Constants>;
 
   /// A type representing constants/parameters associated with the hash function on this Base field
   type Constants: Default
@@ -165,21 +173,19 @@ pub trait ROCircuitTrait<Base: PrimeField> {
   fn new(constants: Self::Constants, num_absorbs: usize) -> Self;
 
   /// Adds a scalar to the internal state
-  fn absorb(&mut self, e: &AllocatedNum<Base>);
+  fn absorb(&mut self, e: &AllocatedNum<Self::Base>);
 
   /// Returns a challenge of `num_bits` by hashing the internal state
   fn squeeze<CS>(&mut self, cs: CS, num_bits: usize) -> Result<Vec<AllocatedBit>, SynthesisError>
   where
-    CS: ConstraintSystem<Base>;
+    CS: ConstraintSystem<Self::Base>;
 }
 
 /// An alias for constants associated with `G::RO`
-pub type ROConstants<G> =
-  <<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants;
+pub type ROConstants<G> = <<G as Group>::RO as ROTrait>::Constants;
 
 /// An alias for constants associated with `G::ROCircuit`
-pub type ROConstantsCircuit<G> =
-  <<G as Group>::ROCircuit as ROCircuitTrait<<G as Group>::Base>>::Constants;
+pub type ROConstantsCircuit<G> = <<G as Group>::ROCircuit as ROCircuitTrait>::Constants;
 
 /// A helper trait for types with a group operation.
 pub trait GroupOps<Rhs = Self, Output = Self>:
