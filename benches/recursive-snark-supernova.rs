@@ -6,7 +6,7 @@ use criterion::*;
 use ff::PrimeField;
 use nova_snark::{
   supernova::NonUniformCircuit,
-  supernova::{PublicParams, RecursiveSNARK},
+  supernova::RecursiveSNARK,
   traits::{
     circuit_supernova::{StepCircuit, TrivialTestCircuit},
     Group,
@@ -65,8 +65,7 @@ where
   }
 }
 
-impl<G1, G2, S>
-  NonUniformCircuit<G1, G2, NonTrivialTestCircuit<G1::Scalar>, TrivialTestCircuit<G2::Scalar>>
+impl<G1, G2, S> NonUniformCircuit<G1, G2, NonTrivialTestCircuit<G1::Scalar>>
   for NonUniformBench<G1, G2, S>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -81,10 +80,6 @@ where
     assert!(circuit_index < self.num_circuits);
 
     NonTrivialTestCircuit::new(self.num_cons)
-  }
-
-  fn secondary_circuit(&self) -> TrivialTestCircuit<G2::Scalar> {
-    Default::default()
   }
 }
 
@@ -104,7 +99,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(1, num_cons);
-    let pp = PublicParams::new(&bench);
+    let running_claims = bench.setup_running_claims();
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -124,10 +119,9 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(
-          &pp,
-          0,
+          &running_claims[0],
           &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
+          running_claims.digest(),
           Some(program_counter),
           0,
           1,
@@ -138,10 +132,8 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
       });
 
       let res = recursive_snark.prove_step(
-        &pp,
-        0,
+        &running_claims[0],
         &bench.primary_circuit(0),
-        &bench.secondary_circuit(),
         &z0_primary,
         &z0_secondary,
       );
@@ -149,7 +141,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         println!("res failed {:?}", e);
       }
       assert!(res.is_ok());
-      let res = recursive_snark.verify(&pp, 0, &z0_primary, &z0_secondary);
+      let res = recursive_snark.verify(&running_claims[0], &z0_primary, &z0_secondary);
       if let Err(e) = &res {
         println!("res failed {:?}", e);
       }
@@ -166,10 +158,8 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         // produce a recursive SNARK for a step of the recursion
         assert!(black_box(&mut recursive_snark.clone())
           .prove_step(
-            black_box(&pp),
-            black_box(0),
+            black_box(&running_claims[0]),
             &bench.primary_circuit(0),
-            &bench.secondary_circuit(),
             black_box(&[<G1 as Group>::Scalar::from(2u64)]),
             black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )
@@ -182,8 +172,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
       b.iter(|| {
         assert!(black_box(&mut recursive_snark.clone())
           .verify(
-            black_box(&pp),
-            black_box(0),
+            black_box(&running_claims[0]),
             black_box(&[<G1 as Group>::Scalar::from(2u64)]),
             black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )
@@ -210,7 +199,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(2, num_cons);
-    let pp = PublicParams::new(&bench);
+    let running_claims = bench.setup_running_claims();
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -231,10 +220,9 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
         RecursiveSNARK::iter_base_step(
-          &pp,
-          0,
+          &running_claims[0],
           &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
+          running_claims.digest(),
           Some(program_counter),
           0,
           2,
@@ -246,10 +234,8 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
       if selected_augmented_circuit == 0 {
         let res = recursive_snark.prove_step(
-          &pp,
-          0,
+          &running_claims[0],
           &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
           &z0_primary,
           &z0_secondary,
         );
@@ -257,17 +243,15 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
           println!("res failed {:?}", e);
         }
         assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, 0, &z0_primary, &z0_secondary);
+        let res = recursive_snark.verify(&running_claims[0], &z0_primary, &z0_secondary);
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
         assert!(res.is_ok());
       } else if selected_augmented_circuit == 1 {
         let res = recursive_snark.prove_step(
-          &pp,
-          1,
+          &running_claims[1],
           &bench.primary_circuit(1),
-          &bench.secondary_circuit(),
           &z0_primary,
           &z0_secondary,
         );
@@ -275,7 +259,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
           println!("res failed {:?}", e);
         }
         assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, 1, &z0_primary, &z0_secondary);
+        let res = recursive_snark.verify(&running_claims[1], &z0_primary, &z0_secondary);
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -296,10 +280,8 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
         // produce a recursive SNARK for a step of the recursion
         assert!(black_box(&mut recursive_snark.clone())
           .prove_step(
-            black_box(&pp),
-            black_box(0),
+            black_box(&running_claims[0]),
             &bench.primary_circuit(0),
-            &bench.secondary_circuit(),
             black_box(&[<G1 as Group>::Scalar::from(2u64)]),
             black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )
@@ -312,8 +294,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
       b.iter(|| {
         assert!(black_box(&mut recursive_snark.clone())
           .verify(
-            black_box(&pp),
-            black_box(0),
+            black_box(&running_claims[0]),
             black_box(&[<G1 as Group>::Scalar::from(2u64)]),
             black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )
