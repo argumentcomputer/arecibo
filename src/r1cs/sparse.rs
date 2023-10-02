@@ -88,7 +88,11 @@ impl<F: PrimeField> SparseMatrix<F> {
 
   /// Multiply by a dense vector; uses rayon/gpu.
   /// This does not check that the shape of the matrix/vector are compatible.
-  #[tracing::instrument(skip_all, name = "SparseMatrix::multiply_vec_unchecked")]
+  #[tracing::instrument(
+    skip_all,
+    level = "trace",
+    name = "SparseMatrix::multiply_vec_unchecked"
+  )]
   pub fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
     self
       .indptr
