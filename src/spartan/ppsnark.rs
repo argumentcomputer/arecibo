@@ -668,7 +668,7 @@ impl<G: Group> SumcheckEngine<G> for InnerSumcheckInstance<G> {
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
-pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G = G>> {
   pk_ee: EE::ProverKey,
   S: R1CSShape<G>,
   S_repr: R1CSShapeSparkRepr<G>,
@@ -681,7 +681,7 @@ pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
-pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G = G>> {
   num_cons: usize,
   num_vars: usize,
   vk_ee: EE::VerifierKey,
@@ -691,14 +691,14 @@ pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
   digest: OnceCell<G::Scalar>,
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
+impl<G: Group, EE: EvaluationEngineTrait<G = G>> SimpleDigestible for VerifierKey<G, EE> {}
 
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
 /// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct RelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G = G>> {
   // commitment to oracles
   comm_Az: CompressedCommitment<G>,
   comm_Bz: CompressedCommitment<G>,
@@ -751,7 +751,7 @@ pub struct RelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
   eval_arg: EE::EvaluationArgument,
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> RelaxedR1CSSNARK<G, EE>
+impl<G: Group, EE: EvaluationEngineTrait<G = G>> RelaxedR1CSSNARK<G, EE>
 where
   <G::Scalar as PrimeField>::Repr: Abomonation,
 {
@@ -862,7 +862,7 @@ where
   }
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
+impl<G: Group, EE: EvaluationEngineTrait<G = G>> VerifierKey<G, EE> {
   fn new(
     num_cons: usize,
     num_vars: usize,
@@ -891,7 +891,8 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
   }
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> RelaxedR1CSSNARKTrait<G> for RelaxedR1CSSNARK<G, EE>
+impl<G: Group, EE: EvaluationEngineTrait<G = G>> RelaxedR1CSSNARKTrait<G>
+  for RelaxedR1CSSNARK<G, EE>
 where
   <G::Scalar as PrimeField>::Repr: Abomonation,
 {

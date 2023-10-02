@@ -40,11 +40,12 @@ pub struct EvaluationEngine<G: Group> {
   _p: PhantomData<G>,
 }
 
-impl<G> EvaluationEngineTrait<G> for EvaluationEngine<G>
+impl<G> EvaluationEngineTrait for EvaluationEngine<G>
 where
   G: Group,
   CommitmentKey<G>: CommitmentKeyExtTrait<G>,
 {
+  type G = G;
   type ProverKey = ProverKey<G>;
   type VerifierKey = VerifierKey<G>;
   type EvaluationArgument = InnerProductArgument<G>;

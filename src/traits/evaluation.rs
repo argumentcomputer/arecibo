@@ -9,7 +9,10 @@ use abomonation::Abomonation;
 use serde::{Deserialize, Serialize};
 
 /// A trait that ties different pieces of the commitment evaluation together
-pub trait EvaluationEngineTrait<G: Group>: Clone + Send + Sync {
+pub trait EvaluationEngineTrait: Clone + Send + Sync {
+  /// The group type used in the engine's homomorphic commitment scheme
+  type G: Group;
+
   /// A type that holds the prover key
   type ProverKey: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de> + Abomonation;
 
@@ -21,27 +24,27 @@ pub trait EvaluationEngineTrait<G: Group>: Clone + Send + Sync {
 
   /// A method to perform any additional setup needed to produce proofs of evaluations
   fn setup(
-    ck: &<<G as Group>::CE as CommitmentEngineTrait>::CommitmentKey,
+    ck: &<<Self::G as Group>::CE as CommitmentEngineTrait>::CommitmentKey,
   ) -> (Self::ProverKey, Self::VerifierKey);
 
   /// A method to prove the evaluation of a multilinear polynomial
   fn prove(
-    ck: &<<G as Group>::CE as CommitmentEngineTrait>::CommitmentKey,
+    ck: &<<Self::G as Group>::CE as CommitmentEngineTrait>::CommitmentKey,
     pk: &Self::ProverKey,
-    transcript: &mut G::TE,
-    comm: &<<G as Group>::CE as CommitmentEngineTrait>::Commitment,
-    poly: &[G::Scalar],
-    point: &[G::Scalar],
-    eval: &G::Scalar,
+    transcript: &mut <Self::G as Group>::TE,
+    comm: &<<Self::G as Group>::CE as CommitmentEngineTrait>::Commitment,
+    poly: &[<Self::G as Group>::Scalar],
+    point: &[<Self::G as Group>::Scalar],
+    eval: &<Self::G as Group>::Scalar,
   ) -> Result<Self::EvaluationArgument, NovaError>;
 
   /// A method to verify the purported evaluation of a multilinear polynomials
   fn verify(
     vk: &Self::VerifierKey,
-    transcript: &mut G::TE,
-    comm: &<<G as Group>::CE as CommitmentEngineTrait>::Commitment,
-    point: &[G::Scalar],
-    eval: &G::Scalar,
+    transcript: &mut <Self::G as Group>::TE,
+    comm: &<<Self::G as Group>::CE as CommitmentEngineTrait>::Commitment,
+    point: &[<Self::G as Group>::Scalar],
+    eval: &<Self::G as Group>::Scalar,
     arg: &Self::EvaluationArgument,
   ) -> Result<(), NovaError>;
 }

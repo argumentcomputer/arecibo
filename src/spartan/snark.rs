@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
-pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G = G>> {
   pk_ee: EE::ProverKey,
   S: R1CSShape<G>,
   #[abomonate_with(<G::Scalar as ff::PrimeField>::Repr)]
@@ -43,7 +43,7 @@ pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
-pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G = G>> {
   vk_ee: EE::VerifierKey,
   S: R1CSShape<G>,
   #[abomonation_skip]
@@ -51,9 +51,9 @@ pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
   digest: OnceCell<G::Scalar>,
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
+impl<G: Group, EE: EvaluationEngineTrait<G = G>> SimpleDigestible for VerifierKey<G, EE> {}
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
+impl<G: Group, EE: EvaluationEngineTrait<G = G>> VerifierKey<G, EE> {
   fn new(shape: R1CSShape<G>, vk_ee: EE::VerifierKey) -> Self {
     VerifierKey {
       vk_ee,
@@ -80,7 +80,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
 /// the commitment to a vector viewed as a polynomial commitment
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct RelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G = G>> {
   sc_proof_outer: SumcheckProof<G>,
   claims_outer: (G::Scalar, G::Scalar, G::Scalar),
   eval_E: G::Scalar,
@@ -91,7 +91,8 @@ pub struct RelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
   eval_arg: EE::EvaluationArgument,
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> RelaxedR1CSSNARKTrait<G> for RelaxedR1CSSNARK<G, EE>
+impl<G: Group, EE: EvaluationEngineTrait<G = G>> RelaxedR1CSSNARKTrait<G>
+  for RelaxedR1CSSNARK<G, EE>
 where
   <G::Scalar as ff::PrimeField>::Repr: Abomonation,
 {
