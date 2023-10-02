@@ -194,7 +194,9 @@ pub struct CommitmentEngine<G: Group> {
   _p: PhantomData<G>,
 }
 
-impl<G: Group> CommitmentEngineTrait<G> for CommitmentEngine<G> {
+impl<G: Group> CommitmentEngineTrait for CommitmentEngine<G> {
+  type G = G;
+
   type CommitmentKey = CommitmentKey<G>;
   type Commitment = Commitment<G>;
 
@@ -230,7 +232,7 @@ pub trait CommitmentKeyExtTrait<G: Group> {
 
   /// Reinterprets commitments as commitment keys
   fn reinterpret_commitments_as_ck(
-    c: &[<<<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment as CommitmentTrait<G>>::CompressedCommitment],
+    c: &[<<<G as Group>::CE as CommitmentEngineTrait>::Commitment as CommitmentTrait<G>>::CompressedCommitment],
   ) -> Result<Self, NovaError>
   where
     Self: Sized;

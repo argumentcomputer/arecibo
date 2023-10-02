@@ -21,15 +21,15 @@ pub trait EvaluationEngineTrait<G: Group>: Clone + Send + Sync {
 
   /// A method to perform any additional setup needed to produce proofs of evaluations
   fn setup(
-    ck: &<<G as Group>::CE as CommitmentEngineTrait<G>>::CommitmentKey,
+    ck: &<<G as Group>::CE as CommitmentEngineTrait>::CommitmentKey,
   ) -> (Self::ProverKey, Self::VerifierKey);
 
   /// A method to prove the evaluation of a multilinear polynomial
   fn prove(
-    ck: &<<G as Group>::CE as CommitmentEngineTrait<G>>::CommitmentKey,
+    ck: &<<G as Group>::CE as CommitmentEngineTrait>::CommitmentKey,
     pk: &Self::ProverKey,
     transcript: &mut G::TE,
-    comm: &<<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment,
+    comm: &<<G as Group>::CE as CommitmentEngineTrait>::Commitment,
     poly: &[G::Scalar],
     point: &[G::Scalar],
     eval: &G::Scalar,
@@ -39,7 +39,7 @@ pub trait EvaluationEngineTrait<G: Group>: Clone + Send + Sync {
   fn verify(
     vk: &Self::VerifierKey,
     transcript: &mut G::TE,
-    comm: &<<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment,
+    comm: &<<G as Group>::CE as CommitmentEngineTrait>::Commitment,
     point: &[G::Scalar],
     eval: &G::Scalar,
     arg: &Self::EvaluationArgument,

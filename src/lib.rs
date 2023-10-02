@@ -932,9 +932,9 @@ pub fn circuit_digest<
   cs.r1cs_shape().digest()
 }
 
-type CommitmentKey<G> = <<G as Group>::CE as CommitmentEngineTrait<G>>::CommitmentKey;
-type Commitment<G> = <<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment;
-type CompressedCommitment<G> = <<<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment as CommitmentTrait<G>>::CompressedCommitment;
+type CommitmentKey<G> = <<G as Group>::CE as CommitmentEngineTrait>::CommitmentKey;
+type Commitment<G> = <<G as Group>::CE as CommitmentEngineTrait>::Commitment;
+type CompressedCommitment<G> = <<<G as Group>::CE as CommitmentEngineTrait>::Commitment as CommitmentTrait<G>>::CompressedCommitment;
 type CE<G> = <G as Group>::CE;
 
 #[cfg(test)]
@@ -1014,8 +1014,8 @@ mod tests {
     G2: Group<Base = <G1 as Group>::Scalar>,
     T1: StepCircuit<G1::Scalar>,
     T2: StepCircuit<G2::Scalar>,
-    <G1::CE as CommitmentEngineTrait<G1>>::CommitmentKey: CommitmentKeyExtTrait<G1>,
-    <G2::CE as CommitmentEngineTrait<G2>>::CommitmentKey: CommitmentKeyExtTrait<G2>,
+    <G1::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G1>,
+    <G2::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G2>,
     <G1::Scalar as PrimeField>::Repr: Abomonation,
     <G2::Scalar as PrimeField>::Repr: Abomonation,
   {
@@ -1232,8 +1232,8 @@ mod tests {
     G1: Group<Base = <G2 as Group>::Scalar>,
     G2: Group<Base = <G1 as Group>::Scalar>,
     // this is due to the reliance on CommitmentKeyExtTrait as a bound in ipa_pc
-    <G1::CE as CommitmentEngineTrait<G1>>::CommitmentKey: CommitmentKeyExtTrait<G1>,
-    <G2::CE as CommitmentEngineTrait<G2>>::CommitmentKey: CommitmentKeyExtTrait<G2>,
+    <G1::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G1>,
+    <G2::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G2>,
     // this is due to the reliance on Abomonation
     <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
     <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
@@ -1329,8 +1329,8 @@ mod tests {
     G1: Group<Base = <G2 as Group>::Scalar>,
     G2: Group<Base = <G1 as Group>::Scalar>,
     // this is due to the reliance on CommitmentKeyExtTrait as a bound in ipa_pc
-    <G1::CE as CommitmentEngineTrait<G1>>::CommitmentKey: CommitmentKeyExtTrait<G1>,
-    <G2::CE as CommitmentEngineTrait<G2>>::CommitmentKey: CommitmentKeyExtTrait<G2>,
+    <G1::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G1>,
+    <G2::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G2>,
     // this is due to the reliance on Abomonation
     <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
     <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
@@ -1434,8 +1434,8 @@ mod tests {
     G1: Group<Base = <G2 as Group>::Scalar>,
     G2: Group<Base = <G1 as Group>::Scalar>,
     // this is due to the reliance on CommitmentKeyExtTrait as a bound in ipa_pc
-    <G1::CE as CommitmentEngineTrait<G1>>::CommitmentKey: CommitmentKeyExtTrait<G1>,
-    <G2::CE as CommitmentEngineTrait<G2>>::CommitmentKey: CommitmentKeyExtTrait<G2>,
+    <G1::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G1>,
+    <G2::CE as CommitmentEngineTrait>::CommitmentKey: CommitmentKeyExtTrait<G2>,
     // this is due to the reliance on Abomonation
     <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
     <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,

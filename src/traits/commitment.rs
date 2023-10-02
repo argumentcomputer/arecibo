@@ -82,7 +82,10 @@ pub trait Len {
 }
 
 /// A trait that ties different pieces of the commitment generation together
-pub trait CommitmentEngineTrait<G: Group>: Clone + Send + Sync {
+pub trait CommitmentEngineTrait: Clone + Send + Sync {
+  /// The group type which this commitment engine operates on
+  type G: Group;
+
   /// Holds the type of the commitment key
   /// The key should quantify its length in terms of group generators.
   type CommitmentKey: Len
@@ -96,11 +99,11 @@ pub trait CommitmentEngineTrait<G: Group>: Clone + Send + Sync {
     + Abomonation;
 
   /// Holds the type of the commitment
-  type Commitment: CommitmentTrait<G>;
+  type Commitment: CommitmentTrait<Self::G>;
 
   /// Samples a new commitment key of a specified size
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey;
 
   /// Commits to the provided vector using the provided generators
-  fn commit(ck: &Self::CommitmentKey, v: &[G::Scalar]) -> Self::Commitment;
+  fn commit(ck: &Self::CommitmentKey, v: &[<Self::G as Group>::Scalar]) -> Self::Commitment;
 }

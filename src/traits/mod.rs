@@ -65,7 +65,7 @@ pub trait Group:
   type TE: TranscriptEngineTrait<Self>;
 
   /// A type that defines a commitment engine over scalars in the group
-  type CE: CommitmentEngineTrait<Self>;
+  type CE: CommitmentEngineTrait<G = Self>;
 
   /// A method to compute a multiexponentation
   fn vartime_multiscalar_mul(

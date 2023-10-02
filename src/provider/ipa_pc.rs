@@ -50,7 +50,7 @@ where
   type EvaluationArgument = InnerProductArgument<G>;
 
   fn setup(
-    ck: &<<G as Group>::CE as CommitmentEngineTrait<G>>::CommitmentKey,
+    ck: &<<G as Group>::CE as CommitmentEngineTrait>::CommitmentKey,
   ) -> (Self::ProverKey, Self::VerifierKey) {
     let ck_c = G::CE::setup(b"ipa", 1);
 
