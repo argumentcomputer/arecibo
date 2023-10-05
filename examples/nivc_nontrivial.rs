@@ -244,10 +244,10 @@ where
   )
   .unwrap();
 
-  for hint_step in 1..NUM_STEPS {
+  for hint in hints.into_iter().take(NUM_STEPS).skip(1) {
     let example: ExampleSteps<G1, G2> = ExampleSteps {
       num_iter: NUM_STEPS,
-      hint: hints[hint_step],
+      hint,
       _p: PhantomData,
     };
 
