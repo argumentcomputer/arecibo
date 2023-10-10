@@ -100,6 +100,13 @@ impl<F: PrimeField> StepCircuit<F> for CubeRootCircuit<F> {
 
     let next_pc = AllocatedNum::alloc(cs.namespace(|| "pc_1"), || Ok(<F as Field>::ONE))?;
 
+    cs.enforce(
+      || "next_pc = 0",
+      |lc| lc + CS::one(),
+      |lc| lc + next_pc.get_variable(),
+      |lc| lc + CS::one(),
+    );
+
     Ok((Some(next_pc), vec![y]))
   }
 }
@@ -145,6 +152,13 @@ impl<F: PrimeField> StepCircuit<F> for FifthRootCircuit<F> {
     );
 
     let next_pc = AllocatedNum::alloc(cs.namespace(|| "pc_0"), || Ok(<F as Field>::ZERO))?;
+
+    cs.enforce(
+      || "next_pc = 0",
+      |lc| lc + CS::one(),
+      |lc| lc + next_pc.get_variable(),
+      |lc| lc,
+    );
 
     Ok((Some(next_pc), vec![y]))
   }
