@@ -1,15 +1,15 @@
-//! TODO: Make this into a test
 use std::marker::PhantomData;
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use ff::PrimeField;
-use nova_snark::supernova::PublicParams;
-use nova_snark::supernova::RecursiveSNARK;
-use nova_snark::traits::circuit_supernova::TrivialSecondaryCircuit;
+
 use nova_snark::{
-  supernova::NonUniformCircuit,
-  traits::{circuit_supernova::StepCircuit, Group},
+  supernova::{NonUniformCircuit, PublicParams, RecursiveSNARK},
+  traits::{
+    circuit_supernova::{StepCircuit, TrivialSecondaryCircuit},
+    Group,
+  },
 };
 
 const NUM_STEPS: usize = 10;
@@ -151,12 +151,12 @@ impl<F: PrimeField> StepCircuit<F> for FifthRootCircuit<F> {
 }
 
 #[derive(Debug, Clone)]
-enum TestCircuit<F: PrimeField> {
+enum ExampleCircuit<F: PrimeField> {
   Cube(CubeRootCircuit<F>),
   Fifth(FifthRootCircuit<F>),
 }
 
-impl<F: PrimeField> StepCircuit<F> for TestCircuit<F> {
+impl<F: PrimeField> StepCircuit<F> for ExampleCircuit<F> {
   fn arity(&self) -> usize {
     match self {
       Self::Cube(x) => x.arity(),
@@ -184,7 +184,8 @@ impl<F: PrimeField> StepCircuit<F> for TestCircuit<F> {
   }
 }
 
-impl<G1, G2> NonUniformCircuit<G1, G2, TestCircuit<G1::Scalar>, TrivialSecondaryCircuit<G2::Scalar>>
+impl<G1, G2>
+  NonUniformCircuit<G1, G2, ExampleCircuit<G1::Scalar>, TrivialSecondaryCircuit<G2::Scalar>>
   for ExampleSteps<G1, G2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -202,10 +203,10 @@ where
     }
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> TestCircuit<G1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> ExampleCircuit<G1::Scalar> {
     match circuit_index {
-      0 => TestCircuit::Cube(CubeRootCircuit::new(self.hint)),
-      1 => TestCircuit::Fifth(FifthRootCircuit::new(self.hint)),
+      0 => ExampleCircuit::Cube(CubeRootCircuit::new(self.hint)),
+      1 => ExampleCircuit::Fifth(FifthRootCircuit::new(self.hint)),
       _ => panic!("This shouldn't happen"),
     }
   }
@@ -281,6 +282,7 @@ fn main() {
   run_nivc_nontrivial_nondet_with::<pasta_curves::pallas::Point, pasta_curves::vesta::Point>();
 }
 
+// TODO: This should be factored out as described in issue #64
 fn field_as_usize<F: PrimeField>(x: F) -> usize {
   u32::from_le_bytes(x.to_repr().as_ref()[0..4].try_into().unwrap()) as usize
 }
