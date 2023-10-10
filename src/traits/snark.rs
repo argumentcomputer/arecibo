@@ -38,6 +38,7 @@ pub trait RelaxedR1CSSNARKTrait<G: Group>:
   fn prove(
     ck: &CommitmentKey<G>,
     pk: &Self::ProverKey,
+    S: &R1CSShape<G>,
     U: &RelaxedR1CSInstance<G>,
     W: &RelaxedR1CSWitness<G>,
   ) -> Result<Self, NovaError>;

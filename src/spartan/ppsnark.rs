@@ -670,7 +670,6 @@ impl<G: Group> SumcheckEngine<G> for InnerSumcheckInstance<G> {
 #[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
   pk_ee: EE::ProverKey,
-  S: R1CSShape<G>,
   S_repr: R1CSShapeSparkRepr<G>,
   S_comm: R1CSShapeSparkCommitment<G>,
   #[abomonate_with(<G::Scalar as PrimeField>::Repr)]
@@ -911,6 +910,7 @@ where
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     // check the provided commitment key meets minimal requirements
     assert!(ck.length() >= Self::commitment_key_floor()(S));
+
     let (pk_ee, vk_ee) = EE::setup(ck);
 
     // pad the R1CS matrices
@@ -923,7 +923,6 @@ where
 
     let pk = ProverKey {
       pk_ee,
-      S,
       S_repr,
       S_comm,
       vk_digest: vk.digest(),
@@ -937,17 +936,20 @@ where
   fn prove(
     ck: &CommitmentKey<G>,
     pk: &Self::ProverKey,
+    S: &R1CSShape<G>,
     U: &RelaxedR1CSInstance<G>,
     W: &RelaxedR1CSWitness<G>,
   ) -> Result<Self, NovaError> {
-    let W = W.pad(&pk.S); // pad the witness
+    // pad the R1CSShape
+    let S = S.pad();
+    // sanity check that R1CSShape has all required size characteristics
+    assert!(S.check_regular_shape());
+
+    let W = W.pad(&S); // pad the witness
     let mut transcript = G::TE::new(b"RelaxedR1CSSNARK");
 
     // a list of polynomial evaluation claims that will be batched
     let mut w_u_vec = Vec::new();
-
-    // sanity check that R1CSShape has certain size characteristics
-    pk.S.check_regular_shape();
 
     // append the verifier key (which includes commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
     transcript.absorb(b"vk", &pk.vk_digest);
@@ -957,7 +959,7 @@ where
     let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
 
     // compute Az, Bz, Cz
-    let (mut Az, mut Bz, mut Cz) = pk.S.multiply_vec(&z)?;
+    let (mut Az, mut Bz, mut Cz) = S.multiply_vec(&z)?;
 
     // commit to Az, Bz, Cz
     let (comm_Az, (comm_Bz, comm_Cz)) = rayon::join(
@@ -1000,7 +1002,7 @@ where
     // (2) send commitments to the following two oracles
     // E_row(i) = eq(tau, row(i)) for all i
     // E_col(i) = z(col(i)) for all i
-    let (mem_row, mem_col, E_row, E_col) = pk.S_repr.evaluation_oracles(&pk.S, &tau, &z);
+    let (mem_row, mem_col, E_row, E_col) = pk.S_repr.evaluation_oracles(&S, &tau, &z);
     let (comm_E_row, comm_E_col) =
       rayon::join(|| G::CE::commit(ck, &E_row), || G::CE::commit(ck, &E_col));
 
@@ -1314,7 +1316,7 @@ where
     // we need to prove that eval_z = z(r_prod) = (1-r_prod[0]) * W.w(r_prod[1..]) + r_prod[0] * U.x(r_prod[1..]).
     // r_prod was padded, so we now remove the padding
     let r_prod_unpad = {
-      let l = pk.S_repr.N.log_2() - (2 * pk.S.num_vars).log_2();
+      let l = pk.S_repr.N.log_2() - (2 * S.num_vars).log_2();
       r_prod[l..].to_vec()
     };
 
