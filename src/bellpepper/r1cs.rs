@@ -5,9 +5,7 @@
 use super::{shape_cs::ShapeCS, solver::SatisfyingAssignment, test_shape_cs::TestShapeCS};
 use crate::{
   errors::NovaError,
-  r1cs::{
-    commitment_key, sparse::SparseMatrix, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness,
-  },
+  r1cs::{commitment_key, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, SparseMatrix},
   traits::Group,
   CommitmentKey,
 };

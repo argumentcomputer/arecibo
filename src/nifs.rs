@@ -116,7 +116,7 @@ impl<G: Group> NIFS<G> {
 mod tests {
   use super::*;
   use crate::{
-    r1cs::{commitment_key, sparse::SparseMatrix},
+    r1cs::{commitment_key, SparseMatrix},
     traits::Group,
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
