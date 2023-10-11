@@ -51,6 +51,7 @@ pasta-msm = { git="https://github.com/lurk-lab/pasta-msm", branch="dev", version
 getrandom = { version = "0.2.0", default-features = false, features = ["js"] }
 
 [dev-dependencies]
+blake2s_simd = "1.0.2"
 criterion = { version = "0.4", features = ["html_reports"] }
 flate2 = "1.0"
 hex = "0.4.3"

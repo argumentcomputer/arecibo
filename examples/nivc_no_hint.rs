@@ -2,9 +2,10 @@ use std::marker::PhantomData;
 
 use bellpepper::gadgets::{blake2s::blake2s, multipack::pack_bits, sha256::sha256};
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use ff::Field;
-use ff::{PrimeField, PrimeFieldBits};
+use blake2s_simd::Params;
+use ff::{Field, PrimeField, PrimeFieldBits};
 use rand::rngs::OsRng;
+use sha2::{Digest, Sha256};
 
 use nova_snark::{
   supernova::{NonUniformCircuit, PublicParams, RecursiveSNARK},
@@ -15,10 +16,21 @@ use nova_snark::{
 };
 
 const NUM_STEPS: usize = 10;
+const NUM_BYTES: usize = 20;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct SHACircuit<F: PrimeField> {
+  next_pc: bool,
   _p: PhantomData<F>,
+}
+
+impl<F: PrimeField> SHACircuit<F> {
+  fn new(next_pc: bool) -> Self {
+    Self {
+      next_pc,
+      _p: PhantomData,
+    }
+  }
 }
 
 impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
@@ -36,39 +48,44 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
 
     let mut preimage_bits = preimage.to_bits_le(cs.namespace(|| "sha_preimage_bits"))?;
 
-    preimage_bits.truncate(160);
+    preimage_bits.truncate(8 * NUM_BYTES);
 
     let digest_bits = sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &digest_bits)?;
 
-    let new_pc = digest_bits[0].get_value().map(|bit| {
-      let new_pc = if bit {
-        AllocatedNum::alloc(cs.namespace(|| "sha_branch"), || Ok(F::ONE))
+    let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
+      if self.next_pc {
+        Ok(F::ONE)
       } else {
-        AllocatedNum::alloc(cs.namespace(|| "blake_branch"), || Ok(F::ZERO))
+        Ok(F::ZERO)
       }
-      .unwrap();
-      cs.enforce(
-        || "enforce new_pc",
-        |lc| lc + CS::one(),
-        |lc| lc + new_pc.get_variable(),
-        |_lc| digest_bits[0].lc(CS::one(), F::ONE),
-      );
-      new_pc
-    });
+    })?;
 
-    if _pc.is_some() {
-      assert!(new_pc.is_some())
-    }
+    cs.enforce(
+      || "enforce new_pc is first bit",
+      |lc| lc + CS::one(),
+      |lc| lc + new_pc.get_variable(),
+      |_| digest_bits.first().unwrap().lc(CS::one(), F::ONE),
+    );
 
-    Ok((new_pc, vec![digest]))
+    Ok((Some(new_pc), vec![digest]))
   }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct BlakeCircuit<F: PrimeField> {
+  next_pc: bool,
   _p: PhantomData<F>,
+}
+
+impl<F: PrimeField> BlakeCircuit<F> {
+  fn new(next_pc: bool) -> Self {
+    Self {
+      next_pc,
+      _p: PhantomData,
+    }
+  }
 }
 
 impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
@@ -85,33 +102,28 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
 
     let mut preimage_bits = preimage.to_bits_le(cs.namespace(|| "blake_preimage_bits"))?;
 
-    preimage_bits.truncate(160);
+    preimage_bits.truncate(8 * NUM_BYTES);
 
     let digest_bits = blake2s(cs.namespace(|| "blake2s"), &preimage_bits, b"personal")?;
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &digest_bits)?;
 
-    let new_pc = digest_bits[0].get_value().map(|bit| {
-      let new_pc = if bit {
-        AllocatedNum::alloc(cs.namespace(|| "sha_branch"), || Ok(F::ONE))
+    let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
+      if self.next_pc {
+        Ok(F::ONE)
       } else {
-        AllocatedNum::alloc(cs.namespace(|| "blake_branch"), || Ok(F::ZERO))
+        Ok(F::ZERO)
       }
-      .unwrap();
-      cs.enforce(
-        || "enforce new_pc",
-        |lc| lc + CS::one(),
-        |lc| lc + new_pc.get_variable(),
-        |_lc| digest_bits[0].lc(CS::one(), F::ONE),
-      );
-      new_pc
-    });
+    })?;
 
-    if _pc.is_some() {
-      assert!(new_pc.is_some())
-    }
+    cs.enforce(
+      || "enforce new_pc is first bit",
+      |lc| lc + CS::one(),
+      |lc| lc + new_pc.get_variable(),
+      |_| digest_bits.first().unwrap().lc(CS::one(), F::ONE),
+    );
 
-    Ok((new_pc, vec![digest]))
+    Ok((Some(new_pc), vec![digest]))
   }
 }
 
@@ -121,6 +133,7 @@ where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
+  next_pc: bool,
   _p: PhantomData<(G1, G2)>,
 }
 
@@ -128,9 +141,47 @@ impl<G1, G2> ExampleSteps<G1, G2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
+  <G1 as Group>::Scalar: PrimeFieldBits,
 {
-  fn new() -> Self {
-    Self { _p: PhantomData }
+  fn new(preimage: <G1 as Group>::Scalar) -> (Vec<bool>, Self) {
+    let mut hasher = Sha256::new();
+
+    hasher.update(preimage.to_repr().as_ref());
+    let digest = hasher.finalize();
+
+    let mut hashes: Vec<[u8; 32]> = vec![digest.into()];
+
+    for _ in 0..NUM_STEPS {
+      let last_hash = hashes.last().unwrap();
+      if last_hash[0] ^ 0b1000000 >> 7 == 1 {
+        let mut hasher = Sha256::new();
+
+        hasher.update(last_hash[..NUM_BYTES].as_ref());
+
+        let digest = hasher.finalize();
+
+        hashes.push(digest.into());
+      } else {
+        let digest = Params::new()
+          .personal(b"personal")
+          .hash(&last_hash[..NUM_BYTES]);
+
+        hashes.push(digest.as_ref().try_into().expect("wrong array length"));
+      }
+    }
+
+    let hints: Vec<bool> = hashes
+      .into_iter()
+      .map(|hash| hash[0] ^ 0b10000000 == 1)
+      .collect();
+
+    (
+      hints.clone(),
+      Self {
+        next_pc: hints[0],
+        _p: PhantomData,
+      },
+    )
   }
 }
 
@@ -185,8 +236,8 @@ where
 
   fn primary_circuit(&self, circuit_index: usize) -> ExampleCircuit<G1::Scalar> {
     match circuit_index {
-      0 => ExampleCircuit::Blake(Default::default()),
-      1 => ExampleCircuit::Sha(Default::default()),
+      0 => ExampleCircuit::Blake(BlakeCircuit::new(self.next_pc)),
+      1 => ExampleCircuit::Sha(SHACircuit::new(self.next_pc)),
       _ => panic!("This shouldn't happen"),
     }
   }
@@ -200,16 +251,17 @@ fn main() {
   type G1 = pasta_curves::pallas::Point;
   type G2 = pasta_curves::vesta::Point;
 
-  let example = ExampleSteps::<G1, G2>::new();
+  let rng = OsRng;
+
+  let initial_preimage = <G1 as Group>::Scalar::random(rng);
+
+  let (hints, example) = ExampleSteps::<G1, G2>::new(initial_preimage);
 
   let pp = PublicParams::new(&example);
 
   let initial_pc = example.initial_program_counter();
 
   let augmented_circuit_index = field_as_usize(initial_pc);
-
-  let rng = OsRng;
-  let initial_preimage = <G1 as Group>::Scalar::random(rng);
 
   let z0_primary = vec![initial_preimage];
   let z0_secondary = vec![<G2 as Group>::Scalar::ZERO];
@@ -227,7 +279,12 @@ fn main() {
   )
   .unwrap();
 
-  for _ in 0..NUM_STEPS {
+  for next_pc in hints.into_iter() {
+    let example = ExampleSteps::<G1, G2> {
+      next_pc,
+      _p: PhantomData,
+    };
+
     let program_counter = recursive_snark.get_program_counter();
 
     let augmented_circuit_index = field_as_usize(program_counter);
