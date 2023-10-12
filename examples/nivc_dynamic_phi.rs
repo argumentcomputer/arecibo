@@ -16,7 +16,8 @@ use nova_snark::{
 };
 
 const NUM_STEPS: usize = 10;
-const NUM_BYTES: usize = 20;
+const NUM_BYTES: usize = 31;
+const FIRST_BYTE: usize = 32 - NUM_BYTES;
 
 #[derive(Clone, Debug)]
 struct SHACircuit<F: PrimeField> {
@@ -46,13 +47,23 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
+    dbg!("sha");
+    dbg!(preimage.get_value());
+
     let mut preimage_bits = preimage.to_bits_le(cs.namespace(|| "sha_preimage_bits"))?;
 
     preimage_bits.truncate(8 * NUM_BYTES);
 
-    let digest_bits = sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
+    let mut digest_bits = sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
+
+    digest_bits.truncate(NUM_BYTES * 8);
+    digest_bits.reverse();
+
+    dbg!(digest_bits.len());
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &digest_bits)?;
+
+    dbg!(&digest.get_value());
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
       if self.next_pc {
@@ -100,11 +111,17 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
+    dbg!("blake");
+    dbg!(preimage.get_value());
+
     let mut preimage_bits = preimage.to_bits_le(cs.namespace(|| "blake_preimage_bits"))?;
 
     preimage_bits.truncate(8 * NUM_BYTES);
 
-    let digest_bits = blake2s(cs.namespace(|| "blake2s"), &preimage_bits, b"personal")?;
+    let mut digest_bits = blake2s(cs.namespace(|| "blake2s"), &preimage_bits, b"personal")?;
+
+    digest_bits.truncate(NUM_BYTES * 8);
+    digest_bits.reverse();
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &digest_bits)?;
 
@@ -146,33 +163,49 @@ where
   fn new(preimage: <G1 as Group>::Scalar) -> (Vec<bool>, Self) {
     let mut hasher = Sha256::new();
 
-    hasher.update(preimage.to_repr().as_ref());
+    let preimage_repr = preimage.to_repr();
+    let preimage_bytes: &[u8; 32] = preimage_repr.as_ref().try_into().expect("wrong size");
+    let first_input: &[u8; NUM_BYTES] =
+      preimage_bytes[FIRST_BYTE..].try_into().expect("wrong size");
+
+    dbg!(hex::encode(&first_input));
+
+    hasher.update(first_input);
     let digest = hasher.finalize();
 
-    let mut hashes: Vec<[u8; 32]> = vec![digest.into()];
+    let mut hashes: Vec<[u8; NUM_BYTES]> =
+      vec![digest[FIRST_BYTE..].try_into().expect("wrong size")];
 
     for _ in 0..NUM_STEPS {
       let last_hash = hashes.last().unwrap();
-      if last_hash[0] ^ 0b1000000 >> 7 == 1 {
+      if last_hash.last().unwrap() & 1 == 0 {
         let mut hasher = Sha256::new();
 
         hasher.update(last_hash[..NUM_BYTES].as_ref());
 
         let digest = hasher.finalize();
 
-        hashes.push(digest.into());
+        hashes.push(digest[FIRST_BYTE..].try_into().expect("wrong size"));
       } else {
         let digest = Params::new()
           .personal(b"personal")
           .hash(&last_hash[..NUM_BYTES]);
 
-        hashes.push(digest.as_ref().try_into().expect("wrong array length"));
+        hashes.push(
+          digest.as_ref()[FIRST_BYTE..]
+            .try_into()
+            .expect("wrong array length"),
+        );
       }
     }
 
+    let dbg_print: Vec<String> = hashes.iter().map(|hash| hex::encode(hash)).collect();
+
+    dbg!(dbg_print);
+
     let hints: Vec<bool> = hashes
       .into_iter()
-      .map(|hash| hash[0] ^ 0b10000000 == 1)
+      .map(|hash| hash[NUM_BYTES - 1] & 1 == 1)
       .collect();
 
     (
@@ -194,15 +227,15 @@ enum ExampleCircuit<F: PrimeField + PrimeFieldBits> {
 impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for ExampleCircuit<F> {
   fn arity(&self) -> usize {
     match self {
-      Self::Blake(_) => 1,
       Self::Sha(_) => 1,
+      Self::Blake(_) => 1,
     }
   }
 
   fn circuit_index(&self) -> usize {
     match self {
-      Self::Blake(_) => 0,
-      Self::Sha(_) => 1,
+      Self::Sha(_) => 0,
+      Self::Blake(_) => 1,
     }
   }
 
@@ -236,8 +269,8 @@ where
 
   fn primary_circuit(&self, circuit_index: usize) -> ExampleCircuit<G1::Scalar> {
     match circuit_index {
-      0 => ExampleCircuit::Blake(BlakeCircuit::new(self.next_pc)),
-      1 => ExampleCircuit::Sha(SHACircuit::new(self.next_pc)),
+      0 => ExampleCircuit::Sha(SHACircuit::new(self.next_pc)),
+      1 => ExampleCircuit::Blake(BlakeCircuit::new(self.next_pc)),
       _ => panic!("This shouldn't happen"),
     }
   }
@@ -256,6 +289,9 @@ fn main() {
   let initial_preimage = <G1 as Group>::Scalar::random(rng);
 
   let (hints, example) = ExampleSteps::<G1, G2>::new(initial_preimage);
+
+  dbg!(&hints);
+  dbg!(initial_preimage);
 
   let pp = PublicParams::new(&example);
 
