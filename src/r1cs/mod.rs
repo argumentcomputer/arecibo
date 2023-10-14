@@ -175,9 +175,9 @@ impl<G: Group> R1CSShape<G> {
   }
 
   // Checks regularity conditions on the R1CSShape, required in Spartan-class SNARKs
-  // Panics if num_cons, num_vars, or num_io are not powers of two, or if num_io > num_vars
+  // Returns false if num_cons, num_vars, or num_io are not powers of two, or if num_io > num_vars
   #[inline]
-  pub(crate) fn check_regular_shape(&self) -> bool {
+  pub(crate) fn is_regular_shape(&self) -> bool {
     let cons_valid = self.num_cons.next_power_of_two() == self.num_cons;
     let vars_valid = self.num_vars.next_power_of_two() == self.num_vars;
     let io_valid = self.num_io.next_power_of_two() == self.num_io;
@@ -680,7 +680,7 @@ mod tests {
 
   fn test_pad_tiny_r1cs_with<G: Group>() {
     let padded_r1cs = tiny_r1cs::<G>(3).pad();
-    padded_r1cs.check_regular_shape();
+    assert!(padded_r1cs.is_regular_shape());
 
     let expected_r1cs = tiny_r1cs::<G>(4);
 

@@ -943,7 +943,7 @@ where
     // pad the R1CSShape
     let S = S.pad();
     // sanity check that R1CSShape has all required size characteristics
-    assert!(S.check_regular_shape());
+    assert!(S.is_regular_shape());
 
     let W = W.pad(&S); // pad the witness
     let mut transcript = G::TE::new(b"RelaxedR1CSSNARK");
