@@ -738,7 +738,7 @@ where
     circuit_index: usize,
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
-  ) -> Result<(), SuperNovaError> {
+  ) -> Result<(Vec<G1::Scalar>, Vec<G2::Scalar>), SuperNovaError> {
     // number of steps cannot be zero
     if self.i == 0 {
       debug!("must verify on valid RecursiveSNARK where i > 0");
@@ -896,7 +896,7 @@ where
       e => SuperNovaError::NovaError(e),
     })?;
 
-    Ok(())
+    Ok((self.zi_primary.clone(), self.zi_secondary.clone()))
   }
 
   /// get program counter
