@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use bellpepper::gadgets::{blake2s::blake2s, multipack::pack_bits, sha256::sha256};
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bitvec::view::AsMutBits;
 use blake2s_simd::Params;
 use ff::{Field, PrimeField, PrimeFieldBits};
 use rand::rngs::OsRng;
@@ -16,7 +17,7 @@ use nova_snark::{
 };
 
 const NUM_STEPS: usize = 10;
-const NUM_BYTES: usize = 31;
+const NUM_BYTES: usize = 10;
 const FIRST_BYTE: usize = 32 - NUM_BYTES;
 
 #[derive(Clone, Debug)]
@@ -50,18 +51,82 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
     dbg!("sha");
     dbg!(preimage.get_value());
 
-    let mut preimage_bits = preimage.to_bits_le(cs.namespace(|| "sha_preimage_bits"))?;
+    let mut preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
 
     preimage_bits.truncate(8 * NUM_BYTES);
 
-    let mut digest_bits = sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
+    let preimage_bits_printed = preimage_bits.iter().fold(String::new(), |mut acc, b| {
+      let bit_string = match b.get_value() {
+        Some(true) => "1",
+        _ => "0",
+      };
+      acc.push_str(&format!("{}", bit_string));
+      acc
+    });
 
-    digest_bits.truncate(NUM_BYTES * 8);
-    digest_bits.reverse();
+    dbg!(preimage_bits_printed);
+
+    let mut blah = preimage_bits.clone();
+
+    let print_blah = blah
+      .chunks_mut(8)
+      .map(|chunk| {
+        chunk.reverse();
+        chunk
+      })
+      .rev()
+      .flatten()
+      .collect::<Vec<&mut Boolean>>();
+
+    let printblah2 = print_blah.iter().map(|b| b.get_value()).collect::<Vec<_>>();
+
+    let adjusted_preimage_bits_printed = printblah2.iter().fold(String::new(), |mut acc, b| {
+      let bit_string = match b {
+        Some(true) => "1",
+        _ => "0",
+      };
+      acc.push_str(&format!("{}", bit_string));
+      acc
+    });
+
+    dbg!(adjusted_preimage_bits_printed);
+
+    let preimage_prime = preimage.clone();
+
+    let mut preimage_prime_bits =
+      preimage_prime.to_bits_le_strict(cs.namespace(|| "preimage_prime_bits"))?;
+
+    preimage_prime_bits.truncate(8 * NUM_BYTES);
+
+    let preimage_bits_ingested = preimage_prime_bits
+      .chunks(8)
+      .map(|chunk| {
+        let mut chunk = chunk.to_vec();
+        chunk.reverse();
+        chunk
+      })
+      .rev()
+      .flatten()
+      .collect::<Vec<_>>();
+
+    let digest_bits = sha256(cs.namespace(|| "sha256"), preimage_bits_ingested.as_slice())?;
+
+    let mut new_digest_bits = digest_bits
+      .chunks(8)
+      .map(|chunk| {
+        let mut chunk = chunk.to_vec();
+        chunk.reverse();
+        chunk
+      })
+      .rev()
+      .flatten()
+      .collect::<Vec<Boolean>>();
+
+    new_digest_bits.truncate(NUM_BYTES * 8);
 
     dbg!(digest_bits.len());
 
-    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &digest_bits)?;
+    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &new_digest_bits)?;
 
     dbg!(&digest.get_value());
 
@@ -163,11 +228,16 @@ where
   fn new(preimage: <G1 as Group>::Scalar) -> (Vec<bool>, Self) {
     let mut hasher = Sha256::new();
 
-    let preimage_repr = preimage.to_repr();
-    let preimage_bytes: &[u8; 32] = preimage_repr.as_ref().try_into().expect("wrong size");
+    let mut preimage_repr = preimage.to_repr();
+    let preimage_bytes: &mut [u8; 32] = preimage_repr.as_mut().try_into().expect("wrong size");
+
+    preimage_bytes.reverse();
+
     let first_input: &[u8; NUM_BYTES] =
       preimage_bytes[FIRST_BYTE..].try_into().expect("wrong size");
 
+    dbg!(&first_input);
+    dbg!(&preimage);
     dbg!(hex::encode(&first_input));
 
     hasher.update(first_input);
@@ -177,7 +247,8 @@ where
       vec![digest[FIRST_BYTE..].try_into().expect("wrong size")];
 
     for _ in 0..NUM_STEPS {
-      let last_hash = hashes.last().unwrap();
+      let last_hash = hashes.last_mut().unwrap();
+
       if last_hash.last().unwrap() & 1 == 0 {
         let mut hasher = Sha256::new();
 
