@@ -41,6 +41,7 @@ use circuit::{
 use self::error::SuperNovaError;
 
 pub mod error;
+pub mod snark;
 pub(crate) mod utils;
 
 #[cfg(test)]
