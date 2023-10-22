@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// CSR format sparse matrix, We follow the names used by scipy.
 /// Detailed explanation here: <https://stackoverflow.com/questions/52299420/scipy-csr-matrix-understand-indptr>
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_bounds(where <F as PrimeField>::Repr: Abomonation)]
 pub struct SparseMatrix<F: PrimeField> {
   #[abomonate_with(Vec<F::Repr>)]
@@ -24,6 +24,18 @@ pub struct SparseMatrix<F: PrimeField> {
   pub indptr: Vec<usize>,
   /// number of columns
   pub cols: usize,
+}
+
+/// [SparseMatrix]s are often large, and this helps with cloning bottlenecks
+impl<F: PrimeField> Clone for SparseMatrix<F> {
+  fn clone(&self) -> Self {
+    Self {
+      data: self.data.par_iter().cloned().collect(),
+      indices: self.indices.par_iter().cloned().collect(),
+      indptr: self.indptr.par_iter().cloned().collect(),
+      cols: self.cols,
+    }
+  }
 }
 
 impl<F: PrimeField> SparseMatrix<F> {

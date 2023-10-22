@@ -17,11 +17,20 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A type that holds commitment generators
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_omit_bounds]
 pub struct CommitmentKey<G: Group> {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<G::PreprocessedGroupElement>,
+}
+
+/// [CommitmentKey]s are often large, and this helps with cloning bottlenecks
+impl<G: Group> Clone for CommitmentKey<G> {
+  fn clone(&self) -> Self {
+    Self {
+      ck: self.ck.par_iter().cloned().collect(),
+    }
+  }
 }
 
 impl<G: Group> Len for CommitmentKey<G> {
