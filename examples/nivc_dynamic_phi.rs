@@ -2,10 +2,9 @@ use std::marker::PhantomData;
 
 use bellpepper::gadgets::{blake2s::blake2s, multipack::pack_bits, sha256::sha256};
 use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
-use bitvec::view::AsMutBits;
 use blake2s_simd::Params;
 use ff::{Field, PrimeField, PrimeFieldBits};
-use rand::rngs::OsRng;
+use rand::{rngs::OsRng, Rng};
 use sha2::{Digest, Sha256};
 
 use nova_snark::{
@@ -48,87 +47,44 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    dbg!("sha");
-    dbg!(preimage.get_value());
-
     let mut preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
 
-    preimage_bits.truncate(8 * NUM_BYTES);
+    let (_, preimage_bits) = preimage_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
 
-    let preimage_bits_printed = preimage_bits.iter().fold(String::new(), |mut acc, b| {
-      let bit_string = match b.get_value() {
-        Some(true) => "1",
-        _ => "0",
-      };
-      acc.push_str(&format!("{}", bit_string));
-      acc
-    });
+    // let preimage_bits_printed = preimage_bits.iter().fold(String::new(), |mut acc, b| {
+    //   let bit_string = match b.get_value() {
+    //     Some(true) => "1",
+    //     _ => "0",
+    //   };
+    //   acc.push_str(&format!("{}", bit_string));
+    //   acc
+    // });
 
-    dbg!(preimage_bits_printed);
-
-    let mut blah = preimage_bits.clone();
-
-    let print_blah = blah
-      .chunks_mut(8)
-      .map(|chunk| {
-        chunk.reverse();
-        chunk
-      })
-      .rev()
-      .flatten()
-      .collect::<Vec<&mut Boolean>>();
-
-    let printblah2 = print_blah.iter().map(|b| b.get_value()).collect::<Vec<_>>();
-
-    let adjusted_preimage_bits_printed = printblah2.iter().fold(String::new(), |mut acc, b| {
-      let bit_string = match b {
-        Some(true) => "1",
-        _ => "0",
-      };
-      acc.push_str(&format!("{}", bit_string));
-      acc
-    });
-
-    dbg!(adjusted_preimage_bits_printed);
-
-    let preimage_prime = preimage.clone();
-
-    let mut preimage_prime_bits =
-      preimage_prime.to_bits_le_strict(cs.namespace(|| "preimage_prime_bits"))?;
-
-    preimage_prime_bits.truncate(8 * NUM_BYTES);
-
-    let preimage_bits_ingested = preimage_prime_bits
+    let preimage_bits = preimage_bits
       .chunks(8)
       .map(|chunk| {
         let mut chunk = chunk.to_vec();
         chunk.reverse();
         chunk
       })
-      .rev()
       .flatten()
       .collect::<Vec<_>>();
 
-    let digest_bits = sha256(cs.namespace(|| "sha256"), preimage_bits_ingested.as_slice())?;
+    let digest_bits = sha256(cs.namespace(|| "sha256"), preimage_bits.as_slice())?;
 
-    let mut new_digest_bits = digest_bits
+    let mut digest_bits = digest_bits
       .chunks(8)
       .map(|chunk| {
         let mut chunk = chunk.to_vec();
         chunk.reverse();
         chunk
       })
-      .rev()
       .flatten()
       .collect::<Vec<Boolean>>();
 
-    new_digest_bits.truncate(NUM_BYTES * 8);
+    let (_, digest_bits) = digest_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
 
-    dbg!(digest_bits.len());
-
-    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &new_digest_bits)?;
-
-    dbg!(&digest.get_value());
+    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits)?;
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
       if self.next_pc {
@@ -142,7 +98,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
       || "enforce new_pc is first bit",
       |lc| lc + CS::one(),
       |lc| lc + new_pc.get_variable(),
-      |_| digest_bits.first().unwrap().lc(CS::one(), F::ONE),
+      |_| digest_bits.last().unwrap().lc(CS::one(), F::ONE),
     );
 
     Ok((Some(new_pc), vec![digest]))
@@ -176,19 +132,48 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    dbg!("blake");
-    dbg!(preimage.get_value());
+    let mut preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
 
-    let mut preimage_bits = preimage.to_bits_le(cs.namespace(|| "blake_preimage_bits"))?;
+    let (_, preimage_bits) = preimage_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
 
-    preimage_bits.truncate(8 * NUM_BYTES);
+    // let preimage_bits_printed = preimage_bits.iter().fold(String::new(), |mut acc, b| {
+    //   let bit_string = match b.get_value() {
+    //     Some(true) => "1",
+    //     _ => "0",
+    //   };
+    //   acc.push_str(&format!("{}", bit_string));
+    //   acc
+    // });
 
-    let mut digest_bits = blake2s(cs.namespace(|| "blake2s"), &preimage_bits, b"personal")?;
+    let preimage_bits = preimage_bits
+      .chunks(8)
+      .map(|chunk| {
+        let mut chunk = chunk.to_vec();
+        chunk.reverse();
+        chunk
+      })
+      .flatten()
+      .collect::<Vec<_>>();
 
-    digest_bits.truncate(NUM_BYTES * 8);
-    digest_bits.reverse();
+    let digest_bits = blake2s(
+      cs.namespace(|| "blake2s"),
+      preimage_bits.as_slice(),
+      b"personal",
+    )?;
 
-    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), &digest_bits)?;
+    let mut digest_bits = digest_bits
+      .chunks(8)
+      .map(|chunk| {
+        let mut chunk = chunk.to_vec();
+        chunk.reverse();
+        chunk
+      })
+      .flatten()
+      .collect::<Vec<Boolean>>();
+
+    let (_, digest_bits) = digest_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
+
+    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits)?;
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
       if self.next_pc {
@@ -202,7 +187,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
       || "enforce new_pc is first bit",
       |lc| lc + CS::one(),
       |lc| lc + new_pc.get_variable(),
-      |_| digest_bits.first().unwrap().lc(CS::one(), F::ONE),
+      |_| digest_bits.last().unwrap().lc(CS::one(), F::ONE),
     );
 
     Ok((Some(new_pc), vec![digest]))
@@ -231,14 +216,8 @@ where
     let mut preimage_repr = preimage.to_repr();
     let preimage_bytes: &mut [u8; 32] = preimage_repr.as_mut().try_into().expect("wrong size");
 
-    preimage_bytes.reverse();
-
     let first_input: &[u8; NUM_BYTES] =
       preimage_bytes[FIRST_BYTE..].try_into().expect("wrong size");
-
-    dbg!(&first_input);
-    dbg!(&preimage);
-    dbg!(hex::encode(&first_input));
 
     hasher.update(first_input);
     let digest = hasher.finalize();
@@ -270,13 +249,9 @@ where
       }
     }
 
-    let dbg_print: Vec<String> = hashes.iter().map(|hash| hex::encode(hash)).collect();
-
-    dbg!(dbg_print);
-
     let hints: Vec<bool> = hashes
       .into_iter()
-      .map(|hash| hash[NUM_BYTES - 1] & 1 == 1)
+      .map(|hash| hash.last().unwrap() & 1 == 1)
       .collect();
 
     (
@@ -342,7 +317,7 @@ where
     match circuit_index {
       0 => ExampleCircuit::Sha(SHACircuit::new(self.next_pc)),
       1 => ExampleCircuit::Blake(BlakeCircuit::new(self.next_pc)),
-      _ => panic!("This shouldn't happen"),
+      _ => panic!("invalid circuit index"),
     }
   }
 
@@ -355,19 +330,23 @@ fn main() {
   type G1 = pasta_curves::pallas::Point;
   type G2 = pasta_curves::vesta::Point;
 
-  let rng = OsRng;
+  let mut rng = OsRng;
 
-  let initial_preimage = <G1 as Group>::Scalar::random(rng);
+  let mut preimage_bytes = [0u8; 32];
+
+  for idx in 0..NUM_BYTES {
+    preimage_bytes[idx] = rng.gen::<u8>();
+  }
+
+  let initial_preimage = <G1 as Group>::Scalar::from_repr(preimage_bytes);
+
+  let initial_preimage = initial_preimage.unwrap();
 
   let (hints, example) = ExampleSteps::<G1, G2>::new(initial_preimage);
-
-  dbg!(&hints);
-  dbg!(initial_preimage);
 
   let pp = PublicParams::new(&example);
 
   let initial_pc = example.initial_program_counter();
-
   let augmented_circuit_index = field_as_usize(initial_pc);
 
   let z0_primary = vec![initial_preimage];
