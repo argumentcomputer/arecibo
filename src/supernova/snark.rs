@@ -2,13 +2,17 @@
 
 use std::marker::PhantomData;
 
+use ff::PrimeField;
+
 use crate::{
   constants::NUM_HASH_BITS,
   gadgets::utils::scalar_as_base,
+  nifs::NIFS,
   r1cs::RelaxedR1CSInstance,
   traits::{
     circuit_supernova::StepCircuit, snark::RelaxedR1CSSNARKTrait, AbsorbInROTrait, Group, ROTrait,
   },
+  NovaError, R1CSInstance,
 };
 
 use super::{error::SuperNovaError, PublicParams, RecursiveSNARK};
@@ -53,18 +57,21 @@ where
   S1: RelaxedR1CSSNARKTrait<G1>,
   S2: RelaxedR1CSSNARKTrait<G2>,
 {
-  primary_proofs: Vec<S1>,
-  secondary_proof: S2,
+  r_U_primary: Vec<RelaxedR1CSInstance<G1>>,
+  r_W_snark_primary: Vec<S1>,
+
+  r_U_secondary: RelaxedR1CSInstance<G2>,
+  l_u_secondary: R1CSInstance<G2>,
+  nifs_secondary: NIFS<G2>,
+  f_W_snark_secondary: S2,
 
   num_steps: usize,
-  last_circuit_idx: usize,
-
-  r_U_primary: RelaxedR1CSInstance<G1>,
-  r_U_secondary: RelaxedR1CSInstance<G2>,
+  program_counter: G1::Scalar,
 
   zn_primary: Vec<G1::Scalar>,
   zn_secondary: Vec<G2::Scalar>,
-  _p: PhantomData<(G1, G2, C1, C2)>,
+
+  _p: PhantomData<(C1, C2)>,
 }
 
 impl<G1, G2, C1, C2, S1, S2> CompressedSNARK<G1, G2, C1, C2, S1, S2>
@@ -117,44 +124,68 @@ where
     pk: &ProverKey<G1, G2, C1, C2, S1, S2>,
     recursive_snark: &RecursiveSNARK<G1, G2>,
   ) -> Result<Self, SuperNovaError> {
-    // TODO: Check if there's any pre-processing that needs to be done
+    let res_secondary = NIFS::prove(
+      &pp.ck_secondary,
+      &pp.ro_consts_secondary,
+      &scalar_as_base::<G1>(pp.digest()),
+      &pp.circuit_shape_secondary.r1cs_shape,
+      recursive_snark.r_U_secondary[0].as_ref().unwrap(),
+      &recursive_snark.r_W_secondary[0].as_ref().unwrap(),
+      &recursive_snark.l_u_secondary,
+      &recursive_snark.l_w_secondary,
+    );
 
-    let primary_proofs = pk
+    let (nifs_secondary, (f_U_secondary, f_W_secondary)) = res_secondary?;
+
+    let r_W_snark_primary = pk
       .pks_primary
       .iter()
       .zip(&recursive_snark.r_W_primary)
       .zip(&recursive_snark.r_U_primary)
       .map(|((pk, r_W), r_U)| {
-        let r_W = r_W.unwrap_or_else(|| panic!("Wrong number of circuits"));
-        let r_U = r_U.unwrap_or_else(|| panic!("Wrong number of circuits"));
+        let r_W = r_W
+          .as_ref()
+          .unwrap_or_else(|| panic!("Wrong number of circuits"));
+        let r_U = r_U
+          .as_ref()
+          .unwrap_or_else(|| panic!("Wrong number of circuits"));
         S1::prove(&pp.ck_primary, pk, &r_U, &r_W)
       })
       .collect::<Result<Vec<S1>, _>>()?;
 
-    let secondary_r_U = &recursive_snark.r_U_secondary[0].unwrap();
-    let secondary_r_W = &recursive_snark.r_W_secondary[0].unwrap();
-
-    let secondary_proof = S2::prove(
+    let f_W_snark_secondary = S2::prove(
       &pp.ck_secondary,
       &pk.pk_secondary,
-      secondary_r_U,
-      secondary_r_W,
+      &f_U_secondary,
+      &f_W_secondary,
     )?;
 
-    let last_circuit_idx = recursive_snark.augmented_circuit_index;
+    let r_U_primary = recursive_snark
+      .r_U_primary
+      .iter()
+      .enumerate()
+      .map(|(idx, r_U)| {
+        r_U
+          .clone()
+          .unwrap_or_else(|| RelaxedR1CSInstance::default(&pp.ck_primary, &pp[idx].r1cs_shape))
+      })
+      .collect::<Vec<_>>();
 
     let compressed_snark = CompressedSNARK {
-      primary_proofs,
-      secondary_proof,
+      r_U_primary,
+      r_W_snark_primary,
 
-      r_U_primary: recursive_snark.r_U_primary[last_circuit_idx].unwrap(),
-      r_U_secondary: recursive_snark.r_U_secondary[0].unwrap(),
+      r_U_secondary: recursive_snark.r_U_secondary[0].clone().unwrap(),
+      l_u_secondary: recursive_snark.l_u_secondary.clone(),
+      nifs_secondary,
+      f_W_snark_secondary,
 
       num_steps: recursive_snark.i,
-      last_circuit_idx,
+      program_counter: recursive_snark.program_counter,
 
-      zn_primary: recursive_snark.zi_primary, // TODO: I'm fairly certain this is right, but I should double check
-      zn_secondary: recursive_snark.zi_secondary,
+      zn_primary: recursive_snark.zi_primary.clone(),
+      zn_secondary: recursive_snark.zi_secondary.clone(),
+
       _p: PhantomData,
     };
 
@@ -169,8 +200,10 @@ where
     z0_primary: Vec<G1::Scalar>,
     z0_secondary: Vec<G2::Scalar>,
   ) -> Result<(Vec<G1::Scalar>, Vec<G2::Scalar>), SuperNovaError> {
+    let last_circuit_idx = field_as_usize(self.program_counter);
+
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
-    + 2 * pp[self.last_circuit_idx].F_arity // zo, z1
+    + 2 * pp[last_circuit_idx].F_arity // zo, z1
     + (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // # 1 * (7 + [X0, X1]*#num_limb)
 
     // secondary circuit
@@ -183,7 +216,7 @@ where
 
       hasher.absorb(pp.digest());
       hasher.absorb(G1::Scalar::from(self.num_steps as u64));
-      hasher.absorb(G1::Scalar::from(self.last_circuit_idx as u64));
+      hasher.absorb(self.program_counter);
 
       for e in z0_primary {
         hasher.absorb(e);
@@ -209,10 +242,9 @@ where
         hasher2.absorb(*e);
       }
 
-      let default_value =
-        RelaxedR1CSInstance::default(&pp.ck_primary, &pp[self.last_circuit_idx].r1cs_shape);
-
-      self.r_U_primary.absorb_in_ro(&mut hasher2); // TODO: This is wrong, I need to hash all the `r_U_primary` (add them in the proof?)
+      self.r_U_primary.iter().for_each(|U| {
+        U.absorb_in_ro(&mut hasher2);
+      });
 
       (
         hasher.squeeze(NUM_HASH_BITS),
@@ -220,18 +252,50 @@ where
       )
     };
 
-    let res = self
-      .primary_proofs
+    if hash_primary != self.l_u_secondary.X[0] {
+      return Err(NovaError::ProofVerifyError.into());
+    }
+
+    if hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.X[1]) {
+      return Err(NovaError::ProofVerifyError.into());
+    }
+
+    let res_primary = self
+      .r_W_snark_primary
       .iter()
-      .zip(vk.vks_primary)
-      .map(|(proof, vk)| {
-        let U = &self.r_U_primary;
+      .enumerate()
+      .zip(&vk.vks_primary)
+      .map(|((idx, proof), vk)| {
+        let U = &self.r_U_primary[idx];
         proof.verify(&vk, U)
       })
       .collect::<Vec<_>>();
 
-    Ok((z0_primary, z0_secondary))
+    let f_U_secondary = self.nifs_secondary.verify(
+      &pp.ro_consts_secondary,
+      &scalar_as_base::<G1>(pp.digest()),
+      &self.r_U_secondary,
+      &self.l_u_secondary,
+    )?;
+
+    let res_secondary = self
+      .f_W_snark_secondary
+      .verify(&vk.vk_secondary, &f_U_secondary);
+
+    res_primary
+      .iter()
+      .map(|res| res.clone().map_err(|_| NovaError::ProofVerifyError))
+      .collect::<Result<Vec<_>, _>>()?;
+
+    res_secondary?;
+
+    Ok((self.zn_primary.clone(), self.zn_secondary.clone()))
   }
+}
+
+// TODO: This should be factored out as described in issue #64
+fn field_as_usize<F: PrimeField>(x: F) -> usize {
+  u32::from_le_bytes(x.to_repr().as_ref()[0..4].try_into().unwrap()) as usize
 }
 
 #[cfg(test)]
