@@ -785,6 +785,7 @@ where
         S1::prove(
           &pp.ck_primary,
           &pk.pk_primary,
+          &pp.circuit_shape_primary.r1cs_shape,
           &recursive_snark.r_U_primary,
           &recursive_snark.r_W_primary,
         )
@@ -793,6 +794,7 @@ where
         S2::prove(
           &pp.ck_secondary,
           &pk.pk_secondary,
+          &pp.circuit_shape_secondary.r1cs_shape,
           &f_U_secondary,
           &f_W_secondary,
         )
