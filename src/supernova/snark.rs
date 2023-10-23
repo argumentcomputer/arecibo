@@ -130,7 +130,7 @@ where
       &scalar_as_base::<G1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
       recursive_snark.r_U_secondary[0].as_ref().unwrap(),
-      &recursive_snark.r_W_secondary[0].as_ref().unwrap(),
+      recursive_snark.r_W_secondary[0].as_ref().unwrap(),
       &recursive_snark.l_u_secondary,
       &recursive_snark.l_w_secondary,
     );
@@ -149,7 +149,7 @@ where
         let r_U = r_U
           .as_ref()
           .unwrap_or_else(|| panic!("Wrong number of circuits"));
-        S1::prove(&pp.ck_primary, pk, &r_U, &r_W)
+        S1::prove(&pp.ck_primary, pk, r_U, r_W)
       })
       .collect::<Result<Vec<S1>, _>>()?;
 
@@ -267,7 +267,7 @@ where
       .zip(&vk.vks_primary)
       .map(|((idx, proof), vk)| {
         let U = &self.r_U_primary[idx];
-        proof.verify(&vk, U)
+        proof.verify(vk, U)
       })
       .collect::<Vec<_>>();
 
