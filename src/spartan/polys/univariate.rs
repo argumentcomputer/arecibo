@@ -7,6 +7,7 @@ use std::{
 };
 
 use ff::PrimeField;
+use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +32,46 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
     let mut res = UniPoly { coeffs };
     res.truncate_leading_zeros();
     res
+  }
+
+  fn zero() -> Self {
+    UniPoly::new(Vec::new())
+  }
+
+  pub fn random<R: RngCore + CryptoRng>(degree: usize, mut rng: &mut R) -> Self {
+    let coeffs = (0..=degree).map(|_| Scalar::random(&mut rng)).collect();
+    UniPoly::new(coeffs)
+  }
+
+  /// Divide self by another polynomial, and returns the
+  /// quotient and remainder.
+  pub fn divide_with_q_and_r(&self, divisor: &Self) -> Option<(UniPoly<Scalar>, UniPoly<Scalar>)> {
+    if self.is_zero() {
+      Some((UniPoly::zero(), UniPoly::zero()))
+    } else if divisor.is_zero() {
+      panic!("Dividing by zero polynomial")
+    } else if self.degree() < divisor.degree() {
+      Some((UniPoly::zero(), self.clone()))
+    } else {
+      // Now we know that self.degree() >= divisor.degree();
+      let mut quotient = vec![Scalar::ZERO; self.degree() - divisor.degree() + 1];
+      let mut remainder: UniPoly<Scalar> = self.clone();
+      // Can unwrap here because we know self is not zero.
+      let divisor_leading_inv = divisor.leading_coefficient().unwrap().invert().unwrap();
+      while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
+        let cur_q_coeff = *remainder.leading_coefficient().unwrap() * divisor_leading_inv;
+        let cur_q_degree = remainder.degree() - divisor.degree();
+        quotient[cur_q_degree] = cur_q_coeff;
+
+        for (i, div_coeff) in divisor.coeffs.iter().enumerate() {
+          remainder.coeffs[cur_q_degree + i] -= &(cur_q_coeff * div_coeff);
+        }
+        while let Some(true) = remainder.coeffs.last().map(|c| c == &Scalar::ZERO) {
+          remainder.coeffs.pop();
+        }
+      }
+      Some((UniPoly::new(quotient), remainder))
+    }
   }
 
   pub fn is_zero(&self) -> bool {

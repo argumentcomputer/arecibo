@@ -131,45 +131,8 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     new_poly
   }
 
-  /// Compute quotient polynomials of the polynomial w.r.t. an input point
-  /// i.e. q_k s.t. $$self - v = \Sum_{k=0}^(n-1) q_k (X_k-point_k)$$
-  pub fn quotients(&self, point: &[Scalar]) -> (Vec<Vec<Scalar>>, Scalar) {
-    assert_eq!(self.get_num_vars(), point.len());
-
-    let mut remainder = self.Z.to_vec();
-    let mut quotients = point
-      .iter()
-      .enumerate()
-      .rev()
-      .map(|(num_var, x_i)| {
-        let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << num_var);
-        let mut quotient = vec![Scalar::ZERO; remainder_lo.len()];
-
-        quotient
-          .par_iter_mut()
-          .zip(&*remainder_lo)
-          .zip(&*remainder_hi)
-          .for_each(|((q, r_lo), r_hi)| {
-            *q = *r_hi - *r_lo;
-          });
-        remainder_lo
-          .par_iter_mut()
-          .zip(remainder_hi)
-          .for_each(|(r_lo, r_hi)| {
-            *r_lo += (*r_hi - r_lo as &_) * x_i;
-          });
-
-        remainder.truncate(1 << num_var);
-
-        quotient
-      })
-      .collect::<Vec<Vec<Scalar>>>();
-    quotients.reverse();
-
-    (quotients, remainder[0])
-  }
-
-  /// Evaluate the dense MLE at the given point
+  /// Evaluate the dense MLE at the given point. The MLE is assumed to be in
+  /// monomial basis.
   ///
   /// # Example
   /// ```
