@@ -288,8 +288,8 @@ impl<G: Group> R1CSShape<G> {
     ck: &CommitmentKey<G>,
     U1: &RelaxedR1CSInstance<G>,
     W1: &RelaxedR1CSWitness<G>,
-    U2: &R1CSInstance<G>,
-    W2: &R1CSWitness<G>,
+    U2: &RelaxedR1CSInstance<G>,
+    W2: &RelaxedR1CSWitness<G>,
   ) -> Result<(Vec<G::Scalar>, Commitment<G>), NovaError> {
     let (AZ_1, BZ_1, CZ_1) = tracing::trace_span!("AZ_1, BZ_1, CZ_1").in_scope(|| {
       let Z1 = [W1.W.clone(), vec![U1.u], U1.X.clone()].concat();
@@ -464,15 +464,15 @@ impl<G: Group> RelaxedR1CSWitness<G> {
     (CE::<G>::commit(ck, &self.W), CE::<G>::commit(ck, &self.E))
   }
 
-  /// Folds an incoming `R1CSWitness` into the current one
+  /// Folds an incoming `RelaxedR1CSWitness` into the current one
   pub fn fold(
     &self,
-    W2: &R1CSWitness<G>,
+    W2: &RelaxedR1CSWitness<G>,
     T: &[G::Scalar],
     r: &G::Scalar,
   ) -> Result<RelaxedR1CSWitness<G>, NovaError> {
     let (W1, E1) = (&self.W, &self.E);
-    let W2 = &W2.W;
+    let (W2, E2) = (&W2.W, &W2.E);
 
     if W1.len() != W2.len() {
       return Err(NovaError::InvalidWitnessLength);
@@ -483,10 +483,12 @@ impl<G: Group> RelaxedR1CSWitness<G> {
       .zip(W2)
       .map(|(a, b)| *a + *r * *b)
       .collect::<Vec<G::Scalar>>();
+    let r_squared = *r * *r;
     let E = E1
       .par_iter()
       .zip(T)
-      .map(|(a, b)| *a + *r * *b)
+      .zip(E2)
+      .map(|((a, b), c)| *a + *r * *b + r_squared * *c)
       .collect::<Vec<G::Scalar>>();
     Ok(RelaxedR1CSWitness { W, E })
   }
@@ -544,13 +546,13 @@ impl<G: Group> RelaxedR1CSInstance<G> {
   /// Folds an incoming `RelaxedR1CSInstance` into the current one
   pub fn fold(
     &self,
-    U2: &R1CSInstance<G>,
+    U2: &RelaxedR1CSInstance<G>,
     comm_T: &Commitment<G>,
     r: &G::Scalar,
   ) -> Result<RelaxedR1CSInstance<G>, NovaError> {
     let (X1, u1, comm_W_1, comm_E_1) =
       (&self.X, &self.u, &self.comm_W.clone(), &self.comm_E.clone());
-    let (X2, comm_W_2) = (&U2.X, &U2.comm_W);
+    let (X2, u2, comm_W_2, comm_E_2) = (&U2.X, &U2.u, &U2.comm_W, &U2.comm_E.clone());
 
     // weighted sum of X, comm_W, comm_E, and u
     let X = X1
@@ -559,8 +561,8 @@ impl<G: Group> RelaxedR1CSInstance<G> {
       .map(|(a, b)| *a + *r * *b)
       .collect::<Vec<G::Scalar>>();
     let comm_W = *comm_W_1 + *comm_W_2 * *r;
-    let comm_E = *comm_E_1 + *comm_T * *r;
-    let u = *u1 + *r;
+    let comm_E = *comm_E_1 + *comm_T * *r + *comm_E_2 * *r * *r;
+    let u = *u1 + *r * *u2;
 
     Ok(RelaxedR1CSInstance {
       comm_W,
@@ -599,6 +601,16 @@ impl<G: Group> AbsorbInROTrait<G> for RelaxedR1CSInstance<G> {
   }
 }
 
+impl<G: Group> RelaxedR1CSInstance<G> {
+  /// absorb as though this were a strict R1CSInstance
+  pub fn absorb_in_ro_as_strict(&self, ro: &mut G::RO) {
+    // TODO: add assertions checking E and u.
+    self.comm_W.absorb_in_ro(ro);
+    for x in &self.X {
+      ro.absorb(scalar_as_base::<G>(*x));
+    }
+  }
+}
 #[cfg(test)]
 mod tests {
   use ff::Field;

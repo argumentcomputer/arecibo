@@ -15,11 +15,13 @@ mod bellpepper;
 mod circuit;
 mod digest;
 mod nifs;
+mod parallel_circuit;
 
 // public modules
 pub mod constants;
 pub mod errors;
 pub mod gadgets;
+pub mod parallel_prover;
 pub mod provider;
 pub mod r1cs;
 pub mod spartan;
@@ -337,7 +339,11 @@ where
       z0_secondary,
       None,
       None,
-      Some(u_primary.clone()),
+      Some(RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_primary,
+        &pp.circuit_shape_primary.r1cs_shape,
+        &u_primary,
+      )),
       None,
     );
     let circuit_secondary: NovaAugmentedCircuit<'_, G1, C2> = NovaAugmentedCircuit::new(
@@ -434,8 +440,16 @@ where
       &pp.circuit_shape_secondary.r1cs_shape,
       &self.r_U_secondary,
       &self.r_W_secondary,
-      &self.l_u_secondary,
-      &self.l_w_secondary,
+      &RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_secondary,
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &self.l_u_secondary,
+      ),
+      &RelaxedR1CSWitness::from_r1cs_witness(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &self.l_w_secondary,
+      ),
+      false,
     )
     .expect("Unable to fold secondary");
 
@@ -446,7 +460,11 @@ where
       z0_primary,
       Some(self.zi_primary.clone()),
       Some(self.r_U_secondary.clone()),
-      Some(self.l_u_secondary.clone()),
+      Some(RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_secondary,
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &self.l_u_secondary,
+      )),
       Some(Commitment::<G2>::decompress(&nifs_secondary.comm_T)?),
     );
 
@@ -474,8 +492,13 @@ where
       &pp.circuit_shape_primary.r1cs_shape,
       &self.r_U_primary,
       &self.r_W_primary,
-      &l_u_primary,
-      &l_w_primary,
+      &RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_primary,
+        &pp.circuit_shape_primary.r1cs_shape,
+        &l_u_primary,
+      ),
+      &RelaxedR1CSWitness::from_r1cs_witness(&pp.circuit_shape_primary.r1cs_shape, &l_w_primary),
+      false,
     )
     .expect("Unable to fold primary");
 
@@ -486,7 +509,11 @@ where
       z0_secondary,
       Some(self.zi_secondary.clone()),
       Some(self.r_U_primary.clone()),
-      Some(l_u_primary),
+      Some(RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_primary,
+        &pp.circuit_shape_primary.r1cs_shape,
+        &l_u_primary,
+      )),
       Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
     );
 
@@ -703,7 +730,7 @@ where
   r_W_snark_primary: S1,
 
   r_U_secondary: RelaxedR1CSInstance<G2>,
-  l_u_secondary: R1CSInstance<G2>,
+  l_u_secondary: RelaxedR1CSInstance<G2>,
   nifs_secondary: NIFS<G2>,
   f_W_snark_secondary: S2,
 
@@ -773,8 +800,16 @@ where
       &pp.circuit_shape_secondary.r1cs_shape,
       &recursive_snark.r_U_secondary,
       &recursive_snark.r_W_secondary,
-      &recursive_snark.l_u_secondary,
-      &recursive_snark.l_w_secondary,
+      &RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_secondary,
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &recursive_snark.l_u_secondary,
+      ),
+      &RelaxedR1CSWitness::from_r1cs_witness(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &recursive_snark.l_w_secondary,
+      ),
+      false,
     );
 
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = res_secondary?;
@@ -806,7 +841,11 @@ where
       r_W_snark_primary: r_W_snark_primary?,
 
       r_U_secondary: recursive_snark.r_U_secondary.clone(),
-      l_u_secondary: recursive_snark.l_u_secondary.clone(),
+      l_u_secondary: RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_secondary,
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &recursive_snark.l_u_secondary,
+      ),
       nifs_secondary,
       f_W_snark_secondary: f_W_snark_secondary?,
 
@@ -887,6 +926,7 @@ where
       &scalar_as_base::<G1>(vk.pp_digest),
       &self.r_U_secondary,
       &self.l_u_secondary,
+      false,
     )?;
 
     // check the satisfiability of the folded instances using SNARKs proving the knowledge of their satisfying witnesses
@@ -954,7 +994,7 @@ mod tests {
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::marker::PhantomData;
   use ff::PrimeField;
-  use traits::circuit::TrivialCircuit;
+  use traits::circuit::{OutputStepCircuit, TrivialCircuit};
 
   #[derive(Clone, Debug, Default)]
   struct CubicCircuit<F: PrimeField> {
@@ -998,6 +1038,18 @@ mod tests {
       );
 
       Ok(vec![y])
+    }
+  }
+
+  impl<F> OutputStepCircuit<F> for CubicCircuit<F>
+  where
+    F: PrimeField,
+  {
+    fn output(&self, z: &[F]) -> Vec<F> {
+      let x = &z[0];
+      let x_sq = x.square();
+      let x_cu = *x * x_sq;
+      vec![x_cu]
     }
   }
 
@@ -1654,5 +1706,40 @@ mod tests {
     test_ivc_base_with::<G1, G2>();
     test_ivc_base_with::<bn256::Point, grumpkin::Point>();
     test_ivc_base_with::<secp256k1::Point, secq256k1::Point>();
+  }
+
+  #[test]
+  fn test_parallel_ivc_nontrivial() {
+    type G1 = pasta_curves::pallas::Point;
+    type G2 = pasta_curves::vesta::Point;
+
+    let circuit_primary = TrivialCircuit::default();
+    let circuit_secondary = CubicCircuit::default();
+
+    // produce public parameters
+    let pp = parallel_prover::PublicParams::<
+      G1,
+      G2,
+      TrivialCircuit<<G1 as Group>::Scalar>,
+      CubicCircuit<<G2 as Group>::Scalar>,
+    >::setup(
+      circuit_primary.clone(),
+      circuit_secondary.clone(),
+      None,
+      None,
+    );
+
+    let num_steps = 20;
+
+    let mut prover = parallel_prover::ParallelSNARK::new(
+      &pp,
+      num_steps,
+      vec![<G1 as Group>::Scalar::one()],
+      vec![<G2 as Group>::Scalar::zero()],
+      circuit_primary.clone(),
+      circuit_secondary.clone(),
+    );
+
+    prover.prove(&pp, &circuit_primary, &circuit_secondary);
   }
 }

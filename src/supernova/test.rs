@@ -619,6 +619,8 @@ fn test_recursive_circuit_with<G1, G2>(
   // Make sure that this is satisfiable
   assert!(shape1.is_sat(&ck1, &inst1, &witness1).is_ok());
 
+  let inst1 = RelaxedR1CSInstance::from_r1cs_instance(&ck1, &shape1, &inst1);
+
   // Execute the base case for the secondary
   let zero2 = <<G1 as Group>::Base as Field>::ZERO;
   let z0 = vec![zero2; arity2];

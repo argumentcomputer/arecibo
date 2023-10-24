@@ -20,6 +20,12 @@ pub trait StepCircuit<F: PrimeField>: Send + Sync + Clone {
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError>;
 }
 
+/// A trait for circuits that can explicitly compute their output, to aid in generating parallelizable execution traces.
+pub trait OutputStepCircuit<F: PrimeField> {
+  /// return the output of the step when provided with the step's input
+  fn output(&self, z: &[F]) -> Vec<F>;
+}
+
 /// A trivial step circuit that simply returns the input
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TrivialCircuit<F: PrimeField> {
@@ -40,5 +46,11 @@ where
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
     Ok(z.to_vec())
+  }
+}
+
+impl<F: PrimeField> OutputStepCircuit<F> for TrivialCircuit<F> {
+  fn output(&self, z: &[F]) -> Vec<F> {
+    z.to_vec()
   }
 }

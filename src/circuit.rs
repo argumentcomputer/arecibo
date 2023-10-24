@@ -13,7 +13,7 @@ use crate::{
       alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     },
   },
-  r1cs::{R1CSInstance, RelaxedR1CSInstance},
+  r1cs::RelaxedR1CSInstance,
   traits::{
     circuit::StepCircuit, commitment::CommitmentTrait, Group, ROCircuitTrait, ROConstantsCircuit,
   },
@@ -31,9 +31,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct NovaAugmentedCircuitParams {
-  limb_width: usize,
-  n_limbs: usize,
-  is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
+  pub(crate) limb_width: usize,
+  pub(crate) n_limbs: usize,
+  pub(crate) is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
 }
 
 impl NovaAugmentedCircuitParams {
@@ -54,7 +54,7 @@ pub struct NovaAugmentedCircuitInputs<G: Group> {
   z0: Vec<G::Base>,
   zi: Option<Vec<G::Base>>,
   U: Option<RelaxedR1CSInstance<G>>,
-  u: Option<R1CSInstance<G>>,
+  u: Option<RelaxedR1CSInstance<G>>,
   T: Option<Commitment<G>>,
 }
 
@@ -66,7 +66,7 @@ impl<G: Group> NovaAugmentedCircuitInputs<G> {
     z0: Vec<G::Base>,
     zi: Option<Vec<G::Base>>,
     U: Option<RelaxedR1CSInstance<G>>,
-    u: Option<R1CSInstance<G>>,
+    u: Option<RelaxedR1CSInstance<G>>,
     T: Option<Commitment<G>>,
   ) -> Self {
     Self {
@@ -372,6 +372,7 @@ mod tests {
     bellpepper::r1cs::{NovaShape, NovaWitness},
     gadgets::utils::scalar_as_base,
     provider::poseidon::PoseidonConstantsCircuit,
+    r1cs::RelaxedR1CSWitness,
     traits::circuit::TrivialCircuit,
   };
 
@@ -421,8 +422,11 @@ mod tests {
       NovaAugmentedCircuit::new(primary_params, Some(inputs1), &tc1, ro_consts1);
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1).unwrap();
+
+    let inst1 = RelaxedR1CSInstance::from_r1cs_instance(&ck1, &shape1, &inst1);
+    let witness1 = RelaxedR1CSWitness::from_r1cs_witness(&shape1, &witness1);
     // Make sure that this is satisfiable
-    assert!(shape1.is_sat(&ck1, &inst1, &witness1).is_ok());
+    assert!(shape1.is_sat_relaxed(&ck1, &inst1, &witness1).is_ok());
 
     // Execute the base case for the secondary
     let zero2 = <<G1 as Group>::Base as Field>::ZERO;

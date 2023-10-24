@@ -447,6 +447,11 @@ where
 
     // base case for the secondary
     let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
+    let relaxed_u_primary = RelaxedR1CSInstance::from_r1cs_instance(
+      &pp.ck_primary,
+      &pp[circuit_index].r1cs_shape,
+      &u_primary,
+    );
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
@@ -454,7 +459,7 @@ where
         z0_secondary,
         None,
         None,
-        Some(&u_primary),
+        Some(&relaxed_u_primary),
         None,
         None,
         G2::Scalar::from(circuit_index as u64),
@@ -576,8 +581,16 @@ where
       &pp.circuit_shape_secondary.r1cs_shape,
       self.r_U_secondary[0].as_ref().unwrap(),
       self.r_W_secondary[0].as_ref().unwrap(),
-      &self.l_u_secondary,
-      &self.l_w_secondary,
+      &RelaxedR1CSInstance::from_r1cs_instance(
+        &pp.ck_secondary,
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &self.l_u_secondary,
+      ),
+      &RelaxedR1CSWitness::from_r1cs_witness(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &self.l_w_secondary,
+      ),
+      false,
     )
     .map_err(SuperNovaError::NovaError)?;
 
@@ -588,6 +601,12 @@ where
     let mut cs_primary: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
     let T =
       Commitment::<G2>::decompress(&nifs_secondary.comm_T).map_err(SuperNovaError::NovaError)?;
+
+    let relaxed_l_u_secondary = RelaxedR1CSInstance::from_r1cs_instance(
+      &pp.ck_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
+      &self.l_u_secondary,
+    );
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<G1>(self.pp_digest),
@@ -595,7 +614,7 @@ where
         z0_primary,
         Some(&self.zi_primary),
         Some(&self.r_U_secondary),
-        Some(&self.l_u_secondary),
+        Some(&relaxed_l_u_secondary),
         Some(&T),
         Some(self.program_counter),
         G1::Scalar::ZERO,
@@ -635,8 +654,13 @@ where
         &pp[circuit_index].r1cs_shape,
         r_U_primary,
         r_W_primary,
-        &l_u_primary,
-        &l_w_primary,
+        &RelaxedR1CSInstance::from_r1cs_instance(
+          &pp.ck_primary,
+          &pp[circuit_index].r1cs_shape,
+          &l_u_primary,
+        ),
+        &RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, &l_w_primary),
+        false,
       )
       .map_err(SuperNovaError::NovaError)?,
       _ => NIFS::prove(
@@ -646,8 +670,13 @@ where
         &pp[circuit_index].r1cs_shape,
         &RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape),
         &RelaxedR1CSWitness::default(&pp[circuit_index].r1cs_shape),
-        &l_u_primary,
-        &l_w_primary,
+        &RelaxedR1CSInstance::from_r1cs_instance(
+          &pp.ck_primary,
+          &pp[circuit_index].r1cs_shape,
+          &l_u_primary,
+        ),
+        &RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, &l_w_primary),
+        false,
       )
       .map_err(SuperNovaError::NovaError)?,
     };
@@ -655,6 +684,12 @@ where
     let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
     let binding =
       Commitment::<G1>::decompress(&nifs_primary.comm_T).map_err(SuperNovaError::NovaError)?;
+
+    let relaxed_l_u_primary = RelaxedR1CSInstance::from_r1cs_instance(
+      &pp.ck_primary,
+      &pp[circuit_index].r1cs_shape,
+      &l_u_primary,
+    );
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
       SuperNovaAugmentedCircuitInputs::new(
         self.pp_digest,
@@ -662,7 +697,7 @@ where
         z0_secondary,
         Some(&self.zi_secondary),
         Some(&self.r_U_primary),
-        Some(&l_u_primary),
+        Some(&relaxed_l_u_primary),
         Some(&binding),
         None,
         G2::Scalar::from(circuit_index as u64),
