@@ -114,82 +114,6 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
       .map(|(a, b)| a * b)
       .sum()
   }
-
-  /// Evaluate the dense MLE at the given point. The MLE is assumed to be in
-  /// monomial basis.
-  ///
-  /// # Example
-  /// ```
-  /// use pasta_curves::pallas::Scalar as Fr;
-  /// use nova_snark::spartan::polys::multilinear::MultilinearPolynomial;
-  ///
-  /// // The two-variate polynomial x_0 + 3 * x_0 * x_1 + 2 evaluates to [2, 3, 2, 6]
-  /// // in the two-dimensional hypercube with points [00, 10, 01, 11]
-  /// let mle = MultilinearPolynomial::new(
-  ///     vec![2, 3, 2, 6].iter().map(|x| Fr::from(*x as u64)).collect()
-  /// );
-  ///
-  /// // By the uniqueness of MLEs, `mle` is precisely the above polynomial, which
-  /// // takes the value 54 at the point (1, 17)
-  /// let eval = mle.evaluate_opt(&[Fr::one(), Fr::from(17)]);
-  /// assert_eq!(eval, Fr::from(54));
-  /// ```
-  pub fn evaluate_opt(&self, point: &[Scalar]) -> Scalar {
-    assert_eq!(self.num_vars, point.len());
-    self.fix_variables(point).Z[0]
-  }
-
-  /// Return the MLE resulting from binding the first variables of self
-  /// to the values in `partial_point` (from left to right).
-  ///
-  /// # Example
-  /// ```
-  /// use pasta_curves::pallas::Scalar as Fr;
-  /// use nova_snark::spartan::polys::multilinear::MultilinearPolynomial;
-  ///
-  /// // Constructing the two-variate multilinear polynomial x_0 + 2 * x_1 + 3 * x_0 * x_1
-  /// // by specifying its evaluations at [00, 10, 01, 11]
-  /// let mle = MultilinearPolynomial::new(
-  ///     vec![0, 1, 2, 6].iter().map(|x| Fr::from(*x as u64)).collect()
-  /// );
-  ///
-  /// // Bind the first variable of the MLE to the value 5, resulting in
-  /// // the new polynomial 5 + 17 * x_1
-  /// let bound = mle.fix_variables(&[Fr::from(5)]);
-  ///
-  /// assert_eq!(bound.evaluations(), vec![Fr::from(5), Fr::from(22)]);
-  /// ```
-  /// }
-  pub fn fix_variables(&self, partial_point: &[Scalar]) -> Self {
-    assert!(
-      partial_point.len() <= self.num_vars,
-      "invalid size of partial point"
-    );
-    let nv = self.num_vars;
-    let mut poly = self.Z.clone();
-    let dim = partial_point.len();
-    // evaluate single variable of partial point from left to right
-    for (i, point) in partial_point.iter().enumerate().take(dim) {
-      poly = Self::fix_one_variable_helper(&poly, nv - i, point);
-    }
-    poly.truncate(1 << (nv - dim));
-
-    MultilinearPolynomial::new(poly)
-  }
-
-  fn fix_one_variable_helper(data: &[Scalar], nv: usize, point: &Scalar) -> Vec<Scalar> {
-    let mut res = vec![Scalar::ZERO; 1 << (nv - 1)];
-
-    // evaluate single variable of partial point from left to right
-    //  for i in 0..(1 << (nv - 1)) {
-    //     res[i] = data[i] + (data[(i << 1) + 1] - data[i << 1]) * point;
-    // }
-    res.par_iter_mut().enumerate().for_each(|(i, x)| {
-      *x = data[i << 1] + (data[(i << 1) + 1] - data[i << 1]) * point;
-    });
-
-    res
-  }
 }
 
 impl<Scalar: PrimeField> Index<usize> for MultilinearPolynomial<Scalar> {
@@ -272,7 +196,9 @@ mod tests {
   use crate::provider::{self, bn256_grumpkin::bn256, secp_secq::secp256k1};
 
   use super::*;
-  use pasta_curves::{pallas::Scalar, Fp};
+  use pasta_curves::Fp;
+  use rand_chacha::ChaCha20Rng;
+  use rand_core::SeedableRng;
 
   fn make_mlp<F: PrimeField>(len: usize, value: F) -> MultilinearPolynomial<F> {
     MultilinearPolynomial {
@@ -379,31 +305,5 @@ mod tests {
     test_evaluation_with::<Fp>();
     test_evaluation_with::<provider::bn256_grumpkin::bn256::Scalar>();
     test_evaluation_with::<provider::secp_secq::secp256k1::Scalar>();
-  }
-
-  #[test]
-  fn test_dense_evaluations() {
-    let num_vars = 2;
-    let Z = vec![
-      Scalar::one(),
-      Scalar::from(2u64),
-      Scalar::one(),
-      Scalar::from(4u64),
-    ];
-    let poly = MultilinearPolynomial::new(Z);
-
-    // r = [4,3]
-    let r = vec![Scalar::from(4u64), Scalar::from(3u64)];
-    // interpreted as ~eq (in the Lagrange basis)
-    // g(x_0,x_1) => c_0*(1 - x_0)(1 - x_1) + c_1*(1-x_0)(x_1) + c_2*(x_0)(1-x_1) + c_3*(x_0)(x_1)
-    // g(4, 3) = 1*(1 - 4)(1 - 3) + 2*(1-4)(3) + 1*(4)(1-3) + 4*(4)(3) = 6 - 18 - 8 + 48 = 28
-    let eval = poly.evaluate(&r);
-    assert_eq!(eval, Scalar::from(28u64));
-
-    // interpreted in the monomial basis
-    // [1, 2, 1, 4] -> 1 + 1 * x0 + 0 * x1+ 2 x0 * x1
-    // at x0 = 4, x1 = 3 -> 1 + 1 * 4 + 0 * 3 + 2 * 4 * 3 = 29
-    let eval_opt = poly.evaluate_opt(&r[..]);
-    assert_eq!(eval_opt, Scalar::from(29u64));
   }
 }
