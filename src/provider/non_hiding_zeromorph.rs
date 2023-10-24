@@ -189,7 +189,7 @@ where
     }
 
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
-    debug_assert_eq!(poly.evaluate_opt(point), eval.0);
+    debug_assert_eq!(poly.evaluate_BE(point), eval.0);
 
     let (quotients, remainder) = quotients(poly, point);
     debug_assert_eq!(remainder, eval.0);
@@ -527,7 +527,7 @@ mod test {
       let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
         .take(num_vars)
         .collect::<Vec<_>>();
-      let eval = ZMEvaluation(poly.evaluate_opt(&point));
+      let eval = ZMEvaluation(poly.evaluate_BE(&point));
 
       let mut transcript_prover = Keccak256Transcript::<E::G1>::new(b"test");
       let proof = ZMPCS::open(&pp, &comm, &poly, &point, &eval, &mut transcript_prover).unwrap();
@@ -577,11 +577,11 @@ mod test {
     }
     let (_quotients, remainder) = quotients(&poly, &point);
     assert_eq!(
-      poly.evaluate_opt(&point),
+      poly.evaluate_BE(&point),
       remainder,
       "point: {:?}, \n eval: {:?}, remainder:{:?}",
       point,
-      poly.evaluate_opt(&point),
+      poly.evaluate_BE(&point),
       remainder
     );
   }
