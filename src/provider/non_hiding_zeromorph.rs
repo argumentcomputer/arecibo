@@ -436,8 +436,19 @@ where
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     // TODO: the following two lines will need to change base
     let polynomial = MultilinearPolynomial::new(poly.to_vec());
+
+    // Nova evaluates in lower endian, the implementation assumes big endian
+    let rev_point = point.iter().rev().cloned().collect::<Vec<_>>();
+
     let evaluation = ZMEvaluation(*eval);
-    ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
+    ZMPCS::open(
+      pk,
+      &commitment,
+      &polynomial,
+      &rev_point,
+      &evaluation,
+      transcript,
+    )
   }
 
   fn verify(
@@ -450,8 +461,19 @@ where
   ) -> Result<(), NovaError> {
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     let evaluation = ZMEvaluation(*eval);
+
+    // Nova evaluates in lower endian, the implementation assumes big endian
+    let rev_point = point.iter().rev().cloned().collect::<Vec<_>>();
+
     // TODO: this clone is unsightly!
-    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg.clone())?;
+    ZMPCS::verify(
+      vk,
+      transcript,
+      &commitment,
+      &rev_point,
+      &evaluation,
+      arg.clone(),
+    )?;
     Ok(())
   }
 }
