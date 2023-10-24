@@ -197,7 +197,7 @@ where
     }
 
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
-    debug_assert_eq!(poly.evaluate_opt(point), eval.0);
+    debug_assert_eq!(poly.evaluate(point), eval.0);
 
     let (quotients, remainder) = quotients(poly, point);
     debug_assert_eq!(remainder, eval.0);
@@ -333,15 +333,15 @@ where
 /// (n - k) variables at, respectively, point'' = (point_k + 1, point_{k+1}, ..., point_{n-1}) and
 /// point' = (point_k, ..., point_{n-1}).
 fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Vec<Vec<F>>, F) {
-  assert_eq!(poly.get_num_vars(), point.len());
+  let num_var = poly.get_num_vars();
+  assert_eq!(num_var, point.len());
 
   let mut remainder = poly.Z.to_vec();
   let mut quotients = point
     .iter()
     .enumerate()
-    .rev()
-    .map(|(num_var, x_i)| {
-      let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << num_var);
+    .map(|(idx, x_i)| {
+      let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << (num_var - 1 - idx));
       let mut quotient = vec![F::ZERO; remainder_lo.len()];
 
       quotient
@@ -358,7 +358,7 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
           *r_lo += (*r_hi - r_lo as &_) * x_i;
         });
 
-      remainder.truncate(1 << num_var);
+      remainder.truncate(1 << (num_var - 1 - idx));
 
       quotient
     })
@@ -368,9 +368,8 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
   (quotients, remainder[0])
 }
 
-// TODO : move this somewhere else
-fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>) {
-  let num_vars = u.len();
+fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec<F>) {
+  let num_vars = point.len();
 
   let squares_of_x = iter::successors(Some(x), |&x| Some(x.square()))
     .take(num_vars + 1)
@@ -405,7 +404,7 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
     .zip(squares_of_x)
     .zip(&vs)
     .zip(&vs[1..])
-    .zip(u)
+    .zip(point.iter().rev()) // assume variables come in LE form
     .map(
       |(((((power_of_y, offset_of_x), square_of_x), v_i), v_j), u_i)| {
         -(power_of_y * offset_of_x + z * (square_of_x * v_j - *u_i * v_i))
@@ -446,6 +445,7 @@ where
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     // TODO: the following two lines will need to change base
     let polynomial = MultilinearPolynomial::new(poly.to_vec());
+
     let evaluation = ZMEvaluation(*eval);
     ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
   }
@@ -460,6 +460,7 @@ where
   ) -> Result<(), NovaError> {
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     let evaluation = ZMEvaluation(*eval);
+
     // TODO: this clone is unsightly!
     ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg.clone())?;
     Ok(())
@@ -517,7 +518,7 @@ mod test {
       let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
         .take(num_vars)
         .collect::<Vec<_>>();
-      let eval = ZMEvaluation(poly.evaluate_opt(&point));
+      let eval = ZMEvaluation(poly.evaluate(&point));
 
       let mut transcript_prover = Keccak256Transcript::<NE>::new(b"test");
       let proof = ZMPCS::open(&pp, &comm, &poly, &point, &eval, &mut transcript_prover).unwrap();
@@ -567,11 +568,11 @@ mod test {
     }
     let (_quotients, remainder) = quotients(&poly, &point);
     assert_eq!(
-      poly.evaluate_opt(&point),
+      poly.evaluate(&point),
       remainder,
       "point: {:?}, \n eval: {:?}, remainder:{:?}",
       point,
-      poly.evaluate_opt(&point),
+      poly.evaluate(&point),
       remainder
     );
   }

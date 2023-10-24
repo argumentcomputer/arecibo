@@ -7,7 +7,6 @@
   rust_2018_idioms,
   missing_docs
 )]
-#![allow(unused_variables)] // TODO: remove before merging!!!
 #![allow(non_snake_case)]
 // #![forbid(unsafe_code)] // Commented for development with `Abomonation`
 
@@ -1398,11 +1397,6 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
-  }
-
-  #[test]
-  #[ignore]
-  fn test_ivc_nontrivial_with_zm_compression() {
     test_ivc_nontrivial_with_compression_with::<
       Bn256EngineZM,
       GrumpkinEngine,
@@ -1509,11 +1503,6 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>(
     );
-  }
-
-  #[test]
-  #[ignore]
-  fn test_ivc_nontrivial_with_spark_zm_compression() {
     test_ivc_nontrivial_with_spark_compression_with::<
       Bn256EngineZM,
       GrumpkinEngine,
@@ -1662,11 +1651,6 @@ mod tests {
     test_ivc_nondet_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
-  }
-
-  #[test]
-  #[ignore]
-  fn test_ivc_nondet_with_zm_compression() {
     test_ivc_nondet_with_compression_with::<Bn256EngineZM, GrumpkinEngine, ZMPCS<Bn256, _>, EE<_>>(
     );
   }
