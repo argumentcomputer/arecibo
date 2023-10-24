@@ -205,7 +205,7 @@ fn main() {
       &*default_commitment_key_hint(),
       &*default_commitment_key_hint(),
     );
-    assert!(result.clone() == pp, "not equal!");
+    assert!(*result == pp, "not equal!");
     assert!(remaining.is_empty());
   } else {
     println!("Something terrible happened");
