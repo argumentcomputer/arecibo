@@ -103,6 +103,7 @@ pub mod poseidon;
 pub mod secp_secq;
 
 // a non-hiding variant of {kzg, zeromorph}
+pub mod kzg_commitment;
 pub mod non_hiding_kzg;
 pub mod non_hiding_zeromorph;
 
