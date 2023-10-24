@@ -433,7 +433,11 @@ where
     point: &[<E::G1 as Group>::Scalar],
     eval: &<E::G1 as Group>::Scalar,
   ) -> Result<Self::EvaluationArgument, NovaError> {
-    todo!()
+    let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
+    // TODO: the following two lines will need to change base
+    let polynomial = MultilinearPolynomial::new(poly.to_vec());
+    let evaluation = ZMEvaluation(*eval);
+    ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
   }
 
   fn verify(
@@ -444,7 +448,11 @@ where
     eval: &<E::G1 as Group>::Scalar,
     arg: &Self::EvaluationArgument,
   ) -> Result<(), NovaError> {
-    todo!()
+    let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
+    let evaluation = ZMEvaluation(*eval);
+    // TODO: this clone is unsightly!
+    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg.clone())?;
+    Ok(())
   }
 }
 
