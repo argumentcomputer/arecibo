@@ -9,7 +9,7 @@ use crate::{
   Commitment, CommitmentKey,
 };
 use abomonation_derive::Abomonation;
-use ff::{BatchInvert, Field};
+use ff::{BatchInvert, Field, PrimeField};
 use group::{Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rand::thread_rng;
@@ -189,7 +189,7 @@ where
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
     debug_assert_eq!(poly.evaluate_opt(point), eval.0);
 
-    let (quotients, remainder) = poly.quotients(point);
+    let (quotients, remainder) = quotients(poly, point);
     debug_assert_eq!(remainder, eval.0);
 
     // TODO: this should be a Cow
@@ -316,6 +316,48 @@ where
   }
 }
 
+/// Compute quotient polynomials of the polynomial w.r.t. an input point
+/// i.e. q_k s.t. $$self - v = \Sum_{k=0}^(n-1) q_k (X_k-point_k)$$
+///
+/// The polynomials q_k can be computed explicitly as the difference of the partial evaluation of self in the last
+/// (n - k) variables at, respectively, point'' = (point_k + 1, point_{k+1}, ..., point_{n-1}) and
+/// point' = (point_k, ..., point_{n-1}).
+fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Vec<Vec<F>>, F) {
+  assert_eq!(poly.get_num_vars(), point.len());
+
+  let mut remainder = poly.Z.to_vec();
+  let mut quotients = point
+    .iter()
+    .enumerate()
+    .rev()
+    .map(|(num_var, x_i)| {
+      let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << num_var);
+      let mut quotient = vec![F::ZERO; remainder_lo.len()];
+
+      quotient
+        .par_iter_mut()
+        .zip(&*remainder_lo)
+        .zip(&*remainder_hi)
+        .for_each(|((q, r_lo), r_hi)| {
+          *q = *r_hi - *r_lo;
+        });
+      remainder_lo
+        .par_iter_mut()
+        .zip(remainder_hi)
+        .for_each(|(r_lo, r_hi)| {
+          *r_lo += (*r_hi - r_lo as &_) * x_i;
+        });
+
+      remainder.truncate(1 << num_var);
+
+      quotient
+    })
+    .collect::<Vec<Vec<F>>>();
+  quotients.reverse();
+
+  (quotients, remainder[0])
+}
+
 // TODO : move this somewhere else
 fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>) {
   let num_vars = u.len();
@@ -420,6 +462,7 @@ mod test {
   use rand_chacha::ChaCha20Rng;
   use rand_core::SeedableRng;
 
+  use super::quotients;
   use crate::{
     provider::{
       bn256_grumpkin::bn256,
@@ -505,7 +548,7 @@ mod test {
     for scalar in point.iter() {
       println!("scalar: {:?}", scalar);
     }
-    let (_quotients, remainder) = poly.quotients(&point);
+    let (_quotients, remainder) = quotients(&poly, &point);
     assert_eq!(
       poly.evaluate_opt(&point),
       remainder,

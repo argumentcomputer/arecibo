@@ -180,52 +180,10 @@ pub struct UVKZGProof<E: Engine> {
 /// Polynomial and its associated types
 pub type UVKZGPoly<F> = crate::spartan::polys::univariate::UniPoly<F>;
 
-impl<F: PrimeField> UVKZGPoly<F> {
-  fn zero() -> Self {
-    UVKZGPoly::new(Vec::new())
-  }
-
-  pub fn random<R: RngCore + CryptoRng>(degree: usize, mut rng: &mut R) -> Self {
-    let coeffs = (0..=degree).map(|_| F::random(&mut rng)).collect();
-    UVKZGPoly::new(coeffs)
-  }
-
-  /// Divide self by another polynomial, and returns the
-  /// quotient and remainder.
-  fn divide_with_q_and_r(&self, divisor: &Self) -> Option<(UVKZGPoly<F>, UVKZGPoly<F>)> {
-    if self.is_zero() {
-      Some((UVKZGPoly::zero(), UVKZGPoly::zero()))
-    } else if divisor.is_zero() {
-      panic!("Dividing by zero polynomial")
-    } else if self.degree() < divisor.degree() {
-      Some((UVKZGPoly::zero(), self.clone()))
-    } else {
-      // Now we know that self.degree() >= divisor.degree();
-      let mut quotient = vec![F::ZERO; self.degree() - divisor.degree() + 1];
-      let mut remainder: UVKZGPoly<F> = self.clone();
-      // Can unwrap here because we know self is not zero.
-      let divisor_leading_inv = divisor.leading_coefficient().unwrap().invert().unwrap();
-      while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
-        let cur_q_coeff = *remainder.leading_coefficient().unwrap() * divisor_leading_inv;
-        let cur_q_degree = remainder.degree() - divisor.degree();
-        quotient[cur_q_degree] = cur_q_coeff;
-
-        for (i, div_coeff) in divisor.coeffs.iter().enumerate() {
-          remainder.coeffs[cur_q_degree + i] -= &(cur_q_coeff * div_coeff);
-        }
-        while let Some(true) = remainder.coeffs.last().map(|c| c == &F::ZERO) {
-          remainder.coeffs.pop();
-        }
-      }
-      Some((UVKZGPoly::new(quotient), remainder))
-    }
-  }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 /// KZG Polynomial Commitment Scheme on univariate polynomial.
-/// Note: this is non-hiding, which is why we will implement the EvaluationEngineTrait on this token struct,
-/// as we will have several impls for the trait pegged on the same instance of a pairing::Engine.
+/// Note: this is non-hiding, which is why we will implement traits on this token struct,
+/// as we expect to have several impls for the trait pegged on the same instance of a pairing::Engine.
 pub struct UVKZGPCS<E> {
   #[doc(hidden)]
   phantom: PhantomData<E>,
