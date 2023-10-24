@@ -22,11 +22,13 @@ use sha3::Shake256;
 use std::io::Read;
 
 use halo2curves::bn256::{
-  G1Affine as Bn256Affine, G1Compressed as Bn256Compressed, G1 as Bn256Point,
+  Bn256, G1Affine as Bn256Affine, G1Compressed as Bn256Compressed, G1 as Bn256Point,
 };
 use halo2curves::grumpkin::{
   G1Affine as GrumpkinAffine, G1Compressed as GrumpkinCompressed, G1 as GrumpkinPoint,
 };
+
+use super::kzg_commitment::KZGCommitmentEngine;
 
 /// Re-exports that give access to the standard aliases used in the code base, for bn256
 pub mod bn256 {
@@ -46,6 +48,10 @@ pub mod grumpkin {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Bn256Engine;
 
+/// An implementation of the Nova `Engine` trait with BN254 curve and Zeromorph commitment scheme
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Bn256EngineZM;
+
 /// An implementation of the Nova `Engine` trait with Grumpkin curve and Pedersen commitment scheme
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GrumpkinEngine;
@@ -59,6 +65,16 @@ impl_traits!(
   "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
   "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47"
 );
+
+impl Engine for Bn256EngineZM {
+  type Base = bn256::Base;
+  type Scalar = bn256::Scalar;
+  type GE = bn256::Point;
+  type RO = PoseidonRO<Self::Base, Self::Scalar>;
+  type ROCircuit = PoseidonROCircuit<Self::Base>;
+  type TE = Keccak256Transcript<Self>;
+  type CE = KZGCommitmentEngine<Bn256>;
+}
 
 impl_traits!(
   GrumpkinEngine,

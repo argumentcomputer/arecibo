@@ -946,7 +946,8 @@ mod tests {
   use super::*;
   use crate::{
     provider::{
-      bn256_grumpkin::{Bn256Engine, GrumpkinEngine},
+      bn256_grumpkin::{Bn256Engine, Bn256EngineZM, GrumpkinEngine},
+      non_hiding_zeromorph::ZMPCS,
       pasta::{PallasEngine, VestaEngine},
       secp_secq::{Secp256k1Engine, Secq256k1Engine},
       DlogGroup,
@@ -1089,6 +1090,18 @@ mod tests {
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "5aec6defcb0f6b2bb14aec70362419388916d7a5bc528c0b3fabb197ae57cb03",
+    );
+    #[cfg(not(feature = "asm"))]
+    test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
+      &trivial_circuit1_grumpkin,
+      &trivial_circuit2_grumpkin,
+      "53b303f439b613e097463863032d07424eae2dfc68ad00a928e65ba41bee8100",
+    );
+    #[cfg(not(feature = "asm"))]
+    test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
+      &cubic_circuit1_grumpkin,
+      &trivial_circuit2_grumpkin,
+      "588d21834fdfa16f5b569162cc3e098e81784047e4bee45a0e43112c5b46e701",
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
@@ -1337,7 +1350,7 @@ mod tests {
   #[test]
   #[ignore]
   fn test_ivc_nontrivial_with_zm_compression() {
-    test_ivc_nontrivial_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<Bn256EngineZM, GrumpkinEngine, ZMPCS<Bn256, _>, EE<_>>();
   }
 
   fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()
@@ -1438,6 +1451,12 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>(
     );
+  }
+
+  #[test]
+  #[ignore]
+  fn test_ivc_nontrivial_with_spark_zm_compression() {
+    test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineZM, GrumpkinEngine, ZMPCS<Bn256, _>, EE<_>>();
   }
 
   fn test_ivc_nondet_with_compression_with<E1, E2, EE1, EE2>()
@@ -1580,6 +1599,12 @@ mod tests {
     test_ivc_nondet_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
+  }
+
+  #[test]
+  #[ignore]
+  fn test_ivc_nondet_with_zm_compression() {
+    test_ivc_nondet_with_compression_with::<Bn256EngineZM, GrumpkinEngine, ZMPCS<Bn256, _>, EE<_>>();
   }
 
   fn test_ivc_base_with<E1, E2>()

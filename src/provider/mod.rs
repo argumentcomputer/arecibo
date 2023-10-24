@@ -231,7 +231,7 @@ macro_rules! impl_traits {
     $name_compressed:ident,
     $name_curve:ident,
     $name_curve_affine:ident,
-    $order_str:literal,
+    $order_str:expr,
     $base_str:literal
   ) => {
     impl Engine for $engine {
