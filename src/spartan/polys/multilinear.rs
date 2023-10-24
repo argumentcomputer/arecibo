@@ -45,6 +45,11 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     }
   }
 
+  /// evaluations of the polynomial in all the 2^num_vars Boolean inputs
+  pub fn evaluations(&self) -> &[Scalar] {
+    &self.Z[..]
+  }
+
   /// Returns the number of variables in the multilinear polynomial
   pub const fn get_num_vars(&self) -> usize {
     self.num_vars
@@ -164,13 +169,50 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     (quotients, remainder[0])
   }
 
-  /// Evaluate the MLE at a point
+  /// Evaluate the dense MLE at the given point
+  ///
+  /// # Example
+  /// ```
+  /// use pasta_curves::pallas::Scalar as Fr;
+  /// use nova_snark::spartan::polys::multilinear::MultilinearPolynomial;
+  ///
+  /// // The two-variate polynomial x_0 + 3 * x_0 * x_1 + 2 evaluates to [2, 3, 2, 6]
+  /// // in the two-dimensional hypercube with points [00, 10, 01, 11]
+  /// let mle = MultilinearPolynomial::new(
+  ///     vec![2, 3, 2, 6].iter().map(|x| Fr::from(*x as u64)).collect()
+  /// );
+  ///
+  /// // By the uniqueness of MLEs, `mle` is precisely the above polynomial, which
+  /// // takes the value 54 at the point (1, 17)
+  /// let eval = mle.evaluate_opt(&[Fr::one(), Fr::from(17)]);
+  /// assert_eq!(eval, Fr::from(54));
+  /// ```
   pub fn evaluate_opt(&self, point: &[Scalar]) -> Scalar {
     assert_eq!(self.num_vars, point.len());
     self.fix_variables(point).Z[0]
   }
 
-  /// Fix one variable of the MLE
+  /// Return the MLE resulting from binding the first variables of self
+  /// to the values in `partial_point` (from left to right).
+  ///
+  /// # Example
+  /// ```
+  /// use pasta_curves::pallas::Scalar as Fr;
+  /// use nova_snark::spartan::polys::multilinear::MultilinearPolynomial;
+  ///
+  /// // Constructing the two-variate multilinear polynomial x_0 + 2 * x_1 + 3 * x_0 * x_1
+  /// // by specifying its evaluations at [00, 10, 01, 11]
+  /// let mle = MultilinearPolynomial::new(
+  ///     vec![0, 1, 2, 6].iter().map(|x| Fr::from(*x as u64)).collect()
+  /// );
+  ///
+  /// // Bind the first variable of the MLE to the value 5, resulting in
+  /// // the new polynomial 5 + 17 * x_1
+  /// let bound = mle.fix_variables(&[Fr::from(5)]);
+  ///
+  /// assert_eq!(bound.evaluations(), vec![Fr::from(5), Fr::from(22)]);
+  /// ```
+  /// }
   pub fn fix_variables(&self, partial_point: &[Scalar]) -> Self {
     assert!(
       partial_point.len() <= self.num_vars,
