@@ -11,24 +11,25 @@ use crate::{
     },
     traits::DlogGroup,
   },
-  spartan::{math::Math, polys::multilinear::MultilinearPolynomial},
+  spartan::polys::multilinear::MultilinearPolynomial,
   traits::{
     commitment::Len, evaluation::EvaluationEngineTrait, Engine as NovaEngine, Group,
     TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey,
+  Commitment,
 };
 use abomonation_derive::Abomonation;
 use ff::{BatchInvert, Field, PrimeField};
 use group::{Curve, Group as _};
 use itertools::Itertools as _;
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
-use rand::thread_rng;
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
+
+use super::kzg_commitment::KZGCommitmentEngine;
 
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
@@ -134,6 +135,7 @@ pub struct ZMProof<E: Engine> {
 /// Zeromorph Polynomial Commitment Scheme on multilinear polynomials.
 /// Note: this is non-hiding, which is why we will implement the EvaluationEngineTrait on this token struct,
 /// as we will have several impls for the trait pegged on the same instance of a pairing::Engine.
+#[allow(clippy::upper_case_acronyms)]
 pub struct ZMPCS<E, NE> {
   #[doc(hidden)]
   phantom: PhantomData<(E, NE)>,
@@ -414,30 +416,26 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
   (-vs[0] * z, q_scalars)
 }
 
-impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>> EvaluationEngineTrait<NE>
-  for ZMPCS<E, NE>
+impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr, CE = KZGCommitmentEngine<E>>>
+  EvaluationEngineTrait<NE> for ZMPCS<E, NE>
 where
   E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
   E::G1Affine: Serialize + DeserializeOwned,
   E::G2Affine: Serialize + DeserializeOwned,
+  // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
+  <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
 {
   type ProverKey = ZMProverKey<E>;
-
   type VerifierKey = ZMVerifierKey<E>;
 
   type EvaluationArgument = ZMProof<E>;
 
-  fn setup(ck: &CommitmentKey<NE>) -> (Self::ProverKey, Self::VerifierKey) {
-    let max_vars = ck.length().log_2();
-    let mut rng = thread_rng();
-    let max_poly_size = 1 << (max_vars + 1);
-    let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
-
-    trim(&universal_setup, max_poly_size)
+  fn setup(ck: &UVUniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
+    trim(ck, ck.length() - 1)
   }
 
   fn prove(
-    ck: &CommitmentKey<NE>,
+    _ck: &UVUniversalKZGParam<E>,
     pk: &Self::ProverKey,
     transcript: &mut NE::TE,
     comm: &Commitment<NE>,
@@ -445,7 +443,11 @@ where
     point: &[NE::Scalar],
     eval: &NE::Scalar,
   ) -> Result<Self::EvaluationArgument, NovaError> {
-    todo!()
+    let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
+    // TODO: the following two lines will need to change base
+    let polynomial = MultilinearPolynomial::new(poly.to_vec());
+    let evaluation = ZMEvaluation(*eval);
+    ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
   }
 
   fn verify(
@@ -456,7 +458,11 @@ where
     eval: &NE::Scalar,
     arg: &Self::EvaluationArgument,
   ) -> Result<(), NovaError> {
-    todo!()
+    let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
+    let evaluation = ZMEvaluation(*eval);
+    // TODO: this clone is unsightly!
+    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg.clone())?;
+    Ok(())
   }
 }
 
@@ -474,11 +480,11 @@ mod test {
   use super::quotients;
   use crate::{
     provider::{
-      Bn256Engine,
       keccak::Keccak256Transcript,
       non_hiding_kzg::UVUniversalKZGParam,
       non_hiding_zeromorph::{trim, ZMEvaluation, ZMPCS},
       traits::DlogGroup,
+      Bn256Engine,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
     traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
