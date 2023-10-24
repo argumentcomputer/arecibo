@@ -145,7 +145,7 @@ impl<E: Engine> UVUniversalKZGParam<E> {
 }
 
 /// Commitments
-#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default, Serialize, Deserialize)]
 #[serde(bound(
   serialize = "E::G1Affine: Serialize",
   deserialize = "E::G1Affine: Deserialize<'de>"
@@ -160,8 +160,15 @@ where
   E::G1: Group,
 {
   fn to_transcript_bytes(&self) -> Vec<u8> {
-    // TODO: avoid the round-trip through the group
-    E::G1::from(self.0).compress().to_transcript_bytes()
+    // TODO: avoid the round-trip through the group (to_curve .. to_coordinates)
+    let (x, y, is_infinity) = self.0.to_curve().to_coordinates();
+    let is_infinity_byte = (!is_infinity).into();
+    [
+      x.to_transcript_bytes(),
+      y.to_transcript_bytes(),
+      [is_infinity_byte].to_vec(),
+    ]
+    .concat()
   }
 }
 

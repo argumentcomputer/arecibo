@@ -149,7 +149,7 @@ where
   ) -> Result<ZMCommitment<E>, NovaError> {
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
-      return Err(NovaError::PCSError(PCSError::LengthError)); // TODO: better error
+      return Err(PCSError::LengthError.into());
     }
     // TODO: remove the undue clone in the creation of an UVKZGPoly here
     UVKZGPCS::commit(&pp.commit_pp, &UVKZGPoly::new(poly.Z.clone())).map(|c| c.into())
