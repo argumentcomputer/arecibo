@@ -288,7 +288,7 @@ mod tests {
   use crate::provider::{self, bn256_grumpkin::bn256, secp_secq::secp256k1};
 
   use super::*;
-  use pasta_curves::Fp;
+  use pasta_curves::{pallas::Scalar, Fp};
 
   fn make_mlp<F: PrimeField>(len: usize, value: F) -> MultilinearPolynomial<F> {
     MultilinearPolynomial {
@@ -383,7 +383,7 @@ mod tests {
     let num_evals = 4;
     let mut evals: Vec<F> = Vec::with_capacity(num_evals);
     for _ in 0..num_evals {
-      evals.push(F::from_u128(8));
+      evals.push(F::from(8));
     }
     let dense_poly: MultilinearPolynomial<F> = MultilinearPolynomial::new(evals.clone());
 
@@ -410,5 +410,31 @@ mod tests {
     test_evaluation_with::<Fp>();
     test_evaluation_with::<provider::bn256_grumpkin::bn256::Scalar>();
     test_evaluation_with::<provider::secp_secq::secp256k1::Scalar>();
+  }
+
+  #[test]
+  fn test_dense_evaluations() {
+    let num_vars = 2;
+    let Z = vec![
+      Scalar::one(),
+      Scalar::from(2u64),
+      Scalar::one(),
+      Scalar::from(4u64),
+    ];
+    let poly = MultilinearPolynomial::new(Z);
+
+    // r = [4,3]
+    let r = vec![Scalar::from(4u64), Scalar::from(3u64)];
+    // interpreted as ~eq (in the Lagrange basis)
+    // g(x_0,x_1) => c_0*(1 - x_0)(1 - x_1) + c_1*(1-x_0)(x_1) + c_2*(x_0)(1-x_1) + c_3*(x_0)(x_1)
+    // g(4, 3) = 1*(1 - 4)(1 - 3) + 2*(1-4)(3) + 1*(4)(1-3) + 4*(4)(3) = 6 - 18 - 8 + 48 = 28
+    let eval = poly.evaluate(&r);
+    assert_eq!(eval, Scalar::from(28u64));
+
+    // interpreted in the monomial basis
+    // [1, 2, 1, 4] -> 1 + 1 * x0 + 0 * x1+ 2 x0 * x1
+    // at x0 = 4, x1 = 3 -> 1 + 1 * 4 + 0 * 3 + 2 * 4 * 3 = 29
+    let eval_opt = poly.evaluate_opt(&r[..]);
+    assert_eq!(eval_opt, Scalar::from(29u64));
   }
 }
