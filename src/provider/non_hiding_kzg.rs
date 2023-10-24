@@ -177,8 +177,6 @@ pub struct UVKZGProof<E: Engine> {
   pub proof: E::G1Affine,
 }
 
-// TODO: we are extending this into a real Dense UV Polynomial type,
-// and this is probably better organized elsewhere.
 /// Polynomial and its associated types
 pub type UVKZGPoly<F> = crate::spartan::polys::univariate::UniPoly<F>;
 
@@ -237,8 +235,6 @@ impl<E: MultiMillerLoop> UVKZGPCS<E>
 where
   E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
 {
-  // TODO: this relies on NovaError::InvalidIPA, which should really be extended to a sub-error enum
-  // called "PCSError"
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
   pub fn commit(
@@ -281,7 +277,6 @@ where
     let divisor = UVKZGPoly {
       coeffs: vec![-*point, E::Fr::ONE],
     };
-    // TODO: Better error
     let witness_polynomial = polynomial
       .divide_with_q_and_r(&divisor)
       .map(|(q, _r)| q)
@@ -311,7 +306,6 @@ where
     points: &[E::Fr],
   ) -> Result<(Vec<UVKZGProof<E>>, Vec<UVKZGEvaluation<E>>), NovaError> {
     if polynomials.len() != points.len() {
-      // TODO: a better Error
       return Err(NovaError::PCSError(PCSError::LengthError));
     }
     let mut batch_proof = vec![];
