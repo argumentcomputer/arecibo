@@ -137,27 +137,34 @@ impl<E: Engine> UVUniversalKZGParam<E> {
     let g = E::G1::random(&mut rng);
     let h = E::G2::random(rng);
 
-    let powers_of_g_projective = (0..=max_degree)
-      .scan(g, |acc, _| {
-        let val = *acc;
-        *acc *= beta;
-        Some(val)
-      })
-      .collect::<Vec<E::G1>>();
+    let (powers_of_g_projective, powers_of_h_projective) = rayon::join(
+      || {
+        (0..=max_degree)
+          .scan(g, |acc, _| {
+            let val = *acc;
+            *acc *= beta;
+            Some(val)
+          })
+          .collect::<Vec<E::G1>>()
+      },
+      || {
+        (0..=max_degree)
+          .scan(h, |acc, _| {
+            let val = *acc;
+            *acc *= beta;
+            Some(val)
+          })
+          .collect::<Vec<E::G2>>()
+      },
+    );
 
     let mut powers_of_g = vec![E::G1Affine::identity(); powers_of_g_projective.len()];
-    E::G1::batch_normalize(&powers_of_g_projective, &mut powers_of_g);
-
-    let powers_of_h_projective = (0..=max_degree)
-      .scan(h, |acc, _| {
-        let val = *acc;
-        *acc *= beta;
-        Some(val)
-      })
-      .collect::<Vec<E::G2>>();
-
     let mut powers_of_h = vec![E::G2Affine::identity(); powers_of_h_projective.len()];
-    E::G2::batch_normalize(&powers_of_h_projective, &mut powers_of_h);
+
+    rayon::join(
+      || E::G1::batch_normalize(&powers_of_g_projective, &mut powers_of_g),
+      || E::G2::batch_normalize(&powers_of_h_projective, &mut powers_of_h),
+    );
 
     Self {
       powers_of_g,
