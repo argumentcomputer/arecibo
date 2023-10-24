@@ -36,9 +36,11 @@ where
 
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey {
     // TODO: this is just for testing, replace by grabbing from a real setup for production
-    let label_bytes: [u8; 32] = label[..32].try_into().unwrap();
-    let rng = &mut StdRng::from_seed(label_bytes);
-    UVUniversalKZGParam::gen_srs_for_testing(rng, n)
+    let mut bytes = [0u8; 32];
+    let len = label.len().min(32);
+    bytes[..len].copy_from_slice(&label[..len]);
+    let rng = &mut StdRng::from_seed(bytes);
+    UVUniversalKZGParam::gen_srs_for_testing(rng, n.next_power_of_two())
   }
 
   fn commit(ck: &Self::CommitmentKey, v: &[<E::G1 as Group>::Scalar]) -> Self::Commitment {

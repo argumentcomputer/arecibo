@@ -959,13 +959,10 @@ mod tests {
   use core::fmt::Write;
 
   use super::*;
-  #[allow(dead_code)]
-  type ZM<E> = provider::non_hiding_zeromorph::ZMEvaluation<E>;
+  type ZM<E> = provider::non_hiding_zeromorph::ZMPCS<E>;
   type EE<G> = provider::ipa_pc::EvaluationEngine<G>;
   type S<G, EE> = spartan::snark::RelaxedR1CSSNARK<G, EE>;
   type SPrime<G, EE> = spartan::ppsnark::RelaxedR1CSSNARK<G, EE>;
-  #[allow(dead_code)]
-  type SZM<G1, E> = spartan::snark::RelaxedR1CSSNARK<G1, ZM<E>>;
 
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::marker::PhantomData;
@@ -1079,12 +1076,12 @@ mod tests {
     let trivial_circuit2_grumpkin = TrivialCircuit::<<grumpkin::Point as Group>::Scalar>::default();
     let cubic_circuit1_grumpkin = CubicCircuit::<<bn256::Point as Group>::Scalar>::default();
 
-    test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, ZM<halo2curves::bn256::Bn256>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "184d05f08dca260f010cb48c6cf8c5eb61dedfc270e5a18226eb622cf7da0203",
     );
-    test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, ZM<halo2curves::bn256::Bn256>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "2fb992932b2a642b4ce8f52646a7ef6a5a486682716cf969df50021107afff03",
@@ -1340,7 +1337,7 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<
       bn256::Point,
       grumpkin::Point,
-      S<bn256::Point, EE<_>>, // SZM<bn256::Point, halo2curves::bn256::Bn256>,
+      S<bn256::Point, ZM<halo2curves::bn256::Bn256>>,
       S<grumpkin::Point, EE<_>>,
     >();
     test_ivc_nontrivial_with_compression_with::<
@@ -1357,7 +1354,7 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<
       bn256::Point,
       grumpkin::Point,
-      S<bn256::Point, EE<_>>, // SZM<bn256::Point, halo2curves::bn256::Bn256>,
+      S<bn256::Point, ZM<halo2curves::bn256::Bn256>>,
       S<grumpkin::Point, EE<_>>,
     >();
   }
@@ -1460,8 +1457,12 @@ mod tests {
     type G2 = pasta_curves::vesta::Point;
 
     test_ivc_nontrivial_with_spark_compression_with::<G1, G2, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_spark_compression_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>(
-    );
+    test_ivc_nontrivial_with_spark_compression_with::<
+      bn256::Point,
+      grumpkin::Point,
+      ZM<halo2curves::bn256::Bn256>,
+      EE<_>,
+    >();
     test_ivc_nontrivial_with_spark_compression_with::<
       secp256k1::Point,
       secq256k1::Point,
@@ -1614,7 +1615,12 @@ mod tests {
     type G2 = pasta_curves::vesta::Point;
 
     test_ivc_nondet_with_compression_with::<G1, G2, EE<_>, EE<_>>();
-    test_ivc_nondet_with_compression_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<
+      bn256::Point,
+      grumpkin::Point,
+      ZM<halo2curves::bn256::Bn256>,
+      EE<_>,
+    >();
     test_ivc_nondet_with_compression_with::<secp256k1::Point, secq256k1::Point, EE<_>, EE<_>>();
   }
 
