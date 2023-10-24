@@ -11,19 +11,40 @@ use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
 use crate::{
   errors::{NovaError, PCSError},
-  traits::{Group, TranscriptReprTrait},
+  traits::{commitment::Len, Group, TranscriptReprTrait},
 };
 
 /// `UniversalParams` are the universal parameters for the KZG10 scheme.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize, Abomonation)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
+))]
+#[abomonation_omit_bounds]
 pub struct UVUniversalKZGParam<E: Engine> {
   /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to
   /// `degree`.
+  #[abomonate_with(Vec<[u64; 8]>)] // // this is a hack; we just assume the size of the element.
   pub powers_of_g: Vec<E::G1Affine>,
   /// Group elements of the form `{ \beta^i H }`, where `i` ranges from 0 to
   /// `degree`.
+  #[abomonate_with(Vec<[u64; 16]>)] // this is a hack; we just assume the size of the element.
   pub powers_of_h: Vec<E::G2Affine>,
 }
+
+impl<E: Engine> PartialEq for UVUniversalKZGParam<E> {
+  fn eq(&self, other: &UVUniversalKZGParam<E>) -> bool {
+    self.powers_of_g == other.powers_of_g && self.powers_of_h == other.powers_of_h
+  }
+}
+
+// for the purpose of the Len trait, we count commitment bases, i.e. G1 elements
+impl<E: Engine> Len for UVUniversalKZGParam<E> {
+  fn length(&self) -> usize {
+    self.powers_of_g.len()
+  }
+}
+
 /// `UnivariateProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
 #[abomonation_omit_bounds]
