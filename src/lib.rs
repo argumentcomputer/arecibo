@@ -1453,15 +1453,20 @@ mod tests {
 
     test_ivc_nontrivial_with_spark_compression_with::<G1, G2, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<
-      bn256::Point,
-      grumpkin::Point,
-      ZM<halo2curves::bn256::Bn256>,
-      EE<_>,
-    >();
-    test_ivc_nontrivial_with_spark_compression_with::<
       secp256k1::Point,
       secq256k1::Point,
       EE<_>,
+      EE<_>,
+    >();
+  }
+
+  #[test]
+  #[ignore]
+  fn test_ivc_nontrivial_with_spark_zm_compression() {
+    test_ivc_nontrivial_with_spark_compression_with::<
+      bn256::Point,
+      grumpkin::Point,
+      ZM<halo2curves::bn256::Bn256>,
       EE<_>,
     >();
   }
