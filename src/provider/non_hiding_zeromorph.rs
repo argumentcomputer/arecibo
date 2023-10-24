@@ -4,24 +4,26 @@
 
 use crate::{
   errors::{NovaError, PCSError},
-  spartan::{math::Math, polys::multilinear::MultilinearPolynomial},
+  spartan::polys::multilinear::MultilinearPolynomial,
   traits::{commitment::Len, evaluation::EvaluationEngineTrait, Group, TranscriptEngineTrait},
-  Commitment, CommitmentKey,
+  Commitment,
 };
 use abomonation_derive::Abomonation;
 use ff::{BatchInvert, Field, PrimeField};
 use group::{Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
-use rand::thread_rng;
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
-use super::non_hiding_kzg::{
-  UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof, UVKZGProverKey, UVKZGVerifierKey,
-  UVUniversalKZGParam, UVKZGPCS,
+use super::{
+  kzg_commitment::KZGCommitmentEngine,
+  non_hiding_kzg::{
+    UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof, UVKZGProverKey, UVKZGVerifierKey,
+    UVUniversalKZGParam, UVKZGPCS,
+  },
 };
 
 /// `ZMProverKey` is used to generate a proof
@@ -408,27 +410,22 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
 
 impl<E: MultiMillerLoop> EvaluationEngineTrait<E::G1> for ZMPCS<E>
 where
-  E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr, CE = KZGCommitmentEngine<E>>,
   E::G1Affine: Serialize + DeserializeOwned,
   E::G2Affine: Serialize + DeserializeOwned,
 {
   type ProverKey = ZMProverKey<E>;
-
   type VerifierKey = ZMVerifierKey<E>;
 
   type EvaluationArgument = ZMProof<E>;
 
-  fn setup(ck: &CommitmentKey<E::G1>) -> (Self::ProverKey, Self::VerifierKey) {
-    let max_vars = ck.length().log_2();
-    let mut rng = thread_rng();
-    let max_poly_size = 1 << (max_vars + 1);
-    let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
-
-    trim(&universal_setup, max_poly_size)
+  fn setup(ck: &UVUniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
+    // TODO: refine!!
+    trim(ck, ck.length() - 1)
   }
 
   fn prove(
-    ck: &CommitmentKey<E::G1>,
+    ck: &UVUniversalKZGParam<E>,
     pk: &Self::ProverKey,
     transcript: &mut <E::G1 as Group>::TE,
     comm: &Commitment<E::G1>,

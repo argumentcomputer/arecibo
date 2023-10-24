@@ -27,6 +27,8 @@ use halo2curves::grumpkin::{
   G1Affine as GrumpkinAffine, G1Compressed as GrumpkinCompressed, G1 as GrumpkinPoint,
 };
 
+use super::kzg_commitment::KZGCommitmentEngine;
+
 /// Re-exports that give access to the standard aliases used in the code base, for bn256
 pub mod bn256 {
   pub use halo2curves::bn256::{
@@ -58,7 +60,8 @@ impl_traits!(
   Bn256Compressed,
   Bn256Point,
   Bn256Affine,
-  "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001"
+  "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
+  KZGCommitmentEngine<halo2curves::bn256::Bn256>
 );
 
 impl_traits!(
