@@ -425,7 +425,7 @@ where
   }
 
   fn prove(
-    ck: &UVUniversalKZGParam<E>,
+    _ck: &UVUniversalKZGParam<E>,
     pk: &Self::ProverKey,
     transcript: &mut <E::G1 as Group>::TE,
     comm: &Commitment<E::G1>,
