@@ -174,8 +174,9 @@ mod tests {
     fn synthesize<CS: ConstraintSystem<F>>(
       &self,
       cs: &mut CS,
+      _pc: Option<&AllocatedNum<F>>,
       z: &[AllocatedNum<F>],
-    ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
       // Consider a cubic equation: `x^3 + x + 5 = y`, where `x` and `y` are respectively the input and output.
       let x = &z[0];
       let x_sq = x.square(cs.namespace(|| "x_sq"))?;
@@ -199,7 +200,7 @@ mod tests {
         |lc| lc + y.get_variable(),
       );
 
-      Ok(vec![y])
+      Ok((None, vec![y]))
     }
   }
 

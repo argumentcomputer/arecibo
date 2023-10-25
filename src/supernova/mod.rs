@@ -5,6 +5,7 @@ use std::ops::Index;
 
 use crate::{
   bellpepper::shape_cs::ShapeCS,
+  circuit::AugmentedCircuitParams,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
@@ -34,9 +35,7 @@ use bellpepper_core::ConstraintSystem;
 use crate::nifs::NIFS;
 
 mod circuit; // declare the module first
-use circuit::{
-  SuperNovaAugmentedCircuit, SuperNovaAugmentedCircuitInputs, SuperNovaAugmentedCircuitParams,
-};
+use circuit::{SuperNovaAugmentedCircuit, SuperNovaAugmentedCircuitInputs};
 
 use self::error::SuperNovaError;
 
@@ -91,13 +90,13 @@ where
   ro_consts_primary: ROConstants<G1>,
   ro_consts_circuit_primary: ROConstantsCircuit<G2>,
   ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
-  augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
+  augmented_circuit_params_primary: AugmentedCircuitParams,
 
   ro_consts_secondary: ROConstants<G2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
   ck_secondary: CommitmentKey<G2>,
   circuit_shape_secondary: CircuitShape<G2>,
-  augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
+  augmented_circuit_params_secondary: AugmentedCircuitParams,
 
   /// Digest constructed from this `PublicParams`' parameters
   #[serde(skip, default = "OnceCell::new")]
@@ -125,13 +124,13 @@ where
   ro_consts_primary: ROConstants<G1>,
   ro_consts_circuit_primary: ROConstantsCircuit<G2>,
   ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
-  augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
+  augmented_circuit_params_primary: AugmentedCircuitParams,
 
   ro_consts_secondary: ROConstants<G2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
   ck_secondary: CommitmentKey<G2>,
   circuit_shape_secondary: CircuitShape<G2>,
-  augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
+  augmented_circuit_params_secondary: AugmentedCircuitParams,
 
   #[abomonate_with(<G1::Scalar as PrimeField>::Repr)]
   digest: G1::Scalar,
@@ -172,7 +171,7 @@ where
     let num_circuits = non_unifrom_circuit.num_circuits();
 
     let augmented_circuit_params_primary =
-      SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
     // ro_consts_circuit_primary are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
     let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
@@ -200,7 +199,7 @@ where
     let ck_primary = Self::compute_primary_ck(&circuit_shapes);
 
     let augmented_circuit_params_secondary =
-      SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
     let c_secondary = non_unifrom_circuit.secondary_circuit();
     let F_arity_secondary = c_secondary.arity();
@@ -780,12 +779,12 @@ where
 
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
     + 2 * pp[circuit_index].F_arity // zo, z1
-    + (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // # 1 * (7 + [X0, X1]*#num_limb)
+    + (7 + 2 * pp.augmented_circuit_params_primary.n_limbs); // # 1 * (7 + [X0, X1]*#num_limb)
 
     // secondary circuit
     let num_field_secondary_ro = 2 // params_next, i_new
     + 2 * pp.circuit_shape_secondary.F_arity // zo, z1
-    + self.num_augmented_circuits * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
+    + self.num_augmented_circuits * (7 + 2 * pp.augmented_circuit_params_primary.n_limbs); // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
 
     let (hash_primary, hash_secondary) = {
       let mut hasher = <G2 as Group>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
@@ -942,8 +941,7 @@ pub fn circuit_digest<
   circuit: &C,
   num_augmented_circuits: usize,
 ) -> G1::Scalar {
-  let augmented_circuit_params =
-    SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+  let augmented_circuit_params = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
   let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();

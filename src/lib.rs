@@ -38,7 +38,7 @@ use crate::digest::{DigestComputer, SimpleDigestible};
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use bellpepper_core::ConstraintSystem;
-use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
+use circuit::{AugmentedCircuitParams, NovaAugmentedCircuit, NovaAugmentedCircuitInputs};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
 use core::marker::PhantomData;
 use errors::NovaError;
@@ -112,8 +112,8 @@ where
   ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
   ck_secondary: CommitmentKey<G2>,
   circuit_shape_secondary: CircuitShape<G2>,
-  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
-  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
+  augmented_circuit_params_primary: AugmentedCircuitParams,
+  augmented_circuit_params_secondary: AugmentedCircuitParams,
   #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<G1::Scalar>,
@@ -159,7 +159,7 @@ where
   /// # use pasta_curves::{vesta, pallas};
   /// # use nova_snark::spartan::ppsnark::RelaxedR1CSSNARK;
   /// # use nova_snark::provider::ipa_pc::EvaluationEngine;
-  /// # use nova_snark::traits::{circuit::TrivialCircuit, Group, snark::RelaxedR1CSSNARKTrait};
+  /// # use nova_snark::traits::{circuit::TrivialTestCircuit, Group, snark::RelaxedR1CSSNARKTrait};
   /// use nova_snark::PublicParams;
   ///
   /// type G1 = pallas::Point;
@@ -167,8 +167,8 @@ where
   /// type EE<G> = EvaluationEngine<G>;
   /// type SPrime<G> = RelaxedR1CSSNARK<G, EE<G>>;
   ///
-  /// let circuit1 = TrivialCircuit::<<G1 as Group>::Scalar>::default();
-  /// let circuit2 = TrivialCircuit::<<G2 as Group>::Scalar>::default();
+  /// let circuit1 = TrivialTestCircuit::<<G1 as Group>::Scalar>::default();
+  /// let circuit2 = TrivialTestCircuit::<<G2 as Group>::Scalar>::default();
   /// // Only relevant for a SNARK using computational commitments, pass None otherwise.
   /// let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   /// let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
@@ -182,9 +182,9 @@ where
     optfn2: Option<CommitmentKeyHint<G2>>,
   ) -> Self {
     let augmented_circuit_params_primary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let augmented_circuit_params_secondary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
 
     let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
     let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
@@ -921,7 +921,7 @@ pub fn circuit_digest<
 >(
   circuit: &C,
 ) -> G1::Scalar {
-  let augmented_circuit_params = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+  let augmented_circuit_params = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
   let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();

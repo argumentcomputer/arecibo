@@ -554,8 +554,8 @@ fn test_trivial_nivc() {
 
 // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
 fn test_recursive_circuit_with<G1, G2>(
-  primary_params: &SuperNovaAugmentedCircuitParams,
-  secondary_params: &SuperNovaAugmentedCircuitParams,
+  primary_params: &AugmentedCircuitParams,
+  secondary_params: &AugmentedCircuitParams,
   ro_consts1: ROConstantsCircuit<G2>,
   ro_consts2: ROConstantsCircuit<G1>,
   num_constraints_primary: usize,
@@ -655,8 +655,8 @@ fn test_recursive_circuit_with<G1, G2>(
 fn test_recursive_circuit() {
   type G1 = pasta_curves::pallas::Point;
   type G2 = pasta_curves::vesta::Point;
-  let params1 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-  let params2 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+  let params1 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+  let params2 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::default();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
