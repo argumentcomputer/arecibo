@@ -1,15 +1,14 @@
 //! This library implements `SuperNova`, a Non-Uniform IVC based on Nova.
 
 use std::marker::PhantomData;
-use std::ops::Index;
 
 use crate::{
   bellpepper::shape_cs::ShapeCS,
   circuit::AugmentedCircuitParams,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
-  digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
-  r1cs::{commitment_key_size, R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  parameters::{CircuitShape, PublicParams},
+  r1cs::{R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
   scalar_as_base,
   traits::{
     circuit_supernova::StepCircuit,
@@ -19,10 +18,7 @@ use crate::{
   CircuitShape, Commitment, CommitmentKey,
 };
 
-use abomonation::Abomonation;
-use abomonation_derive::Abomonation;
-use ff::{Field, PrimeField};
-use once_cell::sync::OnceCell;
+use ff::Field;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -39,329 +35,22 @@ use circuit::{SuperNovaAugmentedCircuit, SuperNovaAugmentedCircuitInputs};
 
 use self::error::SuperNovaError;
 
+pub(crate) mod circuit;
 pub mod error;
 pub(crate) mod utils;
 
 #[cfg(test)]
 mod test;
 
-/// A struct that manages all the digests of the primary circuits of a SuperNova instance
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CircuitDigests<G: Group> {
-  digests: Vec<G::Scalar>,
-}
-
-impl<G: Group> SimpleDigestible for CircuitDigests<G> {}
-
-impl<G: Group> std::ops::Deref for CircuitDigests<G> {
-  type Target = Vec<G::Scalar>;
-
-  fn deref(&self) -> &Self::Target {
-    &self.digests
-  }
-}
-
-impl<G: Group> CircuitDigests<G> {
-  /// Construct a new [CircuitDigests]
-  pub fn new(digests: Vec<G::Scalar>) -> Self {
-    CircuitDigests { digests }
-  }
-
-  /// Return the [CircuitDigests]' digest.
-  pub fn digest(&self) -> G::Scalar {
-    let dc: DigestComputer<'_, <G as Group>::Scalar, CircuitDigests<G>> = DigestComputer::new(self);
-    dc.digest().expect("Failure in computing digest")
-  }
-}
-
-/// A vector of [CircuitParams] corresponding to a set of [PublicParams]
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  /// The internal circuit shapes
-  pub circuit_shapes: Vec<CircuitShape<G1>>,
-
-  ro_consts_primary: ROConstants<G1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<G2>,
-  ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
-  augmented_circuit_params_primary: AugmentedCircuitParams,
-
-  ro_consts_secondary: ROConstants<G2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
-  ck_secondary: CommitmentKey<G2>,
-  circuit_shape_secondary: CircuitShape<G2>,
-  augmented_circuit_params_secondary: AugmentedCircuitParams,
-
-  /// Digest constructed from this `PublicParams`' parameters
-  #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<G1::Scalar>,
-  _p: PhantomData<(C1, C2)>,
-}
-
-/// Auxilliary [PublicParams] information about the commitment keys and
-/// secondary circuit. This is used as a helper struct when reconstructing
-/// [PublicParams] downstream in lurk.
-#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  <G1::Scalar as PrimeField>::Repr: Abomonation,
-  <G2::Scalar as PrimeField>::Repr: Abomonation,
-)]
-pub struct AuxParams<G1, G2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-{
-  ro_consts_primary: ROConstants<G1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<G2>,
-  ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
-  augmented_circuit_params_primary: AugmentedCircuitParams,
-
-  ro_consts_secondary: ROConstants<G2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
-  ck_secondary: CommitmentKey<G2>,
-  circuit_shape_secondary: CircuitShape<G2>,
-  augmented_circuit_params_secondary: AugmentedCircuitParams,
-
-  #[abomonate_with(<G1::Scalar as PrimeField>::Repr)]
-  digest: G1::Scalar,
-}
-
-impl<G1, G2, C1, C2> Index<usize> for PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  type Output = CircuitShape<G1>;
-
-  fn index(&self, index: usize) -> &Self::Output {
-    &self.circuit_shapes[index]
-  }
-}
-
-impl<G1, G2, C1, C2> SimpleDigestible for PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-}
-
-impl<G1, G2, C1, C2> PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  /// Construct a new [PublicParams]
-  pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(non_unifrom_circuit: &NC) -> Self {
-    let num_circuits = non_unifrom_circuit.num_circuits();
-
-    let augmented_circuit_params_primary =
-      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-    let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
-    // ro_consts_circuit_primary are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-    let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
-
-    let circuit_shapes = (0..num_circuits)
-      .map(|i| {
-        let c_primary = non_unifrom_circuit.primary_circuit(i);
-        let F_arity = c_primary.arity();
-        // Initialize ck for the primary
-        let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
-          &augmented_circuit_params_primary,
-          None,
-          &c_primary,
-          ro_consts_circuit_primary.clone(),
-          num_circuits,
-        );
-        let mut cs: ShapeCS<G1> = ShapeCS::new();
-        let _ = circuit_primary.synthesize(&mut cs);
-        // We use the largest commitment_key for all instances
-        let r1cs_shape_primary = cs.r1cs_shape();
-        CircuitShape::new(r1cs_shape_primary, F_arity)
-      })
-      .collect::<Vec<_>>();
-
-    let ck_primary = Self::compute_primary_ck(&circuit_shapes);
-
-    let augmented_circuit_params_secondary =
-      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
-    let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
-    let c_secondary = non_unifrom_circuit.secondary_circuit();
-    let F_arity_secondary = c_secondary.arity();
-    let ro_consts_circuit_secondary: ROConstantsCircuit<G1> = ROConstantsCircuit::<G1>::default();
-
-    let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
-      &augmented_circuit_params_secondary,
-      None,
-      &c_secondary,
-      ro_consts_circuit_secondary.clone(),
-      num_circuits,
-    );
-    let mut cs: ShapeCS<G2> = ShapeCS::new();
-    let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(None);
-    let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
-
-    let pp = PublicParams {
-      circuit_shapes,
-      ro_consts_primary,
-      ro_consts_circuit_primary,
-      ck_primary,
-      augmented_circuit_params_primary,
-      ro_consts_secondary,
-      ro_consts_circuit_secondary,
-      ck_secondary,
-      circuit_shape_secondary,
-      augmented_circuit_params_secondary,
-      digest: OnceCell::new(),
-      _p: PhantomData,
-    };
-
-    // make sure to initialize the `OnceCell` and compute the digest
-    // and avoid paying for unexpected performance costs later
-    pp.digest();
-    pp
-  }
-
-  /// Breaks down an instance of [PublicParams] into the circuit params and auxilliary params.
-  pub fn into_parts(self) -> (Vec<CircuitShape<G1>>, AuxParams<G1, G2>) {
-    let digest = self.digest();
-
-    let PublicParams {
-      circuit_shapes,
-      ro_consts_primary,
-      ro_consts_circuit_primary,
-      ck_primary,
-      augmented_circuit_params_primary,
-      ro_consts_secondary,
-      ro_consts_circuit_secondary,
-      ck_secondary,
-      circuit_shape_secondary,
-      augmented_circuit_params_secondary,
-      digest: _digest,
-      _p,
-    } = self;
-
-    let aux_params = AuxParams {
-      ro_consts_primary,
-      ro_consts_circuit_primary,
-      ck_primary,
-      augmented_circuit_params_primary,
-      ro_consts_secondary,
-      ro_consts_circuit_secondary,
-      ck_secondary,
-      circuit_shape_secondary,
-      augmented_circuit_params_secondary,
-      digest,
-    };
-
-    (circuit_shapes, aux_params)
-  }
-
-  /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
-  pub fn from_parts(circuit_shapes: Vec<CircuitShape<G1>>, aux_params: AuxParams<G1, G2>) -> Self {
-    let pp = PublicParams {
-      circuit_shapes,
-      ro_consts_primary: aux_params.ro_consts_primary,
-      ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
-      ck_primary: aux_params.ck_primary,
-      augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
-      ro_consts_secondary: aux_params.ro_consts_secondary,
-      ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
-      ck_secondary: aux_params.ck_secondary,
-      circuit_shape_secondary: aux_params.circuit_shape_secondary,
-      augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
-      digest: OnceCell::new(),
-      _p: PhantomData,
-    };
-    assert_eq!(
-      aux_params.digest,
-      pp.digest(),
-      "param data is invalid; aux_params contained the incorrect digest"
-    );
-    pp
-  }
-
-  /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
-  /// We don't check that the `aux_params.digest` is a valid digest for the created params.
-  pub fn from_parts_unchecked(
-    circuit_shapes: Vec<CircuitShape<G1>>,
-    aux_params: AuxParams<G1, G2>,
-  ) -> Self {
-    PublicParams {
-      circuit_shapes,
-      ro_consts_primary: aux_params.ro_consts_primary,
-      ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
-      ck_primary: aux_params.ck_primary,
-      augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
-      ro_consts_secondary: aux_params.ro_consts_secondary,
-      ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
-      ck_secondary: aux_params.ck_secondary,
-      circuit_shape_secondary: aux_params.circuit_shape_secondary,
-      augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
-      digest: aux_params.digest.into(),
-      _p: PhantomData,
-    }
-  }
-
-  /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
-  /// `CircuitShape`.
-  fn compute_primary_ck(circuit_params: &[CircuitShape<G1>]) -> CommitmentKey<G1> {
-    let size_primary = circuit_params
-      .iter()
-      .map(|circuit| commitment_key_size(&circuit.r1cs_shape, None))
-      .max()
-      .unwrap();
-
-    G1::CE::setup(b"ck", size_primary)
-  }
-
-  /// Return the [PublicParams]' digest.
-  pub fn digest(&self) -> G1::Scalar {
-    self
-      .digest
-      .get_or_try_init(|| {
-        let dc: DigestComputer<'_, <G1 as Group>::Scalar, PublicParams<G1, G2, C1, C2>> =
-          DigestComputer::new(self);
-        dc.digest()
-      })
-      .cloned()
-      .expect("Failure in retrieving digest")
-  }
-
-  /// All of the primary circuit digests of this [PublicParams]
-  pub fn circuit_param_digests(&self) -> CircuitDigests<G1> {
-    let digests = self
-      .circuit_shapes
-      .iter()
-      .map(|cp| cp.digest())
-      .collect::<Vec<_>>();
-    CircuitDigests { digests }
-  }
-}
-
 /// A SNARK that proves the correct execution of an non-uniform incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RecursiveSNARK<G1, G2>
+pub struct RecursiveSNARK<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
 {
   r_W_primary: Vec<Option<RelaxedR1CSWitness<G1>>>,
   r_U_primary: Vec<Option<RelaxedR1CSInstance<G1>>>,
@@ -376,16 +65,19 @@ where
   program_counter: G1::Scalar,
   augmented_circuit_index: usize,
   num_augmented_circuits: usize,
+  _p: PhantomData<(C1, C2)>,
 }
 
-impl<G1, G2> RecursiveSNARK<G1, G2>
+impl<G1, G2, C1, C2> RecursiveSNARK<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
 {
   /// iterate base step to get new instance of recursive SNARK
   #[allow(clippy::too_many_arguments)]
-  pub fn iter_base_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn iter_base_step(
     pp: &PublicParams<G1, G2, C1, C2>,
     circuit_index: usize,
     c_primary: &C1,
@@ -535,12 +227,13 @@ where
       program_counter: zi_primary_pc_next,
       augmented_circuit_index: first_augmented_circuit_index,
       num_augmented_circuits,
+      _p: PhantomData,
     })
   }
   /// executing a step of the incremental computation
   #[allow(clippy::too_many_arguments)]
   #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
-  pub fn prove_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn prove_step(
     &mut self,
     pp: &PublicParams<G1, G2, C1, C2>,
     circuit_index: usize,
@@ -731,7 +424,7 @@ where
   }
 
   /// verify recursive snark
-  pub fn verify<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn verify(
     &self,
     pp: &PublicParams<G1, G2, C1, C2>,
     circuit_index: usize,

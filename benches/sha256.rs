@@ -15,11 +15,12 @@ use core::time::Duration;
 use criterion::*;
 use ff::{PrimeField, PrimeFieldBits};
 use nova_snark::{
+  parameters::PublicParams,
   traits::{
-    circuit::{StepCircuit, TrivialCircuit},
+    circuit::{StepCircuit, TrivialTestCircuit},
     Group,
   },
-  PublicParams, RecursiveSNARK,
+  RecursiveSNARK,
 };
 use sha2::{Digest, Sha256};
 use std::marker::PhantomData;
@@ -47,8 +48,9 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for Sha256Circuit<
   fn synthesize<CS: ConstraintSystem<Scalar>>(
     &self,
     cs: &mut CS,
+    _pc: Option<&AllocatedNum<Scalar>>,
     _z: &[AllocatedNum<Scalar>],
-  ) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<Scalar>>, Vec<AllocatedNum<Scalar>>), SynthesisError> {
     let mut z_out: Vec<AllocatedNum<Scalar>> = Vec::new();
 
     let bit_values: Vec<_> = self
@@ -115,12 +117,12 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for Sha256Circuit<
       }
     }
 
-    Ok(z_out)
+    Ok((None, z_out))
   }
 }
 
 type C1 = Sha256Circuit<<G1 as Group>::Scalar>;
-type C2 = TrivialCircuit<<G2 as Group>::Scalar>;
+type C2 = TrivialTestCircuit<<G2 as Group>::Scalar>;
 
 criterion_group! {
 name = recursive_snark;
@@ -154,10 +156,10 @@ fn bench_recursive_snark(c: &mut Criterion) {
     group.sample_size(10);
 
     // Produce public parameters
-    let ttc = TrivialCircuit::default();
-    let pp = PublicParams::<G1, G2, C1, C2>::new(&circuit_primary, &ttc, None, None);
+    let ttc = TrivialTestCircuit::default();
+    let pp = PublicParams::<G1, G2, C1, C2>::new_nova(&circuit_primary, &ttc, None, None);
 
-    let circuit_secondary = TrivialCircuit::default();
+    let circuit_secondary = TrivialTestCircuit::default();
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
 

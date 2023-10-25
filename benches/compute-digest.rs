@@ -4,17 +4,17 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ff::PrimeField;
 use nova_snark::{
+  parameters::PublicParams,
   traits::{
-    circuit::{StepCircuit, TrivialCircuit},
+    circuit::{StepCircuit, TrivialTestCircuit},
     Group,
   },
-  PublicParams,
 };
 
 type G1 = pasta_curves::pallas::Point;
 type G2 = pasta_curves::vesta::Point;
-type C1 = NonTrivialCircuit<<G1 as Group>::Scalar>;
-type C2 = TrivialCircuit<<G2 as Group>::Scalar>;
+type C1 = NonTrivialTestCircuit<<G1 as Group>::Scalar>;
+type C2 = TrivialTestCircuit<<G2 as Group>::Scalar>;
 
 criterion_group! {
 name = compute_digest;
@@ -27,7 +27,7 @@ criterion_main!(compute_digest);
 fn bench_compute_digest(c: &mut Criterion) {
   c.bench_function("compute_digest", |b| {
     b.iter(|| {
-      PublicParams::<G1, G2, C1, C2>::new(
+      PublicParams::<G1, G2, C1, C2>::new_nova(
         black_box(&C1::new(10)),
         black_box(&C2::default()),
         black_box(None),
@@ -38,12 +38,12 @@ fn bench_compute_digest(c: &mut Criterion) {
 }
 
 #[derive(Clone, Debug, Default)]
-struct NonTrivialCircuit<F: PrimeField> {
+struct NonTrivialTestCircuit<F: PrimeField> {
   num_cons: usize,
   _p: PhantomData<F>,
 }
 
-impl<F> NonTrivialCircuit<F>
+impl<F> NonTrivialTestCircuit<F>
 where
   F: PrimeField,
 {
@@ -54,7 +54,7 @@ where
     }
   }
 }
-impl<F> StepCircuit<F> for NonTrivialCircuit<F>
+impl<F> StepCircuit<F> for NonTrivialTestCircuit<F>
 where
   F: PrimeField,
 {
@@ -65,8 +65,9 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
+    _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     // Consider a an equation: `x^2 = y`, where `x` and `y` are respectively the input and output.
     let mut x = z[0].clone();
     let mut y = x.clone();
@@ -74,6 +75,6 @@ where
       y = x.square(cs.namespace(|| format!("x_sq_{i}")))?;
       x = y.clone();
     }
-    Ok(vec![y])
+    Ok((None, vec![y]))
   }
 }

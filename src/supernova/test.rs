@@ -448,7 +448,7 @@ where
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
   let num_steps = test_rom.num_steps();
 
-  let pp = PublicParams::new(&test_rom);
+  let pp = PublicParams::new_supernova(&test_rom);
 
   let initial_program_counter = test_rom.initial_program_counter();
 
@@ -463,7 +463,7 @@ where
   );
   let z0_secondary = vec![<G2 as Group>::Scalar::ONE];
 
-  let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
+  let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2, _, _>> = None;
 
   for _ in 0..num_steps {
     let program_counter = recursive_snark_option.as_ref().map_or_else(
@@ -675,7 +675,7 @@ where
   // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
   // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
-  let pp = PublicParams::<G1, G2, T1, T2>::new(non_uniform_circuit);
+  let pp = PublicParams::<G1, G2, T1, T2>::new_supernova(non_uniform_circuit);
 
   let digest_str = pp
     .digest()

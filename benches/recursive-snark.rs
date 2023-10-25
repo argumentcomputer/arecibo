@@ -5,18 +5,19 @@ use core::marker::PhantomData;
 use criterion::*;
 use ff::PrimeField;
 use nova_snark::{
+  parameters::PublicParams,
   traits::{
-    circuit::{StepCircuit, TrivialCircuit},
+    circuit::{StepCircuit, TrivialTestCircuit},
     Group,
   },
-  PublicParams, RecursiveSNARK,
+  RecursiveSNARK,
 };
 use std::time::Duration;
 
 type G1 = pasta_curves::pallas::Point;
 type G2 = pasta_curves::vesta::Point;
-type C1 = NonTrivialCircuit<<G1 as Group>::Scalar>;
-type C2 = TrivialCircuit<<G2 as Group>::Scalar>;
+type C1 = NonTrivialTestCircuit<<G1 as Group>::Scalar>;
+type C2 = TrivialTestCircuit<<G2 as Group>::Scalar>;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo install cargo-criterion`.
 // Then `cargo criterion --bench recursive-snark`. The results are located in `target/criterion/data/<name-of-benchmark>`.
@@ -52,11 +53,11 @@ fn bench_recursive_snark(c: &mut Criterion) {
     let mut group = c.benchmark_group(format!("RecursiveSNARK-StepCircuitSize-{num_cons}"));
     group.sample_size(10);
 
-    let c_primary = NonTrivialCircuit::new(num_cons);
-    let c_secondary = TrivialCircuit::default();
+    let c_primary = NonTrivialTestCircuit::new(num_cons);
+    let c_secondary = TrivialTestCircuit::default();
 
     // Produce public parameters
-    let pp = PublicParams::<G1, G2, C1, C2>::new(&c_primary, &c_secondary, None, None);
+    let pp = PublicParams::<G1, G2, C1, C2>::new_nova(&c_primary, &c_secondary, None, None);
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -124,12 +125,12 @@ fn bench_recursive_snark(c: &mut Criterion) {
 }
 
 #[derive(Clone, Debug, Default)]
-struct NonTrivialCircuit<F: PrimeField> {
+struct NonTrivialTestCircuit<F: PrimeField> {
   num_cons: usize,
   _p: PhantomData<F>,
 }
 
-impl<F> NonTrivialCircuit<F>
+impl<F> NonTrivialTestCircuit<F>
 where
   F: PrimeField,
 {
@@ -140,7 +141,7 @@ where
     }
   }
 }
-impl<F> StepCircuit<F> for NonTrivialCircuit<F>
+impl<F> StepCircuit<F> for NonTrivialTestCircuit<F>
 where
   F: PrimeField,
 {
@@ -151,8 +152,9 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
+    _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     // Consider a an equation: `x^2 = y`, where `x` and `y` are respectively the input and output.
     let mut x = z[0].clone();
     let mut y = x.clone();
@@ -160,6 +162,6 @@ where
       y = x.square(cs.namespace(|| format!("x_sq_{i}")))?;
       x = y.clone();
     }
-    Ok(vec![y])
+    Ok((None, vec![y]))
   }
 }

@@ -5,10 +5,11 @@ use core::marker::PhantomData;
 use criterion::*;
 use ff::PrimeField;
 use nova_snark::{
+  parameters::PublicParams,
   supernova::NonUniformCircuit,
-  supernova::{PublicParams, RecursiveSNARK},
+  supernova::RecursiveSNARK,
   traits::{
-    circuit_supernova::{StepCircuit, TrivialTestCircuit},
+    circuit::{StepCircuit, TrivialTestCircuit},
     Group,
   },
 };
@@ -104,7 +105,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(1, num_cons);
-    let pp = PublicParams::new(&bench);
+    let pp = PublicParams::new_supernova(&bench);
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -114,7 +115,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
     let initial_program_counter = <G1 as Group>::Scalar::from(0);
-    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
+    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2, _, _>> = None;
 
     for _ in 0..num_warmup_steps {
       let program_counter = recursive_snark_option.as_ref().map_or_else(
@@ -210,7 +211,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(2, num_cons);
-    let pp = PublicParams::new(&bench);
+    let pp = PublicParams::new_supernova(&bench);
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -220,7 +221,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
     let initial_program_counter = <G1 as Group>::Scalar::from(0);
-    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
+    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2, _, _>> = None;
     let mut selected_augmented_circuit = 0;
 
     for _ in 0..num_warmup_steps {
