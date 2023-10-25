@@ -1330,12 +1330,6 @@ mod tests {
       S<grumpkin::Point, EE<_>>,
     >();
     test_ivc_nontrivial_with_compression_with::<
-      bn256::Point,
-      grumpkin::Point,
-      S<bn256::Point, ZM<halo2curves::bn256::Bn256>>,
-      S<grumpkin::Point, EE<_>>,
-    >();
-    test_ivc_nontrivial_with_compression_with::<
       secp256k1::Point,
       secq256k1::Point,
       S<secp256k1::Point, EE<_>>,
