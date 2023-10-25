@@ -130,32 +130,6 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     }
     new_poly
   }
-
-  /// Evaluate the dense MLE at the given point. The MLE is assumed to be in
-  /// monomial basis.
-  ///
-  /// # Example
-  /// ```
-  /// use pasta_curves::pallas::Scalar as Fr;
-  /// use nova_snark::spartan::polys::multilinear::MultilinearPolynomial;
-  ///
-  /// // The two-variate polynomial x_1 + 3 * x_0 * x_1 + 2 evaluates to [2, 3, 2, 6]
-  /// // in the lagrange basis: 2*(1 - x_0)(1 - x_1) + 3*(1-x_0)(x_1) + 2*(x_0)(1-x_1) + 6*(x_0)(x_1)
-  /// let mle = MultilinearPolynomial::new(
-  ///     vec![2, 3, 2, 6].iter().map(|x| Fr::from(*x as u64)).collect()
-  /// );
-  ///
-  /// // By the uniqueness of MLEs, `mle` is precisely the above polynomial, which
-  /// // takes the value 54 at the point (x_1 = 1, x_0 = 17)
-  /// let eval = mle.evaluate_BE(&[Fr::one(), Fr::from(17)]);
-  /// assert_eq!(eval, Fr::from(54));
-  /// ```
-  pub fn evaluate_BE(&self, point: &[Scalar]) -> Scalar {
-    assert_eq!(self.num_vars, point.len());
-    // evaluate requires "lower endian"
-    let revp = point.iter().cloned().rev().collect::<Vec<_>>();
-    self.evaluate(&revp)
-  }
 }
 
 impl<Scalar: PrimeField> Index<usize> for MultilinearPolynomial<Scalar> {
