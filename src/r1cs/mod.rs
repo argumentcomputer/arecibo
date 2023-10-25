@@ -1,5 +1,6 @@
 //! This module defines R1CS related types and a folding scheme for Relaxed R1CS
-pub mod sparse;
+mod sparse;
+#[cfg(test)]
 mod util;
 
 use crate::{
@@ -24,7 +25,7 @@ use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use self::sparse::SparseMatrix;
+pub(crate) use self::sparse::SparseMatrix;
 
 /// A type that holds the shape of the R1CS matrices
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
