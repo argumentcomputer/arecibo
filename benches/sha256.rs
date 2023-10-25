@@ -48,9 +48,8 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for Sha256Circuit<
   fn synthesize<CS: ConstraintSystem<Scalar>>(
     &self,
     cs: &mut CS,
-    _pc: Option<&AllocatedNum<Scalar>>,
     _z: &[AllocatedNum<Scalar>],
-  ) -> Result<(Option<AllocatedNum<Scalar>>, Vec<AllocatedNum<Scalar>>), SynthesisError> {
+  ) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
     let mut z_out: Vec<AllocatedNum<Scalar>> = Vec::new();
 
     let bit_values: Vec<_> = self
@@ -117,7 +116,7 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for Sha256Circuit<
       }
     }
 
-    Ok((None, z_out))
+    Ok(z_out)
   }
 }
 
@@ -157,7 +156,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     // Produce public parameters
     let ttc = TrivialTestCircuit::default();
-    let pp = PublicParams::<G1, G2, C1, C2>::new_nova(&circuit_primary, &ttc, None, None);
+    let pp = PublicParams::<G1, G2, C1, C2>::new(&circuit_primary, &ttc, None, None);
 
     let circuit_secondary = TrivialTestCircuit::default();
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];

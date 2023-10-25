@@ -171,7 +171,7 @@ fn main() {
       G2,
       MinRootCircuit<<G1 as Group>::Scalar>,
       TrivialTestCircuit<<G2 as Group>::Scalar>,
-    >::new_nova(&circuit_primary, &circuit_secondary, None, None);
+    >::new(&circuit_primary, &circuit_secondary, None, None);
     println!("PublicParams::setup, took {:?} ", start.elapsed());
 
     println!(

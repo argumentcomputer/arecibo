@@ -7,7 +7,8 @@ use crate::constants::{BN_LIMB_WIDTH, BN_N_LIMBS};
 use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::r1cs::R1CSShape;
 use crate::traits::{
-  circuit::StepCircuit, commitment::CommitmentEngineTrait, Group, ROConstants, ROConstantsCircuit,
+  circuit, circuit_supernova, commitment::CommitmentEngineTrait, Group, ROConstants,
+  ROConstantsCircuit,
 };
 use crate::{
   bellpepper::{r1cs::NovaShape, shape_cs::ShapeCS},
@@ -85,8 +86,6 @@ pub struct PublicParams<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
 {
   /// The internal circuit shapes
   pub circuit_shapes: Vec<CircuitShape<G1>>,
@@ -144,8 +143,6 @@ impl<G1, G2, C1, C2> Index<usize> for PublicParams<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
 {
   type Output = CircuitShape<G1>;
 
@@ -158,8 +155,6 @@ impl<G1, G2, C1, C2> SimpleDigestible for PublicParams<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
 {
 }
 
@@ -167,10 +162,8 @@ impl<G1, G2, C1, C2> PublicParams<G1, G2, C1, C2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
 {
-  /// Set up builder to create `PublicParams` for a pair of circuits `C1` and `C2`.
+  /// Create [PublicParams] for Nova from a pair of circuits `C1` and `C2`.
   ///
   /// # Note
   ///
@@ -193,16 +186,16 @@ where
   /// # use pasta_curves::{vesta, pallas};
   /// # use nova_snark::spartan::ppsnark::RelaxedR1CSSNARK;
   /// # use nova_snark::provider::ipa_pc::EvaluationEngine;
-  /// # use nova_snark::traits::{circuit::TrivialCircuit, Group, snark::RelaxedR1CSSNARKTrait};
-  /// use nova_snark::PublicParams;
+  /// # use nova_snark::traits::{circuit::TrivialTestCircuit, Group, snark::RelaxedR1CSSNARKTrait};
+  /// use nova_snark::parameters::PublicParams;
   ///
   /// type G1 = pallas::Point;
   /// type G2 = vesta::Point;
   /// type EE<G> = EvaluationEngine<G>;
   /// type SPrime<G> = RelaxedR1CSSNARK<G, EE<G>>;
   ///
-  /// let circuit1 = TrivialCircuit::<<G1 as Group>::Scalar>::default();
-  /// let circuit2 = TrivialCircuit::<<G2 as Group>::Scalar>::default();
+  /// let circuit1 = TrivialTestCircuit::<<G1 as Group>::Scalar>::default();
+  /// let circuit2 = TrivialTestCircuit::<<G2 as Group>::Scalar>::default();
   /// // Only relevant for a SNARK using computational commitments, pass None otherwise.
   /// let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   /// let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
@@ -214,11 +207,15 @@ where
     c_secondary: &C2,
     optfn1: Option<CommitmentKeyHint<G1>>,
     optfn2: Option<CommitmentKeyHint<G2>>,
-  ) -> Self {
+  ) -> Self
+  where
+    C1: circuit::StepCircuit<G1::Scalar>,
+    C2: circuit::StepCircuit<G2::Scalar>,
+  {
     let augmented_circuit_params_primary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let augmented_circuit_params_secondary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
 
     let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
     let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
@@ -255,12 +252,10 @@ where
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
     PublicParams {
-      F_arity_primary,
-      F_arity_secondary,
+      circuit_shapes: vec![circuit_shape_primary],
       ro_consts_primary,
       ro_consts_circuit_primary,
       ck_primary,
-      circuit_shape_primary,
       ro_consts_secondary,
       ro_consts_circuit_secondary,
       ck_secondary,
@@ -272,12 +267,34 @@ where
     }
   }
 
-  /// Construct a new [PublicParams]
-  pub fn new_supernova<NC: NonUniformCircuit<G1, G2, C1, C2>>(non_unifrom_circuit: &NC) -> Self {
+  /// Create [PublicParams] for Nova from a pair of circuits `C1` and `C2`.
+  ///
+  /// # Note
+  ///
+  /// Some SNARKs, like variants of Spartan, use computation commitments that require
+  /// larger sizes for some parameters. These SNARKs provide a hint for these values by
+  /// implementing `RelaxedR1CSSNARKTrait::commitment_key_floor()`, which can be passed to this function.
+  /// If you're not using such a SNARK, pass `None` instead.
+  ///
+  /// # Arguments
+  ///
+  /// * `non_unifrom_circuit`: The sets of sub-circuits of type `C1` to be proved via NIVC.
+  /// * `optfn1`: An optional `CommitmentKeyHint` for `G1`, which is a function that provides a hint
+  ///   for the number of generators required in the commitment scheme for all the sub-circuits.
+  /// * `optfn2`: An optional `CommitmentKeyHint` for `G2`, similar to `optfn1`, but for the secondary circuit.
+  pub fn new_supernova<NC: NonUniformCircuit<G1, G2, C1, C2>>(
+    non_unifrom_circuit: &NC,
+    optfn1: Option<CommitmentKeyHint<G1>>,
+    optfn2: Option<CommitmentKeyHint<G2>>,
+  ) -> Self
+  where
+    C1: circuit_supernova::StepCircuit<G1::Scalar>,
+    C2: circuit_supernova::StepCircuit<G2::Scalar>,
+  {
     let num_circuits = non_unifrom_circuit.num_circuits();
 
     let augmented_circuit_params_primary =
-      SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
     // ro_consts_circuit_primary are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
     let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
@@ -302,10 +319,10 @@ where
       })
       .collect::<Vec<_>>();
 
-    let ck_primary = Self::compute_primary_ck(&circuit_shapes);
+    let ck_primary = Self::compute_primary_ck(&circuit_shapes, optfn1);
 
     let augmented_circuit_params_secondary =
-      SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+      AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
     let c_secondary = non_unifrom_circuit.secondary_circuit();
     let F_arity_secondary = c_secondary.arity();
@@ -320,7 +337,7 @@ where
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(None);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(optfn2);
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
     let pp = PublicParams {
@@ -427,10 +444,13 @@ where
 
   /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
   /// `CircuitShape`.
-  fn compute_primary_ck(circuit_params: &[CircuitShape<G1>]) -> CommitmentKey<G1> {
+  fn compute_primary_ck(
+    circuit_params: &[CircuitShape<G1>],
+    optfn1: Option<CommitmentKeyHint<G1>>,
+  ) -> CommitmentKey<G1> {
     let size_primary = circuit_params
       .iter()
-      .map(|circuit| commitment_key_size(&circuit.r1cs_shape, None))
+      .map(|circuit| commitment_key_size(&circuit.r1cs_shape, optfn1.clone()))
       .max()
       .unwrap();
 
@@ -461,18 +481,28 @@ where
   }
 
   /// Returns the number of constraints in the primary and secondary circuits
-  pub const fn num_constraints(&self) -> (usize, usize) {
+  pub fn num_constraints(&self) -> (usize, usize) {
     (
-      self.circuit_shape_primary.r1cs_shape.num_cons,
+      self.circuit_shapes[0].r1cs_shape.num_cons,
       self.circuit_shape_secondary.r1cs_shape.num_cons,
     )
   }
 
   /// Returns the number of variables in the primary and secondary circuits
-  pub const fn num_variables(&self) -> (usize, usize) {
+  pub fn num_variables(&self) -> (usize, usize) {
     (
-      self.circuit_shape_primary.r1cs_shape.num_vars,
+      self.circuit_shapes[0].r1cs_shape.num_vars,
       self.circuit_shape_secondary.r1cs_shape.num_vars,
     )
+  }
+
+  /// Returns the number of constraints in the primary and secondary circuits
+  pub fn r1cs_shape_secondary(&self) -> &R1CSShape<G2> {
+    &self.circuit_shape_secondary.r1cs_shape
+  }
+
+  /// Returns the number of variables in the primary and secondary circuits
+  pub fn F_arity_secondary(&self) -> usize {
+    self.circuit_shape_secondary.F_arity
   }
 }

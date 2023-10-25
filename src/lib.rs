@@ -727,7 +727,7 @@ mod tests {
   use crate::provider::bn256_grumpkin::{bn256, grumpkin};
   use crate::provider::secp_secq::{secp256k1, secq256k1};
   use crate::traits::evaluation::EvaluationEngineTrait;
-  use core::fmt::Write;
+  use std::fmt::Write;
 
   use super::*;
   type EE<G> = provider::ipa_pc::EvaluationEngine<G>;
@@ -807,7 +807,7 @@ mod tests {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let pp_hint1 = Some(SPrime::<G1, E1>::commitment_key_floor());
     let pp_hint2 = Some(SPrime::<G2, E2>::commitment_key_floor());
-    let pp = PublicParams::<G1, G2, T1, T2>::new_nova(circuit1, circuit2, pp_hint1, pp_hint2);
+    let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, pp_hint1, pp_hint2);
 
     let digest_str = pp
       .digest()
@@ -943,7 +943,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new_nova(&circuit_primary, &circuit_secondary, None, None);
+    >::new(&circuit_primary, &circuit_secondary, None, None);
 
     let num_steps = 3;
 
@@ -1031,7 +1031,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new_nova(&circuit_primary, &circuit_secondary, None, None);
+    >::new(&circuit_primary, &circuit_secondary, None, None);
 
     let num_steps = 3;
 
@@ -1128,7 +1128,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new_nova(
+    >::new(
       &circuit_primary,
       &circuit_secondary,
       Some(SPrime::<_, E1>::commitment_key_floor()),
@@ -1385,7 +1385,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new_nova(&test_circuit1, &test_circuit2, None, None);
+    >::new(&test_circuit1, &test_circuit2, None, None);
 
     let num_steps = 1;
 

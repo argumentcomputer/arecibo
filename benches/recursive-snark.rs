@@ -57,7 +57,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
     let c_secondary = TrivialTestCircuit::default();
 
     // Produce public parameters
-    let pp = PublicParams::<G1, G2, C1, C2>::new_nova(&c_primary, &c_secondary, None, None);
+    let pp = PublicParams::<G1, G2, C1, C2>::new(&c_primary, &c_secondary, None, None);
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -152,9 +152,8 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
     // Consider a an equation: `x^2 = y`, where `x` and `y` are respectively the input and output.
     let mut x = z[0].clone();
     let mut y = x.clone();
@@ -162,6 +161,6 @@ where
       y = x.square(cs.namespace(|| format!("x_sq_{i}")))?;
       x = y.clone();
     }
-    Ok((None, vec![y]))
+    Ok(vec![y])
   }
 }

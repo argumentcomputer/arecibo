@@ -11,11 +11,10 @@ use crate::{
   r1cs::{R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
   scalar_as_base,
   traits::{
-    circuit_supernova::StepCircuit,
-    commitment::{CommitmentEngineTrait, CommitmentTrait},
-    AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
+    circuit_supernova::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Group,
+    ROConstantsCircuit, ROTrait,
   },
-  CircuitShape, Commitment, CommitmentKey,
+  Commitment,
 };
 
 use ff::Field;
@@ -30,12 +29,11 @@ use bellpepper_core::ConstraintSystem;
 
 use crate::nifs::NIFS;
 
-mod circuit; // declare the module first
+pub(crate) mod circuit; // declare the module first
 use circuit::{SuperNovaAugmentedCircuit, SuperNovaAugmentedCircuitInputs};
 
 use self::error::SuperNovaError;
 
-pub(crate) mod circuit;
 pub mod error;
 pub(crate) mod utils;
 
