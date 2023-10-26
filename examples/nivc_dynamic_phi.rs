@@ -4,7 +4,13 @@ use bellpepper::gadgets::{blake2s::blake2s, multipack::pack_bits, sha256::sha256
 use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use blake2s_simd::Params;
 use ff::{Field, PrimeField, PrimeFieldBits};
-use rand::{rngs::OsRng, Rng};
+use rand::Rng;
+// use rand::{
+//   rngs::{OsRng, StdRng},
+//   Rng,
+// };
+use rand_chacha::ChaCha8Rng;
+use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};
 
 use nova_snark::{
@@ -47,9 +53,12 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    let mut preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
+    dbg!("SHA");
+    dbg!(&preimage.get_value());
 
-    let (_, preimage_bits) = preimage_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
+    let preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
+
+    let (preimage_bits, _) = preimage_bits.split_at(8 * NUM_BYTES);
 
     // let preimage_bits_printed = preimage_bits.iter().fold(String::new(), |mut acc, b| {
     //   let bit_string = match b.get_value() {
@@ -72,7 +81,11 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
 
     let digest_bits = sha256(cs.namespace(|| "sha256"), preimage_bits.as_slice())?;
 
-    let mut digest_bits = digest_bits
+    let (digest_bits, _) = digest_bits.split_at(8 * NUM_BYTES);
+
+    let next_pc_bit = digest_bits.first();
+
+    let digest_bits = digest_bits
       .chunks(8)
       .map(|chunk| {
         let mut chunk = chunk.to_vec();
@@ -82,9 +95,9 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
       .flatten()
       .collect::<Vec<Boolean>>();
 
-    let (_, digest_bits) = digest_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
+    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits.as_slice())?;
 
-    let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits)?;
+    dbg!(&digest.get_value());
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
       if self.next_pc {
@@ -98,7 +111,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
       || "enforce new_pc is first bit",
       |lc| lc + CS::one(),
       |lc| lc + new_pc.get_variable(),
-      |_| digest_bits.last().unwrap().lc(CS::one(), F::ONE),
+      |_| next_pc_bit.unwrap().lc(CS::one(), F::ONE),
     );
 
     Ok((Some(new_pc), vec![digest]))
@@ -132,48 +145,26 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    let mut preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
+    dbg!("BLAKE");
+    dbg!(preimage.get_value());
 
-    let (_, preimage_bits) = preimage_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
+    let preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "blake_preimage_bits"))?;
 
-    // let preimage_bits_printed = preimage_bits.iter().fold(String::new(), |mut acc, b| {
-    //   let bit_string = match b.get_value() {
-    //     Some(true) => "1",
-    //     _ => "0",
-    //   };
-    //   acc.push_str(&format!("{}", bit_string));
-    //   acc
-    // });
-
-    let preimage_bits = preimage_bits
-      .chunks(8)
-      .map(|chunk| {
-        let mut chunk = chunk.to_vec();
-        chunk.reverse();
-        chunk
-      })
-      .flatten()
-      .collect::<Vec<_>>();
+    let (preimage_bits, _) = preimage_bits.split_at(8 * NUM_BYTES);
 
     let digest_bits = blake2s(
       cs.namespace(|| "blake2s"),
-      preimage_bits.as_slice(),
+      preimage_bits.as_ref(),
       b"personal",
     )?;
 
-    let mut digest_bits = digest_bits
-      .chunks(8)
-      .map(|chunk| {
-        let mut chunk = chunk.to_vec();
-        chunk.reverse();
-        chunk
-      })
-      .flatten()
-      .collect::<Vec<Boolean>>();
+    let (digest_bits, _) = digest_bits.split_at(8 * NUM_BYTES);
 
-    let (_, digest_bits) = digest_bits.split_at_mut(254 - (8 * NUM_BYTES - 1));
+    let next_pc_bit = digest_bits.first();
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits)?;
+
+    dbg!(&digest.get_value());
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
       if self.next_pc {
@@ -187,7 +178,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
       || "enforce new_pc is first bit",
       |lc| lc + CS::one(),
       |lc| lc + new_pc.get_variable(),
-      |_| digest_bits.last().unwrap().lc(CS::one(), F::ONE),
+      |_| next_pc_bit.unwrap().lc(CS::one(), F::ONE),
     );
 
     Ok((Some(new_pc), vec![digest]))
@@ -211,48 +202,60 @@ where
   <G1 as Group>::Scalar: PrimeFieldBits,
 {
   fn new(preimage: <G1 as Group>::Scalar) -> (Vec<bool>, Self) {
-    let mut hasher = Sha256::new();
-
+    // let mut hasher = Sha256::new(); // TODO: Undo this
     let mut preimage_repr = preimage.to_repr();
     let preimage_bytes: &mut [u8; 32] = preimage_repr.as_mut().try_into().expect("wrong size");
 
-    let first_input: &[u8; NUM_BYTES] =
-      preimage_bytes[FIRST_BYTE..].try_into().expect("wrong size");
+    let first_input: &[u8; NUM_BYTES] = preimage_bytes[..NUM_BYTES].try_into().expect("wrong size");
 
-    hasher.update(first_input);
-    let digest = hasher.finalize();
+    // hasher.update(first_input); // TODO: Undo this
+    // let digest = hasher.finalize();
+
+    let digest = Params::new()
+      .hash_length(32)
+      .personal(b"personal")
+      .hash(first_input);
+
+    let digest = digest.as_ref();
 
     let mut hashes: Vec<[u8; NUM_BYTES]> =
-      vec![digest[FIRST_BYTE..].try_into().expect("wrong size")];
+      vec![digest[..NUM_BYTES].try_into().expect("wrong size")];
 
     for _ in 0..NUM_STEPS {
       let last_hash = hashes.last_mut().unwrap();
 
-      if last_hash.last().unwrap() & 1 == 0 {
+      if false {
+        // last_hash.last().unwrap() & 1 == 0 { // TODO: undo this
         let mut hasher = Sha256::new();
 
         hasher.update(last_hash[..NUM_BYTES].as_ref());
 
         let digest = hasher.finalize();
 
-        hashes.push(digest[FIRST_BYTE..].try_into().expect("wrong size"));
+        hashes.push(digest[..NUM_BYTES].try_into().expect("wrong size"));
       } else {
         let digest = Params::new()
+          .hash_length(32)
           .personal(b"personal")
           .hash(&last_hash[..NUM_BYTES]);
 
         hashes.push(
-          digest.as_ref()[FIRST_BYTE..]
+          digest.as_ref()[..NUM_BYTES]
             .try_into()
             .expect("wrong array length"),
         );
       }
     }
 
+    dbg!(&hashes.iter().map(|h| hex::encode(h)).collect::<Vec<_>>());
+
     let hints: Vec<bool> = hashes
       .into_iter()
-      .map(|hash| hash.last().unwrap() & 1 == 1)
+      // .map(|hash| hash.first().unwrap() & 1 == 1) // TODO: undo this
+      .map(|_| true)
       .collect();
+
+    dbg!(&hints);
 
     (
       hints.clone(),
@@ -310,7 +313,7 @@ where
   }
 
   fn initial_program_counter(&self) -> <G1 as Group>::Scalar {
-    <G1 as Group>::Scalar::ZERO
+    <G1 as Group>::Scalar::ONE // TODO: Undo this
   }
 
   fn primary_circuit(&self, circuit_index: usize) -> ExampleCircuit<G1::Scalar> {
@@ -330,7 +333,7 @@ fn main() {
   type G1 = pasta_curves::pallas::Point;
   type G2 = pasta_curves::vesta::Point;
 
-  let mut rng = OsRng;
+  let mut rng = ChaCha8Rng::seed_from_u64(0);
 
   let mut preimage_bytes = [0u8; 32];
 
@@ -341,6 +344,8 @@ fn main() {
   let initial_preimage = <G1 as Group>::Scalar::from_repr(preimage_bytes);
 
   let initial_preimage = initial_preimage.unwrap();
+
+  dbg!(initial_preimage);
 
   let (hints, example) = ExampleSteps::<G1, G2>::new(initial_preimage);
 
