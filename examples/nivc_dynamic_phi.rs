@@ -5,10 +5,6 @@ use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, Syn
 use blake2s_simd::Params;
 use ff::{Field, PrimeField, PrimeFieldBits};
 use rand::Rng;
-// use rand::{
-//   rngs::{OsRng, StdRng},
-//   Rng,
-// };
 use rand_chacha::ChaCha8Rng;
 use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};
@@ -23,7 +19,6 @@ use nova_snark::{
 
 const NUM_STEPS: usize = 10;
 const NUM_BYTES: usize = 10;
-const FIRST_BYTE: usize = 32 - NUM_BYTES;
 
 #[derive(Clone, Debug)]
 struct SHACircuit<F: PrimeField> {
@@ -202,21 +197,14 @@ where
   <G1 as Group>::Scalar: PrimeFieldBits,
 {
   fn new(preimage: <G1 as Group>::Scalar) -> (Vec<bool>, Self) {
-    // let mut hasher = Sha256::new(); // TODO: Undo this
+    let mut hasher = Sha256::new();
     let mut preimage_repr = preimage.to_repr();
     let preimage_bytes: &mut [u8; 32] = preimage_repr.as_mut().try_into().expect("wrong size");
 
     let first_input: &[u8; NUM_BYTES] = preimage_bytes[..NUM_BYTES].try_into().expect("wrong size");
 
-    // hasher.update(first_input); // TODO: Undo this
-    // let digest = hasher.finalize();
-
-    let digest = Params::new()
-      .hash_length(32)
-      .personal(b"personal")
-      .hash(first_input);
-
-    let digest = digest.as_ref();
+    hasher.update(first_input);
+    let digest = hasher.finalize();
 
     let mut hashes: Vec<[u8; NUM_BYTES]> =
       vec![digest[..NUM_BYTES].try_into().expect("wrong size")];
@@ -224,8 +212,7 @@ where
     for _ in 0..NUM_STEPS {
       let last_hash = hashes.last_mut().unwrap();
 
-      if false {
-        // last_hash.last().unwrap() & 1 == 0 { // TODO: undo this
+      if last_hash.first().unwrap() & 1 == 0 {
         let mut hasher = Sha256::new();
 
         hasher.update(last_hash[..NUM_BYTES].as_ref());
@@ -251,8 +238,7 @@ where
 
     let hints: Vec<bool> = hashes
       .into_iter()
-      // .map(|hash| hash.first().unwrap() & 1 == 1) // TODO: undo this
-      .map(|_| true)
+      .map(|hash| hash.first().unwrap() & 1 == 1)
       .collect();
 
     dbg!(&hints);
@@ -313,7 +299,7 @@ where
   }
 
   fn initial_program_counter(&self) -> <G1 as Group>::Scalar {
-    <G1 as Group>::Scalar::ONE // TODO: Undo this
+    <G1 as Group>::Scalar::ZERO
   }
 
   fn primary_circuit(&self, circuit_index: usize) -> ExampleCircuit<G1::Scalar> {
