@@ -6,15 +6,15 @@ use ff::PrimeField;
 use nova_snark::{
   parameters::PublicParams,
   traits::{
-    circuit::{StepCircuit, TrivialTestCircuit},
+    circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
 };
 
 type G1 = pasta_curves::pallas::Point;
 type G2 = pasta_curves::vesta::Point;
-type C1 = NonTrivialTestCircuit<<G1 as Group>::Scalar>;
-type C2 = TrivialTestCircuit<<G2 as Group>::Scalar>;
+type C1 = NonTrivialCircuit<<G1 as Group>::Scalar>;
+type C2 = TrivialCircuit<<G2 as Group>::Scalar>;
 
 criterion_group! {
 name = compute_digest;
@@ -38,12 +38,12 @@ fn bench_compute_digest(c: &mut Criterion) {
 }
 
 #[derive(Clone, Debug, Default)]
-struct NonTrivialTestCircuit<F: PrimeField> {
+struct NonTrivialCircuit<F: PrimeField> {
   num_cons: usize,
   _p: PhantomData<F>,
 }
 
-impl<F> NonTrivialTestCircuit<F>
+impl<F> NonTrivialCircuit<F>
 where
   F: PrimeField,
 {
@@ -54,7 +54,7 @@ where
     }
   }
 }
-impl<F> StepCircuit<F> for NonTrivialTestCircuit<F>
+impl<F> StepCircuit<F> for NonTrivialCircuit<F>
 where
   F: PrimeField,
 {
@@ -65,9 +65,8 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
     // Consider a an equation: `x^2 = y`, where `x` and `y` are respectively the input and output.
     let mut x = z[0].clone();
     let mut y = x.clone();
@@ -75,6 +74,6 @@ where
       y = x.square(cs.namespace(|| format!("x_sq_{i}")))?;
       x = y.clone();
     }
-    Ok((None, vec![y]))
+    Ok(vec![y])
   }
 }

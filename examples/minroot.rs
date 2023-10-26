@@ -9,7 +9,7 @@ use flate2::{write::ZlibEncoder, Compression};
 use nova_snark::{
   parameters::PublicParams,
   traits::{
-    circuit::{StepCircuit, TrivialTestCircuit},
+    circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
   CompressedSNARK, RecursiveSNARK,
@@ -85,10 +85,9 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    _pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
-  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
-    let mut z_out: Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> =
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    let mut z_out: Result<Vec<AllocatedNum<F>>, SynthesisError> =
       Err(SynthesisError::AssignmentMissing);
 
     // use the provided inputs
@@ -121,7 +120,7 @@ where
       );
 
       if i == self.seq.len() - 1 {
-        z_out = Ok((None, vec![x_i_plus_1.clone(), x_i.clone()]));
+        z_out = Ok(vec![x_i_plus_1.clone(), x_i.clone()]);
       }
 
       // update x_i and y_i for the next iteration
@@ -159,7 +158,7 @@ fn main() {
       ],
     };
 
-    let circuit_secondary = TrivialTestCircuit::default();
+    let circuit_secondary = TrivialCircuit::default();
 
     println!("Proving {num_iters_per_step} iterations of MinRoot per step");
 
@@ -170,7 +169,7 @@ fn main() {
       G1,
       G2,
       MinRootCircuit<<G1 as Group>::Scalar>,
-      TrivialTestCircuit<<G2 as Group>::Scalar>,
+      TrivialCircuit<<G2 as Group>::Scalar>,
     >::new(&circuit_primary, &circuit_secondary, None, None);
     println!("PublicParams::setup, took {:?} ", start.elapsed());
 
@@ -214,7 +213,7 @@ fn main() {
     let z0_secondary = vec![<G2 as Group>::Scalar::zero()];
 
     type C1 = MinRootCircuit<<G1 as Group>::Scalar>;
-    type C2 = TrivialTestCircuit<<G2 as Group>::Scalar>;
+    type C2 = TrivialCircuit<<G2 as Group>::Scalar>;
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
     let mut recursive_snark: RecursiveSNARK<G1, G2, C1, C2> = RecursiveSNARK::<G1, G2, C1, C2>::new(

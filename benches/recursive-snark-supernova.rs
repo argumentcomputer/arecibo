@@ -9,7 +9,7 @@ use nova_snark::{
   supernova::NonUniformCircuit,
   supernova::RecursiveSNARK,
   traits::{
-    circuit::{StepCircuit, TrivialTestCircuit},
+    circuit_supernova::{StepCircuit, TrivialTestCircuit},
     Group,
   },
 };
@@ -67,7 +67,7 @@ where
 }
 
 impl<G1, G2, S>
-  NonUniformCircuit<G1, G2, NonTrivialTestCircuit<G1::Scalar>, TrivialTestCircuit<G2::Scalar>>
+  NonUniformCircuit<G1, G2, NonTrivialCircuit<G1::Scalar>, TrivialTestCircuit<G2::Scalar>>
   for NonUniformBench<G1, G2, S>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -78,10 +78,10 @@ where
     self.num_circuits
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> NonTrivialTestCircuit<G1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> NonTrivialCircuit<G1::Scalar> {
     assert!(circuit_index < self.num_circuits);
 
-    NonTrivialTestCircuit::new(self.num_cons)
+    NonTrivialCircuit::new(self.num_cons)
   }
 
   fn secondary_circuit(&self) -> TrivialTestCircuit<G2::Scalar> {
@@ -326,12 +326,12 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 }
 
 #[derive(Clone, Debug, Default)]
-struct NonTrivialTestCircuit<F: PrimeField> {
+struct NonTrivialCircuit<F: PrimeField> {
   num_cons: usize,
   _p: PhantomData<F>,
 }
 
-impl<F> NonTrivialTestCircuit<F>
+impl<F> NonTrivialCircuit<F>
 where
   F: PrimeField,
 {
@@ -342,7 +342,7 @@ where
     }
   }
 }
-impl<F> StepCircuit<F> for NonTrivialTestCircuit<F>
+impl<F> StepCircuit<F> for NonTrivialCircuit<F>
 where
   F: PrimeField,
 {

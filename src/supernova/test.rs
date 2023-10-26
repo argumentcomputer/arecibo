@@ -682,8 +682,7 @@ where
   <G1::Scalar as PrimeField>::Repr: Abomonation,
   <G2::Scalar as PrimeField>::Repr: Abomonation,
 {
-  // TODO: add back in https://github.com/lurk-lab/arecibo/issues/53
-  // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
+  // this tests public parameters with a size specifically intended for a spark-compressed SNARK
   let pp_hint1 = Some(SPrime::<G1, E1>::commitment_key_floor());
   let pp_hint2 = Some(SPrime::<G2, E2>::commitment_key_floor());
   let pp = PublicParams::<G1, G2, T1, T2>::new_supernova(non_uniform_circuit, pp_hint1, pp_hint2);
@@ -713,7 +712,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<G1, G2, _, _, _, EE<_>, EE<_>>(
     &test_rom,
-    "989e3756cf76e0af1f0e76ced6fc356404d7beedcee5ad244dad25ed08809e00",
+    "f5cc52865d1ea506048ace773e0fb0f00370921ceab0e8f53cf0b4a1493d0b01",
   );
 
   let rom = vec![
@@ -728,7 +727,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, _, EE<_>, EE<_>>(
     &test_rom_grumpkin,
-    "0b8c080ffa823b95d1dd75b6a5b49852c53ff60fbead6652af6d2a0bd177b800",
+    "d257bd14ad35147b1a3068c4c61738dd601bc143220c50818784d2e7876a9902",
   );
 
   let rom = vec![
@@ -743,6 +742,6 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, _, EE<_>, EE<_>>(
     &test_rom_secp,
-    "3ae4759aa0338bcc6ac11b456c17803467a1f44364992e3f1a0c6344b0135703",
+    "9e0b069525b4643ffa212ada61500f36417b365ee1e316910a3d781876c6dd01",
   );
 }

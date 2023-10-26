@@ -17,7 +17,7 @@ use ff::{PrimeField, PrimeFieldBits};
 use nova_snark::{
   parameters::PublicParams,
   traits::{
-    circuit::{StepCircuit, TrivialTestCircuit},
+    circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
   RecursiveSNARK,
@@ -121,7 +121,7 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for Sha256Circuit<
 }
 
 type C1 = Sha256Circuit<<G1 as Group>::Scalar>;
-type C2 = TrivialTestCircuit<<G2 as Group>::Scalar>;
+type C2 = TrivialCircuit<<G2 as Group>::Scalar>;
 
 criterion_group! {
 name = recursive_snark;
@@ -155,10 +155,10 @@ fn bench_recursive_snark(c: &mut Criterion) {
     group.sample_size(10);
 
     // Produce public parameters
-    let ttc = TrivialTestCircuit::default();
+    let ttc = TrivialCircuit::default();
     let pp = PublicParams::<G1, G2, C1, C2>::new(&circuit_primary, &ttc, None, None);
 
-    let circuit_secondary = TrivialTestCircuit::default();
+    let circuit_secondary = TrivialCircuit::default();
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
 
