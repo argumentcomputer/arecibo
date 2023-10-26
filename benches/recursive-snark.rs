@@ -5,11 +5,12 @@ use core::marker::PhantomData;
 use criterion::*;
 use ff::PrimeField;
 use nova_snark::{
+  parameters::PublicParams,
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
-  PublicParams, RecursiveSNARK,
+  RecursiveSNARK,
 };
 use std::time::Duration;
 

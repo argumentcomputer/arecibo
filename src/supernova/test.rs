@@ -11,6 +11,9 @@ use crate::provider::secp_secq::secq256k1;
 use crate::traits::circuit_supernova::{
   EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
 };
+use crate::traits::evaluation::EvaluationEngineTrait;
+use crate::traits::snark::RelaxedR1CSSNARKTrait;
+use abomonation::Abomonation;
 use bellpepper::gadgets::{boolean::Boolean, Assignment};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
@@ -21,6 +24,10 @@ use std::fmt::Write;
 use tap::TapOptional;
 
 use super::*;
+type EE<G> = crate::provider::ipa_pc::EvaluationEngine<G>;
+// TODO: add back when SNARK tests are added
+// type S<G, EE> = crate::spartan::snark::RelaxedR1CSSNARK<G, EE>;
+type SPrime<G, EE> = crate::spartan::ppsnark::RelaxedR1CSSNARK<G, EE>;
 
 fn constrain_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
@@ -448,7 +455,7 @@ where
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
   let num_steps = test_rom.num_steps();
 
-  let pp = PublicParams::new(&test_rom);
+  let pp = PublicParams::new_supernova(&test_rom, None, None);
 
   let initial_program_counter = test_rom.initial_program_counter();
 
@@ -463,7 +470,7 @@ where
   );
   let z0_secondary = vec![<G2 as Group>::Scalar::ONE];
 
-  let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
+  let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2, _, _>> = None;
 
   for _ in 0..num_steps {
     let program_counter = recursive_snark_option.as_ref().map_or_else(
@@ -554,8 +561,8 @@ fn test_trivial_nivc() {
 
 // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
 fn test_recursive_circuit_with<G1, G2>(
-  primary_params: &SuperNovaAugmentedCircuitParams,
-  secondary_params: &SuperNovaAugmentedCircuitParams,
+  primary_params: &AugmentedCircuitParams,
+  secondary_params: &AugmentedCircuitParams,
   ro_consts1: ROConstantsCircuit<G2>,
   ro_consts2: ROConstantsCircuit<G1>,
   num_constraints_primary: usize,
@@ -655,27 +662,30 @@ fn test_recursive_circuit_with<G1, G2>(
 fn test_recursive_circuit() {
   type G1 = pasta_curves::pallas::Point;
   type G2 = pasta_curves::vesta::Point;
-  let params1 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-  let params2 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+  let params1 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+  let params2 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::default();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
   test_recursive_circuit_with::<G1, G2>(&params1, &params2, ro_consts1, ro_consts2, 9836, 12035);
 }
 
-fn test_pp_digest_with<G1, G2, T1, T2, NC>(non_uniform_circuit: &NC, expected: &str)
+fn test_pp_digest_with<G1, G2, T1, T2, NC, E1, E2>(non_uniform_circuit: &NC, expected: &str)
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
   T1: StepCircuit<G1::Scalar>,
   T2: StepCircuit<G2::Scalar>,
   NC: NonUniformCircuit<G1, G2, T1, T2>,
+  E1: EvaluationEngineTrait<G1>,
+  E2: EvaluationEngineTrait<G2>,
+  <G1::Scalar as PrimeField>::Repr: Abomonation,
+  <G2::Scalar as PrimeField>::Repr: Abomonation,
 {
-  // TODO: add back in https://github.com/lurk-lab/arecibo/issues/53
-  // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
-  // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
-  // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
-  let pp = PublicParams::<G1, G2, T1, T2>::new(non_uniform_circuit);
+  // this tests public parameters with a size specifically intended for a spark-compressed SNARK
+  let pp_hint1 = Some(SPrime::<G1, E1>::commitment_key_floor());
+  let pp_hint2 = Some(SPrime::<G2, E2>::commitment_key_floor());
+  let pp = PublicParams::<G1, G2, T1, T2>::new_supernova(non_uniform_circuit, pp_hint1, pp_hint2);
 
   let digest_str = pp
     .digest()
@@ -700,9 +710,9 @@ fn test_supernova_pp_digest() {
   ]; // Rom can be arbitrary length.
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<<G2 as Group>::Scalar>>::new(rom);
 
-  test_pp_digest_with::<G1, G2, _, _, _>(
+  test_pp_digest_with::<G1, G2, _, _, _, EE<_>, EE<_>>(
     &test_rom,
-    "989e3756cf76e0af1f0e76ced6fc356404d7beedcee5ad244dad25ed08809e00",
+    "f5cc52865d1ea506048ace773e0fb0f00370921ceab0e8f53cf0b4a1493d0b01",
   );
 
   let rom = vec![
@@ -715,9 +725,9 @@ fn test_supernova_pp_digest() {
     TrivialSecondaryCircuit<<grumpkin::Point as Group>::Scalar>,
   >::new(rom);
 
-  test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, _>(
+  test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, _, EE<_>, EE<_>>(
     &test_rom_grumpkin,
-    "0b8c080ffa823b95d1dd75b6a5b49852c53ff60fbead6652af6d2a0bd177b800",
+    "d257bd14ad35147b1a3068c4c61738dd601bc143220c50818784d2e7876a9902",
   );
 
   let rom = vec![
@@ -730,8 +740,8 @@ fn test_supernova_pp_digest() {
     TrivialSecondaryCircuit<<secq256k1::Point as Group>::Scalar>,
   >::new(rom);
 
-  test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, _>(
+  test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, _, EE<_>, EE<_>>(
     &test_rom_secp,
-    "3ae4759aa0338bcc6ac11b456c17803467a1f44364992e3f1a0c6344b0135703",
+    "9e0b069525b4643ffa212ada61500f36417b365ee1e316910a3d781876c6dd01",
   );
 }

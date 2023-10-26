@@ -20,6 +20,7 @@ mod nifs;
 pub mod constants;
 pub mod errors;
 pub mod gadgets;
+pub mod parameters;
 pub mod provider;
 pub mod r1cs;
 pub mod spartan;
@@ -27,27 +28,23 @@ pub mod traits;
 
 pub mod supernova;
 
-use once_cell::sync::OnceCell;
-
 use crate::bellpepper::{
   r1cs::{NovaShape, NovaWitness},
   shape_cs::ShapeCS,
   solver::SatisfyingAssignment,
 };
-use crate::digest::{DigestComputer, SimpleDigestible};
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use bellpepper_core::ConstraintSystem;
-use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
+use circuit::{AugmentedCircuitParams, NovaAugmentedCircuit, NovaAugmentedCircuitInputs};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
 use core::marker::PhantomData;
 use errors::NovaError;
 use ff::{Field, PrimeField};
 use gadgets::utils::scalar_as_base;
 use nifs::NIFS;
-use r1cs::{
-  CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
-};
+use parameters::PublicParams;
+use r1cs::{R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
 use serde::{Deserialize, Serialize};
 use traits::{
   circuit::StepCircuit,
@@ -55,214 +52,6 @@ use traits::{
   snark::RelaxedR1CSSNARKTrait,
   AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
 };
-
-/// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
-pub struct CircuitShape<G: Group> {
-  F_arity: usize,
-  r1cs_shape: R1CSShape<G>,
-}
-
-impl<G: Group> SimpleDigestible for CircuitShape<G> {}
-
-impl<G: Group> CircuitShape<G> {
-  /// Create a new `CircuitShape`
-  pub fn new(r1cs_shape: R1CSShape<G>, F_arity: usize) -> Self {
-    Self {
-      F_arity,
-      r1cs_shape,
-    }
-  }
-
-  /// Return the [CircuitShape]' digest.
-  pub fn digest(&self) -> G::Scalar {
-    let dc: DigestComputer<'_, <G as Group>::Scalar, CircuitShape<G>> = DigestComputer::new(self);
-    dc.digest().expect("Failure in computing digest")
-  }
-}
-
-/// A type that holds public parameters of Nova
-#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-  <G1::Scalar as PrimeField>::Repr: Abomonation,
-  <G2::Scalar as PrimeField>::Repr: Abomonation,
-)]
-pub struct PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  F_arity_primary: usize,
-  F_arity_secondary: usize,
-  ro_consts_primary: ROConstants<G1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<G2>,
-  ck_primary: CommitmentKey<G1>,
-  circuit_shape_primary: CircuitShape<G1>,
-  ro_consts_secondary: ROConstants<G2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
-  ck_secondary: CommitmentKey<G2>,
-  circuit_shape_secondary: CircuitShape<G2>,
-  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
-  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  #[abomonation_skip]
-  #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<G1::Scalar>,
-  _p: PhantomData<(C1, C2)>,
-}
-
-impl<G1, G2, C1, C2> SimpleDigestible for PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-}
-
-impl<G1, G2, C1, C2> PublicParams<G1, G2, C1, C2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-{
-  /// Set up builder to create `PublicParams` for a pair of circuits `C1` and `C2`.
-  ///
-  /// # Note
-  ///
-  /// Some SNARKs, like variants of Spartan, use computation commitments that require
-  /// larger sizes for some parameters. These SNARKs provide a hint for these values by
-  /// implementing `RelaxedR1CSSNARKTrait::commitment_key_floor()`, which can be passed to this function.
-  /// If you're not using such a SNARK, pass `None` instead.
-  ///
-  /// # Arguments
-  ///
-  /// * `c_primary`: The primary circuit of type `C1`.
-  /// * `c_secondary`: The secondary circuit of type `C2`.
-  /// * `optfn1`: An optional `CommitmentKeyHint` for `G1`, which is a function that provides a hint
-  ///   for the number of generators required in the commitment scheme for the primary circuit.
-  /// * `optfn2`: An optional `CommitmentKeyHint` for `G2`, similar to `optfn1`, but for the secondary circuit.
-  ///
-  /// # Example
-  ///
-  /// ```rust
-  /// # use pasta_curves::{vesta, pallas};
-  /// # use nova_snark::spartan::ppsnark::RelaxedR1CSSNARK;
-  /// # use nova_snark::provider::ipa_pc::EvaluationEngine;
-  /// # use nova_snark::traits::{circuit::TrivialCircuit, Group, snark::RelaxedR1CSSNARKTrait};
-  /// use nova_snark::PublicParams;
-  ///
-  /// type G1 = pallas::Point;
-  /// type G2 = vesta::Point;
-  /// type EE<G> = EvaluationEngine<G>;
-  /// type SPrime<G> = RelaxedR1CSSNARK<G, EE<G>>;
-  ///
-  /// let circuit1 = TrivialCircuit::<<G1 as Group>::Scalar>::default();
-  /// let circuit2 = TrivialCircuit::<<G2 as Group>::Scalar>::default();
-  /// // Only relevant for a SNARK using computational commitments, pass None otherwise.
-  /// let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
-  /// let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
-  ///
-  /// let pp = PublicParams::new(&circuit1, &circuit2, pp_hint1, pp_hint2);
-  /// ```
-  pub fn new(
-    c_primary: &C1,
-    c_secondary: &C2,
-    optfn1: Option<CommitmentKeyHint<G1>>,
-    optfn2: Option<CommitmentKeyHint<G2>>,
-  ) -> Self {
-    let augmented_circuit_params_primary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-    let augmented_circuit_params_secondary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
-
-    let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
-    let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
-
-    let F_arity_primary = c_primary.arity();
-    let F_arity_secondary = c_secondary.arity();
-
-    // ro_consts_circuit_primary are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-    let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
-    let ro_consts_circuit_secondary: ROConstantsCircuit<G1> = ROConstantsCircuit::<G1>::default();
-
-    // Initialize ck for the primary
-    let circuit_primary: NovaAugmentedCircuit<'_, G2, C1> = NovaAugmentedCircuit::new(
-      &augmented_circuit_params_primary,
-      None,
-      c_primary,
-      ro_consts_circuit_primary.clone(),
-    );
-    let mut cs: ShapeCS<G1> = ShapeCS::new();
-    let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(optfn1);
-    let circuit_shape_primary = CircuitShape::new(r1cs_shape_primary, F_arity_primary);
-
-    // Initialize ck for the secondary
-    let circuit_secondary: NovaAugmentedCircuit<'_, G1, C2> = NovaAugmentedCircuit::new(
-      &augmented_circuit_params_secondary,
-      None,
-      c_secondary,
-      ro_consts_circuit_secondary.clone(),
-    );
-    let mut cs: ShapeCS<G2> = ShapeCS::new();
-    let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(optfn2);
-    let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
-
-    PublicParams {
-      F_arity_primary,
-      F_arity_secondary,
-      ro_consts_primary,
-      ro_consts_circuit_primary,
-      ck_primary,
-      circuit_shape_primary,
-      ro_consts_secondary,
-      ro_consts_circuit_secondary,
-      ck_secondary,
-      circuit_shape_secondary,
-      augmented_circuit_params_primary,
-      augmented_circuit_params_secondary,
-      digest: OnceCell::new(),
-      _p: Default::default(),
-    }
-  }
-
-  /// Retrieve the digest of the public parameters.
-  pub fn digest(&self) -> G1::Scalar {
-    self
-      .digest
-      .get_or_try_init(|| DigestComputer::new(self).digest())
-      .cloned()
-      .expect("Failure in retrieving digest")
-  }
-
-  /// Returns the number of constraints in the primary and secondary circuits
-  pub const fn num_constraints(&self) -> (usize, usize) {
-    (
-      self.circuit_shape_primary.r1cs_shape.num_cons,
-      self.circuit_shape_secondary.r1cs_shape.num_cons,
-    )
-  }
-
-  /// Returns the number of variables in the primary and secondary circuits
-  pub const fn num_variables(&self) -> (usize, usize) {
-    (
-      self.circuit_shape_primary.r1cs_shape.num_vars,
-      self.circuit_shape_secondary.r1cs_shape.num_vars,
-    )
-  }
-}
 
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -325,7 +114,7 @@ where
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
     let (u_primary, w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
+      .r1cs_instance_and_witness(&pp[0].r1cs_shape, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -358,13 +147,9 @@ where
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
-    let r_W_primary =
-      RelaxedR1CSWitness::from_r1cs_witness(&pp.circuit_shape_primary.r1cs_shape, &l_w_primary);
-    let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
-      &pp.ck_primary,
-      &pp.circuit_shape_primary.r1cs_shape,
-      &l_u_primary,
-    );
+    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(&pp[0].r1cs_shape, &l_w_primary);
+    let r_U_primary =
+      RelaxedR1CSInstance::from_r1cs_instance(&pp.ck_primary, &pp[0].r1cs_shape, &l_u_primary);
 
     // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
@@ -374,7 +159,7 @@ where
       RelaxedR1CSInstance::<G2>::default(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape);
 
     assert!(
-      !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
+      !(zi_primary.len() != pp[0].F_arity || zi_secondary.len() != pp.F_arity_secondary()),
       "Invalid step length"
     );
 
@@ -416,7 +201,7 @@ where
     z0_primary: Vec<G1::Scalar>,
     z0_secondary: Vec<G2::Scalar>,
   ) -> Result<(), NovaError> {
-    if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
+    if z0_primary.len() != pp[0].F_arity || z0_secondary.len() != pp.F_arity_secondary() {
       return Err(NovaError::InvalidInitialInputLength);
     }
 
@@ -462,7 +247,7 @@ where
       .map_err(|_| NovaError::SynthesisError)?;
 
     let (l_u_primary, l_w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
+      .r1cs_instance_and_witness(&pp[0].r1cs_shape, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -471,7 +256,7 @@ where
       &pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
-      &pp.circuit_shape_primary.r1cs_shape,
+      &pp[0].r1cs_shape,
       &self.r_U_primary,
       &self.r_W_primary,
       &l_u_primary,
@@ -558,7 +343,7 @@ where
     let (hash_primary, hash_secondary) = {
       let mut hasher = <<G2 as Group>::RO as ROTrait<G2::Base, G2::Scalar>>::new(
         pp.ro_consts_secondary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
+        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp[0].F_arity,
       );
       hasher.absorb(pp.digest());
       hasher.absorb(G1::Scalar::from(num_steps as u64));
@@ -572,7 +357,7 @@ where
 
       let mut hasher2 = <<G1 as Group>::RO as ROTrait<G1::Base, G1::Scalar>>::new(
         pp.ro_consts_primary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_secondary,
+        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_secondary(),
       );
       hasher2.absorb(scalar_as_base::<G1>(pp.digest()));
       hasher2.absorb(G2::Scalar::from(num_steps as u64));
@@ -599,11 +384,9 @@ where
     // check the satisfiability of the provided instances
     let (res_r_primary, (res_r_secondary, res_l_secondary)) = rayon::join(
       || {
-        pp.circuit_shape_primary.r1cs_shape.is_sat_relaxed(
-          &pp.ck_primary,
-          &self.r_U_primary,
-          &self.r_W_primary,
-        )
+        pp[0]
+          .r1cs_shape
+          .is_sat_relaxed(&pp.ck_primary, &self.r_U_primary, &self.r_W_primary)
       },
       || {
         rayon::join(
@@ -733,7 +516,7 @@ where
     ),
     NovaError,
   > {
-    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp.circuit_shape_primary.r1cs_shape)?;
+    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp[0].r1cs_shape)?;
     let (pk_secondary, vk_secondary) =
       S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
 
@@ -745,8 +528,8 @@ where
     };
 
     let vk = VerifierKey {
-      F_arity_primary: pp.F_arity_primary,
-      F_arity_secondary: pp.F_arity_secondary,
+      F_arity_primary: pp[0].F_arity,
+      F_arity_secondary: pp.F_arity_secondary(),
       ro_consts_primary: pp.ro_consts_primary.clone(),
       ro_consts_secondary: pp.ro_consts_secondary.clone(),
       pp_digest: pp.digest(),
@@ -785,7 +568,7 @@ where
         S1::prove(
           &pp.ck_primary,
           &pk.pk_primary,
-          &pp.circuit_shape_primary.r1cs_shape,
+          &pp[0].r1cs_shape,
           &recursive_snark.r_U_primary,
           &recursive_snark.r_W_primary,
         )
@@ -921,7 +704,7 @@ pub fn circuit_digest<
 >(
   circuit: &C,
 ) -> G1::Scalar {
-  let augmented_circuit_params = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+  let augmented_circuit_params = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
   let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
@@ -944,7 +727,7 @@ mod tests {
   use crate::provider::bn256_grumpkin::{bn256, grumpkin};
   use crate::provider::secp_secq::{secp256k1, secq256k1};
   use crate::traits::evaluation::EvaluationEngineTrait;
-  use core::fmt::Write;
+  use std::fmt::Write;
 
   use super::*;
   type EE<G> = provider::ipa_pc::EvaluationEngine<G>;

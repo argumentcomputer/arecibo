@@ -4,11 +4,11 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ff::PrimeField;
 use nova_snark::{
+  parameters::PublicParams,
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
-  PublicParams,
 };
 
 type G1 = pasta_curves::pallas::Point;
