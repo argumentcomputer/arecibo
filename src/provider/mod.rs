@@ -13,6 +13,7 @@ pub mod poseidon;
 pub mod secp_secq;
 
 // a non-hiding variant of {kzg, zeromorph}
+pub mod kzg_commitment;
 pub mod non_hiding_kzg;
 pub mod non_hiding_zeromorph;
 
@@ -156,7 +157,24 @@ macro_rules! impl_traits {
     $name_compressed:ident,
     $name_curve:ident,
     $name_curve_affine:ident,
-    $order_str:literal
+    $order_str:expr
+  ) => {
+    impl_traits!(
+      $name,
+      $name_compressed,
+      $name_curve,
+      $name_curve_affine,
+      $order_str,
+      CommitmentEngine<Self>
+    );
+  };
+  (
+    $name:ident,
+    $name_compressed:ident,
+    $name_curve:ident,
+    $name_curve_affine:ident,
+    $order_str:literal,
+    $commitment_engine:ty
   ) => {
     impl Group for $name::Point {
       type Base = $name::Base;
@@ -166,7 +184,7 @@ macro_rules! impl_traits {
       type RO = PoseidonRO<Self::Base, Self::Scalar>;
       type ROCircuit = PoseidonROCircuit<Self::Base>;
       type TE = Keccak256Transcript<Self>;
-      type CE = CommitmentEngine<Self>;
+      type CE = $commitment_engine;
 
       fn vartime_multiscalar_mul(
         scalars: &[Self::Scalar],

@@ -11,19 +11,40 @@ use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
 use crate::{
   errors::{NovaError, PCSError},
-  traits::{Group, TranscriptReprTrait},
+  traits::{commitment::Len, Group, TranscriptReprTrait},
 };
 
 /// `UniversalParams` are the universal parameters for the KZG10 scheme.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize, Abomonation)]
+#[serde(bound(
+  serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
+  deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
+))]
+#[abomonation_omit_bounds]
 pub struct UVUniversalKZGParam<E: Engine> {
   /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to
   /// `degree`.
+  #[abomonate_with(Vec<[u64; 8]>)] // // this is a hack; we just assume the size of the element.
   pub powers_of_g: Vec<E::G1Affine>,
   /// Group elements of the form `{ \beta^i H }`, where `i` ranges from 0 to
   /// `degree`.
+  #[abomonate_with(Vec<[u64; 16]>)] // this is a hack; we just assume the size of the element.
   pub powers_of_h: Vec<E::G2Affine>,
 }
+
+impl<E: Engine> PartialEq for UVUniversalKZGParam<E> {
+  fn eq(&self, other: &UVUniversalKZGParam<E>) -> bool {
+    self.powers_of_g == other.powers_of_g && self.powers_of_h == other.powers_of_h
+  }
+}
+
+// for the purpose of the Len trait, we count commitment bases, i.e. G1 elements
+impl<E: Engine> Len for UVUniversalKZGParam<E> {
+  fn length(&self) -> usize {
+    self.powers_of_g.len()
+  }
+}
+
 /// `UnivariateProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
 #[abomonation_omit_bounds]
@@ -115,27 +136,34 @@ impl<E: Engine> UVUniversalKZGParam<E> {
     let g = E::G1::random(&mut rng);
     let h = E::G2::random(rng);
 
-    let powers_of_g_projective = (0..=max_degree)
-      .scan(g, |acc, _| {
-        let val = *acc;
-        *acc *= beta;
-        Some(val)
-      })
-      .collect::<Vec<E::G1>>();
+    let (powers_of_g_projective, powers_of_h_projective) = rayon::join(
+      || {
+        (0..=max_degree)
+          .scan(g, |acc, _| {
+            let val = *acc;
+            *acc *= beta;
+            Some(val)
+          })
+          .collect::<Vec<E::G1>>()
+      },
+      || {
+        (0..=max_degree)
+          .scan(h, |acc, _| {
+            let val = *acc;
+            *acc *= beta;
+            Some(val)
+          })
+          .collect::<Vec<E::G2>>()
+      },
+    );
 
     let mut powers_of_g = vec![E::G1Affine::identity(); powers_of_g_projective.len()];
-    E::G1::batch_normalize(&powers_of_g_projective, &mut powers_of_g);
-
-    let powers_of_h_projective = (0..=max_degree)
-      .scan(h, |acc, _| {
-        let val = *acc;
-        *acc *= beta;
-        Some(val)
-      })
-      .collect::<Vec<E::G2>>();
-
     let mut powers_of_h = vec![E::G2Affine::identity(); powers_of_h_projective.len()];
-    E::G2::batch_normalize(&powers_of_h_projective, &mut powers_of_h);
+
+    rayon::join(
+      || E::G1::batch_normalize(&powers_of_g_projective, &mut powers_of_g),
+      || E::G2::batch_normalize(&powers_of_h_projective, &mut powers_of_h),
+    );
 
     Self {
       powers_of_g,
@@ -145,7 +173,7 @@ impl<E: Engine> UVUniversalKZGParam<E> {
 }
 
 /// Commitments
-#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default, Serialize, Deserialize)]
 #[serde(bound(
   serialize = "E::G1Affine: Serialize",
   deserialize = "E::G1Affine: Deserialize<'de>"
@@ -160,8 +188,15 @@ where
   E::G1: Group,
 {
   fn to_transcript_bytes(&self) -> Vec<u8> {
-    // TODO: avoid the round-trip through the group
-    E::G1::from(self.0).compress().to_transcript_bytes()
+    // TODO: avoid the round-trip through the group (to_curve .. to_coordinates)
+    let (x, y, is_infinity) = self.0.to_curve().to_coordinates();
+    let is_infinity_byte = (!is_infinity).into();
+    [
+      x.to_transcript_bytes(),
+      y.to_transcript_bytes(),
+      [is_infinity_byte].to_vec(),
+    ]
+    .concat()
   }
 }
 
@@ -177,57 +212,13 @@ pub struct UVKZGProof<E: Engine> {
   pub proof: E::G1Affine,
 }
 
-// TODO: we are extending this into a real Dense UV Polynomial type,
-// and this is probably better organized elsewhere.
 /// Polynomial and its associated types
 pub type UVKZGPoly<F> = crate::spartan::polys::univariate::UniPoly<F>;
 
-impl<F: PrimeField> UVKZGPoly<F> {
-  fn zero() -> Self {
-    UVKZGPoly::new(Vec::new())
-  }
-
-  pub fn random<R: RngCore + CryptoRng>(degree: usize, mut rng: &mut R) -> Self {
-    let coeffs = (0..=degree).map(|_| F::random(&mut rng)).collect();
-    UVKZGPoly::new(coeffs)
-  }
-
-  /// Divide self by another polynomial, and returns the
-  /// quotient and remainder.
-  fn divide_with_q_and_r(&self, divisor: &Self) -> Option<(UVKZGPoly<F>, UVKZGPoly<F>)> {
-    if self.is_zero() {
-      Some((UVKZGPoly::zero(), UVKZGPoly::zero()))
-    } else if divisor.is_zero() {
-      panic!("Dividing by zero polynomial")
-    } else if self.degree() < divisor.degree() {
-      Some((UVKZGPoly::zero(), self.clone()))
-    } else {
-      // Now we know that self.degree() >= divisor.degree();
-      let mut quotient = vec![F::ZERO; self.degree() - divisor.degree() + 1];
-      let mut remainder: UVKZGPoly<F> = self.clone();
-      // Can unwrap here because we know self is not zero.
-      let divisor_leading_inv = divisor.leading_coefficient().unwrap().invert().unwrap();
-      while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
-        let cur_q_coeff = *remainder.leading_coefficient().unwrap() * divisor_leading_inv;
-        let cur_q_degree = remainder.degree() - divisor.degree();
-        quotient[cur_q_degree] = cur_q_coeff;
-
-        for (i, div_coeff) in divisor.coeffs.iter().enumerate() {
-          remainder.coeffs[cur_q_degree + i] -= &(cur_q_coeff * div_coeff);
-        }
-        while let Some(true) = remainder.coeffs.last().map(|c| c == &F::ZERO) {
-          remainder.coeffs.pop();
-        }
-      }
-      Some((UVKZGPoly::new(quotient), remainder))
-    }
-  }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 /// KZG Polynomial Commitment Scheme on univariate polynomial.
-/// Note: this is non-hiding, which is why we will implement the EvaluationEngineTrait on this token struct,
-/// as we will have several impls for the trait pegged on the same instance of a pairing::Engine.
+/// Note: this is non-hiding, which is why we will implement traits on this token struct,
+/// as we expect to have several impls for the trait pegged on the same instance of a pairing::Engine.
 pub struct UVKZGPCS<E> {
   #[doc(hidden)]
   phantom: PhantomData<E>,
@@ -237,8 +228,6 @@ impl<E: MultiMillerLoop> UVKZGPCS<E>
 where
   E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
 {
-  // TODO: this relies on NovaError::InvalidIPA, which should really be extended to a sub-error enum
-  // called "PCSError"
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
   pub fn commit(
@@ -281,7 +270,6 @@ where
     let divisor = UVKZGPoly {
       coeffs: vec![-*point, E::Fr::ONE],
     };
-    // TODO: Better error
     let witness_polynomial = polynomial
       .divide_with_q_and_r(&divisor)
       .map(|(q, _r)| q)
@@ -311,7 +299,6 @@ where
     points: &[E::Fr],
   ) -> Result<(Vec<UVKZGProof<E>>, Vec<UVKZGEvaluation<E>>), NovaError> {
     if polynomials.len() != points.len() {
-      // TODO: a better Error
       return Err(NovaError::PCSError(PCSError::LengthError));
     }
     let mut batch_proof = vec![];

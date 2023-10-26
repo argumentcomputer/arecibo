@@ -153,7 +153,7 @@ impl<G: Group, S: RelaxedR1CSSNARKTrait<G>, C: StepCircuit<G::Scalar>> DirectSNA
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::provider::{bn256_grumpkin::bn256, secp_secq::secp256k1};
+  use crate::provider::{bn256_grumpkin::bn256, non_hiding_zeromorph::ZMPCS, secp_secq::secp256k1};
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::marker::PhantomData;
   use ff::PrimeField;
@@ -219,7 +219,7 @@ mod tests {
     test_direct_snark_with::<G, Spp>();
 
     type G2 = bn256::Point;
-    type EE2 = crate::provider::ipa_pc::EvaluationEngine<G2>;
+    type EE2 = ZMPCS<halo2curves::bn256::Bn256>;
     type S2 = crate::spartan::snark::RelaxedR1CSSNARK<G2, EE2>;
     type S2pp = crate::spartan::ppsnark::RelaxedR1CSSNARK<G2, EE2>;
     test_direct_snark_with::<G2, S2>();

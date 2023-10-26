@@ -4,24 +4,26 @@
 
 use crate::{
   errors::{NovaError, PCSError},
-  spartan::{math::Math, polys::multilinear::MultilinearPolynomial},
+  spartan::polys::multilinear::MultilinearPolynomial,
   traits::{commitment::Len, evaluation::EvaluationEngineTrait, Group, TranscriptEngineTrait},
-  Commitment, CommitmentKey,
+  Commitment,
 };
 use abomonation_derive::Abomonation;
-use ff::{BatchInvert, Field};
+use ff::{BatchInvert, Field, PrimeField};
 use group::{Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
-use rand::thread_rng;
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
-use super::non_hiding_kzg::{
-  UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof, UVKZGProverKey, UVKZGVerifierKey,
-  UVUniversalKZGParam, UVKZGPCS,
+use super::{
+  kzg_commitment::KZGCommitmentEngine,
+  non_hiding_kzg::{
+    UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof, UVKZGProverKey, UVKZGVerifierKey,
+    UVUniversalKZGParam, UVKZGPCS,
+  },
 };
 
 /// `ZMProverKey` is used to generate a proof
@@ -149,7 +151,7 @@ where
   ) -> Result<ZMCommitment<E>, NovaError> {
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
-      return Err(NovaError::PCSError(PCSError::LengthError)); // TODO: better error
+      return Err(PCSError::LengthError.into());
     }
     // TODO: remove the undue clone in the creation of an UVKZGPoly here
     UVKZGPCS::commit(&pp.commit_pp, &UVKZGPoly::new(poly.Z.clone())).map(|c| c.into())
@@ -187,9 +189,9 @@ where
     }
 
     debug_assert_eq!(Self::commit(pp, poly).unwrap().0, comm.0);
-    debug_assert_eq!(poly.evaluate_opt(point), eval.0);
+    debug_assert_eq!(poly.evaluate(point), eval.0);
 
-    let (quotients, remainder) = poly.quotients(point);
+    let (quotients, remainder) = quotients(poly, point);
     debug_assert_eq!(remainder, eval.0);
 
     // TODO: this should be a Cow
@@ -316,9 +318,50 @@ where
   }
 }
 
-// TODO : move this somewhere else
-fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>) {
-  let num_vars = u.len();
+/// Compute quotient polynomials of the polynomial w.r.t. an input point
+/// i.e. q_k s.t. $$self - v = \Sum_{k=0}^(n-1) q_k (X_k-point_k)$$
+///
+/// The polynomials q_k can be computed explicitly as the difference of the partial evaluation of self in the last
+/// (n - k) variables at, respectively, point'' = (point_k + 1, point_{k+1}, ..., point_{n-1}) and
+/// point' = (point_k, ..., point_{n-1}).
+fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Vec<Vec<F>>, F) {
+  let num_var = poly.get_num_vars();
+  assert_eq!(num_var, point.len());
+
+  let mut remainder = poly.Z.to_vec();
+  let mut quotients = point
+    .iter() // assume polynomial variables come in LE form
+    .enumerate()
+    .map(|(idx, x_i)| {
+      let (remainder_lo, remainder_hi) = remainder.split_at_mut(1 << (num_var - 1 - idx));
+      let mut quotient = vec![F::ZERO; remainder_lo.len()];
+
+      quotient
+        .par_iter_mut()
+        .zip(&*remainder_lo)
+        .zip(&*remainder_hi)
+        .for_each(|((q, r_lo), r_hi)| {
+          *q = *r_hi - *r_lo;
+        });
+      remainder_lo
+        .par_iter_mut()
+        .zip(remainder_hi)
+        .for_each(|(r_lo, r_hi)| {
+          *r_lo += (*r_hi - r_lo as &_) * x_i;
+        });
+
+      remainder.truncate(1 << (num_var - 1 - idx));
+
+      quotient
+    })
+    .collect::<Vec<Vec<F>>>();
+  quotients.reverse();
+
+  (quotients, remainder[0])
+}
+
+fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec<F>) {
+  let num_vars = point.len();
 
   let squares_of_x = iter::successors(Some(x), |&x| Some(x.square()))
     .take(num_vars + 1)
@@ -353,7 +396,7 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
     .zip(squares_of_x)
     .zip(&vs)
     .zip(&vs[1..])
-    .zip(u)
+    .zip(point.iter().rev()) // assume variables come in LE form
     .map(
       |(((((power_of_y, offset_of_x), square_of_x), v_i), v_j), u_i)| {
         -(power_of_y * offset_of_x + z * (square_of_x * v_j - *u_i * v_i))
@@ -366,27 +409,22 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, u: &[F]) -> (F, Vec<F>)
 
 impl<E: MultiMillerLoop> EvaluationEngineTrait<E::G1> for ZMPCS<E>
 where
-  E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr, CE = KZGCommitmentEngine<E>>,
   E::G1Affine: Serialize + DeserializeOwned,
   E::G2Affine: Serialize + DeserializeOwned,
 {
   type ProverKey = ZMProverKey<E>;
-
   type VerifierKey = ZMVerifierKey<E>;
 
   type EvaluationArgument = ZMProof<E>;
 
-  fn setup(ck: &CommitmentKey<E::G1>) -> (Self::ProverKey, Self::VerifierKey) {
-    let max_vars = ck.length().log_2();
-    let mut rng = thread_rng();
-    let max_poly_size = 1 << (max_vars + 1);
-    let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
-
-    trim(&universal_setup, max_poly_size)
+  fn setup(ck: &UVUniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
+    // TODO: refine!!
+    trim(ck, ck.length() - 1)
   }
 
   fn prove(
-    ck: &CommitmentKey<E::G1>,
+    _ck: &UVUniversalKZGParam<E>,
     pk: &Self::ProverKey,
     transcript: &mut <E::G1 as Group>::TE,
     comm: &Commitment<E::G1>,
@@ -394,7 +432,12 @@ where
     point: &[<E::G1 as Group>::Scalar],
     eval: &<E::G1 as Group>::Scalar,
   ) -> Result<Self::EvaluationArgument, NovaError> {
-    todo!()
+    let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
+    // TODO: the following two lines will need to change base
+    let polynomial = MultilinearPolynomial::new(poly.to_vec());
+
+    let evaluation = ZMEvaluation(*eval);
+    ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
   }
 
   fn verify(
@@ -405,7 +448,12 @@ where
     eval: &<E::G1 as Group>::Scalar,
     arg: &Self::EvaluationArgument,
   ) -> Result<(), NovaError> {
-    todo!()
+    let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
+    let evaluation = ZMEvaluation(*eval);
+
+    // TODO: this clone is unsightly!
+    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg.clone())?;
+    Ok(())
   }
 }
 
@@ -420,6 +468,7 @@ mod test {
   use rand_chacha::ChaCha20Rng;
   use rand_core::SeedableRng;
 
+  use super::quotients;
   use crate::{
     provider::{
       bn256_grumpkin::bn256,
@@ -457,7 +506,7 @@ mod test {
       let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
         .take(num_vars)
         .collect::<Vec<_>>();
-      let eval = ZMEvaluation(poly.evaluate_opt(&point));
+      let eval = ZMEvaluation(poly.evaluate(&point));
 
       let mut transcript_prover = Keccak256Transcript::<E::G1>::new(b"test");
       let proof = ZMPCS::open(&pp, &comm, &poly, &point, &eval, &mut transcript_prover).unwrap();
@@ -505,13 +554,13 @@ mod test {
     for scalar in point.iter() {
       println!("scalar: {:?}", scalar);
     }
-    let (_quotients, remainder) = poly.quotients(&point);
+    let (_quotients, remainder) = quotients(&poly, &point);
     assert_eq!(
-      poly.evaluate_opt(&point),
+      poly.evaluate(&point),
       remainder,
       "point: {:?}, \n eval: {:?}, remainder:{:?}",
       point,
-      poly.evaluate_opt(&point),
+      poly.evaluate(&point),
       remainder
     );
   }
