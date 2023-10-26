@@ -360,7 +360,6 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
   (quotients, remainder[0])
 }
 
-// TODO : move this somewhere else
 fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec<F>) {
   let num_vars = point.len();
 
