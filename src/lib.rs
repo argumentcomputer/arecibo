@@ -366,7 +366,7 @@ where
       &l_u_primary,
     );
 
-    // IVC proof of the secondary circuit
+    // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
     let r_W_secondary = RelaxedR1CSWitness::<G2>::default(&pp.circuit_shape_secondary.r1cs_shape);

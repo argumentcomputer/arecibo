@@ -214,7 +214,7 @@ impl<G: Group> R1CSShape<G> {
     assert_eq!(U.X.len(), self.num_io);
 
     // verify if Az * Bz = u*Cz + E
-    let res_eq: Result<(), NovaError> = {
+    let res_eq = {
       let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
       let (Az, Bz, Cz) = self.multiply_vec(&z)?;
       assert_eq!(Az.len(), self.num_cons);
@@ -233,7 +233,7 @@ impl<G: Group> R1CSShape<G> {
     res_eq?;
 
     // verify if comm_E and comm_W are commitments to E and W
-    let res_comm: bool = {
+    let res_comm = {
       let (comm_W, comm_E) =
         rayon::join(|| CE::<G>::commit(ck, &W.W), || CE::<G>::commit(ck, &W.E));
       U.comm_W == comm_W && U.comm_E == comm_E
@@ -256,7 +256,7 @@ impl<G: Group> R1CSShape<G> {
     assert_eq!(U.X.len(), self.num_io);
 
     // verify if Az * Bz = u*Cz
-    let res_eq: Result<(), NovaError> = {
+    let res_eq = {
       let z = [W.W.clone(), vec![G::Scalar::ONE], U.X.clone()].concat();
       let (Az, Bz, Cz) = self.multiply_vec(&z)?;
       assert_eq!(Az.len(), self.num_cons);
@@ -275,8 +275,7 @@ impl<G: Group> R1CSShape<G> {
     res_eq?;
 
     // verify if comm_W is a commitment to W
-    let res_comm: bool = U.comm_W == CE::<G>::commit(ck, &W.W);
-    if !res_comm {
+    if U.comm_W != CE::<G>::commit(ck, &W.W) {
       return Err(NovaError::UnSat);
     }
     Ok(())
@@ -494,17 +493,11 @@ impl<G: Group> RelaxedR1CSWitness<G> {
 
   /// Pads the provided witness to the correct length
   pub fn pad(&self, S: &R1CSShape<G>) -> RelaxedR1CSWitness<G> {
-    let W = {
-      let mut W = self.W.clone();
-      W.extend(vec![G::Scalar::ZERO; S.num_vars - W.len()]);
-      W
-    };
+    let mut W = self.W.clone();
+    W.extend(vec![G::Scalar::ZERO; S.num_vars - W.len()]);
 
-    let E = {
-      let mut E = self.E.clone();
-      E.extend(vec![G::Scalar::ZERO; S.num_cons - E.len()]);
-      E
-    };
+    let mut E = self.E.clone();
+    E.extend(vec![G::Scalar::ZERO; S.num_cons - E.len()]);
 
     Self { W, E }
   }
