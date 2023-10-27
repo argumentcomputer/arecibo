@@ -1,6 +1,4 @@
 //! This module defines a collection of traits that define the behavior of a `zkSNARK` for `RelaxedR1CS`
-use std::sync::Arc;
-
 use crate::{
   errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
@@ -25,9 +23,9 @@ pub trait RelaxedR1CSSNARKTrait<G: Group>:
   /// a minimum sizing cue for the commitment key used by this SNARK
   /// implementation. The commitment key passed in setup should then
   /// be at least as large as this hint.
-  fn commitment_key_floor() -> Arc<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
+  fn commitment_key_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
     // The default is to not put an additional floor on the size of the commitment key
-    Arc::new(|_shape: &R1CSShape<G>| 0)
+    Box::new(|_shape: &R1CSShape<G>| 0)
   }
 
   /// Produces the keys for the prover and the verifier

@@ -21,7 +21,6 @@ use abomonation_derive::Abomonation;
 use core::cmp::max;
 use ff::Field;
 use once_cell::sync::OnceCell;
-use std::sync::Arc;
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -77,7 +76,7 @@ pub struct RelaxedR1CSInstance<G: Group> {
 }
 
 /// A type for functions that hints commitment key sizing by returning the floor of the number of required generators.
-pub type CommitmentKeyHint<G> = Arc<dyn Fn(&R1CSShape<G>) -> usize>;
+pub type CommitmentKeyHint<G> = Box<dyn Fn(&R1CSShape<G>) -> usize>;
 
 /// Generates public parameters for a Rank-1 Constraint System (R1CS).
 ///
