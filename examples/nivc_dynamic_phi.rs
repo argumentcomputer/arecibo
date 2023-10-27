@@ -5,8 +5,7 @@ use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, Syn
 use blake2s_simd::Params;
 use ff::{Field, PrimeField, PrimeFieldBits};
 use rand::Rng;
-use rand_chacha::ChaCha8Rng;
-use rand_core::SeedableRng;
+use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 
 use nova_snark::{
@@ -48,21 +47,9 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    dbg!("SHA");
-    dbg!(&preimage.get_value());
-
     let preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
 
     let (preimage_bits, _) = preimage_bits.split_at(8 * NUM_BYTES);
-
-    // let preimage_bits_printed = preimage_bits.iter().fold(String::new(), |mut acc, b| {
-    //   let bit_string = match b.get_value() {
-    //     Some(true) => "1",
-    //     _ => "0",
-    //   };
-    //   acc.push_str(&format!("{}", bit_string));
-    //   acc
-    // });
 
     let preimage_bits = preimage_bits
       .chunks(8)
@@ -78,7 +65,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
 
     let (digest_bits, _) = digest_bits.split_at(8 * NUM_BYTES);
 
-    let next_pc_bit = digest_bits.first();
+    let next_pc_bit = &digest_bits[7];
 
     let digest_bits = digest_bits
       .chunks(8)
@@ -92,8 +79,6 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits.as_slice())?;
 
-    dbg!(&digest.get_value());
-
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
       if self.next_pc {
         Ok(F::ONE)
@@ -106,7 +91,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
       || "enforce new_pc is first bit",
       |lc| lc + CS::one(),
       |lc| lc + new_pc.get_variable(),
-      |_| next_pc_bit.unwrap().lc(CS::one(), F::ONE),
+      |_| next_pc_bit.lc(CS::one(), F::ONE),
     );
 
     Ok((Some(new_pc), vec![digest]))
@@ -140,9 +125,6 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    dbg!("BLAKE");
-    dbg!(preimage.get_value());
-
     let preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "blake_preimage_bits"))?;
 
     let (preimage_bits, _) = preimage_bits.split_at(8 * NUM_BYTES);
@@ -158,8 +140,6 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
     let next_pc_bit = digest_bits.first();
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits)?;
-
-    dbg!(&digest.get_value());
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
       if self.next_pc {
@@ -234,14 +214,10 @@ where
       }
     }
 
-    dbg!(&hashes.iter().map(|h| hex::encode(h)).collect::<Vec<_>>());
-
     let hints: Vec<bool> = hashes
       .into_iter()
       .map(|hash| hash.first().unwrap() & 1 == 1)
       .collect();
-
-    dbg!(&hints);
 
     (
       hints.clone(),
@@ -319,7 +295,7 @@ fn main() {
   type G1 = pasta_curves::pallas::Point;
   type G2 = pasta_curves::vesta::Point;
 
-  let mut rng = ChaCha8Rng::seed_from_u64(0);
+  let mut rng = OsRng;
 
   let mut preimage_bytes = [0u8; 32];
 
@@ -330,8 +306,6 @@ fn main() {
   let initial_preimage = <G1 as Group>::Scalar::from_repr(preimage_bytes);
 
   let initial_preimage = initial_preimage.unwrap();
-
-  dbg!(initial_preimage);
 
   let (hints, example) = ExampleSteps::<G1, G2>::new(initial_preimage);
 
@@ -384,6 +358,8 @@ fn main() {
       println!("verifying failed {:?}", e);
     }
   }
+
+  println!("proving and verifying done");
 }
 
 // TODO: This should be factored out as described in issue #64
