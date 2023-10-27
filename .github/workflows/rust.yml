@@ -36,6 +36,30 @@ jobs:
       run: |
         cargo nextest run --profile ci --workspace --cargo-profile dev-ci
 
+  check-lurk-compiles:
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: ${{ github.workspace }}/arecibo
+    - uses: actions/checkout@v2
+      with:
+        repository: lurk-lab/lurk-rs
+        path: ${{ github.workspace }}/lurk
+        submodules: recursive
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - name: Patch Cargo.toml
+      working-directory: ${{ github.workspace }}/lurk
+      run: |
+        echo "[patch.'https://github.com/lurk-lab/arecibo']" >> Cargo.toml
+        echo "nova = { path='../arecibo', package='nova-snark' }" >> Cargo.toml
+    - name: Check Lurk-rs types don't break spectacularly
+      working-directory: ${{ github.workspace }}/lurk
+      run: cargo check --all --tests --benches --examples
+
   misc:
     runs-on: ubuntu-latest
     strategy:
