@@ -7,12 +7,11 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use flate2::{write::ZlibEncoder, Compression};
 use nova_snark::{
-  parameters::PublicParams,
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
-  CompressedSNARK, RecursiveSNARK,
+  CompressedSNARK, PublicParams, RecursiveSNARK,
 };
 use num_bigint::BigUint;
 use std::time::Instant;

@@ -15,12 +15,11 @@ use core::time::Duration;
 use criterion::*;
 use ff::{PrimeField, PrimeFieldBits};
 use nova_snark::{
-  parameters::PublicParams,
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     Group,
   },
-  RecursiveSNARK,
+  PublicParams, RecursiveSNARK,
 };
 use sha2::{Digest, Sha256};
 use std::marker::PhantomData;

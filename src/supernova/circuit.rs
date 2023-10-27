@@ -13,7 +13,6 @@
 //!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F' argumented circuit.
 
 use crate::{
-  circuit::AugmentedCircuitParams,
   constants::NUM_HASH_BITS,
   gadgets::{
     ecc::AllocatedPoint,
@@ -42,9 +41,32 @@ use bellpepper_core::{
 
 use bellpepper::gadgets::Assignment;
 
+use abomonation_derive::Abomonation;
 use ff::Field;
+use serde::{Deserialize, Serialize};
 
 use super::utils::get_from_vec_alloc_relaxed_r1cs;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+pub struct SuperNovaAugmentedCircuitParams {
+  limb_width: usize,
+  n_limbs: usize,
+  is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
+}
+
+impl SuperNovaAugmentedCircuitParams {
+  pub const fn new(limb_width: usize, n_limbs: usize, is_primary_circuit: bool) -> Self {
+    Self {
+      limb_width,
+      n_limbs,
+      is_primary_circuit,
+    }
+  }
+
+  pub fn get_n_limbs(&self) -> usize {
+    self.n_limbs
+  }
+}
 
 #[derive(Debug)]
 pub struct SuperNovaAugmentedCircuitInputs<'a, G: Group> {
@@ -90,7 +112,7 @@ impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
 /// and the circuit for the verifier in `SuperNova`'s non-interactive folding scheme,
 /// `SuperNova` NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance `U[last_augmented_circuit_index]`
 pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> {
-  params: &'a AugmentedCircuitParams,
+  params: &'a SuperNovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<G>,
   inputs: Option<SuperNovaAugmentedCircuitInputs<'a, G>>,
   step_circuit: &'a SC,          // The function that is applied for each step
@@ -100,7 +122,7 @@ pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: EnforcingStepCircuit<G::B
 impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC> {
   /// Create a new verification circuit for the input relaxed r1cs instances
   pub const fn new(
-    params: &'a AugmentedCircuitParams,
+    params: &'a SuperNovaAugmentedCircuitParams,
     inputs: Option<SuperNovaAugmentedCircuitInputs<'a, G>>,
     step_circuit: &'a SC,
     ro_consts: ROConstantsCircuit<G>,
