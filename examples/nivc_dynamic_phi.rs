@@ -54,12 +54,11 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
 
     let preimage_bits = preimage_bits
       .chunks(8)
-      .map(|chunk| {
+      .flat_map(|chunk| {
         let mut chunk = chunk.to_vec();
         chunk.reverse();
         chunk
       })
-      .flatten()
       .collect::<Vec<_>>();
 
     let digest_bits = sha256(cs.namespace(|| "sha256"), preimage_bits.as_slice())?;
@@ -70,12 +69,11 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
 
     let digest_bits = digest_bits
       .chunks(8)
-      .map(|chunk| {
+      .flat_map(|chunk| {
         let mut chunk = chunk.to_vec();
         chunk.reverse();
         chunk
       })
-      .flatten()
       .collect::<Vec<Boolean>>();
 
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits.as_slice())?;
@@ -130,11 +128,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
 
     let (preimage_bits, _) = preimage_bits.split_at(8 * NUM_BYTES);
 
-    let digest_bits = blake2s(
-      cs.namespace(|| "blake2s"),
-      preimage_bits.as_ref(),
-      b"personal",
-    )?;
+    let digest_bits = blake2s(cs.namespace(|| "blake2s"), preimage_bits, b"personal")?;
 
     let (digest_bits, _) = digest_bits.split_at(8 * NUM_BYTES);
 
@@ -238,10 +232,7 @@ enum ExampleCircuit<F: PrimeField + PrimeFieldBits> {
 
 impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for ExampleCircuit<F> {
   fn arity(&self) -> usize {
-    match self {
-      Self::Sha(_) => 1,
-      Self::Blake(_) => 1,
-    }
+    1
   }
 
   fn circuit_index(&self) -> usize {
@@ -300,8 +291,8 @@ fn main() {
 
   let mut preimage_bytes = [0u8; 32];
 
-  for idx in 0..NUM_BYTES {
-    preimage_bytes[idx] = rng.gen::<u8>();
+  for byte in preimage_bytes.iter_mut().take(NUM_BYTES) {
+    *byte = rng.gen::<u8>();
   }
 
   let initial_preimage = <G1 as Group>::Scalar::from_repr(preimage_bytes);
