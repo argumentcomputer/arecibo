@@ -9,7 +9,8 @@ use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 
 use nova_snark::{
-  supernova::{NonUniformCircuit, PublicParams, RecursiveSNARK},
+  parameters::PublicParams,
+  supernova::{NonUniformCircuit, RecursiveSNARK},
   traits::{
     circuit_supernova::{StepCircuit, TrivialSecondaryCircuit},
     Group,
@@ -309,7 +310,7 @@ fn main() {
 
   let (hints, example) = ExampleSteps::<G1, G2>::new(initial_preimage);
 
-  let pp = PublicParams::new(&example);
+  let pp = PublicParams::new_supernova(&example, None, None);
 
   let initial_pc = example.initial_program_counter();
   let augmented_circuit_index = field_as_usize(initial_pc);
