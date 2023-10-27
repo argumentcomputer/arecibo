@@ -25,9 +25,6 @@ use crate::{
   },
   Commitment, CommitmentKey, CompressedCommitment,
 };
-
-use std::sync::Arc;
-
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use core::{cmp::max, marker::PhantomData};
@@ -900,8 +897,8 @@ where
   type ProverKey = ProverKey<G, EE>;
   type VerifierKey = VerifierKey<G, EE>;
 
-  fn commitment_key_floor() -> Arc<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
-    Arc::new(|shape: &R1CSShape<G>| -> usize {
+  fn commitment_key_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
+    Box::new(|shape: &R1CSShape<G>| -> usize {
       // the commitment key should be large enough to commit to the R1CS matrices
       shape.A.len() + shape.B.len() + shape.C.len()
     })

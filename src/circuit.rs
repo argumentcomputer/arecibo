@@ -30,13 +30,13 @@ use ff::Field;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
-pub struct AugmentedCircuitParams {
-  pub(crate) limb_width: usize,
-  pub(crate) n_limbs: usize,
-  pub(crate) is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
+pub struct NovaAugmentedCircuitParams {
+  limb_width: usize,
+  n_limbs: usize,
+  is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
 }
 
-impl AugmentedCircuitParams {
+impl NovaAugmentedCircuitParams {
   pub const fn new(limb_width: usize, n_limbs: usize, is_primary_circuit: bool) -> Self {
     Self {
       limb_width,
@@ -84,7 +84,7 @@ impl<G: Group> NovaAugmentedCircuitInputs<G> {
 /// The augmented circuit F' in Nova that includes a step circuit F
 /// and the circuit for the verifier in Nova's non-interactive folding scheme
 pub struct NovaAugmentedCircuit<'a, G: Group, SC: StepCircuit<G::Base>> {
-  params: &'a AugmentedCircuitParams,
+  params: &'a NovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<G>,
   inputs: Option<NovaAugmentedCircuitInputs<G>>,
   step_circuit: &'a SC, // The function that is applied for each step
@@ -93,7 +93,7 @@ pub struct NovaAugmentedCircuit<'a, G: Group, SC: StepCircuit<G::Base>> {
 impl<'a, G: Group, SC: StepCircuit<G::Base>> NovaAugmentedCircuit<'a, G, SC> {
   /// Create a new verification circuit for the input relaxed r1cs instances
   pub const fn new(
-    params: &'a AugmentedCircuitParams,
+    params: &'a NovaAugmentedCircuitParams,
     inputs: Option<NovaAugmentedCircuitInputs<G>>,
     step_circuit: &'a SC,
     ro_consts: ROConstantsCircuit<G>,
@@ -377,8 +377,8 @@ mod tests {
 
   // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
   fn test_recursive_circuit_with<G1, G2>(
-    primary_params: &AugmentedCircuitParams,
-    secondary_params: &AugmentedCircuitParams,
+    primary_params: &NovaAugmentedCircuitParams,
+    secondary_params: &NovaAugmentedCircuitParams,
     ro_consts1: ROConstantsCircuit<G2>,
     ro_consts2: ROConstantsCircuit<G1>,
     num_constraints_primary: usize,
@@ -446,8 +446,8 @@ mod tests {
 
   #[test]
   fn test_recursive_circuit_pasta() {
-    let params1 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-    let params2 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<PastaG2> = PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<PastaG1> = PoseidonConstantsCircuit::default();
 
@@ -458,8 +458,8 @@ mod tests {
 
   #[test]
   fn test_recursive_circuit_grumpkin() {
-    let params1 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-    let params2 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<provider::bn256_grumpkin::grumpkin::Point> =
       PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<provider::bn256_grumpkin::bn256::Point> =
@@ -473,8 +473,8 @@ mod tests {
 
   #[test]
   fn test_recursive_circuit_secp() {
-    let params1 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-    let params2 = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
+    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<provider::secp_secq::secq256k1::Point> =
       PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<provider::secp_secq::secp256k1::Point> =

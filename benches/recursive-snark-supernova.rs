@@ -5,9 +5,8 @@ use core::marker::PhantomData;
 use criterion::*;
 use ff::PrimeField;
 use nova_snark::{
-  parameters::PublicParams,
   supernova::NonUniformCircuit,
-  supernova::RecursiveSNARK,
+  supernova::{PublicParams, RecursiveSNARK},
   traits::{
     circuit_supernova::{StepCircuit, TrivialTestCircuit},
     Group,
@@ -67,7 +66,7 @@ where
 }
 
 impl<G1, G2, S>
-  NonUniformCircuit<G1, G2, NonTrivialCircuit<G1::Scalar>, TrivialTestCircuit<G2::Scalar>>
+  NonUniformCircuit<G1, G2, NonTrivialTestCircuit<G1::Scalar>, TrivialTestCircuit<G2::Scalar>>
   for NonUniformBench<G1, G2, S>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -78,10 +77,10 @@ where
     self.num_circuits
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> NonTrivialCircuit<G1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> NonTrivialTestCircuit<G1::Scalar> {
     assert!(circuit_index < self.num_circuits);
 
-    NonTrivialCircuit::new(self.num_cons)
+    NonTrivialTestCircuit::new(self.num_cons)
   }
 
   fn secondary_circuit(&self) -> TrivialTestCircuit<G2::Scalar> {
@@ -105,7 +104,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(1, num_cons);
-    let pp = PublicParams::new_supernova(&bench, None, None);
+    let pp = PublicParams::new(&bench);
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -115,7 +114,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
     let initial_program_counter = <G1 as Group>::Scalar::from(0);
-    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2, _, _>> = None;
+    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
 
     for _ in 0..num_warmup_steps {
       let program_counter = recursive_snark_option.as_ref().map_or_else(
@@ -211,7 +210,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(2, num_cons);
-    let pp = PublicParams::new_supernova(&bench, None, None);
+    let pp = PublicParams::new(&bench);
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -221,7 +220,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
     let initial_program_counter = <G1 as Group>::Scalar::from(0);
-    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2, _, _>> = None;
+    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
     let mut selected_augmented_circuit = 0;
 
     for _ in 0..num_warmup_steps {
@@ -326,12 +325,12 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 }
 
 #[derive(Clone, Debug, Default)]
-struct NonTrivialCircuit<F: PrimeField> {
+struct NonTrivialTestCircuit<F: PrimeField> {
   num_cons: usize,
   _p: PhantomData<F>,
 }
 
-impl<F> NonTrivialCircuit<F>
+impl<F> NonTrivialTestCircuit<F>
 where
   F: PrimeField,
 {
@@ -342,7 +341,7 @@ where
     }
   }
 }
-impl<F> StepCircuit<F> for NonTrivialCircuit<F>
+impl<F> StepCircuit<F> for NonTrivialTestCircuit<F>
 where
   F: PrimeField,
 {
