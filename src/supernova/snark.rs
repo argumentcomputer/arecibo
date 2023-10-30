@@ -47,6 +47,7 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
+#[derive(Clone, Debug)]
 /// The SNARK that proves the knowledge of a valid Supernova `RecursiveSNARK`
 pub struct CompressedSNARK<G1, G2, C1, C2, S1, S2>
 where
@@ -137,6 +138,13 @@ where
 
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = res_secondary?;
 
+    // only produce a proof when the number of witnesses and instances match the number of circuits
+    if pk.pks_primary.len() != recursive_snark.r_W_primary.len()
+      || pk.pks_primary.len() != recursive_snark.r_U_primary.len()
+    {
+      return Err(SuperNovaError::ProofCreationError);
+    }
+
     let r_W_snark_primary = pk
       .pks_primary
       .iter()
@@ -207,6 +215,8 @@ where
     + (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // # 1 * (7 + [X0, X1]*#num_limb)
 
     // secondary circuit
+    // NOTE: This count ensure the number of witnesses sent by the prover must bd equal to the number
+    // of NIVC circuits
     let num_field_secondary_ro = 2 // params_next, i_new
     + 2 * pp.circuit_shape_secondary.F_arity // zo, z1
     + pp.circuit_shapes.len() * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augment
@@ -555,5 +565,90 @@ mod test {
     test_nivc_trivial_with_compression_with::<pallas::Point, vesta::Point, EE<_>, EE<_>>();
     test_nivc_trivial_with_compression_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>();
     test_nivc_trivial_with_compression_with::<secp256k1::Point, secq256k1::Point, EE<_>, EE<_>>();
+  }
+
+  fn test_compression_detects_circuit_num_with<G1, G2, E1, E2>()
+  where
+    G1: Group<Base = <G2 as Group>::Scalar>,
+    G2: Group<Base = <G1 as Group>::Scalar>,
+    E1: EvaluationEngineTrait<G1>,
+    E2: EvaluationEngineTrait<G2>,
+    <G1::Scalar as PrimeField>::Repr: Abomonation,
+    <G2::Scalar as PrimeField>::Repr: Abomonation,
+  {
+    const NUM_STEPS: usize = 6;
+
+    let test_nivc = TestNIVC::<G1, G2>::new();
+
+    let pp = PublicParams::new(&test_nivc);
+
+    let initial_pc = test_nivc.initial_program_counter();
+    let mut augmented_circuit_index = field_as_usize(initial_pc);
+
+    let z0_primary = vec![G1::Scalar::from(17u64)];
+    let z0_secondary = vec![G2::Scalar::ZERO];
+
+    let mut recursive_snark = RecursiveSNARK::iter_base_step(
+      &pp,
+      augmented_circuit_index,
+      &test_nivc.primary_circuit(augmented_circuit_index),
+      &test_nivc.secondary_circuit(),
+      Some(initial_pc),
+      augmented_circuit_index,
+      2,
+      &z0_primary,
+      &z0_secondary,
+    )
+    .unwrap();
+
+    for _ in 0..NUM_STEPS {
+      let prove_res = recursive_snark.prove_step(
+        &pp,
+        augmented_circuit_index,
+        &test_nivc.primary_circuit(augmented_circuit_index),
+        &test_nivc.secondary_circuit(),
+        &z0_primary,
+        &z0_secondary,
+      );
+
+      let verify_res =
+        recursive_snark.verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary);
+
+      assert!(prove_res.is_ok());
+      assert!(verify_res.is_ok());
+
+      let program_counter = recursive_snark.get_program_counter();
+      augmented_circuit_index = field_as_usize(program_counter);
+    }
+
+    let (prover_key, verifier_key) =
+      CompressedSNARK::<_, _, _, _, S<G1, E1>, S<G2, E2>>::setup(&pp).unwrap();
+
+    let mut recursive_snark_truncated = recursive_snark.clone();
+
+    recursive_snark_truncated.r_U_primary.pop();
+    recursive_snark_truncated.r_W_primary.pop();
+
+    let bad_proof = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark_truncated);
+    assert!(bad_proof.is_err());
+
+    let compressed_snark = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark).unwrap();
+
+    let mut bad_compressed_snark = compressed_snark.clone();
+
+    bad_compressed_snark.r_U_primary.pop();
+    bad_compressed_snark.r_W_snark_primary.pop();
+
+    let bad_verification =
+      bad_compressed_snark.verify(&pp, &verifier_key, z0_primary, z0_secondary);
+    assert!(bad_verification.is_err());
+  }
+
+  #[test]
+  #[should_panic]
+  fn test_compression_detects_circuit_num() {
+    test_compression_detects_circuit_num_with::<pallas::Point, vesta::Point, EE<_>, EE<_>>();
+    test_compression_detects_circuit_num_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>();
+    test_compression_detects_circuit_num_with::<secp256k1::Point, secq256k1::Point, EE<_>, EE<_>>();
   }
 }

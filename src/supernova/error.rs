@@ -16,4 +16,7 @@ pub enum SuperNovaError {
   /// Extended error for supernova
   #[error("UnSatIndex")]
   UnSatIndex(&'static str, usize),
+  ///
+  #[error("ProofCreationError")]
+  ProofCreationError,
 }
