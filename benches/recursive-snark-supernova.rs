@@ -142,8 +142,6 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         0,
         &bench.primary_circuit(0),
         &bench.secondary_circuit(),
-        &z0_primary,
-        &z0_secondary,
       );
       if let Err(e) = &res {
         println!("res failed {:?}", e);
@@ -170,8 +168,6 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
             black_box(0),
             &bench.primary_circuit(0),
             &bench.secondary_circuit(),
-            black_box(&[<G1 as Group>::Scalar::from(2u64)]),
-            black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )
           .is_ok());
       })
@@ -250,8 +246,6 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
           0,
           &bench.primary_circuit(0),
           &bench.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
         );
         if let Err(e) = &res {
           println!("res failed {:?}", e);
@@ -268,8 +262,6 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
           1,
           &bench.primary_circuit(1),
           &bench.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
         );
         if let Err(e) = &res {
           println!("res failed {:?}", e);
@@ -300,8 +292,6 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
             black_box(0),
             &bench.primary_circuit(0),
             &bench.secondary_circuit(),
-            black_box(&[<G1 as Group>::Scalar::from(2u64)]),
-            black_box(&[<G2 as Group>::Scalar::from(2u64)]),
           )
           .is_ok());
       })

@@ -505,8 +505,6 @@ where
             augmented_circuit_index,
             &circuit_primary,
             &circuit_secondary,
-            &z0_primary,
-            &z0_secondary,
           )
           .unwrap();
         recursive_snark
