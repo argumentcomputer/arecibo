@@ -148,22 +148,24 @@ where
     let r_W_snark_primary = pk
       .pks_primary
       .iter()
+      .zip(&pp.circuit_shapes)
       .zip(&recursive_snark.r_W_primary)
       .zip(&recursive_snark.r_U_primary)
-      .map(|((pk, r_W), r_U)| {
+      .map(|(((pk, shape), r_W), r_U)| {
         let r_W = r_W
           .as_ref()
-          .unwrap_or_else(|| panic!("Wrong number of circuits"));
+          .unwrap_or_else(|| panic!("Expected circuit witness"));
         let r_U = r_U
           .as_ref()
-          .unwrap_or_else(|| panic!("Wrong number of circuits"));
-        S1::prove(&pp.ck_primary, pk, r_U, r_W)
+          .unwrap_or_else(|| panic!("Expected circuit instance"));
+        S1::prove(&pp.ck_primary, pk, &shape.r1cs_shape, r_U, r_W)
       })
       .collect::<Result<Vec<S1>, _>>()?;
 
     let f_W_snark_secondary = S2::prove(
       &pp.ck_secondary,
       &pk.pk_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
       &f_U_secondary,
       &f_W_secondary,
     )?;
