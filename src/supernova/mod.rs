@@ -372,6 +372,8 @@ where
   l_u_secondary: R1CSInstance<G2>,
   pp_digest: G1::Scalar,
   i: usize,
+  z0_primary: Vec<G1::Scalar>,
+  z0_secondary: Vec<G2::Scalar>,
   zi_primary: Vec<G1::Scalar>,
   zi_secondary: Vec<G2::Scalar>,
   program_counter: G1::Scalar,
@@ -531,6 +533,8 @@ where
       l_u_secondary,
       pp_digest: pp.digest(),
       i: 0_usize, // after base case, next iteration start from 1
+      z0_primary: z0_primary.to_vec(),
+      z0_secondary: z0_secondary.to_vec(),
       zi_primary,
       zi_secondary,
       program_counter: zi_primary_pc_next,
@@ -538,6 +542,7 @@ where
       num_augmented_circuits,
     })
   }
+
   /// executing a step of the incremental computation
   #[allow(clippy::too_many_arguments)]
   #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
@@ -547,8 +552,6 @@ where
     circuit_index: usize,
     c_primary: &C1,
     c_secondary: &C2,
-    z0_primary: &[G1::Scalar],
-    z0_secondary: &[G2::Scalar],
   ) -> Result<(), SuperNovaError> {
     // First step was already done in the constructor
     if self.i == 0 {
@@ -558,14 +561,6 @@ where
 
     if self.r_U_secondary.len() != 1 || self.r_W_secondary.len() != 1 {
       return Err(NovaError::ProofVerifyError.into());
-    }
-
-    if z0_primary.len() != pp[circuit_index].F_arity
-      || z0_secondary.len() != pp.circuit_shape_secondary.F_arity
-    {
-      return Err(SuperNovaError::NovaError(
-        NovaError::InvalidInitialInputLength,
-      ));
     }
 
     // fold the secondary circuit's instance
@@ -592,7 +587,7 @@ where
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<G1>(self.pp_digest),
         G1::Scalar::from(self.i as u64),
-        z0_primary,
+        &self.z0_primary,
         Some(&self.zi_primary),
         Some(&self.r_U_secondary),
         Some(&self.l_u_secondary),
@@ -659,7 +654,7 @@ where
       SuperNovaAugmentedCircuitInputs::new(
         self.pp_digest,
         G2::Scalar::from(self.i as u64),
-        z0_secondary,
+        &self.z0_secondary,
         Some(&self.zi_secondary),
         Some(&self.r_U_primary),
         Some(&l_u_primary),
