@@ -600,7 +600,7 @@ fn test_recursive_circuit_with<G1, G2>(
   // Execute the base case for the primary
   let zero1 = <<G2 as Group>::Base as Field>::ZERO;
   let z0 = vec![zero1; arity1];
-  let mut cs1: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
+  let mut cs1 = SatisfyingAssignment::<G1>::new();
   let inputs1: SuperNovaAugmentedCircuitInputs<'_, G2> = SuperNovaAugmentedCircuitInputs::new(
     scalar_as_base::<G1>(zero1), // pass zero for testing
     zero1,
@@ -625,7 +625,7 @@ fn test_recursive_circuit_with<G1, G2>(
   // Execute the base case for the secondary
   let zero2 = <<G1 as Group>::Base as Field>::ZERO;
   let z0 = vec![zero2; arity2];
-  let mut cs2: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
+  let mut cs2 = SatisfyingAssignment::<G2>::new();
   let inputs2: SuperNovaAugmentedCircuitInputs<'_, G1> = SuperNovaAugmentedCircuitInputs::new(
     scalar_as_base::<G2>(zero2), // pass zero for testing
     zero2,

@@ -436,7 +436,7 @@ where
     }
 
     // base case for the primary
-    let mut cs_primary: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
+    let mut cs_primary = SatisfyingAssignment::<G1>::new();
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<G1>(pp.digest()),
@@ -476,7 +476,7 @@ where
       })?;
 
     // base case for the secondary
-    let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
+    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
@@ -608,7 +608,7 @@ where
     let r_U_secondary_next = r_U_secondary_folded;
     let r_W_secondary_next = r_W_secondary_folded;
 
-    let mut cs_primary: SatisfyingAssignment<G1> = SatisfyingAssignment::new();
+    let mut cs_primary = SatisfyingAssignment::<G1>::new();
     let T =
       Commitment::<G2>::decompress(&nifs_secondary.comm_T).map_err(SuperNovaError::NovaError)?;
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
@@ -675,7 +675,7 @@ where
       .map_err(SuperNovaError::NovaError)?,
     };
 
-    let mut cs_secondary: SatisfyingAssignment<G2> = SatisfyingAssignment::new();
+    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
     let binding =
       Commitment::<G1>::decompress(&nifs_primary.comm_T).map_err(SuperNovaError::NovaError)?;
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
