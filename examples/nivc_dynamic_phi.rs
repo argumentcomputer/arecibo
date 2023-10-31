@@ -1,7 +1,11 @@
 use std::marker::PhantomData;
 
 use bellpepper::gadgets::{blake2s::blake2s, multipack::pack_bits, sha256::sha256};
-use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{
+  boolean::{AllocatedBit, Boolean},
+  num::AllocatedNum,
+  ConstraintSystem, SynthesisError,
+};
 use blake2s_simd::Params;
 use ff::{Field, PrimeField, PrimeFieldBits};
 use rand::Rng;
@@ -22,14 +26,14 @@ const NUM_BYTES: usize = 10;
 
 #[derive(Clone, Debug)]
 struct SHACircuit<F: PrimeField> {
-  next_pc: bool,
+  preimage_bits: Vec<bool>,
   _p: PhantomData<F>,
 }
 
 impl<F: PrimeField> SHACircuit<F> {
-  fn new(next_pc: bool) -> Self {
+  fn new(preimage_bits: Vec<bool>) -> Self {
     Self {
-      next_pc,
+      preimage_bits,
       _p: PhantomData,
     }
   }
@@ -48,9 +52,25 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    let preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "sha_preimage_bits"))?;
+    let preimage_bits: Vec<Boolean> = self
+      .preimage_bits
+      .iter()
+      .enumerate()
+      .map(|(idx, b)| {
+        AllocatedBit::alloc(cs.namespace(|| format!("preimage_bit {}", idx)), Some(*b))
+          .unwrap()
+          .into()
+      })
+      .collect();
 
-    let (preimage_bits, _) = preimage_bits.split_at(8 * NUM_BYTES);
+    let preimage_from_bits = pack_bits(cs.namespace(|| "preimage_from_bits"), &preimage_bits)?;
+
+    cs.enforce(
+      || "preimage_bits = preimage",
+      |lc| lc + CS::one(),
+      |lc| lc + preimage_from_bits.get_variable(),
+      |lc| lc + preimage.get_variable(),
+    );
 
     let preimage_bits = preimage_bits
       .chunks(8)
@@ -79,7 +99,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits.as_slice())?;
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
-      if self.next_pc {
+      if next_pc_bit.get_value().unwrap() {
         Ok(F::ONE)
       } else {
         Ok(F::ZERO)
@@ -99,14 +119,14 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SHACircuit<F> {
 
 #[derive(Clone, Debug)]
 struct BlakeCircuit<F: PrimeField> {
-  next_pc: bool,
+  preimage_bits: Vec<bool>,
   _p: PhantomData<F>,
 }
 
 impl<F: PrimeField> BlakeCircuit<F> {
-  fn new(next_pc: bool) -> Self {
+  fn new(preimage_bits: Vec<bool>) -> Self {
     Self {
-      next_pc,
+      preimage_bits,
       _p: PhantomData,
     }
   }
@@ -124,7 +144,25 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let preimage = &z[0];
 
-    let preimage_bits = preimage.to_bits_le_strict(cs.namespace(|| "blake_preimage_bits"))?;
+    let preimage_bits: Vec<Boolean> = self
+      .preimage_bits
+      .iter()
+      .enumerate()
+      .map(|(idx, b)| {
+        AllocatedBit::alloc(cs.namespace(|| format!("preimage_bit {}", idx)), Some(*b))
+          .unwrap()
+          .into()
+      })
+      .collect();
+
+    let preimage_from_bits = pack_bits(cs.namespace(|| "preimage_from_bits"), &preimage_bits)?;
+
+    cs.enforce(
+      || "preimage_bits = preimage",
+      |lc| lc + CS::one(),
+      |lc| lc + preimage_from_bits.get_variable(),
+      |lc| lc + preimage.get_variable(),
+    );
 
     let (preimage_bits, _) = preimage_bits.split_at(8 * NUM_BYTES);
 
@@ -137,7 +175,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
     let digest = pack_bits(cs.namespace(|| "digest_from_bits"), digest_bits)?;
 
     let new_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || {
-      if self.next_pc {
+      if next_pc_bit.unwrap().get_value().unwrap() {
         Ok(F::ONE)
       } else {
         Ok(F::ZERO)
@@ -156,36 +194,38 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for BlakeCircuit<F> {
 }
 
 #[derive(Debug)]
-struct ExampleSteps<G1, G2>
+struct ExampleStep<G1, G2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
-  next_pc: bool,
+  preimage_bits: Vec<bool>,
   _p: PhantomData<(G1, G2)>,
 }
 
-impl<G1, G2> ExampleSteps<G1, G2>
+impl<G1, G2> ExampleStep<G1, G2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
   <G1 as Group>::Scalar: PrimeFieldBits,
 {
-  fn new(preimage: <G1 as Group>::Scalar) -> (Vec<bool>, Self) {
+  fn new(preimage: <G1 as Group>::Scalar) -> (Vec<Vec<bool>>, Self) {
+    let mut preimages: Vec<[u8; NUM_BYTES]> = vec![];
     let mut hasher = Sha256::new();
     let mut preimage_repr = preimage.to_repr();
     let preimage_bytes: &mut [u8; 32] = preimage_repr.as_mut().try_into().expect("wrong size");
 
     let first_input: &[u8; NUM_BYTES] = preimage_bytes[..NUM_BYTES].try_into().expect("wrong size");
 
+    preimages.push(first_input.clone());
+
     hasher.update(first_input);
     let digest = hasher.finalize();
 
-    let mut hashes: Vec<[u8; NUM_BYTES]> =
-      vec![digest[..NUM_BYTES].try_into().expect("wrong size")];
+    preimages.push(digest[..NUM_BYTES].try_into().expect("wrong size"));
 
     for _ in 0..NUM_STEPS {
-      let last_hash = hashes.last_mut().unwrap();
+      let last_hash = preimages.last_mut().unwrap();
 
       if last_hash.first().unwrap() & 1 == 0 {
         let mut hasher = Sha256::new();
@@ -194,14 +234,14 @@ where
 
         let digest = hasher.finalize();
 
-        hashes.push(digest[..NUM_BYTES].try_into().expect("wrong size"));
+        preimages.push(digest[..NUM_BYTES].try_into().expect("wrong size"));
       } else {
         let digest = Params::new()
           .hash_length(32)
           .personal(b"personal")
           .hash(&last_hash[..NUM_BYTES]);
 
-        hashes.push(
+        preimages.push(
           digest.as_ref()[..NUM_BYTES]
             .try_into()
             .expect("wrong array length"),
@@ -209,15 +249,27 @@ where
       }
     }
 
-    let hints: Vec<bool> = hashes
+    let hints: Vec<Vec<bool>> = preimages
       .into_iter()
-      .map(|hash| hash.first().unwrap() & 1 == 1)
-      .collect();
+      .map(|hash| {
+        hash
+          .into_iter()
+          .flat_map(|mut byte| {
+            let mut bits = Vec::with_capacity(8);
+            for _ in 0..8 {
+              bits.push(byte & 1 == 1);
+              byte >>= 1;
+            }
+            bits
+          })
+          .collect::<Vec<_>>()
+      })
+      .collect::<Vec<_>>();
 
     (
       hints.clone(),
       Self {
-        next_pc: hints[0],
+        preimage_bits: hints[0].clone(),
         _p: PhantomData,
       },
     )
@@ -257,7 +309,7 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for ExampleCircuit<F> {
 
 impl<G1, G2>
   NonUniformCircuit<G1, G2, ExampleCircuit<G1::Scalar>, TrivialSecondaryCircuit<G2::Scalar>>
-  for ExampleSteps<G1, G2>
+  for ExampleStep<G1, G2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
@@ -272,8 +324,8 @@ where
 
   fn primary_circuit(&self, circuit_index: usize) -> ExampleCircuit<G1::Scalar> {
     match circuit_index {
-      0 => ExampleCircuit::Sha(SHACircuit::new(self.next_pc)),
-      1 => ExampleCircuit::Blake(BlakeCircuit::new(self.next_pc)),
+      0 => ExampleCircuit::Sha(SHACircuit::new(self.preimage_bits.clone())),
+      1 => ExampleCircuit::Blake(BlakeCircuit::new(self.preimage_bits.clone())),
       _ => panic!("invalid circuit index"),
     }
   }
@@ -299,7 +351,7 @@ fn main() {
 
   let initial_preimage = initial_preimage.unwrap();
 
-  let (hints, example) = ExampleSteps::<G1, G2>::new(initial_preimage);
+  let (hints, example) = ExampleStep::<G1, G2>::new(initial_preimage);
 
   let pp = PublicParams::new_supernova(&example, None, None);
 
@@ -322,9 +374,9 @@ fn main() {
   )
   .unwrap();
 
-  for next_pc in hints.into_iter() {
-    let example = ExampleSteps::<G1, G2> {
-      next_pc,
+  for preimage_bits in hints.into_iter() {
+    let example = ExampleStep::<G1, G2> {
+      preimage_bits,
       _p: PhantomData,
     };
 
