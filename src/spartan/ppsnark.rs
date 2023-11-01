@@ -1547,6 +1547,7 @@ where
 
   /// verifies a proof of satisfiability of a `RelaxedR1CS` instance
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<G>) -> Result<(), NovaError> {
+    println!("pp-snark verification");
     let mut transcript = G::TE::new(b"RelaxedR1CSSNARK");
     let mut u_vec: Vec<PolyEvalInstance<G>> = Vec::new();
 

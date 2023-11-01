@@ -448,6 +448,7 @@ where
     eval: &<E::G1 as Group>::Scalar,
     arg: &Self::EvaluationArgument,
   ) -> Result<(), NovaError> {
+    println!("zeromorph verification");
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     let evaluation = ZMEvaluation(*eval);
 
