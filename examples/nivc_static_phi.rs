@@ -5,8 +5,7 @@ use ff::Field;
 use ff::PrimeField;
 
 use nova_snark::{
-  parameters::PublicParams,
-  supernova::{NonUniformCircuit, RecursiveSNARK},
+  supernova::{NonUniformCircuit, PublicParams, RecursiveSNARK},
   traits::{
     circuit_supernova::{StepCircuit, TrivialSecondaryCircuit},
     Group,
@@ -238,7 +237,7 @@ where
 {
   let (hints, example): (Vec<_>, ExampleSteps<G1, G2>) = ExampleSteps::new(NUM_STEPS);
 
-  let pp = PublicParams::new_supernova(&example, None, None);
+  let pp = PublicParams::new(&example);
 
   let initial_pc: <G1 as Group>::Scalar = example.initial_program_counter();
 
@@ -276,8 +275,6 @@ where
       augmented_circuit_index,
       &example.primary_circuit(augmented_circuit_index),
       &example.secondary_circuit(),
-      &z0_primary,
-      &z0_secondary,
     );
 
     if let Err(e) = &res {
