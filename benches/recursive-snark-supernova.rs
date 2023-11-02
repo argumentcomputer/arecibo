@@ -339,6 +339,10 @@ where
     1
   }
 
+  fn circuit_index(&self) -> usize {
+    0
+  }
+
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
