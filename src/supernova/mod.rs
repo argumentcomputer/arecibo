@@ -168,8 +168,8 @@ where
   C2: StepCircuit<G2::Scalar>,
 {
   /// Construct a new [PublicParams]
-  pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(non_unifrom_circuit: &NC) -> Self {
-    let num_circuits = non_unifrom_circuit.num_circuits();
+  pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(non_uniform_circuit: &NC) -> Self {
+    let num_circuits = non_uniform_circuit.num_circuits();
 
     let augmented_circuit_params_primary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
@@ -179,7 +179,7 @@ where
 
     let circuit_shapes = (0..num_circuits)
       .map(|i| {
-        let c_primary = non_unifrom_circuit.primary_circuit(i);
+        let c_primary = non_uniform_circuit.primary_circuit(i);
         let F_arity = c_primary.arity();
         // Initialize ck for the primary
         let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
@@ -191,6 +191,7 @@ where
         );
         let mut cs: ShapeCS<G1> = ShapeCS::new();
         let _ = circuit_primary.synthesize(&mut cs);
+
         // We use the largest commitment_key for all instances
         let r1cs_shape_primary = cs.r1cs_shape();
         CircuitShape::new(r1cs_shape_primary, F_arity)
@@ -202,7 +203,7 @@ where
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
-    let c_secondary = non_unifrom_circuit.secondary_circuit();
+    let c_secondary = non_uniform_circuit.secondary_circuit();
     let F_arity_secondary = c_secondary.arity();
     let ro_consts_circuit_secondary: ROConstantsCircuit<G1> = ROConstantsCircuit::<G1>::default();
 
@@ -615,7 +616,7 @@ where
 
     let (l_u_primary, l_w_primary) = cs_primary
       .r1cs_instance_and_witness(&pp[circuit_index].r1cs_shape, &pp.ck_primary)
-      .map_err(|_| SuperNovaError::NovaError(NovaError::UnSat))?;
+      .map_err(SuperNovaError::NovaError)?;
 
     // Split into `if let`/`else` statement
     // to avoid `returns a value referencing data owned by closure` error on `&RelaxedR1CSInstance::default` and `RelaxedR1CSWitness::default`

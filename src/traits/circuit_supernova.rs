@@ -13,9 +13,7 @@ pub trait StepCircuit<F: PrimeField>: Send + Sync + Clone {
   fn arity(&self) -> usize;
 
   /// Return this `StepCircuit`'s assigned index, for use when enforcing the program counter.
-  fn circuit_index(&self) -> usize {
-    0
-  }
+  fn circuit_index(&self) -> usize;
 
   /// Sythesize the circuit for a computation step and return variable
   /// that corresponds to the output of the step `pc_{i+1}` and `z_{i+1}`
@@ -70,6 +68,10 @@ where
     1
   }
 
+  fn circuit_index(&self) -> usize {
+    0
+  }
+
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     _cs: &mut CS,
@@ -94,6 +96,10 @@ where
 {
   fn arity(&self) -> usize {
     1
+  }
+
+  fn circuit_index(&self) -> usize {
+    0
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(

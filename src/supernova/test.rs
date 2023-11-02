@@ -733,3 +733,299 @@ fn test_supernova_pp_digest() {
     "3ae4759aa0338bcc6ac11b456c17803467a1f44364992e3f1a0c6344b0135703",
   );
 }
+
+// y is a non-deterministic hint representing the cube root of the input at a step.
+#[derive(Clone, Debug)]
+struct CubeRootCheckingCircuit<F: PrimeField> {
+  y: Option<F>,
+}
+
+impl<F> StepCircuit<F> for CubeRootCheckingCircuit<F>
+where
+  F: PrimeField,
+{
+  fn arity(&self) -> usize {
+    1
+  }
+
+  fn circuit_index(&self) -> usize {
+    0
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    _pc: Option<&AllocatedNum<F>>,
+    z: &[AllocatedNum<F>],
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+    let x = &z[0];
+
+    // we allocate a variable and set it to the provided non-deterministic hint.
+    let y = AllocatedNum::alloc(cs.namespace(|| "y"), || {
+      self.y.ok_or(SynthesisError::AssignmentMissing)
+    })?;
+
+    // We now check if y = x^{1/3} by checking if y^3 = x
+    let y_sq = y.square(cs.namespace(|| "y_sq"))?;
+    let y_cube = y_sq.mul(cs.namespace(|| "y_cube"), &y)?;
+
+    cs.enforce(
+      || "y^3 = x",
+      |lc| lc + y_cube.get_variable(),
+      |lc| lc + CS::one(),
+      |lc| lc + x.get_variable(),
+    );
+
+    let next_pc = alloc_const(&mut cs.namespace(|| "next_pc"), F::ONE)?;
+
+    Ok((Some(next_pc), vec![y]))
+  }
+}
+
+// y is a non-deterministic hint representing the fifth root of the input at a step.
+#[derive(Clone, Debug)]
+struct FifthRootCheckingCircuit<F: PrimeField> {
+  y: Option<F>,
+}
+
+impl<F> StepCircuit<F> for FifthRootCheckingCircuit<F>
+where
+  F: PrimeField,
+{
+  fn arity(&self) -> usize {
+    1
+  }
+
+  fn circuit_index(&self) -> usize {
+    1
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    _pc: Option<&AllocatedNum<F>>,
+    z: &[AllocatedNum<F>],
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+    let x = &z[0];
+
+    // we allocate a variable and set it to the provided non-deterministic hint.
+    let y = AllocatedNum::alloc(cs.namespace(|| "y"), || {
+      self.y.ok_or(SynthesisError::AssignmentMissing)
+    })?;
+
+    // We now check if y = x^{1/5} by checking if y^5 = x
+    let y_sq = y.square(cs.namespace(|| "y_sq"))?;
+    let y_quad = y_sq.square(cs.namespace(|| "y_quad"))?;
+    let y_pow_5 = y_quad.mul(cs.namespace(|| "y_fifth"), &y)?;
+
+    cs.enforce(
+      || "y^5 = x",
+      |lc| lc + y_pow_5.get_variable(),
+      |lc| lc + CS::one(),
+      |lc| lc + x.get_variable(),
+    );
+
+    let next_pc = alloc_const(&mut cs.namespace(|| "next_pc"), F::ZERO)?;
+
+    Ok((Some(next_pc), vec![y]))
+  }
+}
+
+#[derive(Clone, Debug)]
+enum RootCheckingCircuit<F: PrimeField> {
+  Cube(CubeRootCheckingCircuit<F>),
+  Fifth(FifthRootCheckingCircuit<F>),
+}
+
+impl<F: PrimeField> RootCheckingCircuit<F> {
+  fn new(num_steps: usize) -> (Vec<F>, Vec<Self>) {
+    let mut powers = Vec::new();
+    let rng = &mut rand::rngs::OsRng;
+    let mut seed = F::random(rng);
+
+    for i in 0..num_steps + 1 {
+      let seed_sq = seed.clone().square();
+      // Cube-root and fifth-root circuits alternate. We compute the hints backward, so the calculations appear to be
+      // associated with the 'wrong' circuit. The final circuit is discarded, and only the final seed is used (as z_0).
+      powers.push(if i % 2 == num_steps % 2 {
+        seed *= seed_sq;
+        Self::Fifth(FifthRootCheckingCircuit { y: Some(seed) })
+      } else {
+        seed *= seed_sq.clone().square();
+        Self::Cube(CubeRootCheckingCircuit { y: Some(seed) })
+      })
+    }
+
+    // reverse the powers to get roots
+    let roots = powers.into_iter().rev().collect::<Vec<Self>>();
+    (vec![roots[0].get_y().unwrap()], roots[1..].to_vec())
+  }
+
+  fn get_y(&self) -> Option<F> {
+    match self {
+      Self::Fifth(x) => x.y,
+      Self::Cube(x) => x.y,
+    }
+  }
+}
+
+impl<F> StepCircuit<F> for RootCheckingCircuit<F>
+where
+  F: PrimeField,
+{
+  fn arity(&self) -> usize {
+    1
+  }
+
+  fn circuit_index(&self) -> usize {
+    match self {
+      Self::Cube(x) => x.circuit_index(),
+      Self::Fifth(x) => x.circuit_index(),
+    }
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    pc: Option<&AllocatedNum<F>>,
+    z: &[AllocatedNum<F>],
+  ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
+    match self {
+      Self::Cube(c) => c.synthesize(cs, pc, z),
+      Self::Fifth(c) => c.synthesize(cs, pc, z),
+    }
+  }
+}
+
+impl<G1, G2>
+  NonUniformCircuit<G1, G2, RootCheckingCircuit<G1::Scalar>, TrivialSecondaryCircuit<G1::Base>>
+  for RootCheckingCircuit<G1::Scalar>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+{
+  fn num_circuits(&self) -> usize {
+    2
+  }
+
+  fn primary_circuit(&self, circuit_index: usize) -> Self {
+    match circuit_index {
+      0 => Self::Cube(CubeRootCheckingCircuit { y: None }),
+      1 => Self::Fifth(FifthRootCheckingCircuit { y: None }),
+      _ => unreachable!(),
+    }
+  }
+
+  fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G1::Base> {
+    TrivialSecondaryCircuit::<G1::Base>::default()
+  }
+}
+
+fn test_nivc_nondet_with<G1, G2>()
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  // this is due to the reliance on Abomonation
+  <<G1 as Group>::Scalar as PrimeField>::Repr: Abomonation,
+  <<G2 as Group>::Scalar as PrimeField>::Repr: Abomonation,
+{
+  let circuit_secondary = TrivialSecondaryCircuit::default();
+
+  let num_steps = 3;
+
+  // produce non-deterministic hint
+  let (z0_primary, roots) = RootCheckingCircuit::new(num_steps);
+  assert_eq!(num_steps, roots.len());
+  let z0_secondary = vec![<G2 as Group>::Scalar::ZERO];
+
+  // produce public parameters
+  let pp = PublicParams::<
+    G1,
+    G2,
+    RootCheckingCircuit<<G1 as Group>::Scalar>,
+    TrivialSecondaryCircuit<<G2 as Group>::Scalar>,
+  >::new(&roots[0]);
+  // produce a recursive SNARK
+
+  let circuit_primary = &roots[0];
+  let mut recursive_snark = RecursiveSNARK::<G1, G2>::iter_base_step(
+    &pp,
+    circuit_primary.circuit_index(),
+    circuit_primary,
+    &circuit_secondary,
+    Some(G1::Scalar::from(circuit_primary.circuit_index() as u64)),
+    circuit_primary.circuit_index(),
+    2,
+    &z0_primary,
+    &z0_secondary,
+  )
+  .map_err(|err| {
+    print_constraints_name_on_error_index(
+      &err,
+      &pp,
+      circuit_primary,
+      &circuit_secondary,
+      <RootCheckingCircuit<G1::Scalar> as NonUniformCircuit<
+        G1,
+        G2,
+        RootCheckingCircuit<G1::Scalar>,
+        TrivialSecondaryCircuit<G1::Base>,
+      >>::num_circuits(circuit_primary),
+    )
+  })
+  .unwrap();
+
+  for circuit_primary in roots.iter().take(num_steps) {
+    let res = recursive_snark.prove_step(
+      &pp,
+      circuit_primary.circuit_index(),
+      circuit_primary,
+      &circuit_secondary,
+    );
+    assert!(res
+      .map_err(|err| {
+        print_constraints_name_on_error_index(
+          &err,
+          &pp,
+          circuit_primary,
+          &circuit_secondary,
+          <RootCheckingCircuit<G1::Scalar> as NonUniformCircuit<
+            G1,
+            G2,
+            RootCheckingCircuit<G1::Scalar>,
+            TrivialSecondaryCircuit<G1::Base>,
+          >>::num_circuits(circuit_primary),
+        )
+      })
+      .is_ok());
+
+    // verify the recursive SNARK
+    let res = recursive_snark
+      .verify(&pp, 0, &z0_primary, &z0_secondary)
+      .map_err(|err| {
+        print_constraints_name_on_error_index(
+          &err,
+          &pp,
+          circuit_primary,
+          &circuit_secondary,
+          <RootCheckingCircuit<G1::Scalar> as NonUniformCircuit<
+            G1,
+            G2,
+            RootCheckingCircuit<G1::Scalar>,
+            TrivialSecondaryCircuit<G1::Base>,
+          >>::num_circuits(circuit_primary),
+        )
+      });
+    assert!(res.is_ok());
+  }
+}
+
+#[test]
+fn test_nivc_nondet() {
+  type G1 = pasta_curves::pallas::Point;
+  type G2 = pasta_curves::vesta::Point;
+
+  test_nivc_nondet_with::<G1, G2>();
+  test_nivc_nondet_with::<bn256::Point, grumpkin::Point>();
+  test_nivc_nondet_with::<secp256k1::Point, secq256k1::Point>();
+}
