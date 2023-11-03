@@ -24,8 +24,9 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
   mut cs: CS,
   a: &[AllocatedRelaxedR1CSInstance<G>],
   target_index: &AllocatedNum<G::Base>,
-) -> Result<(AllocatedNum<G::Base>, AllocatedRelaxedR1CSInstance<G>), SynthesisError> {
+) -> Result<(Vec<Boolean>, AllocatedRelaxedR1CSInstance<G>), SynthesisError> {
   let mut a = a.iter().enumerate();
+  let mut selector: Vec<Boolean> = Vec::with_capacity(a.len());
 
   let zero_index = alloc_const(cs.namespace(|| "i_const 0 allocated"), G::Base::from(0u64))?;
   let first_selected = alloc_num_equals(
@@ -33,6 +34,8 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
     &zero_index,
     target_index,
   )?;
+
+  selector.push(Boolean::Is(first_selected.clone()));
 
   let first = (
     zero_index,
@@ -56,6 +59,7 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
         &i_const,
         target_index,
       )?);
+      selector.push(equal_bit.clone());
       selected_sum = selected_sum + &equal_bit.lc(CS::one(), G::Base::ONE);
       let next_matched_index = conditionally_select(
         cs.namespace(|| format!("next_matched_index-{:?}", i_const.get_value().unwrap())),
@@ -87,7 +91,7 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
     |lc| lc + CS::one(),
   );
 
-  Ok(selected)
+  Ok((selector, selected.1))
 }
 
 #[cfg(test)]
@@ -116,12 +120,10 @@ mod test {
       let allocated_target =
         alloc_const(&mut cs.namespace(|| "target"), Base::from(selected as u64)).unwrap();
 
-      let (checked_target, _selected_instance) =
-        get_from_vec_alloc_relaxed_r1cs(&mut cs.namespace(|| "test-fn"), &vec, &allocated_target)
-          .unwrap();
+      get_from_vec_alloc_relaxed_r1cs(&mut cs.namespace(|| "test-fn"), &vec, &allocated_target)
+        .unwrap();
 
       if selected < n {
-        assert_eq!(allocated_target.get_value(), checked_target.get_value());
         assert!(cs.is_satisfied())
       } else {
         // If selected is out of range, the circuit must be unsatisfied.

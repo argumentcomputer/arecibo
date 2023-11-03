@@ -369,7 +369,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     )?;
 
     // Run NIFS Verifier
-    let (last_augmented_circuit_index_checked, U_to_fold) = get_from_vec_alloc_relaxed_r1cs(
+    let (_last_augmented_circuit_selector, U_to_fold) = get_from_vec_alloc_relaxed_r1cs(
       cs.namespace(|| "U to fold"),
       U,
       last_augmented_circuit_index,
@@ -397,7 +397,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
         let equal_bit = Boolean::from(alloc_num_equals(
           cs.namespace(|| "check equal bit"),
           &i_alloc,
-          &last_augmented_circuit_index_checked,
+          &last_augmented_circuit_index,
         )?);
         conditionally_select_alloc_relaxed_r1cs(
           cs.namespace(|| "select on index namespace"),
@@ -408,7 +408,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
       })
       .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<G>>, _>>()?;
 
-    Ok((last_augmented_circuit_index_checked, U_next, check_pass))
+    Ok((last_augmented_circuit_index.clone(), U_next, check_pass))
   }
 }
 
