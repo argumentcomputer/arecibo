@@ -146,7 +146,7 @@ where
   /// larger sizes for these parameters. These SNARKs provide a hint for these values by
   /// implementing `RelaxedR1CSSNARKTrait::commitment_key_floor()`, which can be passed to this function.
   ///
-  /// If you're not using such a SNARK, pass `&(|_| 0)` instead.
+  /// If you're not using such a SNARK, pass `nova_snark::traits::snark::default_commitment_key_hint()` instead.
   ///
   /// # Arguments
   ///
@@ -954,6 +954,7 @@ mod tests {
   use crate::provider::bn256_grumpkin::{bn256, grumpkin};
   use crate::provider::secp_secq::{secp256k1, secq256k1};
   use crate::traits::evaluation::EvaluationEngineTrait;
+  use crate::traits::snark::default_commitment_key_hint;
   use core::fmt::Write;
 
   use super::*;
@@ -1114,7 +1115,12 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       TrivialCircuit<<G2 as Group>::Scalar>,
-    >::new(&test_circuit1, &test_circuit2, &(|_| 0), &(|_| 0));
+    >::new(
+      &test_circuit1,
+      &test_circuit2,
+      &*default_commitment_key_hint(),
+      &*default_commitment_key_hint(),
+    );
     let num_steps = 1;
 
     // produce a recursive SNARK
@@ -1165,7 +1171,12 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new(&circuit_primary, &circuit_secondary, &(|_| 0), &(|_| 0));
+    >::new(
+      &circuit_primary,
+      &circuit_secondary,
+      &*default_commitment_key_hint(),
+      &*default_commitment_key_hint(),
+    );
 
     let num_steps = 3;
 
@@ -1248,7 +1259,12 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new(&circuit_primary, &circuit_secondary, &(|_| 0), &(|_| 0));
+    >::new(
+      &circuit_primary,
+      &circuit_secondary,
+      &*default_commitment_key_hint(),
+      &*default_commitment_key_hint(),
+    );
 
     let num_steps = 3;
 
@@ -1512,7 +1528,12 @@ mod tests {
       G2,
       FifthRootCheckingCircuit<<G1 as Group>::Scalar>,
       TrivialCircuit<<G2 as Group>::Scalar>,
-    >::new(&circuit_primary, &circuit_secondary, &(|_| 0), &(|_| 0));
+    >::new(
+      &circuit_primary,
+      &circuit_secondary,
+      &*default_commitment_key_hint(),
+      &*default_commitment_key_hint(),
+    );
 
     let num_steps = 3;
 
@@ -1587,7 +1608,12 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new(&test_circuit1, &test_circuit2, &(|_| 0), &(|_| 0));
+    >::new(
+      &test_circuit1,
+      &test_circuit2,
+      &*default_commitment_key_hint(),
+      &*default_commitment_key_hint(),
+    );
 
     let num_steps = 1;
 
