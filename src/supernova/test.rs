@@ -11,6 +11,7 @@ use crate::provider::secp_secq::secq256k1;
 use crate::traits::circuit_supernova::{
   EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
 };
+use crate::traits::snark::default_commitment_key_hint;
 use bellpepper::gadgets::{boolean::Boolean, Assignment};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
@@ -448,7 +449,11 @@ where
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
   let num_steps = test_rom.num_steps();
 
-  let pp = PublicParams::new(&test_rom);
+  let pp = PublicParams::new(
+    &test_rom,
+    &*default_commitment_key_hint(),
+    &*default_commitment_key_hint(),
+  );
 
   let initial_program_counter = test_rom.initial_program_counter();
 
@@ -571,7 +576,7 @@ fn test_recursive_circuit_with<G1, G2>(
   if let Err(e) = circuit1.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape1, ck1) = cs.r1cs_shape_and_key(None);
+  let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_commitment_key_hint());
   assert_eq!(cs.num_constraints(), num_constraints_primary);
 
   // Initialize the shape and ck for the secondary
@@ -589,7 +594,7 @@ fn test_recursive_circuit_with<G1, G2>(
   if let Err(e) = circuit2.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape2, ck2) = cs.r1cs_shape_and_key(None);
+  let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_commitment_key_hint());
   assert_eq!(cs.num_constraints(), num_constraints_secondary);
 
   // Execute the base case for the primary
@@ -673,7 +678,11 @@ where
   // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
   // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
-  let pp = PublicParams::<G1, G2, T1, T2>::new(non_uniform_circuit);
+  let pp = PublicParams::<G1, G2, T1, T2>::new(
+    non_uniform_circuit,
+    &*default_commitment_key_hint(),
+    &*default_commitment_key_hint(),
+  );
 
   let digest_str = pp
     .digest()
@@ -944,7 +953,11 @@ where
     G2,
     RootCheckingCircuit<<G1 as Group>::Scalar>,
     TrivialSecondaryCircuit<<G2 as Group>::Scalar>,
-  >::new(&roots[0]);
+  >::new(
+    &roots[0],
+    &*default_commitment_key_hint(),
+    &*default_commitment_key_hint(),
+  );
   // produce a recursive SNARK
 
   let circuit_primary = &roots[0];
