@@ -196,6 +196,48 @@ pub fn alloc_num_equals<F: PrimeField, CS: ConstraintSystem<F>>(
   Ok(r)
 }
 
+/// Check that two numbers are equal and return a bit
+pub fn alloc_num_equals_const<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: F,
+) -> Result<AllocatedBit, SynthesisError> {
+  // Allocate and constrain `r`: result boolean bit.
+  // It equals `true` if `a` equals `b`, `false` otherwise
+  let r_value = match (a.get_value(), b) {
+    (Some(a), b) => Some(a == b),
+    _ => None,
+  };
+
+  let r = AllocatedBit::alloc(cs.namespace(|| "r"), r_value)?;
+
+  // Allocate t s.t. t=1 if z1 == z2 else 1/(z1 - z2)
+
+  let t = AllocatedNum::alloc(cs.namespace(|| "t"), || {
+    Ok(if *a.get_value().get()? == b {
+      F::ONE
+    } else {
+      (*a.get_value().get()? - b).invert().unwrap()
+    })
+  })?;
+
+  cs.enforce(
+    || "t*(a - b) = 1 - r",
+    |lc| lc + t.get_variable(),
+    |lc| lc + a.get_variable() - (b, CS::one()),
+    |lc| lc + CS::one() - r.get_variable(),
+  );
+
+  cs.enforce(
+    || "r*(a - b) = 0",
+    |lc| lc + r.get_variable(),
+    |lc| lc + a.get_variable() - (b, CS::one()),
+    |lc| lc,
+  );
+
+  Ok(r)
+}
+
 /// If condition return a otherwise b
 pub fn conditionally_select<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,

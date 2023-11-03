@@ -6,7 +6,7 @@ use ff::Field;
 use crate::{
   gadgets::{
     r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
-    utils::{alloc_const, alloc_num_equals, conditionally_select},
+    utils::alloc_num_equals_const,
   },
   traits::Group,
 };
@@ -28,59 +28,44 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
   let mut a = a.iter().enumerate();
   let mut selector: Vec<Boolean> = Vec::with_capacity(a.len());
 
-  let zero_index = alloc_const(cs.namespace(|| "i_const 0 allocated"), G::Base::from(0u64))?;
-  let first_selected = alloc_num_equals(
+  let first_selected = alloc_num_equals_const(
     cs.namespace(|| "check 0 equal bit".to_string()),
-    &zero_index,
     target_index,
+    G::Base::from(0),
   )?;
 
   selector.push(Boolean::Is(first_selected.clone()));
 
-  let first = (
-    zero_index,
-    a.next()
-      .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?
-      .1
-      .clone(),
-  );
+  let first = a
+    .next()
+    .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?
+    .1
+    .clone();
 
   let initial_sum = Boolean::from(first_selected).lc(CS::one(), G::Base::ONE);
 
   let (selected, selected_sum) = a.try_fold(
     (first, initial_sum),
     |(matched, mut selected_sum), (i, candidate)| {
-      let i_const = alloc_const(
-        cs.namespace(|| format!("i_const {:?} allocated", i)),
-        G::Base::from(i as u64),
-      )?;
-      let equal_bit = Boolean::from(alloc_num_equals(
-        cs.namespace(|| format!("check {:?} equal bit", i_const.get_value().unwrap())),
-        &i_const,
+      let equal_bit = Boolean::Is(alloc_num_equals_const(
+        cs.namespace(|| format!("check {:?} equal bit", i)),
         target_index,
+        G::Base::from(i as u64),
       )?);
+
       selector.push(equal_bit.clone());
       selected_sum = selected_sum + &equal_bit.lc(CS::one(), G::Base::ONE);
-      let next_matched_index = conditionally_select(
-        cs.namespace(|| format!("next_matched_index-{:?}", i_const.get_value().unwrap())),
-        &i_const,
-        &matched.0,
-        &equal_bit,
-      )?;
       let next_matched_allocated = conditionally_select_alloc_relaxed_r1cs(
-        cs.namespace(|| format!("next_matched_allocated-{:?}", i_const.get_value().unwrap())),
+        cs.namespace(|| format!("next_matched_allocated-{:?}", i)),
         candidate,
-        &matched.1,
+        &matched,
         &equal_bit,
       )?;
 
-      Ok::<
-        (
-          (AllocatedNum<G::Base>, AllocatedRelaxedR1CSInstance<G>),
-          LinearCombination<G::Base>,
-        ),
-        SynthesisError,
-      >(((next_matched_index, next_matched_allocated), selected_sum))
+      Ok::<(AllocatedRelaxedR1CSInstance<G>, LinearCombination<G::Base>), SynthesisError>((
+        next_matched_allocated,
+        selected_sum,
+      ))
     },
   )?;
 
@@ -91,12 +76,13 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
     |lc| lc + CS::one(),
   );
 
-  Ok((selector, selected.1))
+  Ok((selector, selected))
 }
 
 #[cfg(test)]
 mod test {
   use super::*;
+  use crate::gadgets::utils::alloc_const;
   use bellpepper_core::test_cs::TestConstraintSystem;
   use pasta_curves::pallas::{Base, Point};
 
