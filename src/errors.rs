@@ -50,6 +50,9 @@ pub enum NovaError {
   /// returned when the multiset check fails
   #[error("InvalidMultisetProof")]
   InvalidMultisetProof,
+  /// returned when the tree node is attempting to merge with a node which has a greater than 1 gap in steps
+  #[error("InvalidNodeMerge")]
+  InvalidNodeMerge,
   /// returned when the product proof check fails
   #[error("InvalidProductProof")]
   InvalidProductProof,

@@ -1,14 +1,16 @@
 //! This module implements a non-interactive folding scheme
 #![allow(non_snake_case)]
+#![allow(clippy::type_complexity)]
 
 use crate::{
   constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
-  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
   scalar_as_base,
   traits::{commitment::CommitmentTrait, AbsorbInROTrait, Group, ROTrait},
   Commitment, CommitmentKey, CompressedCommitment,
 };
+use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 /// A SNARK that holds the proof of a step of an incremental computation
@@ -17,6 +19,7 @@ use serde::{Deserialize, Serialize};
 #[serde(bound = "")]
 pub struct NIFS<G: Group> {
   pub(crate) comm_T: CompressedCommitment<G>,
+  _p: PhantomData<G>,
 }
 
 type ROConstants<G> =
@@ -29,8 +32,6 @@ impl<G: Group> NIFS<G> {
   /// a folded Relaxed R1CS instance-witness tuple `(U, W)` of the same shape `shape`,
   /// with the guarantee that the folded witness `W` satisfies the folded instance `U`
   /// if and only if `W1` satisfies `U1` and `W2` satisfies `U2`.
-  #[allow(clippy::too_many_arguments)]
-  #[tracing::instrument(skip_all, level = "trace", name = "NIFS::prove")]
   pub fn prove(
     ck: &CommitmentKey<G>,
     ro_consts: &ROConstants<G>,
@@ -38,18 +39,28 @@ impl<G: Group> NIFS<G> {
     S: &R1CSShape<G>,
     U1: &RelaxedR1CSInstance<G>,
     W1: &RelaxedR1CSWitness<G>,
-    U2: &R1CSInstance<G>,
-    W2: &R1CSWitness<G>,
+    U2: &RelaxedR1CSInstance<G>,
+    W2: &RelaxedR1CSWitness<G>,
+    as_relaxed: bool,
   ) -> Result<(NIFS<G>, (RelaxedR1CSInstance<G>, RelaxedR1CSWitness<G>)), NovaError> {
     // initialize a new RO
-    let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let num_absorbs = if as_relaxed {
+      NUM_FE_FOR_RO + 10
+    } else {
+      NUM_FE_FOR_RO
+    };
+    let mut ro = G::RO::new(ro_consts.clone(), num_absorbs);
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<G>(*pp_digest));
 
     // append U1 and U2 to transcript
     U1.absorb_in_ro(&mut ro);
-    U2.absorb_in_ro(&mut ro);
+    if as_relaxed {
+      U2.absorb_in_ro(&mut ro);
+    } else {
+      U2.absorb_in_ro_as_strict(&mut ro);
+    }
 
     // compute a commitment to the cross-term
     let (T, comm_T) = S.commit_T(ck, U1, W1, U2, W2)?;
@@ -70,12 +81,13 @@ impl<G: Group> NIFS<G> {
     Ok((
       Self {
         comm_T: comm_T.compress(),
+        _p: Default::default(),
       },
       (U, W),
     ))
   }
 
-  /// Takes as input a relaxed R1CS instance `U1` and R1CS instance `U2`
+  /// Takes as input a relaxed R1CS instance `U1` and and R1CS instance `U2`
   /// with the same shape and defined with respect to the same parameters,
   /// and outputs a folded instance `U` with the same shape,
   /// with the guarantee that the folded instance `U`
@@ -85,17 +97,27 @@ impl<G: Group> NIFS<G> {
     ro_consts: &ROConstants<G>,
     pp_digest: &G::Scalar,
     U1: &RelaxedR1CSInstance<G>,
-    U2: &R1CSInstance<G>,
+    U2: &RelaxedR1CSInstance<G>,
+    as_relaxed: bool,
   ) -> Result<RelaxedR1CSInstance<G>, NovaError> {
     // initialize a new RO
-    let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let num_absorbs = if as_relaxed {
+      NUM_FE_FOR_RO + 10
+    } else {
+      NUM_FE_FOR_RO
+    };
+    let mut ro = G::RO::new(ro_consts.clone(), num_absorbs);
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<G>(*pp_digest));
 
     // append U1 and U2 to transcript
     U1.absorb_in_ro(&mut ro);
-    U2.absorb_in_ro(&mut ro);
+    if as_relaxed {
+      U2.absorb_in_ro(&mut ro);
+    } else {
+      U2.absorb_in_ro_as_strict(&mut ro);
+    }
 
     // append `comm_T` to the transcript and obtain a challenge
     let comm_T = Commitment::<G>::decompress(&self.comm_T)?;
@@ -118,6 +140,7 @@ mod tests {
   use crate::{
     r1cs::{commitment_key, SparseMatrix},
     traits::Group,
+    R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use ff::{Field, PrimeField};
@@ -180,16 +203,22 @@ mod tests {
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, Some(G::Scalar::from(5)));
     let (U1, W1) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
 
+    let U1 = RelaxedR1CSInstance::from_r1cs_instance(&ck, &shape, &U1);
+    let W1 = RelaxedR1CSWitness::from_r1cs_witness(&shape, &W1);
+
     // Make sure that the first instance is satisfiable
-    assert!(shape.is_sat(&ck, &U1, &W1).is_ok());
+    assert!(shape.is_sat_relaxed(&ck, &U1, &W1).is_ok());
 
     // Now get the instance and assignment for second instance
     let mut cs: SatisfyingAssignment<G> = SatisfyingAssignment::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, Some(G::Scalar::from(135)));
     let (U2, W2) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
 
+    let U2 = RelaxedR1CSInstance::from_r1cs_instance(&ck, &shape, &U2);
+    let W2 = RelaxedR1CSWitness::from_r1cs_witness(&shape, &W2);
+
     // Make sure that the second instance is satisfiable
-    assert!(shape.is_sat(&ck, &U2, &W2).is_ok());
+    assert!(shape.is_sat_relaxed(&ck, &U2, &W2).is_ok());
 
     // execute a sequence of folds
     execute_sequence(
@@ -216,10 +245,10 @@ mod tests {
     ro_consts: &<<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants,
     pp_digest: &<G as Group>::Scalar,
     shape: &R1CSShape<G>,
-    U1: &R1CSInstance<G>,
-    W1: &R1CSWitness<G>,
-    U2: &R1CSInstance<G>,
-    W2: &R1CSWitness<G>,
+    U1: &RelaxedR1CSInstance<G>,
+    W1: &RelaxedR1CSWitness<G>,
+    U2: &RelaxedR1CSInstance<G>,
+    W2: &RelaxedR1CSWitness<G>,
   ) where
     G: Group,
   {
@@ -228,12 +257,12 @@ mod tests {
     let mut r_U = RelaxedR1CSInstance::default(ck, shape);
 
     // produce a step SNARK with (W1, U1) as the first incoming witness-instance pair
-    let res = NIFS::prove(ck, ro_consts, pp_digest, shape, &r_U, &r_W, U1, W1);
+    let res = NIFS::prove(ck, ro_consts, pp_digest, shape, &r_U, &r_W, U1, W1, false);
     assert!(res.is_ok());
     let (nifs, (_U, W)) = res.unwrap();
 
     // verify the step SNARK with U1 as the first incoming instance
-    let res = nifs.verify(ro_consts, pp_digest, &r_U, U1);
+    let res = nifs.verify(ro_consts, pp_digest, &r_U, U1, false);
     assert!(res.is_ok());
     let U = res.unwrap();
 
@@ -244,12 +273,12 @@ mod tests {
     r_U = U;
 
     // produce a step SNARK with (W2, U2) as the second incoming witness-instance pair
-    let res = NIFS::prove(ck, ro_consts, pp_digest, shape, &r_U, &r_W, U2, W2);
+    let res = NIFS::prove(ck, ro_consts, pp_digest, shape, &r_U, &r_W, U2, W2, false);
     assert!(res.is_ok());
     let (nifs, (_U, W)) = res.unwrap();
 
     // verify the step SNARK with U1 as the first incoming instance
-    let res = nifs.verify(ro_consts, pp_digest, &r_U, U2);
+    let res = nifs.verify(ro_consts, pp_digest, &r_U, U2, false);
     assert!(res.is_ok());
     let U = res.unwrap();
 
@@ -337,7 +366,9 @@ mod tests {
       <<G as Group>::RO as ROTrait<<G as Group>::Base, <G as Group>::Scalar>>::Constants::default();
 
     let rand_inst_witness_generator =
-      |ck: &CommitmentKey<G>, I: &G::Scalar| -> (G::Scalar, R1CSInstance<G>, R1CSWitness<G>) {
+      |ck: &CommitmentKey<G>,
+       I: &G::Scalar|
+       -> (G::Scalar, RelaxedR1CSInstance<G>, RelaxedR1CSWitness<G>) {
         let i0 = *I;
 
         // compute a satisfying (vars, X) tuple
@@ -365,8 +396,11 @@ mod tests {
           res.unwrap()
         };
 
+        let U = RelaxedR1CSInstance::from_r1cs_instance(ck, &S, &U);
+        let W = RelaxedR1CSWitness::from_r1cs_witness(&S, &W);
+
         // check that generated instance is satisfiable
-        assert!(S.is_sat(ck, &U, &W).is_ok());
+        assert!(S.is_sat_relaxed(ck, &U, &W).is_ok());
 
         (O, U, W)
       };
