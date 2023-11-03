@@ -28,12 +28,9 @@ pub trait NovaShape<G: Group> {
   /// Optionally, a `CommitmentKeyHint` can be provided to help guide the
   /// construction of the `CommitmentKey`. This parameter is documented in
   /// `r1cs::R1CS::commitment_key`.
-  fn r1cs_shape_and_key(
-    &self,
-    optfn: Option<CommitmentKeyHint<G>>,
-  ) -> (R1CSShape<G>, CommitmentKey<G>) {
+  fn r1cs_shape_and_key(&self, ck_hint: &CommitmentKeyHint<G>) -> (R1CSShape<G>, CommitmentKey<G>) {
     let S = self.r1cs_shape();
-    let ck = commitment_key(&S, optfn);
+    let ck = commitment_key(&S, ck_hint);
 
     (S, ck)
   }

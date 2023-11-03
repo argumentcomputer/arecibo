@@ -8,7 +8,10 @@ use crate::{
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
-  r1cs::{commitment_key_size, R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  r1cs::{
+    commitment_key_size, CommitmentKeyHint, R1CSInstance, R1CSWitness, RelaxedR1CSInstance,
+    RelaxedR1CSWitness,
+  },
   scalar_as_base,
   traits::{
     circuit_supernova::StepCircuit,
@@ -168,7 +171,11 @@ where
   C2: StepCircuit<G2::Scalar>,
 {
   /// Construct a new [PublicParams]
-  pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(non_uniform_circuit: &NC) -> Self {
+  pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(
+    non_uniform_circuit: &NC,
+    ck_hint1: &CommitmentKeyHint<G1>,
+    ck_hint2: &CommitmentKeyHint<G2>,
+  ) -> Self {
     let num_circuits = non_uniform_circuit.num_circuits();
 
     let augmented_circuit_params_primary =
@@ -198,7 +205,7 @@ where
       })
       .collect::<Vec<_>>();
 
-    let ck_primary = Self::compute_primary_ck(&circuit_shapes);
+    let ck_primary = Self::compute_primary_ck(&circuit_shapes, ck_hint1);
 
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
@@ -216,7 +223,7 @@ where
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(None);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
     let pp = PublicParams {
@@ -323,10 +330,13 @@ where
 
   /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
   /// `CircuitShape`.
-  fn compute_primary_ck(circuit_params: &[CircuitShape<G1>]) -> CommitmentKey<G1> {
+  fn compute_primary_ck(
+    circuit_params: &[CircuitShape<G1>],
+    ck_hint1: &CommitmentKeyHint<G1>,
+  ) -> CommitmentKey<G1> {
     let size_primary = circuit_params
       .iter()
-      .map(|circuit| commitment_key_size(&circuit.r1cs_shape, None))
+      .map(|circuit| commitment_key_size(&circuit.r1cs_shape, ck_hint1))
       .max()
       .unwrap();
 
