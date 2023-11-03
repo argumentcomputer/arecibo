@@ -393,7 +393,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
           cs.namespace(|| "select on index namespace"),
           &U_fold,
           U,
-          &equal_bit,
+          equal_bit,
         )
       })
       .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<G>>, _>>()?;
