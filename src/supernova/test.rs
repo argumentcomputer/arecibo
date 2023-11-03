@@ -663,7 +663,7 @@ fn test_recursive_circuit() {
   let ro_consts1: ROConstantsCircuit<G2> = PoseidonConstantsCircuit::default();
   let ro_consts2: ROConstantsCircuit<G1> = PoseidonConstantsCircuit::default();
 
-  test_recursive_circuit_with::<G1, G2>(&params1, &params2, ro_consts1, ro_consts2, 9836, 12035);
+  test_recursive_circuit_with::<G1, G2>(&params1, &params2, ro_consts1, ro_consts2, 9840, 12039);
 }
 
 fn test_pp_digest_with<G1, G2, T1, T2, NC>(non_uniform_circuit: &NC, expected: &str)
@@ -709,7 +709,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<G1, G2, _, _, _>(
     &test_rom,
-    "989e3756cf76e0af1f0e76ced6fc356404d7beedcee5ad244dad25ed08809e00",
+    "e47062f431c354060f73529db4161288cb4cdc78efc62c129acac24bc1231f02",
   );
 
   let rom = vec![
@@ -724,7 +724,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, _>(
     &test_rom_grumpkin,
-    "0b8c080ffa823b95d1dd75b6a5b49852c53ff60fbead6652af6d2a0bd177b800",
+    "352c27c61cf6efe07cdfbc5c40252f31b16c20c5eb3cd1838e8deb861d4e2301",
   );
 
   let rom = vec![
@@ -739,7 +739,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, _>(
     &test_rom_secp,
-    "3ae4759aa0338bcc6ac11b456c17803467a1f44364992e3f1a0c6344b0135703",
+    "5e27800dacc03218659d09f361b9c50cbc9164b9af0a623e137ec6bf0a8e4a01",
   );
 }
 
