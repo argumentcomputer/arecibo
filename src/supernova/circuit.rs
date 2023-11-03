@@ -417,24 +417,6 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     self,
     cs: &mut CS,
   ) -> Result<(Option<AllocatedNum<G::Base>>, Vec<AllocatedNum<G::Base>>), SynthesisError> {
-    // NOTE `last_augmented_circuit_index` is aux without any constraint.
-    // Reason is prover can only produce valid running instance by folding u into proper U_i[last_augmented_circuit_index]
-    // However, there is crucial pre-asumption: `last_augmented_circuit_index` must within range [0, num_augmented_circuits)
-    // otherwise there will be a soundness error, such that maliculous prover can choose out of range last_augmented_circuit_index.
-    // The soundness error depends on how we process out-of-range condition.
-    //
-    // there are 2 possible solution
-    // 1. range check `last_augmented_circuit_index`
-    // 2. if last_augmented_circuit_index out of range, then by default select index 0
-    //
-    // For current version we choose 2, due to its simplicify and fit well in last_augmented_circuit_index use case.
-    // Recap, the only way to pass running instance check is folding u into respective U_i[last_augmented_circuit_index]
-    // So, a circuit implementing to set out-of-range last_augmented_circuit_index to index 0 is fine.
-    // The illegal running instances will be propogate to later phase and finally captured with "high" probability on the basis of Nova IVC security.
-    //
-    // Although above "informal" analysis implies there is no `malleability` on statement (malleability refer `NARK.8 Malleability of Nova’s IVC` https://eprint.iacr.org/2023/969.pdf )
-    // We need to carefully check whether it lead to other vulnerability.
-
     let arity = self.step_circuit.arity();
     let num_augmented_circuits = if self.params.is_primary_circuit {
       // primary circuit only fold single running instance with secondary output strict r1cs instance
