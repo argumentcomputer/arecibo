@@ -1406,7 +1406,6 @@ mod tests {
     assert_eq!(zn_secondary, vec![<G2 as Group>::Scalar::from(2460515u64)]);
 
     // run the compressed snark with Spark compiler
-
     // produce the prover and verifier keys for compressed snark
     let (pk, vk) =
       CompressedSNARK::<_, _, _, _, SPrime<G1, E1>, SPrime<G2, E2>>::setup(&pp).unwrap();
@@ -1498,7 +1497,7 @@ mod tests {
         let x = &z[0];
 
         // we allocate a variable and set it to the provided non-deterministic advice.
-        let y = AllocatedNum::alloc(cs.namespace(|| "y"), || Ok(self.y))?;
+        let y = AllocatedNum::alloc_infallible(cs.namespace(|| "y"), || self.y);
 
         // We now check if y = x^{1/5} by checking if y^5 = x
         let y_sq = y.square(cs.namespace(|| "y_sq"))?;
