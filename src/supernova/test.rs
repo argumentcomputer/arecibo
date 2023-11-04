@@ -30,7 +30,7 @@ fn constrain_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
   circuit_index: &AllocatedNum<F>,
 ) -> Result<(), SynthesisError> {
   // select target when index match or empty
-  let zero = alloc_zero(cs.namespace(|| "zero"))?;
+  let zero = alloc_zero(cs.namespace(|| "zero"));
   let rom_values = rom
     .iter()
     .enumerate()
@@ -111,7 +111,7 @@ fn next_rom_index_and_pc<F: PrimeField, CS: ConstraintSystem<F>>(
   rom_index: &AllocatedNum<F>,
   allocated_rom: &[AllocatedNum<F>],
 ) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError> {
-  let one = alloc_one(cs.namespace(|| "alloc one"))?;
+  let one = alloc_one(cs.namespace(|| "alloc one"));
 
   let rom_index_next = add_allocated_num(
     // rom_index = rom_index + 1
