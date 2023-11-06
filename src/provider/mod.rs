@@ -16,6 +16,7 @@ pub mod secp_secq;
 pub mod kzg_commitment;
 pub mod non_hiding_kzg;
 pub mod non_hiding_zeromorph;
+mod util;
 
 use ff::PrimeField;
 use pasta_curves::{self, arithmetic::CurveAffine, group::Group as AnotherGroup};

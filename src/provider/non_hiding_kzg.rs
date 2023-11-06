@@ -1,6 +1,6 @@
 //! Non-hiding variant of KZG10 scheme for univariate polynomials.
 use abomonation_derive::Abomonation;
-use ff::{Field, PrimeField};
+use ff::{Field, PrimeField, PrimeFieldBits};
 use group::{prime::PrimeCurveAffine, Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rand::Rng;
@@ -11,6 +11,7 @@ use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
 use crate::{
   errors::{NovaError, PCSError},
+  provider::util,
   traits::{commitment::Len, Group, TranscriptReprTrait},
 };
 
@@ -127,7 +128,12 @@ impl<E: Engine> UVUniversalKZGParam<E> {
     };
     (pk, vk)
   }
+}
 
+impl<E: Engine> UVUniversalKZGParam<E>
+where
+  E::Fr: PrimeFieldBits,
+{
   /// Build SRS for testing.
   /// WARNING: THIS FUNCTION IS FOR TESTING PURPOSE ONLY.
   /// THE OUTPUT SRS SHOULD NOT BE USED IN PRODUCTION.
@@ -136,24 +142,25 @@ impl<E: Engine> UVUniversalKZGParam<E> {
     let g = E::G1::random(&mut rng);
     let h = E::G2::random(rng);
 
+    let nz_powers_of_beta = (0..=max_degree)
+      .scan(beta, |acc, _| {
+        let val = *acc;
+        *acc *= beta;
+        Some(val)
+      })
+      .collect::<Vec<E::Fr>>();
+
+    let window_size = util::get_mul_window_size(max_degree);
+    let scalar_bits = E::Fr::NUM_BITS as usize;
+
     let (powers_of_g_projective, powers_of_h_projective) = rayon::join(
       || {
-        (0..=max_degree)
-          .scan(g, |acc, _| {
-            let val = *acc;
-            *acc *= beta;
-            Some(val)
-          })
-          .collect::<Vec<E::G1>>()
+        let g_table = util::get_window_table(scalar_bits, window_size, g);
+        util::multi_scalar_mul::<E::G1>(scalar_bits, window_size, &g_table, &nz_powers_of_beta)
       },
       || {
-        (0..=max_degree)
-          .scan(h, |acc, _| {
-            let val = *acc;
-            *acc *= beta;
-            Some(val)
-          })
-          .collect::<Vec<E::G2>>()
+        let h_table = util::get_window_table(scalar_bits, window_size, h);
+        util::multi_scalar_mul::<E::G2>(scalar_bits, window_size, &h_table, &nz_powers_of_beta)
       },
     );
 
@@ -171,7 +178,6 @@ impl<E: Engine> UVUniversalKZGParam<E> {
     }
   }
 }
-
 /// Commitments
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default, Serialize, Deserialize)]
 #[serde(bound(
@@ -406,6 +412,7 @@ mod tests {
   where
     E: MultiMillerLoop,
     E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+    E::Fr: PrimeFieldBits,
   {
     for _ in 0..100 {
       let mut rng = &mut thread_rng();
@@ -431,6 +438,7 @@ mod tests {
   where
     E: MultiMillerLoop,
     E::G1: Group<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+    E::Fr: PrimeFieldBits,
   {
     for _ in 0..10 {
       let mut rng = &mut thread_rng();

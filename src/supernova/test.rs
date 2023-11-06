@@ -716,7 +716,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, _>(
     &test_rom_grumpkin,
-    "fded88be9256dc0ba2a273b885000024699462b98053ae55322ab39929abc200",
+    "e89587095a47266d6a8feaee076dddd690622ecb7649d6bd3df774c9e4179a03",
   );
 
   let rom = vec![
