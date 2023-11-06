@@ -3,6 +3,7 @@
 
 use std::marker::PhantomData;
 
+use ff::PrimeFieldBits;
 use group::{prime::PrimeCurveAffine, Curve};
 use pairing::Engine;
 use rand::rngs::StdRng;
@@ -30,6 +31,7 @@ where
   E::G1: Group<PreprocessedGroupElement = E::G1Affine>,
   E::G1Affine: Serialize + for<'de> Deserialize<'de>,
   E::G2Affine: Serialize + for<'de> Deserialize<'de>,
+  E::Fr: PrimeFieldBits, // TODO due to use of gen_srs_for_testing, make optional
 {
   type CommitmentKey = UVUniversalKZGParam<E>;
   type Commitment = Commitment<E::G1>;
