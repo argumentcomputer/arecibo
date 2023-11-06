@@ -19,7 +19,7 @@ use crate::{
   Commitment,
 };
 use abomonation_derive::Abomonation;
-use ff::{BatchInvert, Field, PrimeField};
+use ff::{BatchInvert, Field, PrimeField, PrimeFieldBits};
 use group::{Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::{
@@ -419,8 +419,8 @@ where
   E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
   E::G1Affine: Serialize + DeserializeOwned,
   E::G2Affine: Serialize + DeserializeOwned,
-    // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
-    <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
+  <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
+  E::Fr: PrimeFieldBits, // TODO due to use of gen_srs_for_testing, make optional
 {
   type ProverKey = ZMProverKey<E>;
   type VerifierKey = ZMVerifierKey<E>;
@@ -470,7 +470,7 @@ where
 mod test {
   use std::iter;
 
-  use ff::FromUniformBytes;
+  use ff::{FromUniformBytes, PrimeFieldBits};
   use halo2curves::bn256::Bn256;
   use pairing::MultiMillerLoop;
   use rand::{thread_rng, Rng};
@@ -493,8 +493,8 @@ mod test {
   fn commit_open_verify_with<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>>()
   where
     E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
-    // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
-    <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
+    <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
+    E::Fr: PrimeFieldBits,
   {
     let max_vars = 16;
     let mut rng = thread_rng();
