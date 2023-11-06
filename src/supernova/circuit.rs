@@ -369,7 +369,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     )?;
 
     // Run NIFS Verifier
-    let (last_augmented_circuit_index_checked, U_to_fold) = get_from_vec_alloc_relaxed_r1cs(
+    let (last_augmented_circuit_selector, U_to_fold) = get_from_vec_alloc_relaxed_r1cs(
       cs.namespace(|| "U to fold"),
       U,
       last_augmented_circuit_index,
@@ -387,28 +387,18 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     // update AllocatedRelaxedR1CSInstance on index match augmented circuit index
     let U_next: Vec<AllocatedRelaxedR1CSInstance<G>> = U
       .iter()
-      .enumerate()
-      .map(|(i, U)| {
-        let mut cs = cs.namespace(|| format!("U_i+1 non_base conditional selection {:?}", i));
-        let i_alloc = alloc_const(
-          cs.namespace(|| "i allocated"),
-          scalar_as_base::<G>(G::Scalar::from(i as u64)),
-        )?;
-        let equal_bit = Boolean::from(alloc_num_equals(
-          cs.namespace(|| "check equal bit"),
-          &i_alloc,
-          &last_augmented_circuit_index_checked,
-        )?);
+      .zip(last_augmented_circuit_selector.iter())
+      .map(|(U, equal_bit)| {
         conditionally_select_alloc_relaxed_r1cs(
           cs.namespace(|| "select on index namespace"),
           &U_fold,
           U,
-          &equal_bit,
+          equal_bit,
         )
       })
       .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<G>>, _>>()?;
 
-    Ok((last_augmented_circuit_index_checked, U_next, check_pass))
+    Ok((last_augmented_circuit_index.clone(), U_next, check_pass))
   }
 }
 
@@ -417,24 +407,6 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     self,
     cs: &mut CS,
   ) -> Result<(Option<AllocatedNum<G::Base>>, Vec<AllocatedNum<G::Base>>), SynthesisError> {
-    // NOTE `last_augmented_circuit_index` is aux without any constraint.
-    // Reason is prover can only produce valid running instance by folding u into proper U_i[last_augmented_circuit_index]
-    // However, there is crucial pre-asumption: `last_augmented_circuit_index` must within range [0, num_augmented_circuits)
-    // otherwise there will be a soundness error, such that maliculous prover can choose out of range last_augmented_circuit_index.
-    // The soundness error depends on how we process out-of-range condition.
-    //
-    // there are 2 possible solution
-    // 1. range check `last_augmented_circuit_index`
-    // 2. if last_augmented_circuit_index out of range, then by default select index 0
-    //
-    // For current version we choose 2, due to its simplicify and fit well in last_augmented_circuit_index use case.
-    // Recap, the only way to pass running instance check is folding u into respective U_i[last_augmented_circuit_index]
-    // So, a circuit implementing to set out-of-range last_augmented_circuit_index to index 0 is fine.
-    // The illegal running instances will be propogate to later phase and finally captured with "high" probability on the basis of Nova IVC security.
-    //
-    // Although above "informal" analysis implies there is no `malleability` on statement (malleability refer `NARK.8 Malleability of Nova’s IVC` https://eprint.iacr.org/2023/969.pdf )
-    // We need to carefully check whether it lead to other vulnerability.
-
     let arity = self.step_circuit.arity();
     let num_augmented_circuits = if self.params.is_primary_circuit {
       // primary circuit only fold single running instance with secondary output strict r1cs instance
