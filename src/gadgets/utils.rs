@@ -484,3 +484,30 @@ pub fn select_num_or_one<F: PrimeField, CS: ConstraintSystem<F>>(
 
   Ok(c)
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::r1cs::util::FWrap;
+  use bellpepper_core::test_cs::TestConstraintSystem;
+  use pasta_curves::pallas::Scalar as Fr;
+  use proptest::prelude::*;
+
+  proptest! {
+    #[test]
+    fn test_enforce_alloc_num_equal_const((a, b) in any::<(FWrap<Fr>, FWrap<Fr>)>()) {
+      prop_assume!(a != b);
+
+        let test_a_b = |a, b| {
+            let mut cs = TestConstraintSystem::<Fr>::new();
+            let a_num = AllocatedNum::alloc_infallible(cs.namespace(|| "a_num"), || a);
+            let r = alloc_num_equals_const(&mut cs, &a_num, b);
+            assert_eq!(r.unwrap().get_value().unwrap(), a==b);
+        };
+        // negative testing
+        test_a_b(a.0, b.0);
+        // positive testing
+        test_a_b(a.0, a.0);
+    }
+  }
+}
