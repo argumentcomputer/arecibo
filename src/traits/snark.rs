@@ -61,6 +61,41 @@ pub trait RelaxedR1CSSNARKTrait<G: Group>:
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<G>) -> Result<(), NovaError>;
 }
 
+/// TODO: Doc
+pub trait BatchedRelaxedR1CSSNARKTrait<G: Group>:
+  Send + Sync + Serialize + for<'de> Deserialize<'de>
+{
+  /// TODO: Doc
+  type ProverKey: Send + Sync + Serialize + for<'de> Deserialize<'de>; // + Abomonation; //TODO: Uncomment this
+
+  /// TODO: Doc
+  type VerifierKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + DigestHelperTrait<G>;
+  //+ Abomonation; // TODO: Uncomment this
+
+  /// TODO: Doc
+  fn commitment_key_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
+    default_commitment_key_hint()
+  }
+
+  /// TODO: Doc
+  fn setup(
+    ck: &CommitmentKey<G>,
+    S: &[R1CSShape<G>],
+  ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError>;
+
+  /// TODO: Doc
+  fn prove(
+    ck: &CommitmentKey<G>,
+    pk: &Self::ProverKey,
+    S: &[R1CSShape<G>],
+    U: &[RelaxedR1CSInstance<G>],
+    W: &[RelaxedR1CSWitness<G>],
+  ) -> Result<Self, NovaError>;
+
+  /// TODO: Doc
+  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<G>]) -> Result<(), NovaError>;
+}
+
 /// A helper trait that defines the behavior of a verifier key of `zkSNARK`
 pub trait DigestHelperTrait<G: Group> {
   /// Returns the digest of the verifier's key

@@ -360,4 +360,21 @@ impl<G: Group> SumcheckProof<G> {
       vec![poly_A[0], poly_B[0], poly_C[0], poly_D[0]],
     ))
   }
+
+  pub fn prove_cubic_with_additive_term_batched<F>(
+    claim: &G::Scalar,
+    num_rounds: usize,
+    poly_A_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
+    poly_B_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
+    poly_C_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
+    poly_D_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
+    coeffs: &[G::Scalar],
+    comb_func: F,
+    transcript: &mut G::TE,
+  ) -> Result<(Self, Vec<G::Scalar>, Vec<G::Scalar>), NovaError>
+  where
+    F: Fn(&G::Scalar, &G::Scalar, &G::Scalar, &G::Scalar) -> G::Scalar + Sync,
+  {
+    todo!()
+  }
 }
