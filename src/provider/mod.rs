@@ -2,6 +2,7 @@
 
 // public modules to be used as an evaluation engine with Spartan
 pub mod ipa_pc;
+pub mod non_hiding_zeromorph;
 
 // crate-public modules, made crate-public mostly for tests
 pub(crate) mod bn256_grumpkin;
@@ -13,7 +14,7 @@ pub(crate) mod traits;
 // a non-hiding variant of {kzg, zeromorph}
 pub(crate) mod kzg_commitment;
 pub(crate) mod non_hiding_kzg;
-pub(crate) mod non_hiding_zeromorph;
+mod util;
 
 // crate-private modules
 mod keccak;

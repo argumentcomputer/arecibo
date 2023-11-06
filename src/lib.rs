@@ -1147,13 +1147,13 @@ mod tests {
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "53b303f439b613e097463863032d07424eae2dfc68ad00a928e65ba41bee8100",
+      "e20ab87e395e787e272330a4c9c79916b83bf95632d9604511ad6a1448625402",
     );
     #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "588d21834fdfa16f5b569162cc3e098e81784047e4bee45a0e43112c5b46e701",
+      "ce304ffff7f6dfc143322bb621e9025ba9d77f1b8d0e199e6bc432aa66c98101",
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
