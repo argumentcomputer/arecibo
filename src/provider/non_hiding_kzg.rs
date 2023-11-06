@@ -11,7 +11,7 @@ use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
 use crate::{
   errors::{NovaError, PCSError},
-  provider::util,
+  provider::util::fb_msm,
   traits::{commitment::Len, Group, TranscriptReprTrait},
 };
 
@@ -150,17 +150,17 @@ where
       })
       .collect::<Vec<E::Fr>>();
 
-    let window_size = util::get_mul_window_size(max_degree);
+    let window_size = fb_msm::get_mul_window_size(max_degree);
     let scalar_bits = E::Fr::NUM_BITS as usize;
 
     let (powers_of_g_projective, powers_of_h_projective) = rayon::join(
       || {
-        let g_table = util::get_window_table(scalar_bits, window_size, g);
-        util::multi_scalar_mul::<E::G1>(scalar_bits, window_size, &g_table, &nz_powers_of_beta)
+        let g_table = fb_msm::get_window_table(scalar_bits, window_size, g);
+        fb_msm::multi_scalar_mul::<E::G1>(scalar_bits, window_size, &g_table, &nz_powers_of_beta)
       },
       || {
-        let h_table = util::get_window_table(scalar_bits, window_size, h);
-        util::multi_scalar_mul::<E::G2>(scalar_bits, window_size, &h_table, &nz_powers_of_beta)
+        let h_table = fb_msm::get_window_table(scalar_bits, window_size, h);
+        fb_msm::multi_scalar_mul::<E::G2>(scalar_bits, window_size, &h_table, &nz_powers_of_beta)
       },
     );
 

@@ -1,3 +1,9 @@
+/// # Fixed-base Scalar Multiplication
+///
+/// This module provides an implementation of fixed-base scalar multiplication on elliptic curves.
+///
+/// The multiplication is optimized through a windowed method, where scalars are broken into fixed-size
+/// windows, pre-computation tables are generated, and results are efficiently combined.
 use ff::{PrimeField, PrimeFieldBits};
 use group::{
   prime::{PrimeCurve, PrimeCurveAffine},
@@ -6,6 +12,9 @@ use group::{
 
 use rayon::prelude::*;
 
+/// Determines the window size for scalar multiplication based on the number of scalars.
+///
+/// This is used to balance between pre-computation and number of point additions.
 pub(crate) fn get_mul_window_size(num_scalars: usize) -> usize {
   if num_scalars < 32 {
     3
@@ -14,6 +23,12 @@ pub(crate) fn get_mul_window_size(num_scalars: usize) -> usize {
   }
 }
 
+/// Generates a table of multiples of a base point `g` for use in windowed scalar multiplication.
+///
+/// This pre-computes multiples of a base point for each window and organizes them
+/// into a table for quick lookup during the scalar multiplication process. The table is a vector
+/// of vectors, each inner vector corresponding to a window and containing the multiples of `g`
+/// for that window.
 pub(crate) fn get_window_table<T>(
   scalar_size: usize,
   window: usize,
@@ -61,6 +76,11 @@ where
     .collect()
 }
 
+/// Performs the actual windowed scalar multiplication using a pre-computed table of points.
+///
+/// Given a scalar and a table of pre-computed multiples of a base point, this function
+/// efficiently computes the scalar multiplication by breaking the scalar into windows and
+/// adding the corresponding multiples from the table.
 pub(crate) fn windowed_mul<T>(
   outerc: usize,
   window: usize,
@@ -87,6 +107,7 @@ where
   res
 }
 
+/// Computes multiple scalar multiplications simultaneously using the windowed method.
 pub(crate) fn multi_scalar_mul<T>(
   scalar_size: usize,
   window: usize,
