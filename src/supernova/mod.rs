@@ -45,6 +45,13 @@ use circuit::{
 
 use self::error::SuperNovaError;
 
+pub mod error;
+pub mod snark;
+pub(crate) mod utils;
+
+#[cfg(test)]
+mod test;
+
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CircuitDigests<E: Engine> {
