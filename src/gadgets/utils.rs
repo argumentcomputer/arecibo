@@ -167,15 +167,15 @@ pub fn alloc_num_equals<F: PrimeField, CS: ConstraintSystem<F>>(
 
   let r = AllocatedBit::alloc(cs.namespace(|| "r"), r_value)?;
 
-  // Allocate t s.t. t=1 if z1 == z2 else 1/(z1 - z2)
+  // Allocate t s.t. t=1 if a == b else 1/(a - b)
 
   let t = AllocatedNum::alloc(cs.namespace(|| "t"), || {
-    Ok(if *a.get_value().get()? == *b.get_value().get()? {
+    let a_val = *a.get_value().get()?;
+    let b_val = *b.get_value().get()?;
+    Ok(if a_val == b_val {
       F::ONE
     } else {
-      (*a.get_value().get()? - *b.get_value().get()?)
-        .invert()
-        .unwrap()
+      (a_val - b_val).invert().unwrap()
     })
   })?;
 
@@ -204,20 +204,18 @@ pub fn alloc_num_equals_const<F: PrimeField, CS: ConstraintSystem<F>>(
 ) -> Result<AllocatedBit, SynthesisError> {
   // Allocate and constrain `r`: result boolean bit.
   // It equals `true` if `a` equals `b`, `false` otherwise
-  let r_value = match (a.get_value(), b) {
-    (Some(a), b) => Some(a == b),
-    _ => None,
-  };
+  let r_value = a.get_value().map(|a_val| a_val == b);
 
   let r = AllocatedBit::alloc(cs.namespace(|| "r"), r_value)?;
 
-  // Allocate t s.t. t=1 if z1 == z2 else 1/(z1 - z2)
+  // Allocate t s.t. t=1 if a == b else 1/(a - b)
 
   let t = AllocatedNum::alloc(cs.namespace(|| "t"), || {
-    Ok(if *a.get_value().get()? == b {
+    let a_val = *a.get_value().get()?;
+    Ok(if a_val == b {
       F::ONE
     } else {
-      (*a.get_value().get()? - b).invert().unwrap()
+      (a_val - b).invert().unwrap()
     })
   })?;
 
