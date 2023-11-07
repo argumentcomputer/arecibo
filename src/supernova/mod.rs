@@ -577,10 +577,10 @@ where
   pub fn prove_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
     &mut self,
     pp: &PublicParams<G1, G2, C1, C2>,
-    circuit_index: usize,
     c_primary: &C1,
     c_secondary: &C2,
   ) -> Result<(), SuperNovaError> {
+    let circuit_index = c_primary.circuit_index();
     // First step was already done in the constructor
     if self.i == 0 {
       self.i = 1;

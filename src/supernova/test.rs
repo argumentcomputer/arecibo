@@ -505,12 +505,7 @@ where
         let circuit_primary = test_rom.primary_circuit(augmented_circuit_index);
         let circuit_secondary = test_rom.secondary_circuit();
         recursive_snark
-          .prove_step(
-            &pp,
-            augmented_circuit_index,
-            &circuit_primary,
-            &circuit_secondary,
-          )
+          .prove_step(&pp, &circuit_primary, &circuit_secondary)
           .unwrap();
         recursive_snark
           .verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary)
@@ -989,12 +984,7 @@ where
   .unwrap();
 
   for circuit_primary in roots.iter().take(num_steps) {
-    let res = recursive_snark.prove_step(
-      &pp,
-      circuit_primary.circuit_index(),
-      circuit_primary,
-      &circuit_secondary,
-    );
+    let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
     assert!(res
       .map_err(|err| {
         print_constraints_name_on_error_index(
