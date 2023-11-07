@@ -153,7 +153,7 @@ where
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
       return Err(PCSError::LengthError.into());
     }
-    // TODO: remove the undue clone in the creation of an UVKZGPoly here
+    // TODO: remove the undue clone in the creation of an UVKZGPoly
     UVKZGPCS::commit(&pp.commit_pp, &UVKZGPoly::new(poly.Z.clone())).map(|c| c.into())
   }
 
@@ -195,17 +195,20 @@ where
     debug_assert_eq!(remainder, eval.0);
 
     // TODO: this should be a Cow
+    // Compute the multilinear quotients q_k = q_k(X_0, ..., X_{k-1})
     let quotients_polys = quotients
       .into_iter()
       .map(UVKZGPoly::new)
       .collect::<Vec<_>>();
 
+    // Compute and absorb commitments C_{q_k} = [q_k], k = 0,...,d-1
     let q_comms = quotients_polys
       .iter()
       .map(|q| UVKZGPCS::commit(&pp.commit_pp, q))
       .collect::<Result<Vec<_>, _>>()?;
     q_comms.iter().for_each(|c| transcript.absorb(b"quo", c));
 
+    // Get challenge y
     let y = transcript.squeeze(b"y")?;
 
     let powers_of_y = (0..num_vars)
@@ -216,6 +219,7 @@ where
       })
       .collect::<Vec<E::Fr>>();
 
+    // Compute the batched, lifted-degree quotient `\hat{q}``
     let q_hat = {
       let q_hat = powers_of_y
         .iter()
@@ -236,15 +240,16 @@ where
         );
       UVKZGPoly::new(q_hat)
     };
+    // Compute and absorb the commitment C_q = [\hat{q}]
     let q_hat_comm = UVKZGPCS::commit(&pp.commit_pp, &q_hat)?;
     transcript.absorb(b"q_hat", &q_hat_comm);
 
+    // Get challenges x and z
     let x = transcript.squeeze(b"x")?;
-
     let z = transcript.squeeze(b"z")?;
 
+    // Compute batched degree and ZM-identity quotient polynomial pi
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
-
     let mut f = UVKZGPoly::new(poly.Z.clone());
     f *= &z;
     f += &q_hat;
@@ -258,6 +263,8 @@ where
       });
     debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
     // hence uveval == Fr::ZERO
+
+    // Compute and send proof commitment pi
     let (uvproof, _uveval): (UVKZGProof<_>, UVKZGEvaluation<_>) =
       UVKZGPCS::<E>::open(&pp.open_pp, &f, &x).map(|(proof, eval)| (proof, eval))?;
 
@@ -284,11 +291,16 @@ where
 
     let vk = vk.borrow();
 
+    // Receive commitments [q_k]
     proof.ck.iter().for_each(|c| transcript.absorb(b"quo", c));
+
+    // Challenge y
     let y = transcript.squeeze(b"y")?;
 
+    // Receive commitment C_{q}
     transcript.absorb(b"q_hat", &proof.cqhat);
 
+    // Challenges x, z
     let x = transcript.squeeze(b"x")?;
     let z = transcript.squeeze(b"z")?;
 
@@ -318,12 +330,24 @@ where
   }
 }
 
-/// Compute quotient polynomials of the polynomial w.r.t. an input point
-/// i.e. q_k s.t. $$self - v = \Sum_{k=0}^(n-1) q_k (X_k-point_k)$$
+/// Computes the quotient polynomials of a given multilinear polynomial with respect to a specific input point.
 ///
-/// The polynomials q_k can be computed explicitly as the difference of the partial evaluation of self in the last
-/// (n - k) variables at, respectively, point'' = (point_k + 1, point_{k+1}, ..., point_{n-1}) and
-/// point' = (point_k, ..., point_{n-1}).
+/// Given a multilinear polynomial `poly` and a point `point`, this function calculates the quotient polynomials `q_k`
+/// and the evaluation at `point`, such that:
+///
+/// ```text
+/// poly - poly(point) = Σ (X_k - point_k) * q_k(X_0, ..., X_{k-1})
+/// ```
+///
+/// where `poly(point)` is the evaluation of `poly` at `point`, and each `q_k` is a polynomial in `k` variables.
+///
+/// Since our evaluations are presented in order reverse from the coefficients, if we want to interpret index q_k
+/// to be the k-th coefficient in the polynomials returned here, the equality that holds is:
+///
+/// ```text
+/// poly - poly(point) = Σ (X_{n-1-k} - point_{n-1-k}) * q_k(X_0, ..., X_{k-1})
+/// ```
+///
 fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Vec<Vec<F>>, F) {
   let num_var = poly.get_num_vars();
   assert_eq!(num_var, point.len());
@@ -462,10 +486,10 @@ where
 mod test {
   use std::iter;
 
-  use ff::{FromUniformBytes, PrimeFieldBits};
+  use ff::{Field, PrimeFieldBits};
   use halo2curves::bn256::Bn256;
   use pairing::MultiMillerLoop;
-  use rand::{thread_rng, Rng};
+  use rand::thread_rng;
   use rand_chacha::ChaCha20Rng;
   use rand_core::SeedableRng;
 
@@ -540,30 +564,52 @@ mod test {
   }
 
   #[test]
-  fn test_quo() {
-    let num_vars = 10;
+  fn test_quotients() {
+    // Define size parameters
+    let num_vars = 4; // Example number of variables for the multilinear polynomial
+    let poly_size = 1 << num_vars; // Size of the polynomial, which is 2^num_vars
+
+    // Construct a random multilinear polynomial f, and u such that f(u) = v.
     let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
     let poly = MultilinearPolynomial::random(num_vars, &mut rng);
+    let u_challenge: Vec<_> = (0..num_vars)
+      .map(|_| bn256::Scalar::random(&mut rng))
+      .collect();
+    let v_evaluation = poly.evaluate(&u_challenge);
 
-    let point: Vec<_> = std::iter::from_fn(|| {
-      let mut bytes = [0u8; 64];
-      rng.fill(&mut bytes);
-      bn256::Scalar::from_uniform_bytes(&bytes).into()
-    })
-    .take(num_vars)
-    .collect();
+    // Compute the multilinear quotients q_k = q_k(X_0, ..., X_{k-1})
+    let (quotients, constant_term) = quotients(&poly, &u_challenge);
 
-    for scalar in point.iter() {
-      println!("scalar: {:?}", scalar);
+    // Assert that the constant term is equal to v_evaluation
+    assert_eq!(constant_term, v_evaluation, "The constant term should be equal to the evaluation of the polynomial at the challenge point.");
+
+    // Check that the identity holds for a random evaluation point z
+    // poly - poly(z) = Σ (X_k - z_k) * q_k(X_0, ..., X_{k-1})
+    // except for our inversion of coefficient order in polynomials and points (see below)
+    let z_challenge: Vec<_> = (0..num_vars)
+      .map(|_| bn256::Scalar::random(&mut rng))
+      .collect();
+    let mut result = poly.evaluate(&z_challenge);
+    result -= v_evaluation;
+
+    for (k, q_k) in quotients.iter().enumerate() {
+      let q_k_poly = MultilinearPolynomial::new(q_k.clone());
+      // the following looks weird because the quotient polynomials are coefficiented in reverse order from evaluation
+      // IOW in 'normal evaluation order' this should be let z_partial = &z_challenge[..k];
+      let z_partial = &z_challenge[z_challenge.len() - k..];
+
+      let q_k_eval = q_k_poly.evaluate(z_partial);
+      // the following looks weird because the quotient polynomials are coefficiented in reverse order from evaluation
+      // IOW in 'normal evaluation order' this should be
+      // result -= (z_challenge[k] - u_challenge[k]) * q_k_eval;
+      result -= (z_challenge[z_challenge.len() - k - 1] - u_challenge[z_challenge.len() - k - 1])
+        * q_k_eval;
     }
-    let (_quotients, remainder) = quotients(&poly, &point);
-    assert_eq!(
-      poly.evaluate(&point),
-      remainder,
-      "point: {:?}, \n eval: {:?}, remainder:{:?}",
-      point,
-      poly.evaluate(&point),
-      remainder
+
+    // Assert that the result is zero, which verifies the correctness of the quotients
+    assert!(
+      bool::from(result.is_zero()),
+      "The computed quotients should satisfy the polynomial identity."
     );
   }
 }
