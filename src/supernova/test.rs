@@ -395,8 +395,8 @@ where
     Default::default()
   }
 
-  fn initial_program_counter(&self) -> G1::Scalar {
-    G1::Scalar::from(self.rom[0] as u64)
+  fn initial_circuit_index(&self) -> usize {
+    self.rom[0]
   }
 }
 
@@ -484,14 +484,11 @@ where
 
     let mut recursive_snark =
       recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
-        OPCODE_0 | OPCODE_1 => RecursiveSNARK::iter_base_step(
+        OPCODE_0 | OPCODE_1 => RecursiveSNARK::new(
           &pp,
-          augmented_circuit_index,
+          &test_rom,
           &test_rom.primary_circuit(augmented_circuit_index),
           &test_rom.secondary_circuit(),
-          Some(program_counter),
-          augmented_circuit_index,
-          test_rom.num_circuits(),
           &z0_primary,
           &z0_secondary,
         )
@@ -956,14 +953,12 @@ where
   // produce a recursive SNARK
 
   let circuit_primary = &roots[0];
-  let mut recursive_snark = RecursiveSNARK::<G1, G2>::iter_base_step(
+
+  let mut recursive_snark = RecursiveSNARK::<G1, G2>::new(
     &pp,
-    circuit_primary.circuit_index(),
+    circuit_primary,
     circuit_primary,
     &circuit_secondary,
-    Some(G1::Scalar::from(circuit_primary.circuit_index() as u64)),
-    circuit_primary.circuit_index(),
-    2,
     &z0_primary,
     &z0_secondary,
   )
