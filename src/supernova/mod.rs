@@ -457,7 +457,7 @@ where
     let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_primary,
       Some(inputs_primary),
-      &c_primary,
+      c_primary,
       pp.ro_consts_circuit_primary.clone(),
       num_augmented_circuits,
     );
