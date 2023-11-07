@@ -40,7 +40,6 @@ where
   let outerc = (scalar_size + window - 1) / window;
 
   // Number of multiples of the window's "outer point" needed for each window (fewer for the last window)
-  let in_window = 1 << window;
   let last_in_window = 1 << (scalar_size - (outerc - 1) * window);
 
   let mut multiples_of_g = vec![vec![T::identity(); in_window]; outerc];
