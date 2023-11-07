@@ -416,17 +416,21 @@ where
 {
   /// iterate base step to get new instance of recursive SNARK
   #[allow(clippy::too_many_arguments)]
-  pub fn iter_base_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn new<
+    C0: NonUniformCircuit<G1, G2, C1, C2>,
+    C1: StepCircuit<G1::Scalar>,
+    C2: StepCircuit<G2::Scalar>,
+  >(
     pp: &PublicParams<G1, G2, C1, C2>,
-    circuit_index: usize,
+    non_uniform_circuit: &C0,
     c_primary: &C1,
     c_secondary: &C2,
-    initial_program_counter: Option<G1::Scalar>,
-    first_augmented_circuit_index: usize,
-    num_augmented_circuits: usize,
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
   ) -> Result<Self, SuperNovaError> {
+    let num_augmented_circuits = non_uniform_circuit.num_circuits();
+    let circuit_index = non_uniform_circuit.initial_circuit_index();
+
     if z0_primary.len() != pp[circuit_index].F_arity
       || z0_secondary.len() != pp.circuit_shape_secondary.F_arity
     {
@@ -446,7 +450,7 @@ where
         None,
         None,
         None,
-        initial_program_counter,
+        Some(G1::Scalar::from(circuit_index as u64)),
         G1::Scalar::ZERO, // set augmented circuit index selector to 0 in base case
       );
 
@@ -545,11 +549,11 @@ where
 
     // handle the base case by initialize U_next in next round
     let r_W_primary_initial_list = (0..num_augmented_circuits)
-      .map(|i| (i == first_augmented_circuit_index).then(|| r_W_primary.clone()))
+      .map(|i| (i == circuit_index).then(|| r_W_primary.clone()))
       .collect::<Vec<Option<RelaxedR1CSWitness<G1>>>>();
 
     let r_U_primary_initial_list = (0..num_augmented_circuits)
-      .map(|i| (i == first_augmented_circuit_index).then(|| r_U_primary.clone()))
+      .map(|i| (i == circuit_index).then(|| r_U_primary.clone()))
       .collect::<Vec<Option<RelaxedR1CSInstance<G1>>>>();
 
     Ok(Self {
@@ -566,7 +570,7 @@ where
       zi_primary,
       zi_secondary,
       program_counter: zi_primary_pc_next,
-      augmented_circuit_index: first_augmented_circuit_index,
+      augmented_circuit_index: circuit_index,
       num_augmented_circuits,
     })
   }
@@ -577,7 +581,6 @@ where
   pub fn prove_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
     &mut self,
     pp: &PublicParams<G1, G2, C1, C2>,
-    circuit_index: usize,
     c_primary: &C1,
     c_secondary: &C2,
   ) -> Result<(), SuperNovaError> {
@@ -590,6 +593,9 @@ where
     if self.r_U_secondary.len() != 1 || self.r_W_secondary.len() != 1 {
       return Err(NovaError::ProofVerifyError.into());
     }
+
+    let circuit_index = c_primary.circuit_index();
+    assert_eq!(self.program_counter, G1::Scalar::from(circuit_index as u64));
 
     // fold the secondary circuit's instance
     let (nifs_secondary, (r_U_secondary_folded, r_W_secondary_folded)) = NIFS::prove(
@@ -921,11 +927,6 @@ where
 
     Ok((self.zi_primary.clone(), self.zi_secondary.clone()))
   }
-
-  /// get program counter
-  pub fn get_program_counter(&self) -> G1::Scalar {
-    self.program_counter
-  }
 }
 
 /// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
@@ -938,9 +939,9 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  /// Initial program counter, defaults to zero.
-  fn initial_program_counter(&self) -> G1::Scalar {
-    G1::Scalar::ZERO
+  /// Initial circuit index, defaults to zero.
+  fn initial_circuit_index(&self) -> usize {
+    0
   }
 
   /// How many circuits are provided?
@@ -951,6 +952,30 @@ where
 
   /// Return a new instance of the secondary circuit.
   fn secondary_circuit(&self) -> C2;
+}
+
+/// Extension trait to simplify getting scalar form of initial circuit index.
+pub trait InitialProgramCounter<G1, G2, C1, C2>: NonUniformCircuit<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  /// Initial program counter is the initial circuit index as a `Scalar`.
+  fn initial_program_counter(&self) -> G1::Scalar {
+    G1::Scalar::from(self.initial_circuit_index() as u64)
+  }
+}
+
+impl<G1, G2, C1, C2, T: NonUniformCircuit<G1, G2, C1, C2>> InitialProgramCounter<G1, G2, C1, C2>
+  for T
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
 }
 
 /// Compute the circuit digest of a supernova [StepCircuit].

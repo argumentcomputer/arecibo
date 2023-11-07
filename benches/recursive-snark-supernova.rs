@@ -118,36 +118,23 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let num_warmup_steps = 10;
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
-    let initial_program_counter = <G1 as Group>::Scalar::from(0);
     let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
 
     for _ in 0..num_warmup_steps {
-      let program_counter = recursive_snark_option.as_ref().map_or_else(
-        || initial_program_counter,
-        |recursive_snark| recursive_snark.get_program_counter(),
-      );
-
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-        RecursiveSNARK::iter_base_step(
+        RecursiveSNARK::new(
           &pp,
-          0,
+          &bench,
           &bench.primary_circuit(0),
           &bench.secondary_circuit(),
-          Some(program_counter),
-          0,
-          1,
           &z0_primary,
           &z0_secondary,
         )
         .unwrap()
       });
 
-      let res = recursive_snark.prove_step(
-        &pp,
-        0,
-        &bench.primary_circuit(0),
-        &bench.secondary_circuit(),
-      );
+      let res =
+        recursive_snark.prove_step(&pp, &bench.primary_circuit(0), &bench.secondary_circuit());
       if let Err(e) = &res {
         println!("res failed {:?}", e);
       }
@@ -170,7 +157,6 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         assert!(black_box(&mut recursive_snark.clone())
           .prove_step(
             black_box(&pp),
-            black_box(0),
             &bench.primary_circuit(0),
             &bench.secondary_circuit(),
           )
@@ -224,25 +210,16 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     let num_warmup_steps = 10;
     let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
     let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
-    let initial_program_counter = <G1 as Group>::Scalar::from(0);
     let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
     let mut selected_augmented_circuit = 0;
 
     for _ in 0..num_warmup_steps {
-      let program_counter = recursive_snark_option.as_ref().map_or_else(
-        || initial_program_counter,
-        |recursive_snark| recursive_snark.get_program_counter(),
-      );
-
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-        RecursiveSNARK::iter_base_step(
+        RecursiveSNARK::new(
           &pp,
-          0,
+          &bench,
           &bench.primary_circuit(0),
           &bench.secondary_circuit(),
-          Some(program_counter),
-          0,
-          2,
           &z0_primary,
           &z0_secondary,
         )
@@ -250,12 +227,8 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
       });
 
       if selected_augmented_circuit == 0 {
-        let res = recursive_snark.prove_step(
-          &pp,
-          0,
-          &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
-        );
+        let res =
+          recursive_snark.prove_step(&pp, &bench.primary_circuit(0), &bench.secondary_circuit());
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -266,12 +239,8 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
         }
         assert!(res.is_ok());
       } else if selected_augmented_circuit == 1 {
-        let res = recursive_snark.prove_step(
-          &pp,
-          1,
-          &bench.primary_circuit(1),
-          &bench.secondary_circuit(),
-        );
+        let res =
+          recursive_snark.prove_step(&pp, &bench.primary_circuit(1), &bench.secondary_circuit());
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -298,7 +267,6 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
         assert!(black_box(&mut recursive_snark.clone())
           .prove_step(
             black_box(&pp),
-            black_box(0),
             &bench.primary_circuit(0),
             &bench.secondary_circuit(),
           )
