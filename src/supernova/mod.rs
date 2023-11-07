@@ -939,11 +939,6 @@ where
   C1: StepCircuit<G1::Scalar>,
   C2: StepCircuit<G2::Scalar>,
 {
-  /// Initial program counter is the initial circuit index as a `Scalar`.
-  fn initial_program_counter(&self) -> G1::Scalar {
-    G1::Scalar::from(self.initial_circuit_index() as u64)
-  }
-
   /// Initial circuit index, defaults to zero.
   fn initial_circuit_index(&self) -> usize {
     0
@@ -957,6 +952,30 @@ where
 
   /// Return a new instance of the secondary circuit.
   fn secondary_circuit(&self) -> C2;
+}
+
+/// Extension trait to simplify getting scalar form of initial circuit index.
+pub trait InitialProgramCounter<G1, G2, C1, C2>: NonUniformCircuit<G1, G2, C1, C2>
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
+  /// Initial program counter is the initial circuit index as a `Scalar`.
+  fn initial_program_counter(&self) -> G1::Scalar {
+    G1::Scalar::from(self.initial_circuit_index() as u64)
+  }
+}
+
+impl<G1, G2, C1, C2, T: NonUniformCircuit<G1, G2, C1, C2>> InitialProgramCounter<G1, G2, C1, C2>
+  for T
+where
+  G1: Group<Base = <G2 as Group>::Scalar>,
+  G2: Group<Base = <G1 as Group>::Scalar>,
+  C1: StepCircuit<G1::Scalar>,
+  C2: StepCircuit<G2::Scalar>,
+{
 }
 
 /// Compute the circuit digest of a supernova [StepCircuit].
