@@ -584,7 +584,6 @@ where
     c_primary: &C1,
     c_secondary: &C2,
   ) -> Result<(), SuperNovaError> {
-    let circuit_index = c_primary.circuit_index();
     // First step was already done in the constructor
     if self.i == 0 {
       self.i = 1;
@@ -594,6 +593,9 @@ where
     if self.r_U_secondary.len() != 1 || self.r_W_secondary.len() != 1 {
       return Err(NovaError::ProofVerifyError.into());
     }
+
+    let circuit_index = c_primary.circuit_index();
+    assert_eq!(self.program_counter, G1::Scalar::from(circuit_index as u64));
 
     // fold the secondary circuit's instance
     let (nifs_secondary, (r_U_secondary_folded, r_W_secondary_folded)) = NIFS::prove(
