@@ -57,7 +57,6 @@ where
   multiples_of_g
     .par_iter_mut()
     .enumerate()
-    .take(outerc)
     .zip(g_outers)
     .for_each(|((outer, multiples_of_g), g_outer)| {
       let cur_in_window = if outer == outerc - 1 {
