@@ -925,11 +925,6 @@ where
 
     Ok((self.zi_primary.clone(), self.zi_secondary.clone()))
   }
-
-  /// get program counter
-  pub fn get_program_counter(&self) -> G1::Scalar {
-    self.program_counter
-  }
 }
 
 /// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
