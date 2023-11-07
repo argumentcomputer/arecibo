@@ -5,10 +5,7 @@
 /// The multiplication is optimized through a windowed method, where scalars are broken into fixed-size
 /// windows, pre-computation tables are generated, and results are efficiently combined.
 use ff::{PrimeField, PrimeFieldBits};
-use group::{
-  prime::{PrimeCurve, PrimeCurveAffine},
-  Curve,
-};
+use group::{prime::PrimeCurve, Curve};
 
 use rayon::prelude::*;
 
@@ -39,11 +36,16 @@ where
   T::AffineRepr: Send,
 {
   let in_window = 1 << window;
+  // Number of outer iterations needed to cover the entire scalar
   let outerc = (scalar_size + window - 1) / window;
+
+  // Number of multiples of the window's "outer point" needed for each window (fewer for the last window)
   let last_in_window = 1 << (scalar_size - (outerc - 1) * window);
 
   let mut multiples_of_g = vec![vec![T::identity(); in_window]; outerc];
 
+  // Compute the multiples of g for each window
+  // g_outers = [ 2^{k*window}*g for k in 0..outerc]
   let mut g_outer = g;
   let mut g_outers = Vec::with_capacity(outerc);
   for _ in 0..outerc {
@@ -63,6 +65,8 @@ where
         in_window
       };
 
+      // multiples_of_g = [id, g_outer, 2*g_outer, 3*g_outer, ...],
+      // where g_outer = 2^{outer*window}*g
       let mut g_inner = T::identity();
       for inner in multiples_of_g.iter_mut().take(cur_in_window) {
         *inner = g_inner;
@@ -93,7 +97,7 @@ where
   let modulus_size = <T::Scalar as PrimeField>::NUM_BITS as usize;
   let scalar_val: Vec<bool> = scalar.to_le_bits().into_iter().collect();
 
-  let mut res = multiples_of_g[0][0].to_curve();
+  let mut res = T::identity();
   for outer in 0..outerc {
     let mut inner = 0usize;
     for i in 0..window {
