@@ -22,7 +22,7 @@ rand_core = { version = "0.6", default-features = false }
 rand_chacha = "0.3"
 subtle = "2.5"
 pasta_curves = { git = "https://github.com/lurk-lab/pasta_curves", branch="dev", features = ["repr-c", "serde"] }
-neptune = { git = "https://github.com/lurk-lab/neptune", branch="dev", default-features = false }
+neptune = { git = "https://github.com/lurk-lab/neptune", branch="dev", default-features = false, features = ["abomonation"] }
 generic-array = "0.14.4"
 num-bigint = { version = "0.4", features = ["serde", "rand"] }
 num-traits = "0.2"
@@ -35,7 +35,7 @@ thiserror = "1.0"
 halo2curves = { version = "0.4.0", features = ["derive_serde"] }
 group = "0.13.0"
 abomonation = "0.7.3"
-abomonation_derive = { git = "https://github.com/lurk-lab/abomonation_derive.git" }
+abomonation_derive = { version = "0.1.0", package = "abomonation_derive_ng" }
 tap = "1.0.1"
 tracing = "0.1.37"
 tracing-texray = "0.2.0"
