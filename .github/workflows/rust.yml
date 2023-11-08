@@ -2,8 +2,6 @@ name: Build and Test Nova
 
 on:
   merge_group:
-  push:
-    branches: [ dev, zeromorph ]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [ dev, zeromorph ]
@@ -37,6 +35,7 @@ jobs:
         cargo nextest run --profile ci --workspace --cargo-profile dev-ci
 
   check-lurk-compiles:
+    if: github.event_name == 'pull_request'
     runs-on: buildjet-8vcpu-ubuntu-2204
     env:
       RUSTFLAGS: -D warnings
