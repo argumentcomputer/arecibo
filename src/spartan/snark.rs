@@ -465,6 +465,8 @@ where
   }
 }
 
+/// Proves a batch of polynomial evaluation claims using Sumcheck
+/// reducing them to a single claim at the same point.
 fn batch_eval_prove<G: Group>(
   u_vec: Vec<PolyEvalInstance<G>>,
   w_vec: Vec<PolyEvalWitness<G>>,
@@ -546,12 +548,16 @@ fn batch_eval_prove<G: Group>(
   ))
 }
 
+/// Verifies a batch of polynomial evaluation claims using Sumcheck
+/// reducing them to a single claim at the same point.
 fn batch_eval_verify<G: Group>(
   u_vec: Vec<PolyEvalInstance<G>>,
   transcript: &mut G::TE,
   sc_proof_batch: &SumcheckProof<G>,
   evals_batch: &[G::Scalar],
 ) -> Result<PolyEvalInstance<G>, NovaError> {
+  assert_eq!(evals_batch.len(), evals_batch.len());
+
   let u_vec_padded = PolyEvalInstance::pad(&u_vec); // pad the evaluation points
 
   // generate a challenge
