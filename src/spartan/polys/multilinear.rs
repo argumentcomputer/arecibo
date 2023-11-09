@@ -68,6 +68,10 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   ///
   /// This operation modifies the polynomial in-place.
   pub fn bound_poly_var_top(&mut self, r: &Scalar) {
+    if self.num_vars == 0 {
+      return;
+    }
+
     let n = self.len() / 2;
 
     let (left, right) = self.Z.split_at_mut(n);

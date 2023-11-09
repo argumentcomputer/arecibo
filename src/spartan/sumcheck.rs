@@ -361,20 +361,91 @@ impl<G: Group> SumcheckProof<G> {
     ))
   }
 
-  pub fn prove_cubic_with_additive_term_batched<F>(
+  pub fn prove_cubic_with_additive_term_batch<F>(
     claim: &G::Scalar,
     num_rounds: usize,
-    poly_A_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
+    poly_A: &mut MultilinearPolynomial<G::Scalar>,
     poly_B_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
     poly_C_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
     poly_D_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
     coeffs: &[G::Scalar],
     comb_func: F,
     transcript: &mut G::TE,
-  ) -> Result<(Self, Vec<G::Scalar>, Vec<G::Scalar>), NovaError>
+  ) -> Result<(Self, Vec<G::Scalar>, G::Scalar, Vec<Vec<G::Scalar>>), NovaError>
   where
     F: Fn(&G::Scalar, &G::Scalar, &G::Scalar, &G::Scalar) -> G::Scalar + Sync,
   {
-    todo!()
+    let r: Vec<G::Scalar> = Vec::new();
+    let mut polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
+    let mut claim_per_round = *claim;
+
+    for _ in 0..num_rounds {
+      let evals: Vec<(G::Scalar, G::Scalar, G::Scalar)> = poly_B_vec
+        .par_iter()
+        .zip(poly_C_vec.par_iter())
+        .zip(poly_D_vec.par_iter())
+        .map(|((poly_B, poly_C), poly_D)| {
+          Self::compute_eval_points_cubic_with_additive_term(
+            poly_A, poly_B, poly_C, poly_D, &comb_func,
+          )
+        })
+        .collect();
+
+      let evals_combined_0 = (0..evals.len()).map(|i| evals[i].0 * coeffs[i]).sum();
+      let evals_combined_2 = (0..evals.len()).map(|i| evals[i].1 * coeffs[i]).sum();
+      let evals_combined_3 = (0..evals.len()).map(|i| evals[i].2 * coeffs[i]).sum();
+
+      let evals = vec![
+        evals_combined_0,
+        claim_per_round - evals_combined_0,
+        evals_combined_2,
+        evals_combined_3,
+      ];
+      let poly = UniPoly::from_evals(&evals);
+
+      // append the prover's message to the transcript
+      transcript.absorb(b"p", &poly);
+
+      //derive the verifier's challenge for the next round
+      let r_i = transcript.squeeze(b"c")?;
+      polys.push(poly.compress());
+
+      // Set up next round
+      claim_per_round = poly.evaluate(&r_i);
+
+      // bound the first table to the verifier's challenge
+      poly_A.bound_poly_var_top(&r_i);
+
+      // bound all rest of the tables to the verifier's challenge
+      poly_B_vec
+        .par_iter_mut()
+        .zip(poly_C_vec.par_iter_mut())
+        .zip(poly_D_vec.par_iter_mut())
+        .for_each(|((poly_B, poly_C), poly_D)| {
+          let _ = rayon::join(
+            || {
+              rayon::join(
+                || poly_B.bound_poly_var_top(&r_i),
+                || poly_C.bound_poly_var_top(&r_i),
+              )
+            },
+            || poly_D.bound_poly_var_top(&r_i),
+          );
+        });
+    }
+
+    let poly_A_final = poly_A[0];
+    let poly_B_final = (0..poly_B_vec.len()).map(|i| poly_B_vec[i][0]).collect();
+    let poly_C_final = (0..poly_C_vec.len()).map(|i| poly_C_vec[i][0]).collect();
+    let poly_D_final = (0..poly_D_vec.len()).map(|i| poly_D_vec[i][0]).collect();
+
+    Ok((
+      SumcheckProof {
+        compressed_polys: polys,
+      },
+      r,
+      poly_A_final,
+      vec![poly_B_final, poly_C_final, poly_D_final],
+    ))
   }
 }

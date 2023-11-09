@@ -13,7 +13,11 @@ pub mod ppsnark;
 pub mod snark;
 mod sumcheck;
 
-use crate::{traits::Group, Commitment};
+use crate::{
+  r1cs::{R1CSShape, SparseMatrix},
+  traits::Group,
+  Commitment,
+};
 use ff::Field;
 use polys::multilinear::SparsePolynomial;
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
@@ -134,4 +138,44 @@ impl<G: Group> PolyEvalInstance<G> {
       e,
     }
   }
+}
+
+/// Bounds "row" variables of (A, B, C) matrices viewed as 2d multilinear polynomials
+pub fn compute_eval_table_sparse<G: Group>(
+  S: &R1CSShape<G>,
+  rx: &[G::Scalar],
+) -> (Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>) {
+  assert_eq!(rx.len(), S.num_cons);
+
+  let inner = |M: &SparseMatrix<G::Scalar>, M_evals: &mut Vec<G::Scalar>| {
+    for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {
+      for (val, col_idx) in M.get_row_unchecked(ptrs.try_into().unwrap()) {
+        M_evals[*col_idx] += rx[row_idx] * val;
+      }
+    }
+  };
+
+  let (A_evals, (B_evals, C_evals)) = rayon::join(
+    || {
+      let mut A_evals: Vec<G::Scalar> = vec![G::Scalar::ZERO; 2 * S.num_vars];
+      inner(&S.A, &mut A_evals);
+      A_evals
+    },
+    || {
+      rayon::join(
+        || {
+          let mut B_evals: Vec<G::Scalar> = vec![G::Scalar::ZERO; 2 * S.num_vars];
+          inner(&S.B, &mut B_evals);
+          B_evals
+        },
+        || {
+          let mut C_evals: Vec<G::Scalar> = vec![G::Scalar::ZERO; 2 * S.num_vars];
+          inner(&S.C, &mut C_evals);
+          C_evals
+        },
+      )
+    },
+  );
+
+  (A_evals, B_evals, C_evals)
 }

@@ -9,6 +9,7 @@ use crate::{
   errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness, SparseMatrix},
   spartan::{
+    compute_eval_table_sparse,
     polys::{eq::EqPolynomial, multilinear::MultilinearPolynomial, multilinear::SparsePolynomial},
     powers,
     sumcheck::SumcheckProof,
@@ -200,44 +201,6 @@ where
     let poly_ABC = {
       // compute the initial evaluation table for R(\tau, x)
       let evals_rx = EqPolynomial::new(r_x.clone()).evals();
-
-      // Bounds "row" variables of (A, B, C) matrices viewed as 2d multilinear polynomials
-      let compute_eval_table_sparse =
-        |S: &R1CSShape<G>, rx: &[G::Scalar]| -> (Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>) {
-          assert_eq!(rx.len(), S.num_cons);
-
-          let inner = |M: &SparseMatrix<G::Scalar>, M_evals: &mut Vec<G::Scalar>| {
-            for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {
-              for (val, col_idx) in M.get_row_unchecked(ptrs.try_into().unwrap()) {
-                M_evals[*col_idx] += rx[row_idx] * val;
-              }
-            }
-          };
-
-          let (A_evals, (B_evals, C_evals)) = rayon::join(
-            || {
-              let mut A_evals: Vec<G::Scalar> = vec![G::Scalar::ZERO; 2 * S.num_vars];
-              inner(&S.A, &mut A_evals);
-              A_evals
-            },
-            || {
-              rayon::join(
-                || {
-                  let mut B_evals: Vec<G::Scalar> = vec![G::Scalar::ZERO; 2 * S.num_vars];
-                  inner(&S.B, &mut B_evals);
-                  B_evals
-                },
-                || {
-                  let mut C_evals: Vec<G::Scalar> = vec![G::Scalar::ZERO; 2 * S.num_vars];
-                  inner(&S.C, &mut C_evals);
-                  C_evals
-                },
-              )
-            },
-          );
-
-          (A_evals, B_evals, C_evals)
-        };
 
       let (evals_A, evals_B, evals_C) = compute_eval_table_sparse(&S, &evals_rx);
 
