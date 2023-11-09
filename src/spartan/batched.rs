@@ -7,21 +7,21 @@ use serde::{Deserialize, Serialize};
 
 use super::{
   compute_eval_table_sparse,
+  math::Math,
   polys::{eq::EqPolynomial, multilinear::MultilinearPolynomial},
+  powers,
+  snark::batch_eval_prove,
+  sumcheck::SumcheckProof,
+  PolyEvalInstance, PolyEvalWitness,
 };
-use crate::spartan::powers;
-use crate::spartan::sumcheck::SumcheckProof;
+use crate::errors::NovaError;
+use crate::r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness};
 use crate::traits::{
   evaluation::EvaluationEngineTrait,
   snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
   Group, TranscriptEngineTrait,
 };
 use crate::CommitmentKey;
-use crate::{errors::NovaError, spartan::PolyEvalWitness};
-use crate::{
-  r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
-  spartan::{snark::batch_eval_prove, PolyEvalInstance},
-};
 
 ///TODO: Doc
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -80,16 +80,25 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
     U: &[RelaxedR1CSInstance<G>],
     W: &[RelaxedR1CSWitness<G>],
   ) -> Result<Self, NovaError> {
-    let S = &S
+    // Pad shapes and ensure their sizes are correct
+    let S = S
       .iter()
       .map(|s| {
         let s = s.pad();
-        assert!(s.is_regular_shape());
-        s
+        if s.is_regular_shape() {
+          Ok(s)
+        } else {
+          Err(NovaError::InternalError)
+        }
       })
-      .collect::<Vec<_>>();
+      .collect::<Result<Vec<_>, _>>()?;
 
-    let W = W.iter().zip(S).map(|(w, s)| w.pad(&s)).collect::<Vec<_>>();
+    // Pad (W,E) for each instance
+    let W = W
+      .iter()
+      .zip(S.iter())
+      .map(|(w, s)| w.pad(s))
+      .collect::<Vec<RelaxedR1CSWitness<G>>>();
 
     let mut transcript = G::TE::new(b"BatchedRelaxedR1CSSNARK");
 
@@ -98,35 +107,52 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       transcript.absorb(b"U", u);
     });
 
-    let z = W
+    let (W_polys, E_polys): (Vec<_>, Vec<_>) = W
+      .into_iter()
+      .map(|w| {
+        (
+          MultilinearPolynomial::new(w.W),
+          MultilinearPolynomial::new(w.E),
+        )
+      })
+      .unzip();
+
+    // Append public inputs to W: Z = [W, u, X]
+    let z = W_polys
       .iter()
-      .zip(U)
-      .map(|(w, u)| [w.W.clone(), vec![u.u], u.X.clone()].concat())
+      .zip(U.iter())
+      .map(|(w, u)| [w.Z.clone(), vec![u.u], u.X.clone()].concat())
       .collect::<Vec<Vec<_>>>();
 
-    let num_rounds_x = S
-      .iter()
-      .map(|s| usize::try_from(s.num_cons.ilog2()).unwrap())
-      .max()
-      .unwrap();
+    let num_rounds_x = S.iter().map(|s| s.num_cons.log_2()).max().unwrap();
+    let num_rounds_y = S.iter().map(|s| s.num_vars.log_2() + 1).max().unwrap();
 
-    let num_rounds_y = S
-      .iter()
-      .map(|s| usize::try_from(s.num_vars.ilog2() + 1).unwrap())
-      .max()
-      .unwrap();
+    // Generate tau polynomial corresponding to eq(τ, τ², τ⁴ , …)
+    // for a random challenge τ
+    let mut poly_tau = {
+      let mut tau = transcript.squeeze(b"t")?;
 
-    let tau = (0..num_rounds_x)
-      .map(|_| transcript.squeeze(b"t"))
-      .collect::<Result<Vec<_>, NovaError>>()?;
+      // The MLE of eq(τ, τ², τ⁴ , …) is a polynomial whose evaluations are
+      // (1, τ, τ², τ³, …)
+      let tau_vars = (0..num_rounds_x)
+        .map(|_| {
+          let t = tau;
+          tau = tau.square();
+          t
+        })
+        .collect::<Vec<_>>();
 
-    let mut poly_tau = MultilinearPolynomial::new(EqPolynomial::new(tau).evals());
+      Ok(MultilinearPolynomial::new(
+        EqPolynomial::new(tau_vars).evals(),
+      ))
+    }?;
 
+    // Compute MLEs of Az, Bz, Cz, uCz + E
     let (mut vec_poly_Az, mut vec_poly_Bz, vec_poly_Cz, mut vec_poly_uCz_E) = {
-      let (vec_poly_Az, vec_poly_Bz, vec_poly_Cz) = S.iter().zip(z.clone()).fold(
+      let (vec_poly_Az, vec_poly_Bz, vec_poly_Cz) = S.iter().zip(z.iter()).fold(
         (vec![], vec![], vec![]),
         |(mut vec_A, mut vec_B, mut vec_C), (s, z)| {
-          let (poly_Az, poly_Bz, poly_Cz) = s.multiply_vec(&z).unwrap();
+          let (poly_Az, poly_Bz, poly_Cz) = s.multiply_vec(z).unwrap();
           vec_A.push(poly_Az);
           vec_B.push(poly_Bz);
           vec_C.push(poly_Cz);
@@ -136,32 +162,32 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
       let vec_poly_uCz_E = S
         .iter()
-        .zip(U)
-        .zip(W.clone())
-        .zip(vec_poly_Cz.clone())
-        .map(|(((s, u), w), poly_Cz)| {
+        .zip(U.iter())
+        .zip(E_polys.iter())
+        .zip(vec_poly_Cz.iter())
+        .map(|(((s, u), e), poly_Cz)| {
           (0..s.num_cons)
-            .map(|i| u.u * poly_Cz[i] + w.E[i])
+            .map(|i| u.u * poly_Cz[i] + e[i])
             .collect::<Vec<G::Scalar>>()
         })
         .collect::<Vec<_>>();
 
       (
         vec_poly_Az
-          .iter()
-          .map(|poly_Az| MultilinearPolynomial::new(poly_Az.clone()))
+          .into_iter()
+          .map(MultilinearPolynomial::new)
           .collect::<Vec<_>>(),
         vec_poly_Bz
-          .iter()
-          .map(|poly_Bz| MultilinearPolynomial::new(poly_Bz.clone()))
+          .into_iter()
+          .map(MultilinearPolynomial::new)
           .collect::<Vec<_>>(),
         vec_poly_Cz
-          .iter()
-          .map(|poly_Cz| MultilinearPolynomial::new(poly_Cz.clone()))
+          .into_iter()
+          .map(MultilinearPolynomial::new)
           .collect::<Vec<_>>(),
         vec_poly_uCz_E
-          .iter()
-          .map(|poly_uCz_E| MultilinearPolynomial::new(poly_uCz_E.clone()))
+          .into_iter()
+          .map(MultilinearPolynomial::new)
           .collect::<Vec<_>>(),
       )
     };
@@ -173,12 +199,11 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
        poly_D_comp: &G::Scalar|
        -> G::Scalar { *poly_A_comp * (*poly_B_comp * *poly_C_comp - *poly_D_comp) };
 
-    // TODO: Figure out what, if anything, I should absorb now to generate this
-
+    // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
-
     let coeffs = powers::<G>(&outer_r, S.len());
 
+    // Verify outer sumcheck: Az * Bz * Cz - uCz_E for each instance
     let (sc_proof_outer, r_x, _claim_tau, claims_outer): (
       SumcheckProof<G>,
       Vec<G::Scalar>,
@@ -196,6 +221,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       &mut transcript,
     )?;
 
+    // Extract evaluations of Az, Bz from Sumcheck and E at r_x
     let (claims_Az, claims_Bz, claims_Cz) = (
       claims_outer[0].clone(),
       claims_outer[1].clone(),
@@ -205,26 +231,20 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
         .collect::<Vec<_>>(),
     );
 
-    let evals_E = W
+    let evals_E = E_polys
       .iter()
-      .map(|w| MultilinearPolynomial::new(w.E.clone()).evaluate(&r_x))
+      .map(|e| e.evaluate(&r_x)) // TODO: evaluate without clone
       .collect::<Vec<_>>();
 
     claims_Az
       .iter()
-      .zip(claims_Bz.clone())
-      .zip(claims_Cz.clone())
-      .zip(evals_E.clone())
-      .for_each(|(((claim_Az, claim_Bz), claim_Cz), eval_E)| {
+      .zip(claims_Bz.iter())
+      .zip(claims_Cz.iter())
+      .zip(evals_E.iter())
+      .for_each(|(((&claim_Az, &claim_Bz), &claim_Cz), &eval_E)| {
         transcript.absorb(
           b"claims_outer",
-          &[
-            claim_Az.clone(),
-            claim_Bz.clone(),
-            claim_Cz.clone(),
-            eval_E.clone(),
-          ]
-          .as_slice(),
+          &[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),
         )
       });
 
@@ -235,18 +255,14 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
     let inner_r_powers = powers::<G>(&inner_r_cube, S.len());
 
     let claim_inner_joint = inner_r_powers
-      .iter()
-      .zip(claims_Az.clone())
-      .zip(claims_Bz.clone())
-      .zip(claims_Cz.clone())
+      .into_iter()
+      .zip(claims_Az.iter())
+      .zip(claims_Bz.iter())
+      .zip(claims_Cz.iter())
       .fold(
         G::Scalar::ZERO,
         |acc, (((r_i, claim_Az), claim_Bz), claim_Cz)| {
-          acc
-            + *r_i
-              * (claim_Az.clone()
-                + inner_r * claim_Bz.clone()
-                + inner_r * inner_r * claim_Cz.clone())
+          acc + r_i * (*claim_Az + inner_r * claim_Bz + inner_r * inner_r * claim_Cz)
         },
       );
 
@@ -264,33 +280,29 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
         },
       );
 
-      let inner = |M_evals_As: &[G::Scalar],
-                   M_evals_Bs: &[G::Scalar],
-                   M_evals_Cs: &[G::Scalar]|
+      let inner = |M_evals_As: Vec<G::Scalar>,
+                   M_evals_Bs: Vec<G::Scalar>,
+                   M_evals_Cs: Vec<G::Scalar>|
        -> Vec<G::Scalar> {
         M_evals_As
           .into_iter()
           .zip(M_evals_Bs)
           .zip(M_evals_Cs)
-          .map(|((eval_A, eval_B), eval_C)| {
-            *eval_A + inner_r * *eval_B + inner_r * inner_r * *eval_C
-          })
+          .map(|((eval_A, eval_B), eval_C)| eval_A + inner_r * eval_B + inner_r * inner_r * eval_C)
           .collect::<Vec<_>>()
       };
 
       evals_As
-        .iter()
+        .into_iter()
         .zip(evals_Bs)
         .zip(evals_Cs)
-        .map(|((eval_A, eval_B), eval_C)| {
-          MultilinearPolynomial::new(inner(&eval_A, &eval_B, &eval_C))
-        })
+        .map(|((eval_A, eval_B), eval_C)| MultilinearPolynomial::new(inner(eval_A, eval_B, eval_C)))
         .collect::<Vec<_>>()
     };
 
     let mut poly_zs = z
       .into_iter()
-      .zip(S)
+      .zip(S.iter())
       .map(|(mut z, s)| {
         z.resize(2 * s.num_vars, G::Scalar::ZERO);
         MultilinearPolynomial::new(z)
@@ -312,40 +324,45 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
         &mut transcript,
       )?;
 
-    let evals_W = W
+    let evals_W = W_polys
       .iter()
-      .map(|w| MultilinearPolynomial::new(w.W.clone()).evaluate(&r_y[1..]))
+      .map(|w| w.evaluate(&r_y[1..]))
       .collect::<Vec<_>>();
 
-    let mut w_vec: Vec<PolyEvalWitness<G>> = Vec::new();
-    let mut u_vec: Vec<PolyEvalInstance<G>> = Vec::new();
+    let mut w_vec = Vec::with_capacity(2 * S.len());
+    let mut u_vec = Vec::with_capacity(2 * S.len());
 
-    for idx in 0..S.len() {
-      let w_w = PolyEvalWitness {
-        p: W[idx].W.clone(),
-      };
+    w_vec.extend(
+      W_polys
+        .into_iter()
+        .map(|poly| PolyEvalWitness { p: poly.Z }),
+    );
+    u_vec.extend(
+      evals_W
+        .iter()
+        .zip(U.iter())
+        .map(|(eval, u)| PolyEvalInstance {
+          c: u.comm_W,
+          x: r_x[1..].to_vec(),
+          e: *eval,
+        }),
+    );
 
-      let u_w = PolyEvalInstance {
-        c: U[idx].comm_W,
-        x: r_x[1..].to_vec().clone(),
-        e: evals_W[idx],
-      };
-
-      let w_e = PolyEvalWitness {
-        p: W[idx].E.clone(),
-      };
-
-      let u_e = PolyEvalInstance {
-        c: U[idx].comm_E,
-        x: r_x.clone(),
-        e: evals_E[idx],
-      };
-
-      w_vec.push(w_w);
-      u_vec.push(u_w);
-      w_vec.push(w_e);
-      u_vec.push(u_e);
-    }
+    w_vec.extend(
+      E_polys
+        .into_iter()
+        .map(|poly| PolyEvalWitness { p: poly.Z }),
+    );
+    u_vec.extend(
+      evals_E
+        .iter()
+        .zip(U.iter())
+        .map(|(eval, u)| PolyEvalInstance {
+          c: u.comm_W,
+          x: r_x[1..].to_vec(),
+          e: *eval,
+        }),
+    );
 
     let (batched_u, batched_w, sc_proof_batch, claims_batch_left) =
       batch_eval_prove(u_vec, w_vec, &mut transcript)?;
