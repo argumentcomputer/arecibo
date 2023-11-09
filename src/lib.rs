@@ -172,11 +172,12 @@ where
   ///
   /// let circuit1 = TrivialCircuit::<<G1 as Group>::Scalar>::default();
   /// let circuit2 = TrivialCircuit::<<G2 as Group>::Scalar>::default();
-  /// // Only relevant for a SNARK using computational commitments, pass &(|_| 0) otherwise.
-  /// let pp_hint1 = &*SPrime::<G1>::commitment_key_floor();
-  /// let pp_hint2 = &*SPrime::<G2>::commitment_key_floor();
+  /// // Only relevant for a SNARK using computational commitments, pass &(|_| 0)
+  /// // or &*nova_snark::traits::snark::default_commitment_key_hint() otherwise.
+  /// let ck_hint1 = &*SPrime::<G1>::commitment_key_floor();
+  /// let ck_hint2 = &*SPrime::<G2>::commitment_key_floor();
   ///
-  /// let pp = PublicParams::new(&circuit1, &circuit2, pp_hint1, pp_hint2);
+  /// let pp = PublicParams::new(&circuit1, &circuit2, ck_hint1, ck_hint2);
   /// ```
   pub fn new(
     c_primary: &C1,
@@ -1033,9 +1034,9 @@ mod tests {
     <G2::Scalar as PrimeField>::Repr: Abomonation,
   {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
-    let pp_hint1 = &*SPrime::<G1, E1>::commitment_key_floor();
-    let pp_hint2 = &*SPrime::<G2, E2>::commitment_key_floor();
-    let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, pp_hint1, pp_hint2);
+    let ck_hint1 = &*SPrime::<G1, E1>::commitment_key_floor();
+    let ck_hint2 = &*SPrime::<G2, E2>::commitment_key_floor();
+    let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, ck_hint1, ck_hint2);
 
     let digest_str = pp
       .digest()
