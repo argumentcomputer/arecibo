@@ -213,6 +213,7 @@ mod tests {
 
   use super::*;
   use pasta_curves::Fp;
+  use rand_chacha::ChaCha20Rng;
   use rand_core::SeedableRng;
 
   fn make_mlp<F: PrimeField>(len: usize, value: F) -> MultilinearPolynomial<F> {
@@ -376,23 +377,11 @@ mod tests {
     MultilinearPolynomial::new(tmp)
   }
 
-  fn make_rand_mlp<F: PrimeField, R: RngCore>(
-    var_count: usize,
-    mut rng: &mut R,
-  ) -> MultilinearPolynomial<F> {
-    let eqpoly = EqPolynomial::new(
-      std::iter::from_fn(|| Some(F::random(&mut rng)))
-        .take(var_count)
-        .collect::<Vec<_>>(),
-    );
-    MultilinearPolynomial::new(eqpoly.evals())
-  }
-
   fn partial_evaluate_mle_with<F: PrimeField>() {
     // Initialize a random polynomial
     let n = 5;
-    let mut rng = rand_xorshift::XorShiftRng::from_seed([0u8; 16]);
-    let poly = make_rand_mlp::<F, _>(n, &mut rng);
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+    let poly = MultilinearPolynomial::random(n, &mut rng);
 
     // Define a random multivariate evaluation point u = (u_0, u_1, u_2, u_3, u_4)
     let u_0 = F::random(&mut rng);
@@ -429,8 +418,8 @@ mod tests {
     for _i in 0..50 {
       // Initialize a random polynomial
       let n = 7;
-      let mut rng = rand_xorshift::XorShiftRng::from_seed([0u8; 16]);
-      let poly = make_rand_mlp::<F, _>(n, &mut rng);
+      let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+      let poly = MultilinearPolynomial::random(n, &mut rng);
 
       // draw a random point
       let pt: Vec<_> = std::iter::from_fn(|| Some(F::random(&mut rng)))
