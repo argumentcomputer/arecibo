@@ -39,7 +39,7 @@ jobs:
 
   recursive-benchmark:
     name: run benchmark
-    runs-on: ubuntu-benchmark-runner
+    runs-on: buildjet-16vcpu-ubuntu-2204
     if:
       github.event.issue.pull_request
       && github.event.issue.state == 'open'
@@ -64,7 +64,7 @@ jobs:
 
   spartan-benchmark:
     name: run benchmark
-    runs-on: ubuntu-benchmark-runner
+    runs-on: buildjet-16vcpu-ubuntu-2204
     needs: changes
     if:
       github.event.issue.pull_request
@@ -91,7 +91,7 @@ jobs:
 
   supernova-benchmark:
     name: run benchmark
-    runs-on: ubuntu-benchmark-runner
+    runs-on: buildjet-16vcpu-ubuntu-2204
     needs: changes
     if:
       github.event.issue.pull_request
