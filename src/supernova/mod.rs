@@ -214,7 +214,9 @@ where
           num_circuits,
         );
         let mut cs: ShapeCS<G1> = ShapeCS::new();
-        let _ = circuit_primary.synthesize(&mut cs);
+        circuit_primary
+          .synthesize(&mut cs)
+          .expect("circuit synthesis failed");
 
         // We use the largest commitment_key for all instances
         let r1cs_shape_primary = cs.r1cs_shape();
@@ -239,7 +241,9 @@ where
       num_circuits,
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
-    let _ = circuit_secondary.synthesize(&mut cs);
+    circuit_secondary
+      .synthesize(&mut cs)
+      .expect("circuit synthesis failed");
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
@@ -392,21 +396,32 @@ where
   G1: Group<Base = <G2 as Group>::Scalar>,
   G2: Group<Base = <G1 as Group>::Scalar>,
 {
+  // Cached digest of the public parameters
+  pp_digest: G1::Scalar,
+  num_augmented_circuits: usize,
+
+  // Number of iterations performed up to now
+  i: usize,
+
+  // Inputs and outputs of the primary circuits
+  z0_primary: Vec<G1::Scalar>,
+  zi_primary: Vec<G1::Scalar>,
+  program_counter: G1::Scalar,
+
+  // Relaxed instances for the primary circuits
+  // Entries are `None` if the circuit has not been executed yet
   r_W_primary: Vec<Option<RelaxedR1CSWitness<G1>>>,
   r_U_primary: Vec<Option<RelaxedR1CSInstance<G1>>>,
-  r_W_secondary: Vec<Option<RelaxedR1CSWitness<G2>>>, // usually r_W_secondary.len() == 1
-  r_U_secondary: Vec<Option<RelaxedR1CSInstance<G2>>>, // usually r_U_secondary.len() == 1
+
+  // Inputs and outputs of the secondary circuit
+  z0_secondary: Vec<G2::Scalar>,
+  zi_secondary: Vec<G2::Scalar>,
+  // Relaxed instance for the secondary circuit
+  r_W_secondary: RelaxedR1CSWitness<G2>,
+  r_U_secondary: RelaxedR1CSInstance<G2>,
+  // Proof for the secondary circuit to be accumulated into r_secondary in the next iteration
   l_w_secondary: R1CSWitness<G2>,
   l_u_secondary: R1CSInstance<G2>,
-  pp_digest: G1::Scalar,
-  i: usize,
-  z0_primary: Vec<G1::Scalar>,
-  z0_secondary: Vec<G2::Scalar>,
-  zi_primary: Vec<G1::Scalar>,
-  zi_secondary: Vec<G2::Scalar>,
-  program_counter: G1::Scalar,
-  augmented_circuit_index: usize,
-  num_augmented_circuits: usize,
 }
 
 impl<G1, G2> RecursiveSNARK<G1, G2>
@@ -441,17 +456,18 @@ where
 
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    let program_counter = G1::Scalar::from(circuit_index as u64);
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<G1>(pp.digest()),
         G1::Scalar::ZERO,
         z0_primary,
-        None,
-        None,
-        None,
-        None,
-        Some(G1::Scalar::from(circuit_index as u64)),
-        G1::Scalar::ZERO, // set augmented circuit index selector to 0 in base case
+        None,                  // zi = None for basecase
+        None,                  // U = [None], since no previous proofs have been computed
+        None,                  // u = None since we are not verifying a secondary circuit
+        None,                  // T = None since there is not proof to fold
+        Some(program_counter), // pc = initial_program_counter for primary circuit
+        G1::Scalar::ZERO,      // u_index is always zero for the primary circuit
       );
 
     let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
@@ -481,17 +497,18 @@ where
 
     // base case for the secondary
     let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    let u_primary_index = G2::Scalar::from(circuit_index as u64);
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
         G2::Scalar::ZERO,
         z0_secondary,
-        None,
-        None,
-        Some(&u_primary),
-        None,
-        None,
-        G2::Scalar::from(circuit_index as u64),
+        None,             // zi = None for basecase
+        None,             // U = Empty list of accumulators for the primary circuits
+        Some(&u_primary), // Proof for first iteration of current primary circuit
+        None,             // T = None, since we just copy u_primary rather than fold it
+        None,             // program_counter is always None for secondary circuit
+        u_primary_index,  // index of the circuit proof u_primary
       );
     let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_secondary,
@@ -525,13 +542,11 @@ where
     // IVC proof of the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
-    let r_W_secondary = vec![Some(RelaxedR1CSWitness::<G2>::default(
-      &pp.circuit_shape_secondary.r1cs_shape,
-    ))];
-    let r_U_secondary = vec![Some(RelaxedR1CSInstance::default(
-      &pp.ck_secondary,
-      &pp.circuit_shape_secondary.r1cs_shape,
-    ))];
+
+    // Initialize relaxed instance/witness pair for the secondary circuit proofs
+    let r_W_secondary = RelaxedR1CSWitness::<G2>::default(&pp.circuit_shape_secondary.r1cs_shape);
+    let r_U_secondary =
+      RelaxedR1CSInstance::default(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape);
 
     // Outputs of the two circuits and next program counter thus far.
     let zi_primary = zi_primary
@@ -555,23 +570,22 @@ where
     let r_U_primary_initial_list = (0..num_augmented_circuits)
       .map(|i| (i == circuit_index).then(|| r_U_primary.clone()))
       .collect::<Vec<Option<RelaxedR1CSInstance<G1>>>>();
-
     Ok(Self {
+      pp_digest: pp.digest(),
+      num_augmented_circuits,
+      i: 0_usize, // after base case, next iteration start from 1
+      z0_primary: z0_primary.to_vec(),
+      zi_primary,
+      program_counter: zi_primary_pc_next,
+
       r_W_primary: r_W_primary_initial_list,
       r_U_primary: r_U_primary_initial_list,
+      z0_secondary: z0_secondary.to_vec(),
+      zi_secondary,
       r_W_secondary,
       r_U_secondary,
       l_w_secondary,
       l_u_secondary,
-      pp_digest: pp.digest(),
-      i: 0_usize, // after base case, next iteration start from 1
-      z0_primary: z0_primary.to_vec(),
-      z0_secondary: z0_secondary.to_vec(),
-      zi_primary,
-      zi_secondary,
-      program_counter: zi_primary_pc_next,
-      augmented_circuit_index: circuit_index,
-      num_augmented_circuits,
     })
   }
 
@@ -590,10 +604,6 @@ where
       return Ok(());
     }
 
-    if self.r_U_secondary.len() != 1 || self.r_W_secondary.len() != 1 {
-      return Err(NovaError::ProofVerifyError.into());
-    }
-
     let circuit_index = c_primary.circuit_index();
     assert_eq!(self.program_counter, G1::Scalar::from(circuit_index as u64));
 
@@ -603,8 +613,8 @@ where
       &pp.ro_consts_secondary,
       &scalar_as_base::<G1>(self.pp_digest),
       &pp.circuit_shape_secondary.r1cs_shape,
-      self.r_U_secondary[0].as_ref().unwrap(),
-      self.r_W_secondary[0].as_ref().unwrap(),
+      &self.r_U_secondary,
+      &self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
     )
@@ -613,6 +623,9 @@ where
     // clone and updated running instance on respective circuit_index
     let r_U_secondary_next = r_U_secondary_folded;
     let r_W_secondary_next = r_W_secondary_folded;
+
+    // Create single-entry accumulator list for the secondary circuit to hand to SuperNovaAugmentedCircuitInputs
+    let r_U_secondary = vec![Some(self.r_U_secondary.clone())];
 
     let mut cs_primary = SatisfyingAssignment::<G1>::new();
     let T =
@@ -623,7 +636,7 @@ where
         G1::Scalar::from(self.i as u64),
         &self.z0_primary,
         Some(&self.zi_primary),
-        Some(&self.r_U_secondary),
+        Some(&r_U_secondary),
         Some(&self.l_u_secondary),
         Some(&T),
         Some(self.program_counter),
@@ -693,7 +706,7 @@ where
         Some(&self.r_U_primary),
         Some(&l_u_primary),
         Some(&binding),
-        None,
+        None, // pc is always None for secondary circuit
         G2::Scalar::from(circuit_index as u64),
       );
 
@@ -748,15 +761,14 @@ where
     // clone and updated running instance on respective circuit_index
     self.r_U_primary[circuit_index] = Some(r_U_primary_folded);
     self.r_W_primary[circuit_index] = Some(r_W_primary_folded);
-    self.r_W_secondary = vec![Some(r_W_secondary_next)];
-    self.r_U_secondary = vec![Some(r_U_secondary_next)];
+    self.r_W_secondary = r_W_secondary_next;
+    self.r_U_secondary = r_U_secondary_next;
     self.l_w_secondary = l_w_secondary_next;
     self.l_u_secondary = l_u_secondary_next;
     self.i += 1;
     self.zi_primary = zi_primary;
     self.zi_secondary = zi_secondary;
     self.program_counter = zi_primary_pc_next;
-    self.augmented_circuit_index = circuit_index;
     Ok(())
   }
 
@@ -779,10 +791,6 @@ where
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
-    if self.r_U_secondary.len() != 1 || self.r_W_secondary.len() != 1 {
-      return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
-    }
-
     self.r_U_primary[circuit_index]
       .as_ref()
       .map_or(Ok(()), |U| {
@@ -794,18 +802,14 @@ where
         }
       })?;
 
-    self.r_U_secondary[0].as_ref().map_or(Ok(()), |U| {
-      if U.X.len() != 2 {
-        debug!(
-          "r_U_secondary got instance length {:?} != {:?}",
-          U.X.len(),
-          2
-        );
-        Err(SuperNovaError::NovaError(NovaError::ProofVerifyError))
-      } else {
-        Ok(())
-      }
-    })?;
+    if self.r_U_secondary.X.len() != 2 {
+      debug!(
+        "r_U_secondary got instance length {:?} != {:?}",
+        self.r_U_secondary.X.len(),
+        2
+      );
+      return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
+    }
 
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
     + 2 * pp[circuit_index].F_arity // zo, z1
@@ -828,13 +832,8 @@ where
       for e in &self.zi_primary {
         hasher.absorb(*e);
       }
-      self.r_U_secondary[0].as_ref().map_or(
-        Err(SuperNovaError::NovaError(NovaError::ProofVerifyError)),
-        |U| {
-          U.absorb_in_ro(&mut hasher);
-          Ok(())
-        },
-      )?;
+
+      self.r_U_secondary.absorb_in_ro(&mut hasher);
 
       let mut hasher2 =
         <G1 as Group>::RO::new(pp.ro_consts_primary.clone(), num_field_secondary_ro);
@@ -897,8 +896,8 @@ where
           || {
             pp.circuit_shape_secondary.r1cs_shape.is_sat_relaxed(
               &pp.ck_secondary,
-              self.r_U_secondary[0].as_ref().unwrap(),
-              self.r_W_secondary[0].as_ref().unwrap(),
+              &self.r_U_secondary,
+              &self.r_W_secondary,
             )
           },
           || {
