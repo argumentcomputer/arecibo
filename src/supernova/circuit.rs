@@ -261,13 +261,16 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
   ) -> Result<Vec<AllocatedRelaxedR1CSInstance<G>>, SynthesisError> {
     let mut cs = cs.namespace(|| "alloc U_i default");
 
+    // Allocate a default relaxed r1cs instance
+    let default = AllocatedRelaxedR1CSInstance::default(
+      cs.namespace(|| "Allocate primary U_default".to_string()),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
     // The primary circuit just initialize single AllocatedRelaxedR1CSInstance
     let U_default = if self.params.is_primary_circuit {
-      vec![AllocatedRelaxedR1CSInstance::default(
-        cs.namespace(|| "Allocate primary U_default".to_string()),
-        self.params.limb_width,
-        self.params.n_limbs,
-      )?]
+      vec![default]
     } else {
       // The secondary circuit convert the incoming R1CS instance on index which match last_augmented_circuit_index
       let incoming_r1cs = AllocatedRelaxedR1CSInstance::from_r1cs_instance(
@@ -276,6 +279,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
         self.params.limb_width,
         self.params.n_limbs,
       )?;
+
       (0..num_augmented_circuits)
         .map(|i| {
           let i_alloc = alloc_const(
@@ -287,15 +291,10 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
             &i_alloc,
             last_augmented_circuit_index_checked,
           )?);
-          let default = &AllocatedRelaxedR1CSInstance::default(
-            cs.namespace(|| format!("Allocate U_default {:?}", i)),
-            self.params.limb_width,
-            self.params.n_limbs,
-          )?;
           conditionally_select_alloc_relaxed_r1cs(
             cs.namespace(|| format!("select on index namespace {:?}", i)),
             &incoming_r1cs,
-            default,
+            &default,
             &equal_bit,
           )
         })
