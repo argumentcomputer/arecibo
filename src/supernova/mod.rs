@@ -214,7 +214,8 @@ where
           num_circuits,
         );
         let mut cs: ShapeCS<G1> = ShapeCS::new();
-        let _ = circuit_primary.synthesize(&mut cs);
+        let res = circuit_primary.synthesize(&mut cs);
+        assert!(res.is_ok(), "circuit synthesis failed");
 
         // We use the largest commitment_key for all instances
         let r1cs_shape_primary = cs.r1cs_shape();
@@ -239,7 +240,8 @@ where
       num_circuits,
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
-    let _ = circuit_secondary.synthesize(&mut cs);
+    let res = circuit_secondary.synthesize(&mut cs);
+    assert!(res.is_ok(), "circuit synthesis failed");
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
