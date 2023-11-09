@@ -214,7 +214,7 @@ where
           num_circuits,
         );
         let mut cs: ShapeCS<G1> = ShapeCS::new();
-        let _ = circuit_primary
+        circuit_primary
           .synthesize(&mut cs)
           .expect("circuit synthesis failed");
 
@@ -241,7 +241,7 @@ where
       num_circuits,
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
-    let _ = circuit_secondary
+    circuit_secondary
       .synthesize(&mut cs)
       .expect("circuit synthesis failed");
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
