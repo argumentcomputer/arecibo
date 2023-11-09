@@ -214,8 +214,9 @@ where
           num_circuits,
         );
         let mut cs: ShapeCS<G1> = ShapeCS::new();
-        let res = circuit_primary.synthesize(&mut cs);
-        assert!(res.is_ok(), "circuit synthesis failed");
+        let _ = circuit_primary
+          .synthesize(&mut cs)
+          .expect("circuit synthesis failed");
 
         // We use the largest commitment_key for all instances
         let r1cs_shape_primary = cs.r1cs_shape();
@@ -240,8 +241,9 @@ where
       num_circuits,
     );
     let mut cs: ShapeCS<G2> = ShapeCS::new();
-    let res = circuit_secondary.synthesize(&mut cs);
-    assert!(res.is_ok(), "circuit synthesis failed");
+    let _ = circuit_secondary
+      .synthesize(&mut cs)
+      .expect("circuit synthesis failed");
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
@@ -454,17 +456,18 @@ where
 
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    let program_counter = G1::Scalar::from(circuit_index as u64);
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<G1>(pp.digest()),
         G1::Scalar::ZERO,
         z0_primary,
-        None,                                         // zi = None for basecase
-        None, // U = [None], since no previous proofs have been computed
-        None, // u = None since we are not verifying a secondary circuit
-        None, // T = None since there is not proof to fold
-        Some(G1::Scalar::from(circuit_index as u64)), // pc
-        G1::Scalar::ZERO, // u_index is always zero for the primary circuit
+        None,                  // zi = None for basecase
+        None,                  // U = [None], since no previous proofs have been computed
+        None,                  // u = None since we are not verifying a secondary circuit
+        None,                  // T = None since there is not proof to fold
+        Some(program_counter), // pc = initial_program_counter for primary circuit
+        G1::Scalar::ZERO,      // u_index is always zero for the primary circuit
       );
 
     let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
@@ -494,17 +497,18 @@ where
 
     // base case for the secondary
     let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    let u_primary_index = G2::Scalar::from(circuit_index as u64);
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
         G2::Scalar::ZERO,
         z0_secondary,
-        None,                                   // zi = None
+        None,             // zi = None for basecase
         None,             // U = Empty list of accumulators for the primary circuits
         Some(&u_primary), // Proof for first iteration of current primary circuit
         None,             // T = None, since we just copy u_primary rather than fold it
-        None,             // program_counter = None for secondary circuit
-        G2::Scalar::from(circuit_index as u64), // index of the circuit proof u_primary
+        None,             // program_counter is always None for secondary circuit
+        u_primary_index,  // index of the circuit proof u_primary
       );
     let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_secondary,
@@ -804,7 +808,7 @@ where
         self.r_U_secondary.X.len(),
         2
       );
-      Err(SuperNovaError::NovaError(NovaError::ProofVerifyError))?
+      return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
