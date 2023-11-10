@@ -846,11 +846,13 @@ where
       for e in &self.zi_secondary {
         hasher2.absorb(*e);
       }
-      let default_value =
-        RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape);
-      self.r_U_primary.iter().for_each(|U| {
+
+      self.r_U_primary.iter().enumerate().for_each(|(i, U)| {
         U.as_ref()
-          .unwrap_or(&default_value)
+          .unwrap_or(&RelaxedR1CSInstance::default(
+            &pp.ck_primary,
+            &pp[i].r1cs_shape,
+          ))
           .absorb_in_ro(&mut hasher2);
       });
 
