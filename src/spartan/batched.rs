@@ -124,8 +124,12 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .map(|(w, u)| [w.Z.clone(), vec![u.u], u.X.clone()].concat())
       .collect::<Vec<Vec<_>>>();
 
-    let num_rounds_x = S.iter().map(|s| s.num_cons.log_2()).max().unwrap();
-    let num_rounds_y = S.iter().map(|s| s.num_vars.log_2() + 1).max().unwrap();
+    let (num_vars_x, num_vars_y): (Vec<_>, Vec<_>) = S
+      .iter()
+      .map(|s| (s.num_cons.log_2(), s.num_vars.log_2() + 1))
+      .unzip();
+    let num_rounds_x = *num_vars_x.iter().max().unwrap();
+    let num_rounds_y = *num_vars_y.iter().max().unwrap();
 
     // Generate tau polynomial corresponding to eq(τ, τ², τ⁴ , …)
     // for a random challenge τ
@@ -329,40 +333,37 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .map(|w| w.evaluate(&r_y[1..]))
       .collect::<Vec<_>>();
 
-    let mut w_vec = Vec::with_capacity(2 * S.len());
-    let mut u_vec = Vec::with_capacity(2 * S.len());
-
-    w_vec.extend(
-      W_polys
-        .into_iter()
-        .map(|poly| PolyEvalWitness { p: poly.Z }),
-    );
-    u_vec.extend(
-      evals_W
-        .iter()
-        .zip(U.iter())
-        .map(|(eval, u)| PolyEvalInstance {
+    // Create evaluation instances for W(r_y[1..]) and E(r_x)
+    let (w_vec, u_vec) = {
+      let mut w_vec = Vec::with_capacity(2 * S.len());
+      let mut u_vec = Vec::with_capacity(2 * S.len());
+      w_vec.extend(
+        W_polys
+          .into_iter()
+          .map(|poly| PolyEvalWitness { p: poly.Z }),
+      );
+      u_vec.extend(evals_W.iter().zip(U.iter()).zip(num_vars_y.iter()).map(
+        |((&eval, u), &num_vars)| PolyEvalInstance {
           c: u.comm_W,
-          x: r_x[1..].to_vec(),
-          e: *eval,
-        }),
-    );
+          x: r_y[1..num_vars].to_vec(),
+          e: eval,
+        },
+      ));
 
-    w_vec.extend(
-      E_polys
-        .into_iter()
-        .map(|poly| PolyEvalWitness { p: poly.Z }),
-    );
-    u_vec.extend(
-      evals_E
-        .iter()
-        .zip(U.iter())
-        .map(|(eval, u)| PolyEvalInstance {
-          c: u.comm_W,
-          x: r_x[1..].to_vec(),
-          e: *eval,
-        }),
-    );
+      w_vec.extend(
+        E_polys
+          .into_iter()
+          .map(|poly| PolyEvalWitness { p: poly.Z }),
+      );
+      u_vec.extend(evals_E.iter().zip(U.iter()).zip(num_vars_x.iter()).map(
+        |((&eval, u), &num_vars)| PolyEvalInstance {
+          c: u.comm_E,
+          x: r_x[..num_vars].to_vec(),
+          e: eval,
+        },
+      ));
+      (w_vec, u_vec)
+    };
 
     let (batched_u, batched_w, sc_proof_batch, claims_batch_left) =
       batch_eval_prove(u_vec, w_vec, &mut transcript)?;
