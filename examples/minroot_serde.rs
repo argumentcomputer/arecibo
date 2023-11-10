@@ -12,7 +12,7 @@ use ff::PrimeField;
 use nova_snark::{
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
-    snark::default_commitment_key_hint,
+    snark::default_ck_hint,
     Group,
   },
   PublicParams,
@@ -171,8 +171,8 @@ fn main() {
     >::new(
       &circuit_primary,
       &circuit_secondary,
-      &*default_commitment_key_hint(),
-      &*default_commitment_key_hint(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
     );
     println!("PublicParams::setup, took {:?} ", start.elapsed());
     encode(&pp, &mut file).unwrap()
@@ -202,8 +202,8 @@ fn main() {
     >::new(
       &circuit_primary,
       &circuit_secondary,
-      &*default_commitment_key_hint(),
-      &*default_commitment_key_hint(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
     );
     assert!(result.clone() == pp, "not equal!");
     assert!(remaining.is_empty());
