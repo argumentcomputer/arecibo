@@ -44,12 +44,6 @@ use circuit::{
 
 use self::error::SuperNovaError;
 
-pub mod error;
-pub(crate) mod utils;
-
-#[cfg(test)]
-mod test;
-
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CircuitDigests<G: Group> {
@@ -787,29 +781,67 @@ where
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
-    // check the (relaxed) R1CS instances public outputs.
-    if self.l_u_secondary.X.len() != 2 {
+    // Check lengths of r_primary
+    if self.r_U_primary.len() != self.num_augmented_circuits
+      || self.r_W_primary.len() != self.num_augmented_circuits
+    {
+      debug!("r_primary length mismatch");
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
-    self.r_U_primary[circuit_index]
-      .as_ref()
-      .map_or(Ok(()), |U| {
-        if U.X.len() != 2 {
-          debug!("r_U_primary got instance length {:?} != {:?}", U.X.len(), 2);
+    // Check that there are no missing instance/witness pairs
+    self
+      .r_U_primary
+      .iter()
+      .zip(self.r_W_primary.iter())
+      .enumerate()
+      .try_for_each(|(i, (u, w))| match (u, w) {
+        (Some(_), Some(_)) | (None, None) => Ok(()),
+        _ => {
+          debug!("r_primary[{:?}]: mismatched instance/witness pair", i);
           Err(SuperNovaError::NovaError(NovaError::ProofVerifyError))
-        } else {
-          Ok(())
         }
       })?;
 
-    if self.r_U_secondary.X.len() != 2 {
+    // check we have an instance/witness pair for the circuit_index
+    if self.r_U_primary[circuit_index].is_none() {
       debug!(
-        "r_U_secondary got instance length {:?} != {:?}",
-        self.r_U_secondary.X.len(),
-        2
+        "r_primary[{:?}]: instance/witness pair is missing",
+        circuit_index
       );
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
+    }
+
+    // check the (relaxed) R1CS instances public outputs.
+    {
+      for (i, r_U_primary_i) in self.r_U_primary.iter().enumerate() {
+        if let Some(u) = r_U_primary_i {
+          if u.X.len() != 2 {
+            debug!(
+              "r_U_primary[{:?}] got instance length {:?} != 2",
+              i,
+              u.X.len(),
+            );
+            return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
+          }
+        }
+      }
+
+      if self.l_u_secondary.X.len() != 2 {
+        debug!(
+          "l_U_secondary got instance length {:?} != 2",
+          self.l_u_secondary.X.len(),
+        );
+        return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
+      }
+
+      if self.r_U_secondary.X.len() != 2 {
+        debug!(
+          "r_U_secondary got instance length {:?} != 2",
+          self.r_U_secondary.X.len(),
+        );
+        return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
+      }
     }
 
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
@@ -1012,3 +1044,9 @@ pub fn circuit_digest<
   let circuit_params = CircuitShape::new(cs.r1cs_shape(), F_arity);
   circuit_params.digest()
 }
+
+pub mod error;
+pub(crate) mod utils;
+
+#[cfg(test)]
+mod test;
