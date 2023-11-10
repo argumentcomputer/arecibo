@@ -25,6 +25,7 @@ use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField};
 use once_cell::sync::OnceCell;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -877,21 +878,20 @@ where
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
-    // check the satisfiability of the provided `circuit_index` instance
-    let default_instance =
-      RelaxedR1CSInstance::default(&pp.ck_primary, &pp[circuit_index].r1cs_shape);
-    let default_witness = RelaxedR1CSWitness::default(&pp[circuit_index].r1cs_shape);
+    // check the satisfiability of all instance/witness pairs
     let (res_r_primary, (res_r_secondary, res_l_secondary)) = rayon::join(
       || {
-        pp[circuit_index].r1cs_shape.is_sat_relaxed(
-          &pp.ck_primary,
-          self.r_U_primary[circuit_index]
-            .as_ref()
-            .unwrap_or(&default_instance),
-          self.r_W_primary[circuit_index]
-            .as_ref()
-            .unwrap_or(&default_witness),
-        )
+        self
+          .r_U_primary
+          .par_iter()
+          .zip(self.r_W_primary.par_iter())
+          .enumerate()
+          .try_for_each(|(i, (u, w))| {
+            if let (Some(u), Some(w)) = (u, w) {
+              pp[i].r1cs_shape.is_sat_relaxed(&pp.ck_primary, u, w)?
+            }
+            Ok(())
+          })
       },
       || {
         rayon::join(
