@@ -9,8 +9,6 @@ use super::{
   compute_eval_table_sparse,
   polys::{eq::EqPolynomial, multilinear::MultilinearPolynomial},
 };
-use crate::errors::NovaError;
-use crate::r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness};
 use crate::spartan::powers;
 use crate::spartan::sumcheck::SumcheckProof;
 use crate::traits::{
@@ -19,13 +17,31 @@ use crate::traits::{
   Group, TranscriptEngineTrait,
 };
 use crate::CommitmentKey;
+use crate::{errors::NovaError, spartan::PolyEvalWitness};
+use crate::{
+  r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  spartan::{snark::batch_eval_prove, PolyEvalInstance},
+};
 
-use super::snark::RelaxedR1CSSNARK;
+///TODO: Doc
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct BatchedRelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
+  sc_proof_outer: SumcheckProof<G>,
+  claims_outer: (Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>),
+  evals_E: Vec<G::Scalar>,
+  sc_proof_inner: SumcheckProof<G>,
+  evals_W: Vec<G::Scalar>,
+  sc_proof_batch: SumcheckProof<G>,
+  evals_batch: Vec<G::Scalar>,
+  eval_arg: EE::EvaluationArgument,
+}
 
 /// TODO: Doc
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
+  pk_ee: EE::ProverKey,
   vk_digest: G::Scalar,
   _p: PhantomData<(G, EE)>,
 }
@@ -44,15 +60,15 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> DigestHelperTrait<G> for VerifierKe
 }
 
 impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
-  for RelaxedR1CSSNARK<G, EE>
+  for BatchedRelaxedR1CSSNARK<G, EE>
 {
   type ProverKey = ProverKey<G, EE>;
 
   type VerifierKey = VerifierKey<G, EE>;
 
   fn setup(
-    ck: &CommitmentKey<G>,
-    S: &[R1CSShape<G>],
+    _ck: &CommitmentKey<G>,
+    _S: &[R1CSShape<G>],
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     todo!()
   }
@@ -82,7 +98,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       transcript.absorb(b"U", u);
     });
 
-    let mut z = W
+    let z = W
       .iter()
       .zip(U)
       .map(|(w, u)| [w.W.clone(), vec![u.u], u.X.clone()].concat())
@@ -106,7 +122,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     let mut poly_tau = MultilinearPolynomial::new(EqPolynomial::new(tau).evals());
 
-    let (mut vec_poly_Az, mut vec_poly_Bz, mut vec_poly_Cz, mut vec_poly_uCz_E) = {
+    let (mut vec_poly_Az, mut vec_poly_Bz, vec_poly_Cz, mut vec_poly_uCz_E) = {
       let (vec_poly_Az, vec_poly_Bz, vec_poly_Cz) = S.iter().zip(z.clone()).fold(
         (vec![], vec![], vec![]),
         |(mut vec_A, mut vec_B, mut vec_C), (s, z)| {
@@ -163,7 +179,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     let coeffs = powers::<G>(&outer_r, S.len());
 
-    let (sc_proof_outer, r_x, claim_tau, claims_outer): (
+    let (sc_proof_outer, r_x, _claim_tau, claims_outer): (
       SumcheckProof<G>,
       Vec<G::Scalar>,
       G::Scalar,
@@ -198,7 +214,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .iter()
       .zip(claims_Bz.clone())
       .zip(claims_Cz.clone())
-      .zip(evals_E)
+      .zip(evals_E.clone())
       .for_each(|(((claim_Az, claim_Bz), claim_Cz), eval_E)| {
         transcript.absorb(
           b"claims_outer",
@@ -220,9 +236,9 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     let claim_inner_joint = inner_r_powers
       .iter()
-      .zip(claims_Az)
-      .zip(claims_Bz)
-      .zip(claims_Cz)
+      .zip(claims_Az.clone())
+      .zip(claims_Bz.clone())
+      .zip(claims_Cz.clone())
       .fold(
         G::Scalar::ZERO,
         |acc, (((r_i, claim_Az), claim_Bz), claim_Cz)| {
@@ -235,7 +251,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       );
 
     let mut poly_ABCs = {
-      let evals_rx = EqPolynomial::new(r_x).evals();
+      let evals_rx = EqPolynomial::new(r_x.clone()).evals();
 
       let (evals_As, evals_Bs, evals_Cs) = S.iter().fold(
         (vec![], vec![], vec![]),
@@ -295,10 +311,72 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
         comb_func,
         &mut transcript,
       )?;
-    todo!()
+
+    let evals_W = W
+      .iter()
+      .map(|w| MultilinearPolynomial::new(w.W.clone()).evaluate(&r_y[1..]))
+      .collect::<Vec<_>>();
+
+    let mut w_vec: Vec<PolyEvalWitness<G>> = Vec::new();
+    let mut u_vec: Vec<PolyEvalInstance<G>> = Vec::new();
+
+    for idx in 0..S.len() {
+      let w_w = PolyEvalWitness {
+        p: W[idx].W.clone(),
+      };
+
+      let u_w = PolyEvalInstance {
+        c: U[idx].comm_W,
+        x: r_x[1..].to_vec().clone(),
+        e: evals_W[idx],
+      };
+
+      let w_e = PolyEvalWitness {
+        p: W[idx].E.clone(),
+      };
+
+      let u_e = PolyEvalInstance {
+        c: U[idx].comm_E,
+        x: r_x.clone(),
+        e: evals_E[idx],
+      };
+
+      w_vec.push(w_w);
+      u_vec.push(u_w);
+      w_vec.push(w_e);
+      u_vec.push(u_e);
+    }
+
+    let (batched_u, batched_w, sc_proof_batch, claims_batch_left) =
+      batch_eval_prove(u_vec, w_vec, &mut transcript)?;
+
+    let eval_arg = EE::prove(
+      ck,
+      &pk.pk_ee,
+      &mut transcript,
+      &batched_u.c,
+      &batched_w.p,
+      &batched_u.x,
+      &batched_u.e,
+    )?;
+
+    Ok(BatchedRelaxedR1CSSNARK {
+      sc_proof_outer,
+      claims_outer: (claims_Az, claims_Bz, claims_Cz),
+      evals_E,
+      sc_proof_inner,
+      evals_W,
+      sc_proof_batch,
+      evals_batch: claims_batch_left,
+      eval_arg,
+    })
   }
 
-  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<G>]) -> Result<(), NovaError> {
+  fn verify(
+    &self,
+    _vk: &Self::VerifierKey,
+    _U: &[RelaxedR1CSInstance<G>],
+  ) -> Result<(), NovaError> {
     todo!()
   }
 }
