@@ -469,7 +469,7 @@ where
 
 /// Proves a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
-fn batch_eval_prove<E: Engine>(
+pub(super) fn batch_eval_prove<E: Engine>(
   u_vec: Vec<PolyEvalInstance<E>>,
   w_vec: Vec<PolyEvalWitness<E>>,
   transcript: &mut E::TE,
