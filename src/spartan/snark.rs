@@ -551,7 +551,7 @@ pub(super) fn batch_eval_prove<E: Engine>(
 
 /// Verifies a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
-fn batch_eval_verify<E: Engine>(
+pub(super) fn batch_eval_verify<E: Engine>(
   u_vec: Vec<PolyEvalInstance<E>>,
   transcript: &mut E::TE,
   sc_proof_batch: &SumcheckProof<E>,
