@@ -1,7 +1,5 @@
 //! TODO: Doc
 
-use std::marker::PhantomData;
-
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +50,6 @@ pub struct BatchedRelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
 pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
   pk_ee: EE::ProverKey,
   vk_digest: G::Scalar,
-  _p: PhantomData<(G, EE)>,
 }
 
 /// TODO: Doc
@@ -101,10 +98,21 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
   type VerifierKey = VerifierKey<G, EE>;
 
   fn setup(
-    _ck: &CommitmentKey<G>,
-    _S: &[R1CSShape<G>],
+    ck: &CommitmentKey<G>,
+    S: &[R1CSShape<G>],
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
-    todo!()
+    let (pk_ee, vk_ee) = EE::setup(ck);
+
+    let S = S.iter().map(|s| s.pad()).collect();
+
+    let vk = VerifierKey::new(S, vk_ee);
+
+    let pk = ProverKey {
+      pk_ee,
+      vk_digest: vk.digest(),
+    };
+
+    Ok((pk, vk))
   }
 
   fn prove(
@@ -644,6 +652,6 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       &self.eval_arg,
     )?;
 
-    todo!()
+    Ok(())
   }
 }
