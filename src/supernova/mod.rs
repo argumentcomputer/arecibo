@@ -9,8 +9,8 @@ use crate::{
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
   r1cs::{
-    commitment_key_size, CommitmentKeyHint, R1CSInstance, R1CSWitness, RelaxedR1CSInstance,
-    RelaxedR1CSWitness,
+    commitment_key_size, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness,
+    RelaxedR1CSInstance, RelaxedR1CSWitness,
   },
   scalar_as_base,
   traits::{
@@ -386,6 +386,16 @@ where
       .map(|cp| cp.digest())
       .collect::<Vec<_>>();
     CircuitDigests { digests }
+  }
+
+  /// Returns all the primary R1CS Shapes
+  pub fn primary_r1cs_shapes(&self) -> Vec<R1CSShape<G1>> {
+    self
+      .circuit_shapes
+      .clone()
+      .into_iter()
+      .map(|cs| cs.r1cs_shape)
+      .collect::<Vec<_>>()
   }
 }
 
