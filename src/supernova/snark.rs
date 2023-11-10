@@ -1,11 +1,16 @@
 //! This module defines a final compressing SNARK for supernova proofs
 
 use super::{error::SuperNovaError, PublicParams, RecursiveSNARK};
-use crate::traits::{
-  circuit_supernova::StepCircuit,
-  snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-  Group,
+use crate::{
+  constants::NUM_HASH_BITS,
+  r1cs::{R1CSInstance, RelaxedR1CSWitness},
+  traits::{
+    circuit_supernova::StepCircuit,
+    snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
+    AbsorbInROTrait, Group, ROTrait,
+  },
 };
+use crate::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
 
 use ff::PrimeField;
 use std::marker::PhantomData;
@@ -20,7 +25,9 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<G1>,
   S2: RelaxedR1CSSNARKTrait<G2>,
 {
-  _p: PhantomData<(G1, G2, C1, C2, S1, S2)>,
+  pk_primary: S1::ProverKey,
+  pk_secondary: S2::ProverKey,
+  _p: PhantomData<(C1, C2)>,
 }
 
 /// TODO: Doc
@@ -33,7 +40,9 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<G1>,
   S2: RelaxedR1CSSNARKTrait<G2>,
 {
-  _p: PhantomData<(G1, G2, C1, C2, S1, S2)>,
+  vk_primary: S1::VerifierKey,
+  vk_secondary: S2::VerifierKey,
+  _p: PhantomData<(C1, C2)>,
 }
 
 /// TODO: Doc
@@ -47,6 +56,19 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<G1>,
   S2: RelaxedR1CSSNARKTrait<G2>,
 {
+  r_U_primary: Vec<RelaxedR1CSInstance<G1>>,
+  r_W_snark_primary: S1,
+
+  r_U_secondary: RelaxedR1CSInstance<G2>,
+  l_u_secondary: R1CSInstance<G2>,
+  nifs_secondary: NIFS<G2>,
+  f_W_snark_secondary: S2,
+
+  num_steps: usize,
+  program_counter: G1::Scalar,
+
+  zn_primary: Vec<G1::Scalar>,
+  zn_secondary: Vec<G2::Scalar>,
   _p: PhantomData<(G1, G2, C1, C2, S1, S2)>,
 }
 
@@ -69,7 +91,23 @@ where
     ),
     SuperNovaError,
   > {
-    todo!()
+    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp.primary_r1cs_shapes())?;
+
+    let (pk_secondary, vk_secondary) =
+      S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
+
+    let prover_key = ProverKey {
+      pk_primary,
+      pk_secondary,
+      _p: PhantomData,
+    };
+    let verifier_key = VerifierKey {
+      vk_primary,
+      vk_secondary,
+      _p: PhantomData,
+    };
+
+    Ok((prover_key, verifier_key))
   }
 
   /// TODO: Doc
@@ -78,7 +116,87 @@ where
     pk: &ProverKey<G1, G2, C1, C2, S1, S2>,
     recursive_snark: &RecursiveSNARK<G1, G2>,
   ) -> Result<Self, SuperNovaError> {
-    todo!()
+    let res_secondary = NIFS::prove(
+      &pp.ck_secondary,
+      &pp.ro_consts_secondary,
+      &scalar_as_base::<G1>(pp.digest()),
+      &pp.circuit_shape_secondary.r1cs_shape,
+      &recursive_snark.r_U_secondary,
+      &recursive_snark.r_W_secondary,
+      &recursive_snark.l_u_secondary,
+      &recursive_snark.l_w_secondary,
+    );
+
+    let (nifs_secondary, (f_U_secondary, f_W_secondary)) = res_secondary?;
+
+    let r_U_primary = recursive_snark
+      .r_U_primary
+      .iter()
+      .enumerate()
+      .map(|(idx, r_U)| {
+        r_U
+          .clone()
+          .unwrap_or_else(|| RelaxedR1CSInstance::default(&pp.ck_primary, &pp[idx].r1cs_shape))
+      })
+      .collect::<Vec<_>>();
+
+    let r_W_primary: Vec<RelaxedR1CSWitness<G1>> = recursive_snark
+      .r_W_primary
+      .iter()
+      .enumerate()
+      .map(|(idx, r_W)| {
+        r_W
+          .clone()
+          .unwrap_or_else(|| RelaxedR1CSWitness::default(&pp[idx].r1cs_shape))
+      })
+      .collect::<Vec<_>>();
+
+    let r_W_snark_primary = S1::prove(
+      &pp.ck_primary,
+      &pk.pk_primary,
+      &pp.primary_r1cs_shapes(),
+      &r_U_primary,
+      &r_W_primary,
+    )?;
+
+    let f_W_snark_secondary = S2::prove(
+      &pp.ck_secondary,
+      &pk.pk_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
+      &f_U_secondary,
+      &f_W_secondary,
+    )?;
+
+    let r_U_primary = recursive_snark
+      .r_U_primary
+      .iter()
+      .enumerate()
+      .map(|(idx, r_U)| {
+        r_U
+          .clone()
+          .unwrap_or_else(|| RelaxedR1CSInstance::default(&pp.ck_primary, &pp[idx].r1cs_shape))
+      })
+      .collect::<Vec<_>>();
+
+    let compressed_snark = CompressedSNARK {
+      r_U_primary,
+      r_W_snark_primary,
+
+      r_U_secondary: recursive_snark.r_U_secondary.clone(),
+      l_u_secondary: recursive_snark.l_u_secondary.clone(),
+      nifs_secondary,
+      f_W_snark_secondary,
+
+      num_steps: recursive_snark.i,
+      program_counter: recursive_snark.program_counter,
+
+      zn_primary: recursive_snark.zi_primary.clone(),
+      zn_secondary: recursive_snark.zi_secondary.clone(),
+
+      _p: PhantomData,
+    };
+
+    Ok(compressed_snark)
   }
 
   /// TODO: Doc
@@ -89,7 +207,88 @@ where
     z0_primary: Vec<G1::Scalar>,
     z0_secondary: Vec<G2::Scalar>,
   ) -> Result<(Vec<G1::Scalar>, Vec<G2::Scalar>), SuperNovaError> {
-    todo!()
+    let last_circuit_idx = field_as_usize(self.program_counter);
+
+    let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
+    + 2 * pp[last_circuit_idx].F_arity // zo, z1
+    + (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // # 1 * (7 + [X0, X1]*#num_limb)
+
+    // secondary circuit
+    // NOTE: This count ensure the number of witnesses sent by the prover must bd equal to the number
+    // of NIVC circuits
+    let num_field_secondary_ro = 2 // params_next, i_new
+    + 2 * pp.circuit_shape_secondary.F_arity // zo, z1
+    + pp.circuit_shapes.len() * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augment
+
+    let (hash_primary, hash_secondary) = {
+      let mut hasher = <G2 as Group>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
+
+      hasher.absorb(pp.digest());
+      hasher.absorb(G1::Scalar::from(self.num_steps as u64));
+      hasher.absorb(self.program_counter);
+
+      for e in z0_primary {
+        hasher.absorb(e);
+      }
+
+      for e in &self.zn_primary {
+        hasher.absorb(*e);
+      }
+
+      self.r_U_secondary.absorb_in_ro(&mut hasher);
+
+      let mut hasher2 =
+        <G1 as Group>::RO::new(pp.ro_consts_primary.clone(), num_field_secondary_ro);
+
+      hasher2.absorb(scalar_as_base::<G1>(pp.digest()));
+      hasher2.absorb(G2::Scalar::from(self.num_steps as u64));
+
+      for e in z0_secondary {
+        hasher2.absorb(e);
+      }
+
+      for e in &self.zn_secondary {
+        hasher2.absorb(*e);
+      }
+
+      self.r_U_primary.iter().for_each(|U| {
+        U.absorb_in_ro(&mut hasher2);
+      });
+
+      (
+        hasher.squeeze(NUM_HASH_BITS),
+        hasher2.squeeze(NUM_HASH_BITS),
+      )
+    };
+
+    if hash_primary != self.l_u_secondary.X[0] {
+      return Err(NovaError::ProofVerifyError.into());
+    }
+
+    if hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.X[1]) {
+      return Err(NovaError::ProofVerifyError.into());
+    }
+
+    let res_primary = self
+      .r_W_snark_primary
+      .verify(&vk.vk_primary, &self.r_U_primary);
+
+    let f_U_secondary = self.nifs_secondary.verify(
+      &pp.ro_consts_secondary,
+      &scalar_as_base::<G1>(pp.digest()),
+      &self.r_U_secondary,
+      &self.l_u_secondary,
+    )?;
+
+    let res_secondary = self
+      .f_W_snark_secondary
+      .verify(&vk.vk_secondary, &f_U_secondary);
+
+    res_primary?;
+
+    res_secondary?;
+
+    Ok((self.zn_primary.clone(), self.zn_secondary.clone()))
   }
 }
 
