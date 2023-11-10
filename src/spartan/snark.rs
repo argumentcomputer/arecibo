@@ -513,7 +513,7 @@ pub(super) fn batch_eval_prove<G: Group>(
 
 /// Verifies a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
-fn batch_eval_verify<G: Group>(
+pub(super) fn batch_eval_verify<G: Group>(
   u_vec: Vec<PolyEvalInstance<G>>,
   transcript: &mut G::TE,
   sc_proof_batch: &SumcheckProof<G>,
