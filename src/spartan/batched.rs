@@ -5,6 +5,11 @@ use std::marker::PhantomData;
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
+use abomonation::Abomonation;
+use abomonation_derive::Abomonation;
+use once_cell::sync::OnceCell;
+use rayon::prelude::*;
+
 use super::{
   compute_eval_table_sparse,
   math::Math,
@@ -14,14 +19,18 @@ use super::{
   sumcheck::SumcheckProof,
   PolyEvalInstance, PolyEvalWitness,
 };
-use crate::errors::NovaError;
-use crate::r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness};
-use crate::traits::{
-  evaluation::EvaluationEngineTrait,
-  snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
-  Group, TranscriptEngineTrait,
+use crate::{
+  digest::{DigestComputer, SimpleDigestible},
+  errors::NovaError,
+  r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness, SparseMatrix},
+  spartan::{polys::multilinear::SparsePolynomial, snark::batch_eval_verify},
+  traits::{
+    evaluation::EvaluationEngineTrait,
+    snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
+    Group, TranscriptEngineTrait,
+  },
+  CommitmentKey,
 };
-use crate::CommitmentKey;
 
 ///TODO: Doc
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -47,15 +56,40 @@ pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
 }
 
 /// TODO: Doc
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
+#[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
 pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
-  _p: PhantomData<(G, EE)>,
+  vk_ee: EE::VerifierKey,
+  S: Vec<R1CSShape<G>>,
+  #[abomonation_skip]
+  #[serde(skip, default = "OnceCell::new")]
+  digest: OnceCell<G::Scalar>,
 }
 
+impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
+  fn new(shapes: Vec<R1CSShape<G>>, vk_ee: EE::VerifierKey) -> Self {
+    VerifierKey {
+      vk_ee,
+      S: shapes,
+      digest: OnceCell::new(),
+    }
+  }
+}
+
+impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
+
 impl<G: Group, EE: EvaluationEngineTrait<G>> DigestHelperTrait<G> for VerifierKey<G, EE> {
-  fn digest(&self) -> <G as Group>::Scalar {
-    todo!()
+  /// Returns the digest of the verifier's key.
+  fn digest(&self) -> G::Scalar {
+    self
+      .digest
+      .get_or_try_init(|| {
+        let dc = DigestComputer::<G::Scalar, _>::new(self);
+        dc.digest()
+      })
+      .cloned()
+      .expect("Failure to retrieve digest!")
   }
 }
 
@@ -205,7 +239,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
-    let coeffs = powers::<G>(&outer_r, S.len());
+    let outer_r_powers = powers::<G>(&outer_r, S.len());
 
     // Verify outer sumcheck: Az * Bz * Cz - uCz_E for each instance
     let (sc_proof_outer, r_x, _claim_tau, claims_outer): (
@@ -220,7 +254,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       &mut vec_poly_Az,
       &mut vec_poly_Bz,
       &mut vec_poly_uCz_E,
-      &coeffs,
+      &outer_r_powers,
       comb_func_outer,
       &mut transcript,
     )?;
@@ -253,20 +287,19 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       });
 
     let inner_r = transcript.squeeze(b"in_r")?;
-
-    let inner_r_cube = inner_r * inner_r * inner_r;
-
+    let inner_r_square = inner_r.square();
+    let inner_r_cube = inner_r_square * inner_r;
     let inner_r_powers = powers::<G>(&inner_r_cube, S.len());
 
     let claim_inner_joint = inner_r_powers
-      .into_iter()
+      .iter()
       .zip(claims_Az.iter())
       .zip(claims_Bz.iter())
       .zip(claims_Cz.iter())
       .fold(
         G::Scalar::ZERO,
         |acc, (((r_i, claim_Az), claim_Bz), claim_Cz)| {
-          acc + r_i * (*claim_Az + inner_r * claim_Bz + inner_r * inner_r * claim_Cz)
+          acc + *r_i * (*claim_Az + inner_r * claim_Bz + inner_r * inner_r * claim_Cz)
         },
       );
 
@@ -292,7 +325,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
           .into_iter()
           .zip(M_evals_Bs)
           .zip(M_evals_Cs)
-          .map(|((eval_A, eval_B), eval_C)| eval_A + inner_r * eval_B + inner_r * inner_r * eval_C)
+          .map(|((eval_A, eval_B), eval_C)| eval_A + inner_r * eval_B + inner_r_square * eval_C)
           .collect::<Vec<_>>()
       };
 
@@ -323,7 +356,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
         num_rounds_y,
         &mut poly_ABCs,
         &mut poly_zs,
-        &coeffs,
+        &inner_r_powers,
         comb_func,
         &mut transcript,
       )?;
@@ -390,11 +423,227 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
     })
   }
 
-  fn verify(
-    &self,
-    _vk: &Self::VerifierKey,
-    _U: &[RelaxedR1CSInstance<G>],
-  ) -> Result<(), NovaError> {
+  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<G>]) -> Result<(), NovaError> {
+    let mut transcript = G::TE::new(b"BatchedRelaxedR1CSSNARK");
+
+    transcript.absorb(b"vk", &vk.digest());
+    U.iter().for_each(|u| {
+      transcript.absorb(b"U", u);
+    });
+
+    let (num_vars_x, num_vars_y): (Vec<_>, Vec<_>) = vk
+      .S
+      .iter()
+      .map(|s| (s.num_cons.log_2(), s.num_vars.log_2() + 1))
+      .unzip();
+    let num_rounds_x = *num_vars_x.iter().max().unwrap();
+    let num_rounds_y = *num_vars_y.iter().max().unwrap();
+
+    let tau_poly = {
+      let mut tau = transcript.squeeze(b"t")?;
+
+      // The MLE of eq(τ, τ², τ⁴ , …) is a polynomial whose evaluations are
+      // (1, τ, τ², τ³, …)
+      let tau_vars = (0..num_rounds_x)
+        .map(|_| {
+          let t = tau;
+          tau = tau.square();
+          t
+        })
+        .collect::<Vec<_>>();
+
+      Ok(EqPolynomial::new(tau_vars))
+    }?;
+
+    // Sample challenge for random linear-combination of outer claims
+    let outer_r = transcript.squeeze(b"out_r")?;
+    let coeffs = powers::<G>(&outer_r, vk.S.len());
+
+    let (claim_outer_final, r_x) =
+      self
+        .sc_proof_outer
+        .verify(G::Scalar::ZERO, num_rounds_x, 3, &mut transcript)?;
+
+    // Extract evaluations into a vector [(Azᵢ, Bzᵢ, Czᵢ, Eᵢ)]
+    let ABCE_evals = self
+      .evals_E
+      .iter()
+      .zip(self.claims_outer.0.iter())
+      .zip(self.claims_outer.1.iter())
+      .zip(self.claims_outer.2.iter())
+      .map(|(((&eval_E, &claim_Az), &claim_Bz), &claim_Cz)| (claim_Az, claim_Bz, claim_Cz, eval_E))
+      .collect::<Vec<_>>();
+
+    // Add evaluations of Az, Bz, Cz, E to transcript
+    ABCE_evals
+      .iter()
+      .cloned()
+      .for_each(|(claim_Az, claim_Bz, claim_Cz, eval_E)| {
+        transcript.absorb(
+          b"claims_outer",
+          &[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),
+        )
+      });
+
+    // Evaluate τ(rₓ)
+    let tau_eval = tau_poly.evaluate(&r_x);
+
+    // Compute expected claim τ(rₓ)⋅∑ᵢ rⁱ⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
+    let claim_outer_final_expected = tau_eval
+      * ABCE_evals
+        .iter()
+        .zip(U.iter())
+        .map(|((claim_Az, claim_Bz, claim_Cz, eval_E), u)| {
+          *claim_Az * claim_Bz - u.u * claim_Cz - eval_E
+        })
+        .zip(coeffs.iter())
+        .map(|(claim, coeff)| claim * coeff)
+        .sum::<G::Scalar>();
+
+    if claim_outer_final != claim_outer_final_expected {
+      return Err(NovaError::InvalidSumcheckProof);
+    }
+
+    let inner_r = transcript.squeeze(b"in_r")?;
+    let inner_r_square = inner_r.square();
+    let inner_r_cube = inner_r_square * inner_r;
+    let inner_r_powers = powers::<G>(&inner_r_cube, vk.S.len());
+
+    // Compute inner claim ∑ᵢ r³ⁱ⋅(Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ)
+    let claim_inner_joint = ABCE_evals
+      .iter()
+      .map(|(claim_Az, claim_Bz, claim_Cz, _)| {
+        *claim_Az + inner_r * *claim_Bz + inner_r_square * *claim_Cz
+      })
+      .zip(inner_r_powers.iter())
+      .fold(G::Scalar::ZERO, |acc, (claim, r_i)| acc + claim * r_i);
+
+    let (claim_inner_final, r_y) =
+      self
+        .sc_proof_inner
+        .verify(claim_inner_joint, num_rounds_y, 2, &mut transcript)?;
+
+    // Compute evaluations of Zᵢ = [Wᵢ, uᵢ, Xᵢ] at r_y
+    // Zᵢ(r_y) = (1−r_y[0])⋅W(r_y[1..]) + r_y[0]⋅MLE([uᵢ, Xᵢ])(r_y[1..])
+    let evals_Z = self
+      .evals_W
+      .iter()
+      .zip(U.iter())
+      .zip(num_vars_y.iter())
+      .map(|((eval_W, U), &num_vars)| {
+        let eval_X = {
+          // constant term
+          let mut poly_X = vec![(0, U.u)];
+          //remaining inputs
+          poly_X.extend(
+            U.X
+              .iter()
+              .enumerate()
+              .map(|(i, x_i)| (i + 1, *x_i))
+              .collect::<Vec<(usize, G::Scalar)>>(),
+          );
+          SparsePolynomial::new(num_vars - 1, poly_X).evaluate(&r_y[1..num_vars])
+        };
+        (G::Scalar::ONE - r_y[0]) * eval_W + r_y[0] * eval_X
+      })
+      .collect::<Vec<_>>();
+
+    // compute evaluations of R1CS matrices M(r_x, r_y) = eq(r_y)ᵀ⋅M⋅eq(r_x)
+    let multi_evaluate = |M_vec: &[&SparseMatrix<G::Scalar>],
+                          r_x: &[G::Scalar],
+                          r_y: &[G::Scalar]|
+     -> Vec<G::Scalar> {
+      let evaluate_with_table =
+        |M: &SparseMatrix<G::Scalar>, T_x: &[G::Scalar], T_y: &[G::Scalar]| -> G::Scalar {
+          M.indptr
+            .par_windows(2)
+            .enumerate()
+            .map(|(row_idx, ptrs)| {
+              M.get_row_unchecked(ptrs.try_into().unwrap())
+                .map(|(val, col_idx)| T_x[row_idx] * T_y[*col_idx] * val)
+                .sum::<G::Scalar>()
+            })
+            .sum()
+        };
+
+      let (T_x, T_y) = rayon::join(
+        || EqPolynomial::new(r_x.to_vec()).evals(),
+        || EqPolynomial::new(r_y.to_vec()).evals(),
+      );
+
+      (0..M_vec.len())
+        .into_par_iter()
+        .map(|i| evaluate_with_table(M_vec[i], &T_x, &T_y))
+        .collect()
+    };
+
+    // Compute inner claim ∑ᵢ r³ⁱ⋅(Aᵢ(r_x, r_y) + r⋅Bᵢ(r_x, r_y) + r²⋅Cᵢ(r_x, r_y))⋅Zᵢ(r_y)
+    let claim_inner_final_expected = vk
+      .S
+      .iter()
+      .zip(num_vars_x.iter().zip(num_vars_y.iter()))
+      .map(|(S, (&vars_x, &vars_y))| {
+        let evals = multi_evaluate(&[&S.A, &S.B, &S.C], &r_x[..vars_x], &r_y[..vars_y]);
+        evals[0] + inner_r * evals[1] + inner_r_square * evals[2]
+      })
+      .zip(evals_Z.iter())
+      .zip(inner_r_powers.iter())
+      .fold(G::Scalar::ZERO, |acc, ((eval, r_i), eval_Z)| {
+        acc + eval * r_i * eval_Z
+      });
+
+    if claim_inner_final != claim_inner_final_expected {
+      return Err(NovaError::InvalidSumcheckProof);
+    }
+
+    // Create evaluation instances for W(r_y[1..]) and E(r_x)
+    let u_vec = {
+      let mut u_vec = Vec::with_capacity(2 * vk.S.len());
+      u_vec.extend(
+        self
+          .evals_W
+          .iter()
+          .zip(U.iter())
+          .zip(num_vars_y.iter())
+          .map(|((&eval, u), &num_vars)| PolyEvalInstance {
+            c: u.comm_W,
+            x: r_y[1..num_vars].to_vec(),
+            e: eval,
+          }),
+      );
+
+      u_vec.extend(
+        self
+          .evals_E
+          .iter()
+          .zip(U.iter())
+          .zip(num_vars_x.iter())
+          .map(|((&eval, u), &num_vars)| PolyEvalInstance {
+            c: u.comm_E,
+            x: r_x[..num_vars].to_vec(),
+            e: eval,
+          }),
+      );
+      u_vec
+    };
+
+    let batched_u = batch_eval_verify(
+      u_vec,
+      &mut transcript,
+      &self.sc_proof_batch,
+      &self.evals_batch,
+    )?;
+
+    // verify
+    EE::verify(
+      &vk.vk_ee,
+      &mut transcript,
+      &batched_u.c,
+      &batched_u.x,
+      &batched_u.e,
+      &self.eval_arg,
+    )?;
+
     todo!()
   }
 }
