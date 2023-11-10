@@ -430,7 +430,7 @@ where
 
 /// Proves a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
-fn batch_eval_prove<G: Group>(
+pub(super) fn batch_eval_prove<G: Group>(
   u_vec: Vec<PolyEvalInstance<G>>,
   w_vec: Vec<PolyEvalWitness<G>>,
   transcript: &mut G::TE,
