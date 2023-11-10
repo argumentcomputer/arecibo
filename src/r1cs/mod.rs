@@ -104,8 +104,8 @@ pub fn commitment_key_size<G: Group>(
 ) -> usize {
   let num_cons = S.num_cons;
   let num_vars = S.num_vars;
-  let generators_hint = commitment_key_floor(S);
-  max(max(num_cons, num_vars), generators_hint)
+  let ck_hint = commitment_key_floor(S);
+  max(max(num_cons, num_vars), ck_hint)
 }
 
 impl<G: Group> R1CSShape<G> {

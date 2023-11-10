@@ -172,11 +172,12 @@ where
   ///
   /// let circuit1 = TrivialCircuit::<<G1 as Group>::Scalar>::default();
   /// let circuit2 = TrivialCircuit::<<G2 as Group>::Scalar>::default();
-  /// // Only relevant for a SNARK using computational commitments, pass &(|_| 0) otherwise.
-  /// let pp_hint1 = &*SPrime::<G1>::commitment_key_floor();
-  /// let pp_hint2 = &*SPrime::<G2>::commitment_key_floor();
+  /// // Only relevant for a SNARK using computational commitments, pass &(|_| 0)
+  /// // or &*nova_snark::traits::snark::default_commitment_key_hint() otherwise.
+  /// let ck_hint1 = &*SPrime::<G1>::commitment_key_floor();
+  /// let ck_hint2 = &*SPrime::<G2>::commitment_key_floor();
   ///
-  /// let pp = PublicParams::new(&circuit1, &circuit2, pp_hint1, pp_hint2);
+  /// let pp = PublicParams::new(&circuit1, &circuit2, ck_hint1, ck_hint2);
   /// ```
   pub fn new(
     c_primary: &C1,
@@ -542,24 +543,23 @@ where
     z0_secondary: &[G2::Scalar],
   ) -> Result<(Vec<G1::Scalar>, Vec<G2::Scalar>), NovaError> {
     // number of steps cannot be zero
-    if num_steps == 0 {
-      return Err(NovaError::ProofVerifyError);
-    }
+    let is_num_steps_zero = num_steps == 0;
 
     // check if the provided proof has executed num_steps
-    if self.i != num_steps {
-      return Err(NovaError::ProofVerifyError);
-    }
+    let is_num_steps_not_match = self.i != num_steps;
 
     // check if the initial inputs match
-    if self.z0_primary != z0_primary || self.z0_secondary != z0_secondary {
-      return Err(NovaError::ProofVerifyError);
-    }
+    let is_inputs_not_match = self.z0_primary != z0_primary || self.z0_secondary != z0_secondary;
 
     // check if the (relaxed) R1CS instances have two public outputs
-    if self.l_u_secondary.X.len() != 2
+    let is_instance_has_two_outpus = self.l_u_secondary.X.len() != 2
       || self.r_U_primary.X.len() != 2
-      || self.r_U_secondary.X.len() != 2
+      || self.r_U_secondary.X.len() != 2;
+
+    if is_num_steps_zero
+      || is_num_steps_not_match
+      || is_inputs_not_match
+      || is_instance_has_two_outpus
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -1033,9 +1033,9 @@ mod tests {
     <G2::Scalar as PrimeField>::Repr: Abomonation,
   {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
-    let pp_hint1 = &*SPrime::<G1, E1>::commitment_key_floor();
-    let pp_hint2 = &*SPrime::<G2, E2>::commitment_key_floor();
-    let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, pp_hint1, pp_hint2);
+    let ck_hint1 = &*SPrime::<G1, E1>::commitment_key_floor();
+    let ck_hint2 = &*SPrime::<G2, E2>::commitment_key_floor();
+    let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, ck_hint1, ck_hint2);
 
     let digest_str = pp
       .digest()
