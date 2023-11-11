@@ -375,7 +375,7 @@ impl<G: Group> SumcheckProof<G> {
   where
     F: Fn(&G::Scalar, &G::Scalar, &G::Scalar, &G::Scalar) -> G::Scalar + Sync,
   {
-    let r: Vec<G::Scalar> = Vec::new();
+    let mut r: Vec<G::Scalar> = Vec::new();
     let mut polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
     let mut claim_per_round = *claim;
 
@@ -408,6 +408,8 @@ impl<G: Group> SumcheckProof<G> {
 
       //derive the verifier's challenge for the next round
       let r_i = transcript.squeeze(b"c")?;
+      r.push(r_i);
+
       polys.push(poly.compress());
 
       // Set up next round
