@@ -369,6 +369,7 @@ impl<G: Group> R1CSShape<G> {
       .in_scope(|| self.multiply_witness(&W2.W, &U2.one_and_X))?;
 
     // this doesn't allocate memory but has bad temporal cache locality -- should test to see which is faster
+    T.clear();
     tracing::trace_span!("T").in_scope(|| {
       (0..AZ_1.len())
         .into_par_iter()
@@ -451,9 +452,10 @@ impl<G: Group> R1CSShape<G> {
 impl<G: Group> R1CSWitness<G> {
   /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
   pub fn default(S: &R1CSShape<G>) -> R1CSWitness<G> {
-    R1CSWitness {
-      W: Vec::with_capacity(S.num_vars),
-    }
+    let mut W = vec![G::Scalar::ZERO; S.num_vars];
+    W.shrink_to_fit();
+
+    R1CSWitness { W }
   }
 
   /// A method to create a witness object using a vector of scalars
@@ -475,10 +477,10 @@ impl<G: Group> R1CSInstance<G> {
   /// Produces a default `R1CSInstance` given `CommitmentKey` and `R1CSShape`
   pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> R1CSInstance<G> {
     let comm_W = Commitment::<G>::default();
-    R1CSInstance {
-      comm_W,
-      one_and_X: Vec::with_capacity(S.num_io + 1),
-    }
+    let mut one_and_X = vec![G::Scalar::ZERO; S.num_io + 1];
+    one_and_X[0] = G::Scalar::ONE;
+    one_and_X.shrink_to_fit();
+    R1CSInstance { comm_W, one_and_X }
   }
 
   /// A method to create an instance object using consitituent elements
@@ -508,18 +510,20 @@ impl<G: Group> AbsorbInROTrait<G> for R1CSInstance<G> {
 impl<G: Group> RelaxedR1CSWitness<G> {
   /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
   pub fn default(S: &R1CSShape<G>) -> RelaxedR1CSWitness<G> {
-    RelaxedR1CSWitness {
-      W: Vec::with_capacity(S.num_vars),
-      E: Vec::with_capacity(S.num_cons),
-    }
+    let mut W = vec![G::Scalar::ZERO; S.num_vars];
+    W.shrink_to_fit();
+    let mut E = vec![G::Scalar::ZERO; S.num_cons];
+    E.shrink_to_fit();
+
+    RelaxedR1CSWitness { W, E }
   }
 
   /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
   pub fn from_r1cs_witness(S: &R1CSShape<G>, witness: R1CSWitness<G>) -> RelaxedR1CSWitness<G> {
-    RelaxedR1CSWitness {
-      W: witness.W,
-      E: Vec::with_capacity(S.num_cons),
-    }
+    let mut E = vec![G::Scalar::ZERO; S.num_cons];
+    E.shrink_to_fit();
+
+    RelaxedR1CSWitness { W: witness.W, E }
   }
 
   /// Commits to the witness using the supplied generators
@@ -595,10 +599,13 @@ impl<G: Group> RelaxedR1CSInstance<G> {
   /// Produces a default `RelaxedR1CSInstance` given `R1CSGens` and `R1CSShape`
   pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> RelaxedR1CSInstance<G> {
     let (comm_W, comm_E) = (Commitment::<G>::default(), Commitment::<G>::default());
+    let mut u_and_X = vec![G::Scalar::ZERO; S.num_io + 1];
+    u_and_X.shrink_to_fit();
+
     RelaxedR1CSInstance {
       comm_W,
       comm_E,
-      u_and_X: Vec::with_capacity(S.num_io + 1),
+      u_and_X,
     }
   }
 

@@ -450,14 +450,6 @@ where
     self.r_U_secondary.u_and_X.shrink_to_fit();
   }
 
-  /// Clear the input buffers for a new Nova step
-  fn clear_inputs(&mut self) {
-    self.r_U_primary.u_and_X.clear();
-    self.r_U_secondary.u_and_X.clear();
-    self.l_u_primary.one_and_X.clear();
-    self.l_u_secondary.one_and_X.clear();
-  }
-
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
   /// by executing a step of the incremental computation
   #[tracing::instrument(skip_all, name = "nova::RecursiveSNARK::prove_step")]
@@ -476,11 +468,8 @@ where
     // save the inputs before proceeding to the `i+1`th step
     let r_U_primary_i = self.r_U_primary.clone();
     let r_U_secondary_i = self.r_U_secondary.clone();
-    let l_u_primary_i = self.l_u_primary.clone();
+    // let l_u_primary_i = self.l_u_primary.clone();
     let l_u_secondary_i = self.l_u_secondary.clone();
-
-    // clear the input buffers for the next step
-    self.clear_inputs();
 
     // fold the secondary circuit's instance
     // increments `r_U_secondary` and `r_W_secondary`
@@ -528,6 +517,7 @@ where
     //   .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
     //   .map_err(|_e| NovaError::UnSat)
     //   .expect("Nova error unsat");
+    self.l_u_primary.comm_W = self.l_w_primary.commit(&pp.ck_primary);
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
@@ -553,8 +543,8 @@ where
       G2::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
-      Some(r_U_primary_i), // this clone is ok since the inputs are small
-      Some(l_u_primary_i),
+      Some(r_U_primary_i),
+      Some(self.l_u_primary.clone()),
       Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
     );
 
@@ -572,6 +562,7 @@ where
     // let (l_u_secondary, l_w_secondary) = cs_secondary
     //   .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
     //   .map_err(|_e| NovaError::UnSat)?;
+    self.l_u_secondary.comm_W = self.l_w_secondary.commit(&pp.ck_secondary);
 
     // update the running instances and witnesses
     self.zi_primary = zi_primary
