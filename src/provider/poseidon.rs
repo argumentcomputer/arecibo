@@ -229,7 +229,10 @@ mod tests {
     let mut ro: PoseidonRO<E::Scalar, E::Base> = PoseidonRO::new(constants.clone(), num_absorbs);
     let mut ro_gadget: PoseidonROCircuit<E::Scalar> =
       PoseidonROCircuit::new(constants, num_absorbs);
-    let mut cs = SatisfyingAssignment::<E>::new();
+
+    // Create the witness
+    let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
+    let mut cs = WitnessViewCS::<G::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
     for i in 0..num_absorbs {
       let num = E::Scalar::random(&mut csprng);
       ro.absorb(num);
