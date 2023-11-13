@@ -811,29 +811,29 @@ where
     {
       for (i, r_U_primary_i) in self.r_U_primary.iter().enumerate() {
         if let Some(u) = r_U_primary_i {
-          if u.X.len() != 2 {
+          if u.u_and_X.len() != 3 {
             debug!(
               "r_U_primary[{:?}] got instance length {:?} != 2",
               i,
-              u.X.len(),
+              u.u_and_X.len() - 1,
             );
             return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
           }
         }
       }
 
-      if self.l_u_secondary.X.len() != 2 {
+      if self.l_u_secondary.one_and_X.len() != 3 {
         debug!(
           "l_U_secondary got instance length {:?} != 2",
-          self.l_u_secondary.X.len(),
+          self.l_u_secondary.one_and_X.len() - 1,
         );
         return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
       }
 
-      if self.r_U_secondary.X.len() != 2 {
+      if self.r_U_secondary.u_and_X.len() != 3 {
         debug!(
           "r_U_secondary got instance length {:?} != 2",
-          self.r_U_secondary.X.len(),
+          self.r_U_secondary.u_and_X.len() - 1,
         );
         return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
       }
@@ -890,17 +890,17 @@ where
       )
     };
 
-    if hash_primary != self.l_u_secondary.X[0] {
+    if hash_primary != self.l_u_secondary.one_and_X[1] {
       debug!(
         "hash_primary {:?} not equal l_u_secondary.X[0] {:?}",
-        hash_primary, self.l_u_secondary.X[0]
+        hash_primary, self.l_u_secondary.one_and_X[1]
       );
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
-    if hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.X[1]) {
+    if hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.one_and_X[2]) {
       debug!(
         "hash_secondary {:?} not equal l_u_secondary.X[1] {:?}",
-        hash_secondary, self.l_u_secondary.X[1]
+        hash_secondary, self.l_u_secondary.one_and_X[2]
       );
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }

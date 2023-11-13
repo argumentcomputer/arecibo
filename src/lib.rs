@@ -413,7 +413,7 @@ where
       .collect::<Result<Vec<<G2 as Group>::Scalar>, NovaError>>()
       .expect("Nova error synthesis");
 
-    Ok(Self {
+    let mut recursive_snark = Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
 
@@ -434,14 +434,28 @@ where
       zi_primary,
       zi_secondary,
       _p: Default::default(),
-    })
+    };
+
+    // resize the witness buffers to be as snug as possible
+    recursive_snark.shrink_to_fit();
+
+    Ok(recursive_snark)
   }
 
+  /// Shrink the witness buffers to the exact size they need to be
+  fn shrink_to_fit(&mut self) {
+    self.r_W_primary.W.shrink_to_fit();
+    self.r_U_primary.u_and_X.shrink_to_fit();
+    self.r_W_secondary.W.shrink_to_fit();
+    self.r_U_secondary.u_and_X.shrink_to_fit();
+  }
+
+  /// Clear the input buffers for a new Nova step
   fn clear_inputs(&mut self) {
-    self.r_U_primary.X.clear();
-    self.r_U_secondary.X.clear();
-    self.l_u_primary.X.clear();
-    self.l_u_secondary.X.clear();
+    self.r_U_primary.u_and_X.clear();
+    self.r_U_secondary.u_and_X.clear();
+    self.l_u_primary.one_and_X.clear();
+    self.l_u_secondary.one_and_X.clear();
   }
 
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
@@ -484,8 +498,10 @@ where
     .expect("Unable to fold secondary");
 
     // increment `l_u_primary` and `l_w_primary`
-    let mut cs_primary =
-      WitnessViewCS::<G1::Scalar>::new_view(&mut self.l_u_primary.X, &mut self.l_w_primary.W);
+    let mut cs_primary = WitnessViewCS::<G1::Scalar>::new_view(
+      &mut self.l_u_primary.one_and_X,
+      &mut self.l_w_primary.W,
+    );
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<G1>(pp.digest()),
       G1::Scalar::from(self.i as u64),
@@ -528,8 +544,10 @@ where
     .expect("Unable to fold primary");
 
     // increment `l_u_secondary` and `l_w_secondary`
-    let mut cs_secondary =
-      WitnessViewCS::<G2::Scalar>::new_view(&mut self.l_u_secondary.X, &mut self.l_w_secondary.W);
+    let mut cs_secondary = WitnessViewCS::<G2::Scalar>::new_view(
+      &mut self.l_u_secondary.one_and_X,
+      &mut self.l_w_secondary.W,
+    );
     let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       G2::Scalar::from(self.i as u64),
@@ -587,14 +605,15 @@ where
     let is_inputs_not_match = self.z0_primary != z0_primary || self.z0_secondary != z0_secondary;
 
     // check if the (relaxed) R1CS instances have two public outputs
-    let is_instance_has_two_outpus = self.l_u_secondary.X.len() != 2
-      || self.r_U_primary.X.len() != 2
-      || self.r_U_secondary.X.len() != 2;
+    let is_instance_has_two_outputs = self.l_u_secondary.one_and_X.len() != 3
+      || self.l_u_secondary.one_and_X[0] != G2::Scalar::ONE
+      || self.r_U_primary.u_and_X.len() != 3
+      || self.r_U_secondary.u_and_X.len() != 3;
 
     if is_num_steps_zero
       || is_num_steps_not_match
       || is_inputs_not_match
-      || is_instance_has_two_outpus
+      || is_instance_has_two_outputs
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -635,8 +654,8 @@ where
       )
     };
 
-    if hash_primary != self.l_u_secondary.X[0]
-      || hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.X[1])
+    if hash_primary != self.l_u_secondary.one_and_X[1]
+      || hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.one_and_X[2])
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -869,9 +888,10 @@ where
     }
 
     // check if the (relaxed) R1CS instances have two public outputs
-    if self.l_u_secondary.X.len() != 2
-      || self.r_U_primary.X.len() != 2
-      || self.r_U_secondary.X.len() != 2
+    if self.l_u_secondary.one_and_X.len() != 3
+      || self.l_u_secondary.one_and_X[0] != G2::Scalar::ONE
+      || self.r_U_primary.u_and_X.len() != 3
+      || self.r_U_secondary.u_and_X.len() != 3
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -912,8 +932,8 @@ where
       )
     };
 
-    if hash_primary != self.l_u_secondary.X[0]
-      || hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.X[1])
+    if hash_primary != self.l_u_secondary.one_and_X[1]
+      || hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.one_and_X[2])
     {
       return Err(NovaError::ProofVerifyError);
     }

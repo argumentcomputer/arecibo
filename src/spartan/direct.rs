@@ -135,7 +135,7 @@ impl<G: Group, S: RelaxedR1CSSNARKTrait<G>, C: StepCircuit<G::Scalar>> DirectSNA
 
     // convert the instance and witness to relaxed form
     let (u_relaxed, w_relaxed) = (
-      RelaxedR1CSInstance::from_r1cs_instance_unchecked(u.comm_W, u.X),
+      RelaxedR1CSInstance::from_r1cs_instance_unchecked(u.comm_W, &u.one_and_X[1..]),
       RelaxedR1CSWitness::from_r1cs_witness(&pk.S, w),
     );
 
@@ -152,7 +152,7 @@ impl<G: Group, S: RelaxedR1CSSNARKTrait<G>, C: StepCircuit<G::Scalar>> DirectSNA
   /// Verifies a proof of satisfiability
   pub fn verify(&self, vk: &VerifierKey<G, S>, io: &[G::Scalar]) -> Result<(), NovaError> {
     // construct an instance using the provided commitment to the witness and z_i and z_{i+1}
-    let u_relaxed = RelaxedR1CSInstance::from_r1cs_instance_unchecked(self.comm_W, io.to_vec());
+    let u_relaxed = RelaxedR1CSInstance::from_r1cs_instance_unchecked(self.comm_W, io);
 
     // verify the snark using the constructed instance
     self.snark.verify(&vk.vk, &u_relaxed)?;

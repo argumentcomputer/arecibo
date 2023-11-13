@@ -39,8 +39,10 @@ impl<G: Group> AllocatedR1CSInstance<G> {
     )?;
     W.check_on_curve(cs.namespace(|| "check W on curve"))?;
 
-    let X0 = alloc_scalar_as_base::<G, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.X[0]))?;
-    let X1 = alloc_scalar_as_base::<G, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.X[1]))?;
+    let X0 =
+      alloc_scalar_as_base::<G, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.one_and_X[1]))?;
+    let X1 =
+      alloc_scalar_as_base::<G, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.one_and_X[2]))?;
 
     Ok(AllocatedR1CSInstance { W, X0, X1 })
   }
@@ -88,19 +90,30 @@ impl<G: Group> AllocatedRelaxedR1CSInstance<G> {
 
     // u << |G::Base| despite the fact that u is a scalar.
     // So we parse all of its bytes as a G::Base element
-    let u = alloc_scalar_as_base::<G, _>(cs.namespace(|| "allocate u"), inst.map(|inst| inst.u))?;
+    let u = alloc_scalar_as_base::<G, _>(
+      cs.namespace(|| "allocate u"),
+      inst.map(|inst| inst.u_and_X[0]),
+    )?;
 
     // Allocate X0 and X1. If the input instance is None, then allocate default values 0.
     let X0 = BigNat::alloc_from_nat(
       cs.namespace(|| "allocate X[0]"),
-      || Ok(f_to_nat(&inst.map_or(G::Scalar::ZERO, |inst| inst.X[0]))),
+      || {
+        Ok(f_to_nat(
+          &inst.map_or(G::Scalar::ZERO, |inst| inst.u_and_X[1]),
+        ))
+      },
       limb_width,
       n_limbs,
     )?;
 
     let X1 = BigNat::alloc_from_nat(
       cs.namespace(|| "allocate X[1]"),
-      || Ok(f_to_nat(&inst.map_or(G::Scalar::ZERO, |inst| inst.X[1]))),
+      || {
+        Ok(f_to_nat(
+          &inst.map_or(G::Scalar::ZERO, |inst| inst.u_and_X[2]),
+        ))
+      },
       limb_width,
       n_limbs,
     )?;

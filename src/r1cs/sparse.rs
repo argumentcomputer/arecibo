@@ -4,8 +4,6 @@
 //! Specifically, we implement sparse matrix / dense vector multiplication
 //! to compute the `A z`, `B z`, and `C z` in Nova.
 
-use std::cmp::Ordering;
-
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::PrimeField;
@@ -121,10 +119,10 @@ impl<F: PrimeField> SparseMatrix<F> {
   }
 
   /// Multiply by a witness representing a dense vector; uses rayon/gpu.
-  pub fn multiply_witness(&self, W: &[F], u: &F, X: &[F]) -> Vec<F> {
-    assert_eq!(self.cols, W.len() + X.len() + 1, "invalid shape");
+  pub fn multiply_witness(&self, W: &[F], u_and_X: &[F]) -> Vec<F> {
+    assert_eq!(self.cols, W.len() + u_and_X.len(), "invalid shape");
 
-    self.multiply_witness_unchecked(W, u, X)
+    self.multiply_witness_unchecked(W, u_and_X)
   }
 
   /// Multiply by a witness representing a dense vector; uses rayon/gpu.
@@ -134,7 +132,7 @@ impl<F: PrimeField> SparseMatrix<F> {
     level = "trace",
     name = "SparseMatrix::multiply_vec_unchecked"
   )]
-  pub fn multiply_witness_unchecked(&self, W: &[F], u: &F, X: &[F]) -> Vec<F> {
+  pub fn multiply_witness_unchecked(&self, W: &[F], u_and_X: &[F]) -> Vec<F> {
     let num_vars = W.len();
     // preallocate the result vector
     let mut result = Vec::with_capacity(self.indptr.len() - 1);
@@ -145,10 +143,10 @@ impl<F: PrimeField> SparseMatrix<F> {
         self
           .get_row_unchecked(ptrs.try_into().unwrap())
           .fold(F::ZERO, |acc, (val, col_idx)| {
-            let val = match col_idx.cmp(&num_vars) {
-              Ordering::Less => *val * W[*col_idx],
-              Ordering::Equal => *val * X[*col_idx - num_vars],
-              Ordering::Greater => *val * u,
+            if *col_idx < num_vars {
+              *val * W[*col_idx]
+            } else {
+              *val * u_and_X[*col_idx - num_vars]
             };
             acc + val
           })

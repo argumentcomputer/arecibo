@@ -141,7 +141,7 @@ where
     transcript.absorb(b"U", U);
 
     // compute the full satisfying assignment by concatenating W.W, U.u, and U.X
-    let mut z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
+    let mut z = [W.W.clone(), U.u_and_X.clone()].concat();
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(S.num_cons.ilog2()).unwrap(),
@@ -157,7 +157,7 @@ where
     let (mut poly_Az, mut poly_Bz, poly_Cz, mut poly_uCz_E) = {
       let (poly_Az, poly_Bz, poly_Cz) = S.multiply_vec(&z)?;
       let poly_uCz_E = (0..S.num_cons)
-        .map(|i| U.u * poly_Cz[i] + W.E[i])
+        .map(|i| U.u_and_X[0] * poly_Cz[i] + W.E[i])
         .collect::<Vec<G::Scalar>>();
       (
         MultilinearPolynomial::new(poly_Az),
@@ -351,7 +351,7 @@ where
     let (claim_Az, claim_Bz, claim_Cz) = self.claims_outer;
     let taus_bound_rx = EqPolynomial::new(tau).evaluate(&r_x);
     let claim_outer_final_expected =
-      taus_bound_rx * (claim_Az * claim_Bz - U.u * claim_Cz - self.eval_E);
+      taus_bound_rx * (claim_Az * claim_Bz - U.u_and_X[0] * claim_Cz - self.eval_E);
     if claim_outer_final != claim_outer_final_expected {
       return Err(NovaError::InvalidSumcheckProof);
     }
@@ -380,14 +380,13 @@ where
     // verify claim_inner_final
     let eval_Z = {
       let eval_X = {
-        // constant term
-        let mut poly_X = vec![(0, U.u)];
-        //remaining inputs
-        poly_X.extend(
-          (0..U.X.len())
-            .map(|i| (i + 1, U.X[i]))
-            .collect::<Vec<(usize, G::Scalar)>>(),
-        );
+        // constant term + remaining inputs
+        let poly_X = U
+          .u_and_X
+          .iter()
+          .copied()
+          .enumerate()
+          .collect::<Vec<(usize, G::Scalar)>>();
         SparsePolynomial::new(usize::try_from(vk.S.num_vars.ilog2()).unwrap(), poly_X)
           .evaluate(&r_y[1..])
       };

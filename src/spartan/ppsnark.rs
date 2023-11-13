@@ -1028,10 +1028,10 @@ where
     transcript.absorb(b"U", U);
 
     // compute the full satisfying assignment by concatenating W.W, U.u, and U.X
-    let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
+    let z = [W.W.clone(), U.u_and_X.clone()].concat();
 
     // compute Az, Bz, Cz
-    let (mut Az, mut Bz, mut Cz) = S.multiply_witness(&W.W, &U.u, &U.X)?;
+    let (mut Az, mut Bz, mut Cz) = S.multiply_witness(&W.W, &U.u_and_X)?;
 
     // commit to Az, Bz, Cz
     let (comm_Az, (comm_Bz, comm_Cz)) = rayon::join(
@@ -1104,7 +1104,7 @@ where
           Az.clone(),
           Bz.clone(),
           (0..Cz.len())
-            .map(|i| U.u * Cz[i] + E[i])
+            .map(|i| U.u_and_X[0] * Cz[i] + E[i])
             .collect::<Vec<G::Scalar>>(),
           w.p.clone(), // Mz = Az + r * Bz + r^2 * Cz
           &u.e,        // eval_Az_at_tau + r * eval_Az_at_tau + r^2 * eval_Cz_at_tau
@@ -1449,14 +1449,13 @@ where
           };
 
           let eval_X = {
-            // constant term
-            let mut poly_X = vec![(0, U.u)];
-            //remaining inputs
-            poly_X.extend(
-              (0..U.X.len())
-                .map(|i| (i + 1, U.X[i]))
-                .collect::<Vec<(usize, G::Scalar)>>(),
-            );
+            // constant term + remaining inputs
+            let poly_X = U
+              .u_and_X
+              .iter()
+              .copied()
+              .enumerate()
+              .collect::<Vec<(usize, G::Scalar)>>();
             SparsePolynomial::new(vk.num_vars.log_2(), poly_X).evaluate(&rand_sc_unpad[1..])
           };
 
@@ -1491,7 +1490,7 @@ where
 
       let claim_outer_final_expected = coeffs[6]
         * taus_bound_rand_sc
-        * (self.eval_Az * self.eval_Bz - U.u * self.eval_Cz - self.eval_E)
+        * (self.eval_Az * self.eval_Bz - U.u_and_X[0] * self.eval_Cz - self.eval_E)
         + coeffs[7] * taus_bound_rand_sc * (self.eval_Az + c * self.eval_Bz + c * c * self.eval_Cz);
       let claim_inner_final_expected = coeffs[8]
         * self.eval_L_row
