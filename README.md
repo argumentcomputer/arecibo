@@ -1,5 +1,12 @@
 # Nova: Recursive SNARKs without trusted setup
 
+> [!NOTE]
+> This repository is a fork of the original hosted at [https://github.com/microsoft/nova](https://github.com/microsoft/nova). It's an incubator for experimenting with more advanced variants of the original software and working out the kinks in them.
+
+> [!IMPORTANT]
+> This fork is always maintained as up-to-date as the original repository. Occasionally, this repository backports its own contributions to the original, after an incubation time. Note that until back-ported, the changes in the present repository have not undergone the same level of review.
+
+
 Nova is a high-speed recursive SNARK (a SNARK is type cryptographic proof system that enables a prover to prove a mathematical statement to a verifier with a short proof and succinct verification, and a recursive SNARK enables producing proofs that prove statements about prior proofs). 
 
 More precisely, Nova achieves [incrementally verifiable computation (IVC)](https://iacr.org/archive/tcc2008/49480001/49480001.pdf), a powerful cryptographic primitive that allows a prover to produce a proof of correct execution of a "long running" sequential computations in an incremental fashion. For example, IVC enables the following: The prover takes as input a proof $\pi_i$ proving the the first $i$ steps of its computation and then update it to produce a proof $\pi_{i+1}$ proving the correct execution of the first $i + 1$ steps. Crucially, the prover's work to update the proof does not depend on the number of steps executed thus far, and the verifier's work to verify a proof does not grow with the number of steps in the computation. IVC schemes including Nova have a wide variety of applications such as Rollups, verifiable delay functions (VDFs), succinct blockchains, incrementally verifiable versions of [verifiable state machines](https://eprint.iacr.org/2020/758.pdf), and, more generally, proofs of (virtual) machine executions (e.g., EVM, RISC-V). 
