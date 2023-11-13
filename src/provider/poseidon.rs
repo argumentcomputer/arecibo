@@ -209,11 +209,9 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::bellpepper::solver::WitnessViewCS;
   use crate::provider::{bn256_grumpkin::bn256, secp_secq};
-  use crate::{
-    bellpepper::solver::SatisfyingAssignment, constants::NUM_CHALLENGE_BITS,
-    gadgets::utils::le_bits_to_num, traits::Group,
-  };
+  use crate::{constants::NUM_CHALLENGE_BITS, gadgets::utils::le_bits_to_num, traits::Group};
   use ff::Field;
   use rand::rngs::OsRng;
 
@@ -232,7 +230,10 @@ mod tests {
     let mut ro: PoseidonRO<G::Scalar, G::Base> = PoseidonRO::new(constants.clone(), num_absorbs);
     let mut ro_gadget: PoseidonROCircuit<G::Scalar> =
       PoseidonROCircuit::new(constants, num_absorbs);
-    let mut cs = SatisfyingAssignment::<G>::new();
+
+    // Create the witness
+    let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
+    let mut cs = WitnessViewCS::<G::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
     for i in 0..num_absorbs {
       let num = G::Scalar::random(&mut csprng);
       ro.absorb(num);

@@ -29,15 +29,11 @@ pub mod supernova;
 
 use once_cell::sync::OnceCell;
 
-use crate::bellpepper::{
-  r1cs::{NovaShape, NovaWitness},
-  shape_cs::ShapeCS,
-  solver::SatisfyingAssignment,
-};
+use crate::bellpepper::{r1cs::NovaShape, shape_cs::ShapeCS, solver::WitnessViewCS};
 use crate::digest::{DigestComputer, SimpleDigestible};
+use crate::r1cs::default_T;
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
-use bellpepper_core::ConstraintSystem;
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
 use core::marker::PhantomData;
@@ -280,12 +276,22 @@ where
 {
   z0_primary: Vec<G1::Scalar>,
   z0_secondary: Vec<G2::Scalar>,
+
   r_W_primary: RelaxedR1CSWitness<G1>,
   r_U_primary: RelaxedR1CSInstance<G1>,
   r_W_secondary: RelaxedR1CSWitness<G2>,
   r_U_secondary: RelaxedR1CSInstance<G2>,
+
+  l_w_primary: R1CSWitness<G1>,
+  l_u_primary: R1CSInstance<G1>,
   l_w_secondary: R1CSWitness<G2>,
   l_u_secondary: R1CSInstance<G2>,
+
+  /// buffer for `commit_T`
+  T_primary: Vec<G1::Scalar>,
+  /// buffer for `commit_T`
+  T_secondary: Vec<G2::Scalar>,
+
   i: usize,
   zi_primary: Vec<G1::Scalar>,
   zi_secondary: Vec<G2::Scalar>,
@@ -311,8 +317,13 @@ where
       return Err(NovaError::InvalidInitialInputLength);
     }
 
+    let r1cs_primary = &pp.circuit_shape_primary.r1cs_shape;
+    let r1cs_secondary = &pp.circuit_shape_secondary.r1cs_shape;
+
     // base case for the primary
-    let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
+    let mut cs_primary =
+      WitnessViewCS::<G1::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<G1>(pp.digest()),
       G1::Scalar::ZERO,
@@ -333,13 +344,18 @@ where
       .synthesize(&mut cs_primary)
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
-    let (u_primary, w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
-      .map_err(|_e| NovaError::UnSat)
-      .expect("Nova error unsat");
+
+    let (u_primary, w_primary) = r1cs::instance_and_witness(
+      r1cs_primary,
+      &pp.ck_primary,
+      input_assignment,
+      aux_assignment,
+    )?;
 
     // base case for the secondary
-    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
+    let mut cs_secondary =
+      WitnessViewCS::<G2::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
     let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       G2::Scalar::ZERO,
@@ -359,28 +375,26 @@ where
       .synthesize(&mut cs_secondary)
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
-    let (u_secondary, w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
-      .map_err(|_e| NovaError::UnSat)
-      .expect("Nova error unsat");
+
+    let (u_secondary, w_secondary) = r1cs::instance_and_witness(
+      r1cs_secondary,
+      &pp.ck_secondary,
+      input_assignment,
+      aux_assignment,
+    )?;
 
     // IVC proof for the primary circuit
-    let l_w_primary = w_primary;
-    let l_u_primary = u_primary;
-    let r_W_primary =
-      RelaxedR1CSWitness::from_r1cs_witness(&pp.circuit_shape_primary.r1cs_shape, &l_w_primary);
-    let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
-      &pp.ck_primary,
-      &pp.circuit_shape_primary.r1cs_shape,
-      &l_u_primary,
-    );
+    let l_w_primary = R1CSWitness::default(r1cs_primary);
+    let l_u_primary = R1CSInstance::default(&pp.ck_primary, r1cs_primary);
+    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, w_primary);
+    let r_U_primary =
+      RelaxedR1CSInstance::from_r1cs_instance(&pp.ck_primary, r1cs_primary, u_primary);
 
     // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
-    let r_W_secondary = RelaxedR1CSWitness::<G2>::default(&pp.circuit_shape_secondary.r1cs_shape);
-    let r_U_secondary =
-      RelaxedR1CSInstance::<G2>::default(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape);
+    let r_W_secondary = RelaxedR1CSWitness::<G2>::default(r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::<G2>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
@@ -402,17 +416,32 @@ where
     Ok(Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
+
       r_W_primary,
       r_U_primary,
       r_W_secondary,
       r_U_secondary,
+
+      l_w_primary,
+      l_u_primary,
       l_w_secondary,
       l_u_secondary,
+
+      T_primary: default_T(r1cs_primary),
+      T_secondary: default_T(r1cs_secondary),
+
       i: 0,
       zi_primary,
       zi_secondary,
       _p: Default::default(),
     })
+  }
+
+  fn clear_inputs(&mut self) {
+    self.r_U_primary.X.clear();
+    self.r_U_secondary.X.clear();
+    self.l_u_primary.X.clear();
+    self.l_u_secondary.X.clear();
   }
 
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
@@ -430,27 +459,40 @@ where
       return Ok(());
     }
 
+    // save the inputs before proceeding to the `i+1`th step
+    let r_U_primary_i = self.r_U_primary.clone();
+    let r_U_secondary_i = self.r_U_secondary.clone();
+    let l_u_primary_i = self.l_u_primary.clone();
+    let l_u_secondary_i = self.l_u_secondary.clone();
+
+    // clear the input buffers for the next step
+    self.clear_inputs();
+
     // fold the secondary circuit's instance
-    let (nifs_secondary, (r_U_secondary, r_W_secondary)) = NIFS::prove(
+    // increments `r_U_secondary` and `r_W_secondary`
+    let nifs_secondary = NIFS::prove_mut(
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<G1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
-      &self.r_U_secondary,
-      &self.r_W_secondary,
+      &mut self.r_U_secondary,
+      &mut self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
+      &mut self.T_secondary,
     )
     .expect("Unable to fold secondary");
 
-    let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    // increment `l_u_primary` and `l_w_primary`
+    let mut cs_primary =
+      WitnessViewCS::<G1::Scalar>::new_view(&mut self.l_u_primary.X, &mut self.l_w_primary.W);
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<G1>(pp.digest()),
       G1::Scalar::from(self.i as u64),
       self.z0_primary.to_vec(),
       Some(self.zi_primary.clone()),
-      Some(self.r_U_secondary.clone()),
-      Some(self.l_u_secondary.clone()),
+      Some(r_U_secondary_i),
+      Some(l_u_secondary_i),
       Some(Commitment::<G2>::decompress(&nifs_secondary.comm_T)?),
     );
 
@@ -465,32 +507,36 @@ where
       .synthesize(&mut cs_primary)
       .map_err(|_| NovaError::SynthesisError)?;
 
-    let (l_u_primary, l_w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
-      .map_err(|_e| NovaError::UnSat)
-      .expect("Nova error unsat");
+    // TODO: check length of witness
+    // let (l_u_primary, l_w_primary) = cs_primary
+    //   .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
+    //   .map_err(|_e| NovaError::UnSat)
+    //   .expect("Nova error unsat");
 
     // fold the primary circuit's instance
-    let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
+    let nifs_primary = NIFS::prove_mut(
       &pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
       &pp.circuit_shape_primary.r1cs_shape,
-      &self.r_U_primary,
-      &self.r_W_primary,
-      &l_u_primary,
-      &l_w_primary,
+      &mut self.r_U_primary,
+      &mut self.r_W_primary,
+      &self.l_u_primary,
+      &self.l_w_primary,
+      &mut self.T_primary,
     )
     .expect("Unable to fold primary");
 
-    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    // increment `l_u_secondary` and `l_w_secondary`
+    let mut cs_secondary =
+      WitnessViewCS::<G2::Scalar>::new_view(&mut self.l_u_secondary.X, &mut self.l_w_secondary.W);
     let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       G2::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
-      Some(self.r_U_primary.clone()),
-      Some(l_u_primary),
+      Some(r_U_primary_i), // this clone is ok since the inputs are small
+      Some(l_u_primary_i),
       Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
     );
 
@@ -504,9 +550,10 @@ where
       .synthesize(&mut cs_secondary)
       .map_err(|_| NovaError::SynthesisError)?;
 
-    let (l_u_secondary, l_w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
-      .map_err(|_e| NovaError::UnSat)?;
+    // TODO: check length of witness
+    // let (l_u_secondary, l_w_secondary) = cs_secondary
+    //   .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
+    //   .map_err(|_e| NovaError::UnSat)?;
 
     // update the running instances and witnesses
     self.zi_primary = zi_primary
@@ -518,17 +565,7 @@ where
       .map(|v| v.get_value().ok_or(NovaError::SynthesisError))
       .collect::<Result<Vec<<G2 as Group>::Scalar>, NovaError>>()?;
 
-    self.l_u_secondary = l_u_secondary;
-    self.l_w_secondary = l_w_secondary;
-
-    self.r_U_primary = r_U_primary;
-    self.r_W_primary = r_W_primary;
-
     self.i += 1;
-
-    self.r_U_secondary = r_U_secondary;
-    self.r_W_secondary = r_W_secondary;
-
     Ok(())
   }
 

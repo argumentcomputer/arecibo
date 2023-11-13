@@ -43,12 +43,12 @@ impl<G: Group> NovaWitness<G> for SatisfyingAssignment<G> {
     shape: &R1CSShape<G>,
     ck: &CommitmentKey<G>,
   ) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError> {
-    let W = R1CSWitness::<G>::new(shape, self.aux_assignment())?;
+    let W = R1CSWitness::<G>::new(shape, self.aux_assignment().to_vec())?;
     let X = &self.input_assignment()[1..];
 
     let comm_W = W.commit(ck);
 
-    let instance = R1CSInstance::<G>::new(shape, &comm_W, X)?;
+    let instance = R1CSInstance::<G>::new(shape, comm_W, X.to_owned())?;
 
     Ok((instance, W))
   }

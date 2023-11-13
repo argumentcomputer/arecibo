@@ -473,11 +473,9 @@ where
       num_augmented_circuits,
     );
 
-    let (zi_primary_pc_next, zi_primary) =
-      circuit_primary.synthesize(&mut cs_primary).map_err(|err| {
-        debug!("err {:?}", err);
-        NovaError::SynthesisError
-      })?;
+    let (zi_primary_pc_next, zi_primary) = circuit_primary
+      .synthesize(&mut cs_primary)
+      .map_err(|_| NovaError::SynthesisError)?;
     if zi_primary.len() != pp[circuit_index].F_arity {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidStepOutputLength,
@@ -485,10 +483,7 @@ where
     }
     let (u_primary, w_primary) = cs_primary
       .r1cs_instance_and_witness(&pp[circuit_index].r1cs_shape, &pp.ck_primary)
-      .map_err(|err| {
-        debug!("err {:?}", err);
-        NovaError::SynthesisError
-      })?;
+      .map_err(|_| NovaError::SynthesisError)?;
 
     // base case for the secondary
     let mut cs_secondary = SatisfyingAssignment::<G2>::new();
@@ -526,12 +521,12 @@ where
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
     let r_W_primary =
-      RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, &l_w_primary);
+      RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, l_w_primary);
 
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
       &pp.ck_primary,
       &pp[circuit_index].r1cs_shape,
-      &l_u_primary,
+      l_u_primary,
     );
 
     // IVC proof of the secondary circuit

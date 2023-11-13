@@ -4,6 +4,8 @@
 //! Specifically, we implement sparse matrix / dense vector multiplication
 //! to compute the `A z`, `B z`, and `C z` in Nova.
 
+use std::cmp::Ordering;
+
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::PrimeField;
@@ -116,6 +118,43 @@ impl<F: PrimeField> SparseMatrix<F> {
           .sum()
       })
       .collect()
+  }
+
+  /// Multiply by a witness representing a dense vector; uses rayon/gpu.
+  pub fn multiply_witness(&self, W: &[F], u: &F, X: &[F]) -> Vec<F> {
+    assert_eq!(self.cols, W.len() + X.len() + 1, "invalid shape");
+
+    self.multiply_witness_unchecked(W, u, X)
+  }
+
+  /// Multiply by a witness representing a dense vector; uses rayon/gpu.
+  /// This does not check that the shape of the matrix/vector are compatible.
+  #[tracing::instrument(
+    skip_all,
+    level = "trace",
+    name = "SparseMatrix::multiply_vec_unchecked"
+  )]
+  pub fn multiply_witness_unchecked(&self, W: &[F], u: &F, X: &[F]) -> Vec<F> {
+    let num_vars = W.len();
+    // preallocate the result vector
+    let mut result = Vec::with_capacity(self.indptr.len() - 1);
+    self
+      .indptr
+      .par_windows(2)
+      .map(|ptrs| {
+        self
+          .get_row_unchecked(ptrs.try_into().unwrap())
+          .fold(F::ZERO, |acc, (val, col_idx)| {
+            let val = match col_idx.cmp(&num_vars) {
+              Ordering::Less => *val * W[*col_idx],
+              Ordering::Equal => *val * X[*col_idx - num_vars],
+              Ordering::Greater => *val * u,
+            };
+            acc + val
+          })
+      })
+      .collect_into_vec(&mut result);
+    result
   }
 
   /// number of non-zero entries

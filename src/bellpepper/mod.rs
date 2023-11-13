@@ -52,6 +52,7 @@ mod tests {
     // Now get the assignment
     let mut cs = SatisfyingAssignment::<G>::new();
     synthesize_alloc_bit(&mut cs);
+
     let (inst, witness) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
 
     // Make sure that this is satisfiable

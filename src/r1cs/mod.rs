@@ -47,7 +47,7 @@ impl<G: Group> SimpleDigestible for R1CSShape<G> {}
 /// A type that holds a witness for a given R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct R1CSWitness<G: Group> {
-  W: Vec<G::Scalar>,
+  pub(crate) W: Vec<G::Scalar>,
 }
 
 /// A type that holds an R1CS instance
@@ -187,6 +187,29 @@ impl<G: Group> R1CSShape<G> {
     Ok((Az, Bz, Cz))
   }
 
+  pub(crate) fn multiply_witness(
+    &self,
+    W: &[G::Scalar],
+    u: &G::Scalar,
+    X: &[G::Scalar],
+  ) -> Result<(Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>), NovaError> {
+    if X.len() != self.num_io || W.len() != self.num_vars {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    let (Az, (Bz, Cz)) = rayon::join(
+      || self.A.multiply_witness(W, u, X),
+      || {
+        rayon::join(
+          || self.B.multiply_witness(W, u, X),
+          || self.C.multiply_witness(W, u, X),
+        )
+      },
+    );
+
+    Ok((Az, Bz, Cz))
+  }
+
   /// Checks if the Relaxed R1CS instance is satisfiable given a witness and its shape
   pub fn is_sat_relaxed(
     &self,
@@ -200,8 +223,7 @@ impl<G: Group> R1CSShape<G> {
 
     // verify if Az * Bz = u*Cz + E
     let res_eq = {
-      let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
-      let (Az, Bz, Cz) = self.multiply_vec(&z)?;
+      let (Az, Bz, Cz) = self.multiply_witness(&W.W, &U.u, &U.X)?;
       assert_eq!(Az.len(), self.num_cons);
       assert_eq!(Bz.len(), self.num_cons);
       assert_eq!(Cz.len(), self.num_cons);
@@ -242,8 +264,7 @@ impl<G: Group> R1CSShape<G> {
 
     // verify if Az * Bz = u*Cz
     let res_eq = {
-      let z = [W.W.clone(), vec![G::Scalar::ONE], U.X.clone()].concat();
-      let (Az, Bz, Cz) = self.multiply_vec(&z)?;
+      let (Az, Bz, Cz) = self.multiply_witness(&W.W, &G::Scalar::ONE, &U.X)?;
       assert_eq!(Az.len(), self.num_cons);
       assert_eq!(Bz.len(), self.num_cons);
       assert_eq!(Cz.len(), self.num_cons);
@@ -276,15 +297,11 @@ impl<G: Group> R1CSShape<G> {
     U2: &R1CSInstance<G>,
     W2: &R1CSWitness<G>,
   ) -> Result<(Vec<G::Scalar>, Commitment<G>), NovaError> {
-    let (AZ_1, BZ_1, CZ_1) = tracing::trace_span!("AZ_1, BZ_1, CZ_1").in_scope(|| {
-      let Z1 = [W1.W.clone(), vec![U1.u], U1.X.clone()].concat();
-      self.multiply_vec(&Z1)
-    })?;
+    let (AZ_1, BZ_1, CZ_1) = tracing::trace_span!("AZ_1, BZ_1, CZ_1")
+      .in_scope(|| self.multiply_witness(&W1.W, &U1.u, &U1.X))?;
 
-    let (AZ_2, BZ_2, CZ_2) = tracing::trace_span!("AZ_2, BZ_2, CZ_2").in_scope(|| {
-      let Z2 = [W2.W.clone(), vec![G::Scalar::ONE], U2.X.clone()].concat();
-      self.multiply_vec(&Z2)
-    })?;
+    let (AZ_2, BZ_2, CZ_2) = tracing::trace_span!("AZ_2, BZ_2, CZ_2")
+      .in_scope(|| self.multiply_witness(&W2.W, &G::Scalar::ONE, &U2.X))?;
 
     let (AZ_1_circ_BZ_2, AZ_2_circ_BZ_1, u_1_cdot_CZ_2, u_2_cdot_CZ_1) =
       tracing::trace_span!("cross terms").in_scope(|| {
@@ -320,6 +337,43 @@ impl<G: Group> R1CSShape<G> {
     let comm_T = CE::<G>::commit(ck, &T);
 
     Ok((T, comm_T))
+  }
+
+  /// A method to compute a commitment to the cross-term `T` given a
+  /// Relaxed R1CS instance-witness pair and an R1CS instance-witness pair
+  ///
+  /// This is [`R1CSShape::commit_T`] but into a buffer.
+  pub fn commit_T_into(
+    &self,
+    ck: &CommitmentKey<G>,
+    U1: &RelaxedR1CSInstance<G>,
+    W1: &RelaxedR1CSWitness<G>,
+    U2: &R1CSInstance<G>,
+    W2: &R1CSWitness<G>,
+    T: &mut Vec<G::Scalar>,
+  ) -> Result<Commitment<G>, NovaError> {
+    let (AZ_1, BZ_1, CZ_1) = tracing::trace_span!("AZ_1, BZ_1, CZ_1")
+      .in_scope(|| self.multiply_witness(&W1.W, &U1.u, &U1.X))?;
+
+    let (AZ_2, BZ_2, CZ_2) = tracing::trace_span!("AZ_2, BZ_2, CZ_2")
+      .in_scope(|| self.multiply_witness(&W2.W, &G::Scalar::ONE, &U2.X))?;
+
+    // this doesn't allocate memory but has bad temporal cache locality -- should test to see which is faster
+    tracing::trace_span!("T").in_scope(|| {
+      (0..AZ_1.len())
+        .into_par_iter()
+        .map(|i| {
+          let AZ_1_circ_BZ_2 = AZ_1[i] * BZ_2[i];
+          let AZ_2_circ_BZ_1 = AZ_2[i] * BZ_1[i];
+          let u_1_cdot_CZ_2 = U1.u * CZ_2[i];
+          AZ_1_circ_BZ_2 + AZ_2_circ_BZ_1 - u_1_cdot_CZ_2 - CZ_1[i]
+        })
+        .collect_into_vec(T)
+    });
+
+    let comm_T = CE::<G>::commit(ck, T);
+
+    Ok(comm_T)
   }
 
   /// Pads the `R1CSShape` so that the number of variables is a power of two
@@ -385,12 +439,19 @@ impl<G: Group> R1CSShape<G> {
 }
 
 impl<G: Group> R1CSWitness<G> {
+  /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
+  pub fn default(S: &R1CSShape<G>) -> R1CSWitness<G> {
+    R1CSWitness {
+      W: vec![G::Scalar::ZERO; S.num_vars],
+    }
+  }
+
   /// A method to create a witness object using a vector of scalars
-  pub fn new(S: &R1CSShape<G>, W: &[G::Scalar]) -> Result<R1CSWitness<G>, NovaError> {
+  pub fn new(S: &R1CSShape<G>, W: Vec<G::Scalar>) -> Result<R1CSWitness<G>, NovaError> {
     if S.num_vars != W.len() {
       Err(NovaError::InvalidWitnessLength)
     } else {
-      Ok(R1CSWitness { W: W.to_owned() })
+      Ok(R1CSWitness { W })
     }
   }
 
@@ -401,19 +462,25 @@ impl<G: Group> R1CSWitness<G> {
 }
 
 impl<G: Group> R1CSInstance<G> {
+  /// Produces a default `R1CSInstance` given `CommitmentKey` and `R1CSShape`
+  pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> R1CSInstance<G> {
+    let comm_W = Commitment::<G>::default();
+    R1CSInstance {
+      comm_W,
+      X: vec![G::Scalar::ZERO; S.num_io],
+    }
+  }
+
   /// A method to create an instance object using consitituent elements
   pub fn new(
     S: &R1CSShape<G>,
-    comm_W: &Commitment<G>,
-    X: &[G::Scalar],
+    comm_W: Commitment<G>,
+    X: Vec<G::Scalar>,
   ) -> Result<R1CSInstance<G>, NovaError> {
     if S.num_io != X.len() {
       Err(NovaError::InvalidInputLength)
     } else {
-      Ok(R1CSInstance {
-        comm_W: *comm_W,
-        X: X.to_owned(),
-      })
+      Ok(R1CSInstance { comm_W, X })
     }
   }
 }
@@ -437,9 +504,9 @@ impl<G: Group> RelaxedR1CSWitness<G> {
   }
 
   /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
-  pub fn from_r1cs_witness(S: &R1CSShape<G>, witness: &R1CSWitness<G>) -> RelaxedR1CSWitness<G> {
+  pub fn from_r1cs_witness(S: &R1CSShape<G>, witness: R1CSWitness<G>) -> RelaxedR1CSWitness<G> {
     RelaxedR1CSWitness {
-      W: witness.W.clone(),
+      W: witness.W,
       E: vec![G::Scalar::ZERO; S.num_cons],
     }
   }
@@ -476,6 +543,31 @@ impl<G: Group> RelaxedR1CSWitness<G> {
     Ok(RelaxedR1CSWitness { W, E })
   }
 
+  /// Mutably folds an incoming `R1CSWitness` into the current one
+  pub fn fold_mut(
+    &mut self,
+    W2: &R1CSWitness<G>,
+    T: &[G::Scalar],
+    r: &G::Scalar,
+  ) -> Result<(), NovaError> {
+    if self.W.len() != W2.W.len() {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    self
+      .W
+      .par_iter_mut()
+      .zip(&W2.W)
+      .for_each(|(a, b)| *a += *r * *b);
+    self
+      .E
+      .par_iter_mut()
+      .zip(T)
+      .for_each(|(a, b)| *a += *r * *b);
+
+    Ok(())
+  }
+
   /// Pads the provided witness to the correct length
   pub fn pad(&self, S: &R1CSShape<G>) -> RelaxedR1CSWitness<G> {
     let mut W = self.W.clone();
@@ -502,27 +594,30 @@ impl<G: Group> RelaxedR1CSInstance<G> {
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance(
-    ck: &CommitmentKey<G>,
+    _ck: &CommitmentKey<G>,
     S: &R1CSShape<G>,
-    instance: &R1CSInstance<G>,
+    instance: R1CSInstance<G>,
   ) -> RelaxedR1CSInstance<G> {
-    let mut r_instance = RelaxedR1CSInstance::default(ck, S);
-    r_instance.comm_W = instance.comm_W;
-    r_instance.u = G::Scalar::ONE;
-    r_instance.X = instance.X.clone();
-    r_instance
+    assert_eq!(S.num_io, instance.X.len());
+
+    RelaxedR1CSInstance {
+      comm_W: instance.comm_W,
+      comm_E: Commitment::<G>::default(),
+      u: G::Scalar::ONE,
+      X: instance.X,
+    }
   }
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance_unchecked(
-    comm_W: &Commitment<G>,
-    X: &[G::Scalar],
+    comm_W: Commitment<G>,
+    X: Vec<G::Scalar>,
   ) -> RelaxedR1CSInstance<G> {
     RelaxedR1CSInstance {
-      comm_W: *comm_W,
+      comm_W,
       comm_E: Commitment::<G>::default(),
       u: G::Scalar::ONE,
-      X: X.to_vec(),
+      X,
     }
   }
 
@@ -554,6 +649,19 @@ impl<G: Group> RelaxedR1CSInstance<G> {
       u,
     }
   }
+
+  /// Mutably folds an incoming `RelaxedR1CSInstance` into the current one
+  pub fn fold_mut(&mut self, U2: &R1CSInstance<G>, comm_T: &Commitment<G>, r: &G::Scalar) {
+    let (X2, comm_W_2) = (&U2.X, &U2.comm_W);
+
+    // weighted sum of X, comm_W, comm_E, and u
+    self.X.par_iter_mut().zip(X2).for_each(|(a, b)| {
+      *a += *r * *b;
+    });
+    self.comm_W += *comm_W_2 * *r;
+    self.comm_E += *comm_T * *r;
+    self.u += r;
+  }
 }
 
 impl<G: Group> TranscriptReprTrait<G> for RelaxedR1CSInstance<G> {
@@ -582,6 +690,25 @@ impl<G: Group> AbsorbInROTrait<G> for RelaxedR1CSInstance<G> {
       }
     }
   }
+}
+
+/// Return an instance and witness, given a shape, ck, and the needed vectors.
+pub fn instance_and_witness<G: Group>(
+  shape: &R1CSShape<G>,
+  ck: &CommitmentKey<G>,
+  input_assignment: Vec<G::Scalar>,
+  aux_assignment: Vec<G::Scalar>,
+) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError> {
+  let W = R1CSWitness::<G>::new(shape, aux_assignment)?;
+  let comm_W = W.commit(ck);
+  let instance = R1CSInstance::<G>::new(shape, comm_W, input_assignment)?;
+
+  Ok((instance, W))
+}
+
+/// Empty buffer for `commit_T_into`
+pub fn default_T<G: Group>(shape: &R1CSShape<G>) -> Vec<G::Scalar> {
+  Vec::with_capacity(shape.num_cons)
 }
 
 #[cfg(test)]

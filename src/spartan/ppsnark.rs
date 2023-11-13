@@ -1031,7 +1031,7 @@ where
     let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
 
     // compute Az, Bz, Cz
-    let (mut Az, mut Bz, mut Cz) = S.multiply_vec(&z)?;
+    let (mut Az, mut Bz, mut Cz) = S.multiply_witness(&W.W, &U.u, &U.X)?;
 
     // commit to Az, Bz, Cz
     let (comm_Az, (comm_Bz, comm_Cz)) = rayon::join(
