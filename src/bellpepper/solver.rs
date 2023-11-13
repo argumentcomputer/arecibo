@@ -5,11 +5,23 @@ use ff::PrimeField;
 
 use bellpepper::util_cs::witness_cs::WitnessCS;
 
-/// A `ConstraintSystem` which calculates witness values for a concrete instance of an R1CS circuit.
+/// A [`ConstraintSystem`] which calculates witness values for a concrete instance of an R1CS circuit.
 pub type SatisfyingAssignment<G> = WitnessCS<<G as Group>::Scalar>;
 
 #[derive(Debug, PartialEq, Eq)]
-/// A `ConstraintSystem` which calculates witness values for a concrete instance of an R1CS circuit.
+/// A [`ConstraintSystem`] which calculates witness values for a concrete instance of an R1CS circuit.
+///
+/// This is specialized to support Nova by offering a mutable handle into `R1CSWitness` and `R1CSInstance`.
+/// - `aux_assignment` corresponds to `R1CSWitness.W`
+/// - `input_assignment[0]` corresponds to `R1CSInstance.u`
+/// - `input_assignment[1..]` corresponds to `R1CSInstance.X`
+///
+/// Whenever a new [`WitnessViewCS`] is constructed, we acquire handles into preallocated buffers that
+/// `R1CSWitness` and `R1CSInstance` own. On the "zeroth" step of Nova, these buffers are empty and
+/// [`WitnessViewCS`] does not know the expected witness sizes. This initial state is flagged as
+/// `setup = true`. After the initial step, every next Nova step has a fixed shape, so the buffers in
+/// `R1CSWitness` and `R1CSInstance` have the exact capacity they need. To be memory efficient,
+/// [`WitnessViewCS`] is flagged as `setup = false` and we no longer allow the buffers to resize.
 pub struct WitnessViewCS<'a, Scalar>
 where
   Scalar: PrimeField,
@@ -135,7 +147,9 @@ impl<'a, Scalar: PrimeField> WitnessViewCS<'a, Scalar> {
     input_assignment: &'a mut Vec<Scalar>,
     aux_assignment: &'a mut Vec<Scalar>,
   ) -> Self {
-    assert_eq!(input_assignment[0], Scalar::ONE);
+    assert!(input_assignment.is_empty());
+    assert!(aux_assignment.is_empty());
+    input_assignment.push(Scalar::ONE);
 
     Self {
       input_assignment,
