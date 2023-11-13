@@ -143,7 +143,7 @@ impl<F: PrimeField> SparseMatrix<F> {
         self
           .get_row_unchecked(ptrs.try_into().unwrap())
           .fold(F::ZERO, |acc, (val, col_idx)| {
-            if *col_idx < num_vars {
+            let val = if *col_idx < num_vars {
               *val * W[*col_idx]
             } else {
               *val * u_and_X[*col_idx - num_vars]

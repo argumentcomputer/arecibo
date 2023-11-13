@@ -120,13 +120,13 @@ where
   fn allocate_empty(&mut self, aux_n: usize, inputs_n: usize) -> (&mut [Scalar], &mut [Scalar]) {
     let allocated_aux = {
       let i = self.aux_assignment.len();
-      self.aux_assignment.reserve_exact(aux_n + i);
+      self.aux_assignment.resize(aux_n + i, Scalar::ZERO);
       &mut self.aux_assignment[i..]
     };
 
     let allocated_inputs = {
       let i = self.input_assignment.len();
-      self.input_assignment.reserve_exact(inputs_n + i);
+      self.input_assignment.resize(inputs_n + i, Scalar::ZERO);
       &mut self.input_assignment[i..]
     };
 
@@ -147,9 +147,9 @@ impl<'a, Scalar: PrimeField> WitnessViewCS<'a, Scalar> {
     input_assignment: &'a mut Vec<Scalar>,
     aux_assignment: &'a mut Vec<Scalar>,
   ) -> Self {
-    assert!(input_assignment.is_empty());
-    assert!(aux_assignment.is_empty());
+    input_assignment.clear();
     input_assignment.push(Scalar::ONE);
+    aux_assignment.clear();
 
     Self {
       input_assignment,
