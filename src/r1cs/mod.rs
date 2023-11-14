@@ -386,11 +386,11 @@ impl<G: Group> R1CSShape<G> {
 
 impl<G: Group> R1CSWitness<G> {
   /// A method to create a witness object using a vector of scalars
-  pub fn new(S: &R1CSShape<G>, W: &[G::Scalar]) -> Result<R1CSWitness<G>, NovaError> {
+  pub fn new(S: &R1CSShape<G>, W: Vec<G::Scalar>) -> Result<R1CSWitness<G>, NovaError> {
     if S.num_vars != W.len() {
       Err(NovaError::InvalidWitnessLength)
     } else {
-      Ok(R1CSWitness { W: W.to_owned() })
+      Ok(R1CSWitness { W })
     }
   }
 
@@ -405,15 +405,12 @@ impl<G: Group> R1CSInstance<G> {
   pub fn new(
     S: &R1CSShape<G>,
     comm_W: &Commitment<G>,
-    X: &[G::Scalar],
+    X: Vec<G::Scalar>,
   ) -> Result<R1CSInstance<G>, NovaError> {
     if S.num_io != X.len() {
       Err(NovaError::InvalidInputLength)
     } else {
-      Ok(R1CSInstance {
-        comm_W: *comm_W,
-        X: X.to_owned(),
-      })
+      Ok(R1CSInstance { comm_W: *comm_W, X })
     }
   }
 }
