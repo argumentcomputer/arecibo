@@ -169,7 +169,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     group.bench_function("Prove", |b| {
       b.iter(|| {
-        let mut recursive_snark = RecursiveSNARK::new(
+        let (mut recursive_snark, mut sink) = RecursiveSNARK::new(
           black_box(&pp),
           black_box(&circuit_primary),
           black_box(&circuit_secondary),
@@ -184,6 +184,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
             black_box(&pp),
             black_box(&circuit_primary),
             black_box(&circuit_secondary),
+            black_box(&mut sink),
           )
           .is_ok());
       })

@@ -69,7 +69,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
     // the first step is cheaper than other steps owing to the presence of
     // a lot of zeros in the satisfying assignment
     let num_warmup_steps = 10;
-    let mut recursive_snark: RecursiveSNARK<G1, G2, C1, C2> = RecursiveSNARK::new(
+    let (mut recursive_snark, mut sink) = RecursiveSNARK::new(
       &pp,
       &c_primary,
       &c_secondary,
@@ -79,7 +79,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
     .unwrap();
 
     for i in 0..num_warmup_steps {
-      let res = recursive_snark.prove_step(&pp, &c_primary, &c_secondary);
+      let res = recursive_snark.prove_step(&pp, &c_primary, &c_secondary, &mut sink);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -100,6 +100,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
             black_box(&pp),
             black_box(&c_primary),
             black_box(&c_secondary),
+            black_box(&mut sink)
           )
           .is_ok());
       })

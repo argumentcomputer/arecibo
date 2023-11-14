@@ -78,7 +78,7 @@ fn bench_compressed_snark(c: &mut Criterion) {
 
     // produce a recursive SNARK
     let num_steps = 3;
-    let mut recursive_snark: RecursiveSNARK<G1, G2, C1, C2> = RecursiveSNARK::new(
+    let (mut recursive_snark, mut sink) = RecursiveSNARK::new(
       &pp,
       &c_primary,
       &c_secondary,
@@ -88,7 +88,7 @@ fn bench_compressed_snark(c: &mut Criterion) {
     .unwrap();
 
     for i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &c_primary, &c_secondary);
+      let res = recursive_snark.prove_step(&pp, &c_primary, &c_secondary, &mut sink);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -164,7 +164,7 @@ fn bench_compressed_snark_with_computational_commitments(c: &mut Criterion) {
 
     // produce a recursive SNARK
     let num_steps = 3;
-    let mut recursive_snark: RecursiveSNARK<G1, G2, C1, C2> = RecursiveSNARK::new(
+    let (mut recursive_snark, mut sink) = RecursiveSNARK::new(
       &pp,
       &c_primary,
       &c_secondary,
@@ -174,7 +174,7 @@ fn bench_compressed_snark_with_computational_commitments(c: &mut Criterion) {
     .unwrap();
 
     for i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &c_primary, &c_secondary);
+      let res = recursive_snark.prove_step(&pp, &c_primary, &c_secondary, &mut sink);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
