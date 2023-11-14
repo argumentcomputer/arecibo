@@ -40,9 +40,9 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
     W.check_on_curve(cs.namespace(|| "check W on curve"))?;
 
     let X0 =
-      alloc_scalar_as_base::<G, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.one_and_X[1]))?;
+      alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.one_and_X[1]))?;
     let X1 =
-      alloc_scalar_as_base::<G, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.one_and_X[2]))?;
+      alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.one_and_X[2]))?;
 
     Ok(AllocatedR1CSInstance { W, X0, X1 })
   }
@@ -90,7 +90,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 
     // u << |G::Base| despite the fact that u is a scalar.
     // So we parse all of its bytes as a G::Base element
-    let u = alloc_scalar_as_base::<G, _>(
+    let u = alloc_scalar_as_base::<E, _>(
       cs.namespace(|| "allocate u"),
       inst.map(|inst| inst.u_and_X[0]),
     )?;
@@ -100,7 +100,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       cs.namespace(|| "allocate X[0]"),
       || {
         Ok(f_to_nat(
-          &inst.map_or(G::Scalar::ZERO, |inst| inst.u_and_X[1]),
+          &inst.map_or(E::Scalar::ZERO, |inst| inst.u_and_X[1]),
         ))
       },
       limb_width,
@@ -111,7 +111,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       cs.namespace(|| "allocate X[1]"),
       || {
         Ok(f_to_nat(
-          &inst.map_or(G::Scalar::ZERO, |inst| inst.u_and_X[2]),
+          &inst.map_or(E::Scalar::ZERO, |inst| inst.u_and_X[2]),
         ))
       },
       limb_width,

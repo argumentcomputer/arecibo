@@ -158,7 +158,7 @@ where
       let (poly_Az, poly_Bz, poly_Cz) = S.multiply_vec(&z)?;
       let poly_uCz_E = (0..S.num_cons)
         .map(|i| U.u_and_X[0] * poly_Cz[i] + W.E[i])
-        .collect::<Vec<G::Scalar>>();
+        .collect::<Vec<E::Scalar>>();
       (
         MultilinearPolynomial::new(poly_Az),
         MultilinearPolynomial::new(poly_Bz),
@@ -386,7 +386,7 @@ where
           .iter()
           .copied()
           .enumerate()
-          .collect::<Vec<(usize, G::Scalar)>>();
+          .collect::<Vec<(usize, E::Scalar)>>();
         SparsePolynomial::new(usize::try_from(vk.S.num_vars.ilog2()).unwrap(), poly_X)
           .evaluate(&r_y[1..])
       };

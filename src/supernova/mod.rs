@@ -900,7 +900,7 @@ where
       );
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
-    if hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.one_and_X[2]) {
+    if hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.one_and_X[2]) {
       debug!(
         "hash_secondary {:?} not equal l_u_secondary.X[1] {:?}",
         hash_secondary, self.l_u_secondary.one_and_X[2]

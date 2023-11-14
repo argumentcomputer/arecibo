@@ -31,7 +31,6 @@ use once_cell::sync::OnceCell;
 
 use crate::bellpepper::{r1cs::NovaShape, shape_cs::ShapeCS, solver::WitnessViewCS};
 use crate::digest::{DigestComputer, SimpleDigestible};
-use crate::r1cs::default_T;
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
@@ -42,7 +41,8 @@ use ff::{Field, PrimeField};
 use gadgets::utils::scalar_as_base;
 use nifs::NIFS;
 use r1cs::{
-  CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  CommitmentKeyHint, R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
+  RelaxedR1CSWitness,
 };
 use serde::{Deserialize, Serialize};
 use traits::{
@@ -264,6 +264,20 @@ where
   }
 }
 
+/// A resource sink for [`RecursiveSNARK`]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct ResourceSink<E: Engine> {
+  l_w: Option<R1CSWitness<E>>,
+  l_u: Option<R1CSInstance<E>>,
+
+  ABC_Z_1: R1CSResult<E>,
+  ABC_Z_2: R1CSResult<E>,
+
+  /// buffer for `commit_T`
+  T: Vec<E::Scalar>,
+}
+
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -274,23 +288,19 @@ where
   C1: StepCircuit<E1::Scalar>,
   C2: StepCircuit<E2::Scalar>,
 {
-  z0_primary: Vec<G1::Scalar>,
-  z0_secondary: Vec<G2::Scalar>,
+  z0_primary: Vec<E1::Scalar>,
+  z0_secondary: Vec<E2::Scalar>,
 
-  r_W_primary: RelaxedR1CSWitness<G1>,
-  r_U_primary: RelaxedR1CSInstance<G1>,
-  r_W_secondary: RelaxedR1CSWitness<G2>,
-  r_U_secondary: RelaxedR1CSInstance<G2>,
+  r_W_primary: RelaxedR1CSWitness<E1>,
+  r_U_primary: RelaxedR1CSInstance<E1>,
+  r_W_secondary: RelaxedR1CSWitness<E2>,
+  r_U_secondary: RelaxedR1CSInstance<E2>,
 
-  l_w_primary: R1CSWitness<G1>,
-  l_u_primary: R1CSInstance<G1>,
-  l_w_secondary: R1CSWitness<G2>,
-  l_u_secondary: R1CSInstance<G2>,
+  l_w_secondary: R1CSWitness<E2>,
+  l_u_secondary: R1CSInstance<E2>,
 
-  /// buffer for `commit_T`
-  T_primary: Vec<G1::Scalar>,
-  /// buffer for `commit_T`
-  T_secondary: Vec<G2::Scalar>,
+  sink_primary: ResourceSink<E1>,
+  sink_secondary: ResourceSink<E2>,
 
   i: usize,
   zi_primary: Vec<E1::Scalar>,
@@ -323,10 +333,10 @@ where
     // base case for the primary
     let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
     let mut cs_primary =
-      WitnessViewCS::<G1::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
-    let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<G1>(pp.digest()),
-      G1::Scalar::ZERO,
+      WitnessViewCS::<E1::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
+    let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
+      scalar_as_base::<E1>(pp.digest()),
+      E1::Scalar::ZERO,
       z0_primary.to_vec(),
       None,
       None,
@@ -355,8 +365,8 @@ where
     // base case for the secondary
     let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
     let mut cs_secondary =
-      WitnessViewCS::<G2::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
-    let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
+      WitnessViewCS::<E2::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
+    let inputs_secondary: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       E2::Scalar::ZERO,
       z0_secondary.to_vec(),
@@ -393,8 +403,8 @@ where
     // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
-    let r_W_secondary = RelaxedR1CSWitness::<G2>::default(r1cs_secondary);
-    let r_U_secondary = RelaxedR1CSInstance::<G2>::default(&pp.ck_secondary, r1cs_secondary);
+    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
@@ -413,6 +423,22 @@ where
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, NovaError>>()
       .expect("Nova error synthesis");
 
+    let sink_primary = ResourceSink {
+      l_w: Some(l_w_primary),
+      l_u: Some(l_u_primary),
+      ABC_Z_1: R1CSResult::default(r1cs_primary),
+      ABC_Z_2: R1CSResult::default(r1cs_primary),
+      T: r1cs::default_T(r1cs_primary),
+    };
+
+    let sink_secondary = ResourceSink {
+      l_w: None,
+      l_u: None,
+      ABC_Z_1: R1CSResult::default(r1cs_secondary),
+      ABC_Z_2: R1CSResult::default(r1cs_secondary),
+      T: r1cs::default_T(r1cs_secondary),
+    };
+
     let mut recursive_snark = Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
@@ -422,13 +448,11 @@ where
       r_W_secondary,
       r_U_secondary,
 
-      l_w_primary,
-      l_u_primary,
       l_w_secondary,
       l_u_secondary,
 
-      T_primary: default_T(r1cs_primary),
-      T_secondary: default_T(r1cs_secondary),
+      sink_primary,
+      sink_secondary,
 
       i: 0,
       zi_primary,
@@ -482,23 +506,25 @@ where
       &mut self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
-      &mut self.T_secondary,
+      &mut self.sink_secondary.T,
+      &mut self.sink_secondary.ABC_Z_1,
+      &mut self.sink_secondary.ABC_Z_2,
     )
     .expect("Unable to fold secondary");
 
+    let l_u_primary = self.sink_primary.l_u.as_mut().unwrap();
+    let l_w_primary = self.sink_primary.l_w.as_mut().unwrap();
     // increment `l_u_primary` and `l_w_primary`
-    let mut cs_primary = WitnessViewCS::<G1::Scalar>::new_view(
-      &mut self.l_u_primary.one_and_X,
-      &mut self.l_w_primary.W,
-    );
-    let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<G1>(pp.digest()),
-      G1::Scalar::from(self.i as u64),
+    let mut cs_primary =
+      WitnessViewCS::<E1::Scalar>::new_view(&mut l_u_primary.one_and_X, &mut l_w_primary.W);
+    let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
+      scalar_as_base::<E1>(pp.digest()),
+      E1::Scalar::from(self.i as u64),
       self.z0_primary.to_vec(),
       Some(self.zi_primary.clone()),
       Some(r_U_secondary_i),
       Some(l_u_secondary_i),
-      Some(Commitment::<G2>::decompress(&nifs_secondary.comm_T)?),
+      Some(Commitment::<E2>::decompress(&nifs_secondary.comm_T)?),
     );
 
     let circuit_primary: NovaAugmentedCircuit<'_, E2, C1> = NovaAugmentedCircuit::new(
@@ -517,7 +543,7 @@ where
     //   .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
     //   .map_err(|_e| NovaError::UnSat)
     //   .expect("Nova error unsat");
-    self.l_u_primary.comm_W = self.l_w_primary.commit(&pp.ck_primary);
+    l_u_primary.comm_W = l_w_primary.commit(&pp.ck_primary);
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
@@ -527,25 +553,27 @@ where
       &pp.circuit_shape_primary.r1cs_shape,
       &mut self.r_U_primary,
       &mut self.r_W_primary,
-      &self.l_u_primary,
-      &self.l_w_primary,
-      &mut self.T_primary,
+      l_u_primary,
+      l_w_primary,
+      &mut self.sink_primary.T,
+      &mut self.sink_primary.ABC_Z_1,
+      &mut self.sink_primary.ABC_Z_2,
     )
     .expect("Unable to fold primary");
 
     // increment `l_u_secondary` and `l_w_secondary`
-    let mut cs_secondary = WitnessViewCS::<G2::Scalar>::new_view(
+    let mut cs_secondary = WitnessViewCS::<E2::Scalar>::new_view(
       &mut self.l_u_secondary.one_and_X,
       &mut self.l_w_secondary.W,
     );
-    let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
+    let inputs_secondary: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       E2::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
       Some(r_U_primary_i),
-      Some(self.l_u_primary.clone()),
-      Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
+      Some(l_u_primary.clone()),
+      Some(Commitment::<E1>::decompress(&nifs_primary.comm_T)?),
     );
 
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -597,7 +625,7 @@ where
 
     // check if the (relaxed) R1CS instances have two public outputs
     let is_instance_has_two_outputs = self.l_u_secondary.one_and_X.len() != 3
-      || self.l_u_secondary.one_and_X[0] != G2::Scalar::ONE
+      || self.l_u_secondary.one_and_X[0] != E2::Scalar::ONE
       || self.r_U_primary.u_and_X.len() != 3
       || self.r_U_secondary.u_and_X.len() != 3;
 
@@ -646,7 +674,7 @@ where
     };
 
     if hash_primary != self.l_u_secondary.one_and_X[1]
-      || hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.one_and_X[2])
+      || hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.one_and_X[2])
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -880,7 +908,7 @@ where
 
     // check if the (relaxed) R1CS instances have two public outputs
     if self.l_u_secondary.one_and_X.len() != 3
-      || self.l_u_secondary.one_and_X[0] != G2::Scalar::ONE
+      || self.l_u_secondary.one_and_X[0] != E2::Scalar::ONE
       || self.r_U_primary.u_and_X.len() != 3
       || self.r_U_secondary.u_and_X.len() != 3
     {
@@ -924,7 +952,7 @@ where
     };
 
     if hash_primary != self.l_u_secondary.one_and_X[1]
-      || hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.one_and_X[2])
+      || hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.one_and_X[2])
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -972,7 +1000,7 @@ pub fn circuit_digest<
 ) -> E1::Scalar {
   let augmented_circuit_params = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
-  // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
+  // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = E1::Scalar
   let ro_consts_circuit: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
 
   // Initialize ck for the primary

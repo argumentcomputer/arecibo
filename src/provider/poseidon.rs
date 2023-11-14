@@ -203,13 +203,11 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::bellpepper::solver::WitnessViewCS;
   use crate::provider::{
     Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
   };
-  use crate::{
-    bellpepper::solver::SatisfyingAssignment, constants::NUM_CHALLENGE_BITS,
-    gadgets::utils::le_bits_to_num, traits::Engine,
-  };
+  use crate::{constants::NUM_CHALLENGE_BITS, gadgets::utils::le_bits_to_num, traits::Engine};
   use ff::Field;
   use rand::rngs::OsRng;
 
@@ -232,7 +230,7 @@ mod tests {
 
     // Create the witness
     let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
-    let mut cs = WitnessViewCS::<G::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
+    let mut cs = WitnessViewCS::<E::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
     for i in 0..num_absorbs {
       let num = E::Scalar::random(&mut csprng);
       ro.absorb(num);

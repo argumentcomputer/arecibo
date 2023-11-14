@@ -586,8 +586,8 @@ where
 {
   // TODO: add back in https://github.com/lurk-lab/arecibo/issues/53
   // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
-  // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
-  // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
+  // let pp_hint1 = Some(SPrime::<E1>::commitment_key_floor());
+  // let pp_hint2 = Some(SPrime::<E2>::commitment_key_floor());
   let pp = PublicParams::<E1, E2, T1, T2>::setup(
     non_uniform_circuit,
     &*default_ck_hint(),

@@ -44,25 +44,33 @@ pub struct R1CSShape<E: Engine> {
 
 impl<E: Engine> SimpleDigestible for R1CSShape<E> {}
 
+/// A type that holds the result of a R1CS multiplication
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct R1CSResult<E: Engine> {
+  pub(crate) AZ: Vec<E::Scalar>,
+  pub(crate) BZ: Vec<E::Scalar>,
+  pub(crate) CZ: Vec<E::Scalar>,
+}
+
 /// A type that holds a witness for a given R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct R1CSWitness<G: Group> {
-  pub(crate) W: Vec<G::Scalar>,
+pub struct R1CSWitness<E: Engine> {
+  pub(crate) W: Vec<E::Scalar>,
 }
 
 /// A type that holds an R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct R1CSInstance<G: Group> {
-  pub(crate) comm_W: Commitment<G>,
+pub struct R1CSInstance<E: Engine> {
+  pub(crate) comm_W: Commitment<E>,
   /// This is intended to be a buffer for `WitnessViewCS`, which has an extra allocated one variable.
-  /// It ends up working out, and we use the extra slot for `G::Scalar::ONE` anyways
+  /// It ends up working out, and we use the extra slot for `E::Scalar::ONE` anyways
   ///
   /// We refer to `one_and_X[1..]` as just `X`
   ///
   /// ## TODO:
-  /// **MUST ASSERT THAT `one_and_X[0] == G::Scalar::ONE`**
-  pub(crate) one_and_X: Vec<G::Scalar>,
+  /// **MUST ASSERT THAT `one_and_X[0] == E::Scalar::ONE`**
+  pub(crate) one_and_X: Vec<E::Scalar>,
 }
 
 /// A type that holds a witness for a given Relaxed R1CS instance
@@ -75,14 +83,14 @@ pub struct RelaxedR1CSWitness<E: Engine> {
 /// A type that holds a Relaxed R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RelaxedR1CSInstance<G: Group> {
-  pub(crate) comm_W: Commitment<G>,
-  pub(crate) comm_E: Commitment<G>,
+pub struct RelaxedR1CSInstance<E: Engine> {
+  pub(crate) comm_W: Commitment<E>,
+  pub(crate) comm_E: Commitment<E>,
   /// This is intended to be a buffer for `WitnessViewCS`, which has an extra allocated one variable.
   /// It ends up working out, and we use the extra slot for `u`
   ///
   /// We refer to `u_and_X[1..]` as just `X`
-  pub(crate) u_and_X: Vec<G::Scalar>,
+  pub(crate) u_and_X: Vec<E::Scalar>,
 }
 
 /// A type for functions that hints commitment key sizing by returning the floor of the number of required generators.
@@ -199,9 +207,9 @@ impl<E: Engine> R1CSShape<E> {
 
   pub(crate) fn multiply_witness(
     &self,
-    W: &[G::Scalar],
-    u_and_X: &[G::Scalar],
-  ) -> Result<(Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>), NovaError> {
+    W: &[E::Scalar],
+    u_and_X: &[E::Scalar],
+  ) -> Result<(Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>), NovaError> {
     if u_and_X.len() != self.num_io + 1 || W.len() != self.num_vars {
       return Err(NovaError::InvalidWitnessLength);
     }
@@ -217,6 +225,31 @@ impl<E: Engine> R1CSShape<E> {
     );
 
     Ok((Az, Bz, Cz))
+  }
+
+  pub(crate) fn multiply_witness_into(
+    &self,
+    W: &[E::Scalar],
+    u_and_X: &[E::Scalar],
+    ABC_Z: &mut R1CSResult<E>,
+  ) -> Result<(), NovaError> {
+    if u_and_X.len() != self.num_io + 1 || W.len() != self.num_vars {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    let R1CSResult { AZ, BZ, CZ } = ABC_Z;
+
+    rayon::join(
+      || self.A.multiply_witness_into(W, u_and_X, AZ),
+      || {
+        rayon::join(
+          || self.B.multiply_witness_into(W, u_and_X, BZ),
+          || self.C.multiply_witness_into(W, u_and_X, CZ),
+        )
+      },
+    );
+
+    Ok(())
   }
 
   /// Checks if the Relaxed R1CS instance is satisfiable given a witness and its shape
@@ -270,7 +303,7 @@ impl<E: Engine> R1CSShape<E> {
   ) -> Result<(), NovaError> {
     assert_eq!(W.W.len(), self.num_vars);
     assert_eq!(U.one_and_X.len(), self.num_io + 1);
-    assert_eq!(U.one_and_X[0], G::Scalar::ONE);
+    assert_eq!(U.one_and_X[0], E::Scalar::ONE);
 
     // verify if Az * Bz = u*Cz
     let res_eq = {
@@ -326,7 +359,7 @@ impl<E: Engine> R1CSShape<E> {
         let u_1_cdot_CZ_2 = (0..CZ_2.len())
           .into_par_iter()
           .map(|i| U1.u_and_X[0] * CZ_2[i])
-          .collect::<Vec<G::Scalar>>();
+          .collect::<Vec<E::Scalar>>();
         let u_2_cdot_CZ_1 = (0..CZ_1.len())
           .into_par_iter()
           .map(|i| CZ_1[i])
@@ -355,22 +388,36 @@ impl<E: Engine> R1CSShape<E> {
   /// This is [`R1CSShape::commit_T`] but into a buffer.
   pub fn commit_T_into(
     &self,
-    ck: &CommitmentKey<G>,
-    U1: &RelaxedR1CSInstance<G>,
-    W1: &RelaxedR1CSWitness<G>,
-    U2: &R1CSInstance<G>,
-    W2: &R1CSWitness<G>,
-    T: &mut Vec<G::Scalar>,
-  ) -> Result<Commitment<G>, NovaError> {
-    let (AZ_1, BZ_1, CZ_1) = tracing::trace_span!("AZ_1, BZ_1, CZ_1")
-      .in_scope(|| self.multiply_witness(&W1.W, &U1.u_and_X))?;
+    ck: &CommitmentKey<E>,
+    U1: &RelaxedR1CSInstance<E>,
+    W1: &RelaxedR1CSWitness<E>,
+    U2: &R1CSInstance<E>,
+    W2: &R1CSWitness<E>,
+    T: &mut Vec<E::Scalar>,
+    ABC_Z_1: &mut R1CSResult<E>,
+    ABC_Z_2: &mut R1CSResult<E>,
+  ) -> Result<Commitment<E>, NovaError> {
+    tracing::info_span!("AZ_1, BZ_1, CZ_1")
+      .in_scope(|| self.multiply_witness_into(&W1.W, &U1.u_and_X, ABC_Z_1))?;
 
-    let (AZ_2, BZ_2, CZ_2) = tracing::trace_span!("AZ_2, BZ_2, CZ_2")
-      .in_scope(|| self.multiply_witness(&W2.W, &U2.one_and_X))?;
+    let R1CSResult {
+      AZ: AZ_1,
+      BZ: BZ_1,
+      CZ: CZ_1,
+    } = ABC_Z_1;
+
+    tracing::info_span!("AZ_2, BZ_2, CZ_2")
+      .in_scope(|| self.multiply_witness_into(&W2.W, &U2.one_and_X, ABC_Z_2))?;
+
+    let R1CSResult {
+      AZ: AZ_2,
+      BZ: BZ_2,
+      CZ: CZ_2,
+    } = ABC_Z_2;
 
     // this doesn't allocate memory but has bad temporal cache locality -- should test to see which is faster
     T.clear();
-    tracing::trace_span!("T").in_scope(|| {
+    tracing::info_span!("T").in_scope(|| {
       (0..AZ_1.len())
         .into_par_iter()
         .map(|i| {
@@ -382,9 +429,7 @@ impl<E: Engine> R1CSShape<E> {
         .collect_into_vec(T)
     });
 
-    let comm_T = CE::<G>::commit(ck, T);
-
-    Ok(comm_T)
+    Ok(CE::<E>::commit(ck, T))
   }
 
   /// Pads the `R1CSShape` so that the number of variables is a power of two
@@ -449,17 +494,28 @@ impl<E: Engine> R1CSShape<E> {
   }
 }
 
-impl<G: Group> R1CSWitness<G> {
+impl<E: Engine> R1CSResult<E> {
+  /// Produces a default `R1CSResult` given an `R1CSShape`
+  pub fn default(S: &R1CSShape<E>) -> R1CSResult<E> {
+    R1CSResult {
+      AZ: vec![E::Scalar::ZERO; S.num_cons],
+      BZ: vec![E::Scalar::ZERO; S.num_cons],
+      CZ: vec![E::Scalar::ZERO; S.num_cons],
+    }
+  }
+}
+
+impl<E: Engine> R1CSWitness<E> {
   /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
-  pub fn default(S: &R1CSShape<G>) -> R1CSWitness<G> {
-    let mut W = vec![G::Scalar::ZERO; S.num_vars];
+  pub fn default(S: &R1CSShape<E>) -> R1CSWitness<E> {
+    let mut W = vec![E::Scalar::ZERO; S.num_vars];
     W.shrink_to_fit();
 
     R1CSWitness { W }
   }
 
   /// A method to create a witness object using a vector of scalars
-  pub fn new(S: &R1CSShape<G>, W: Vec<G::Scalar>) -> Result<R1CSWitness<G>, NovaError> {
+  pub fn new(S: &R1CSShape<E>, W: Vec<E::Scalar>) -> Result<R1CSWitness<E>, NovaError> {
     if S.num_vars != W.len() {
       Err(NovaError::InvalidWitnessLength)
     } else {
@@ -473,23 +529,23 @@ impl<G: Group> R1CSWitness<G> {
   }
 }
 
-impl<G: Group> R1CSInstance<G> {
+impl<E: Engine> R1CSInstance<E> {
   /// Produces a default `R1CSInstance` given `CommitmentKey` and `R1CSShape`
-  pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> R1CSInstance<G> {
-    let comm_W = Commitment::<G>::default();
-    let mut one_and_X = vec![G::Scalar::ZERO; S.num_io + 1];
-    one_and_X[0] = G::Scalar::ONE;
+  pub fn default(_ck: &CommitmentKey<E>, S: &R1CSShape<E>) -> R1CSInstance<E> {
+    let comm_W = Commitment::<E>::default();
+    let mut one_and_X = vec![E::Scalar::ZERO; S.num_io + 1];
+    one_and_X[0] = E::Scalar::ONE;
     one_and_X.shrink_to_fit();
     R1CSInstance { comm_W, one_and_X }
   }
 
   /// A method to create an instance object using consitituent elements
   pub fn new(
-    S: &R1CSShape<G>,
-    comm_W: Commitment<G>,
-    one_and_X: Vec<G::Scalar>,
-  ) -> Result<R1CSInstance<G>, NovaError> {
-    if S.num_io + 1 != one_and_X.len() || one_and_X[0] != G::Scalar::ONE {
+    S: &R1CSShape<E>,
+    comm_W: Commitment<E>,
+    one_and_X: Vec<E::Scalar>,
+  ) -> Result<R1CSInstance<E>, NovaError> {
+    if S.num_io + 1 != one_and_X.len() || one_and_X[0] != E::Scalar::ONE {
       Err(NovaError::InvalidInputLength)
     } else {
       Ok(R1CSInstance { comm_W, one_and_X })
@@ -502,25 +558,25 @@ impl<E: Engine> AbsorbInROTrait<E> for R1CSInstance<E> {
     self.comm_W.absorb_in_ro(ro);
     // make sure to skip the one allocation
     for x in &self.one_and_X[1..] {
-      ro.absorb(scalar_as_base::<G>(*x));
+      ro.absorb(scalar_as_base::<E>(*x));
     }
   }
 }
 
 impl<E: Engine> RelaxedR1CSWitness<E> {
   /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
-  pub fn default(S: &R1CSShape<G>) -> RelaxedR1CSWitness<G> {
-    let mut W = vec![G::Scalar::ZERO; S.num_vars];
+  pub fn default(S: &R1CSShape<E>) -> RelaxedR1CSWitness<E> {
+    let mut W = vec![E::Scalar::ZERO; S.num_vars];
     W.shrink_to_fit();
-    let mut E = vec![G::Scalar::ZERO; S.num_cons];
+    let mut E = vec![E::Scalar::ZERO; S.num_cons];
     E.shrink_to_fit();
 
     RelaxedR1CSWitness { W, E }
   }
 
   /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
-  pub fn from_r1cs_witness(S: &R1CSShape<G>, witness: R1CSWitness<G>) -> RelaxedR1CSWitness<G> {
-    let mut E = vec![G::Scalar::ZERO; S.num_cons];
+  pub fn from_r1cs_witness(S: &R1CSShape<E>, witness: R1CSWitness<E>) -> RelaxedR1CSWitness<E> {
+    let mut E = vec![E::Scalar::ZERO; S.num_cons];
     E.shrink_to_fit();
 
     RelaxedR1CSWitness { W: witness.W, E }
@@ -561,9 +617,9 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
   /// Mutably folds an incoming `R1CSWitness` into the current one
   pub fn fold_mut(
     &mut self,
-    W2: &R1CSWitness<G>,
-    T: &[G::Scalar],
-    r: &G::Scalar,
+    W2: &R1CSWitness<E>,
+    T: &[E::Scalar],
+    r: &E::Scalar,
   ) -> Result<(), NovaError> {
     if self.W.len() != W2.W.len() {
       return Err(NovaError::InvalidWitnessLength);
@@ -597,9 +653,9 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
 impl<E: Engine> RelaxedR1CSInstance<E> {
   /// Produces a default `RelaxedR1CSInstance` given `R1CSGens` and `R1CSShape`
-  pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> RelaxedR1CSInstance<G> {
-    let (comm_W, comm_E) = (Commitment::<G>::default(), Commitment::<G>::default());
-    let mut u_and_X = vec![G::Scalar::ZERO; S.num_io + 1];
+  pub fn default(_ck: &CommitmentKey<E>, S: &R1CSShape<E>) -> RelaxedR1CSInstance<E> {
+    let (comm_W, comm_E) = (Commitment::<E>::default(), Commitment::<E>::default());
+    let mut u_and_X = vec![E::Scalar::ZERO; S.num_io + 1];
     u_and_X.shrink_to_fit();
 
     RelaxedR1CSInstance {
@@ -611,31 +667,31 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance(
-    _ck: &CommitmentKey<G>,
-    S: &R1CSShape<G>,
-    instance: R1CSInstance<G>,
-  ) -> RelaxedR1CSInstance<G> {
+    _ck: &CommitmentKey<E>,
+    S: &R1CSShape<E>,
+    instance: R1CSInstance<E>,
+  ) -> RelaxedR1CSInstance<E> {
     assert_eq!(S.num_io + 1, instance.one_and_X.len());
-    assert_eq!(G::Scalar::ONE, instance.one_and_X[0]);
+    assert_eq!(E::Scalar::ONE, instance.one_and_X[0]);
 
     RelaxedR1CSInstance {
       comm_W: instance.comm_W,
-      comm_E: Commitment::<G>::default(),
+      comm_E: Commitment::<E>::default(),
       u_and_X: instance.one_and_X,
     }
   }
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance_unchecked(
-    comm_W: Commitment<G>,
-    X: &[G::Scalar],
-  ) -> RelaxedR1CSInstance<G> {
-    let mut u_and_X = vec![G::Scalar::ONE];
+    comm_W: Commitment<E>,
+    X: &[E::Scalar],
+  ) -> RelaxedR1CSInstance<E> {
+    let mut u_and_X = vec![E::Scalar::ONE];
     u_and_X.extend_from_slice(X);
 
     RelaxedR1CSInstance {
       comm_W,
-      comm_E: Commitment::<G>::default(),
+      comm_E: Commitment::<E>::default(),
       u_and_X,
     }
   }
@@ -643,10 +699,10 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
   /// Folds an incoming `RelaxedR1CSInstance` into the current one
   pub fn fold(
     &self,
-    U2: &R1CSInstance<G>,
-    comm_T: &Commitment<G>,
-    r: &G::Scalar,
-  ) -> RelaxedR1CSInstance<G> {
+    U2: &R1CSInstance<E>,
+    comm_T: &Commitment<E>,
+    r: &E::Scalar,
+  ) -> RelaxedR1CSInstance<E> {
     let (u1_and_X1, comm_W_1, comm_E_1) =
       (&self.u_and_X, &self.comm_W.clone(), &self.comm_E.clone());
     let (one_and_X2, comm_W_2) = (&U2.one_and_X, &U2.comm_W);
@@ -668,7 +724,7 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
   }
 
   /// Mutably folds an incoming `RelaxedR1CSInstance` into the current one
-  pub fn fold_mut(&mut self, U2: &R1CSInstance<G>, comm_T: &Commitment<G>, r: &G::Scalar) {
+  pub fn fold_mut(&mut self, U2: &R1CSInstance<E>, comm_T: &Commitment<E>, r: &E::Scalar) {
     let (one_and_X2, comm_W_2) = (&U2.one_and_X, &U2.comm_W);
 
     // weighted sum of X, comm_W, comm_E, and u
@@ -679,8 +735,8 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
       .for_each(|(a, b)| {
         *a += *r * *b;
       });
-    self.comm_W += *comm_W_2 * *r;
-    self.comm_E += *comm_T * *r;
+    self.comm_W = self.comm_W + *comm_W_2 * *r;
+    self.comm_E = self.comm_E + *comm_T * *r;
   }
 }
 
@@ -699,11 +755,11 @@ impl<E: Engine> AbsorbInROTrait<E> for RelaxedR1CSInstance<E> {
   fn absorb_in_ro(&self, ro: &mut E::RO) {
     self.comm_W.absorb_in_ro(ro);
     self.comm_E.absorb_in_ro(ro);
-    ro.absorb(scalar_as_base::<G>(self.u_and_X[0]));
+    ro.absorb(scalar_as_base::<E>(self.u_and_X[0]));
 
     // absorb each element of self.X in bignum format
     for x in &self.u_and_X[1..] {
-      let limbs: Vec<G::Scalar> = nat_to_limbs(&f_to_nat(x), BN_LIMB_WIDTH, BN_N_LIMBS).unwrap();
+      let limbs: Vec<E::Scalar> = nat_to_limbs(&f_to_nat(x), BN_LIMB_WIDTH, BN_N_LIMBS).unwrap();
       for limb in limbs {
         ro.absorb(scalar_as_base::<E>(limb));
       }
@@ -712,21 +768,21 @@ impl<E: Engine> AbsorbInROTrait<E> for RelaxedR1CSInstance<E> {
 }
 
 /// Return an instance and witness, given a shape, ck, and the needed vectors.
-pub fn instance_and_witness<G: Group>(
-  shape: &R1CSShape<G>,
-  ck: &CommitmentKey<G>,
-  input_assignment: Vec<G::Scalar>,
-  aux_assignment: Vec<G::Scalar>,
-) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError> {
-  let W = R1CSWitness::<G>::new(shape, aux_assignment)?;
+pub fn instance_and_witness<E: Engine>(
+  shape: &R1CSShape<E>,
+  ck: &CommitmentKey<E>,
+  input_assignment: Vec<E::Scalar>,
+  aux_assignment: Vec<E::Scalar>,
+) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
+  let W = R1CSWitness::<E>::new(shape, aux_assignment)?;
   let comm_W = W.commit(ck);
-  let instance = R1CSInstance::<G>::new(shape, comm_W, input_assignment)?;
+  let instance = R1CSInstance::<E>::new(shape, comm_W, input_assignment)?;
 
   Ok((instance, W))
 }
 
 /// Empty buffer for `commit_T_into`
-pub fn default_T<G: Group>(shape: &R1CSShape<G>) -> Vec<G::Scalar> {
+pub fn default_T<E: Engine>(shape: &R1CSShape<E>) -> Vec<E::Scalar> {
   Vec::with_capacity(shape.num_cons)
 }
 

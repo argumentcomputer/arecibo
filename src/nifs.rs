@@ -4,7 +4,9 @@
 use crate::{
   constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
-  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  r1cs::{
+    R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  },
   scalar_as_base,
   traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROTrait},
   Commitment, CommitmentKey, CompressedCommitment,
@@ -83,28 +85,30 @@ impl<E: Engine> NIFS<E> {
   #[allow(clippy::too_many_arguments)]
   #[tracing::instrument(skip_all, level = "trace", name = "NIFS::prove_mut")]
   pub fn prove_mut(
-    ck: &CommitmentKey<G>,
-    ro_consts: &ROConstants<G>,
-    pp_digest: &G::Scalar,
-    S: &R1CSShape<G>,
-    U1: &mut RelaxedR1CSInstance<G>,
-    W1: &mut RelaxedR1CSWitness<G>,
-    U2: &R1CSInstance<G>,
-    W2: &R1CSWitness<G>,
-    T: &mut Vec<G::Scalar>,
-  ) -> Result<NIFS<G>, NovaError> {
+    ck: &CommitmentKey<E>,
+    ro_consts: &ROConstants<E>,
+    pp_digest: &E::Scalar,
+    S: &R1CSShape<E>,
+    U1: &mut RelaxedR1CSInstance<E>,
+    W1: &mut RelaxedR1CSWitness<E>,
+    U2: &R1CSInstance<E>,
+    W2: &R1CSWitness<E>,
+    T: &mut Vec<E::Scalar>,
+    ABC_Z_1: &mut R1CSResult<E>,
+    ABC_Z_2: &mut R1CSResult<E>,
+  ) -> Result<NIFS<E>, NovaError> {
     // initialize a new RO
-    let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 
     // append the digest of pp to the transcript
-    ro.absorb(scalar_as_base::<G>(*pp_digest));
+    ro.absorb(scalar_as_base::<E>(*pp_digest));
 
     // append U1 and U2 to transcript
     U1.absorb_in_ro(&mut ro);
     U2.absorb_in_ro(&mut ro);
 
     // compute a commitment to the cross-term
-    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, T)?;
+    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, T, ABC_Z_1, ABC_Z_2)?;
 
     // append `comm_T` to the transcript and obtain a challenge
     comm_T.absorb_in_ro(&mut ro);

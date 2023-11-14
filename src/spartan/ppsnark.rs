@@ -1105,7 +1105,7 @@ where
           Bz.clone(),
           (0..Cz.len())
             .map(|i| U.u_and_X[0] * Cz[i] + E[i])
-            .collect::<Vec<G::Scalar>>(),
+            .collect::<Vec<E::Scalar>>(),
           w.p.clone(), // Mz = Az + r * Bz + r^2 * Cz
           &u.e,        // eval_Az_at_tau + r * eval_Az_at_tau + r^2 * eval_Cz_at_tau
         );
@@ -1455,7 +1455,7 @@ where
               .iter()
               .copied()
               .enumerate()
-              .collect::<Vec<(usize, G::Scalar)>>();
+              .collect::<Vec<(usize, E::Scalar)>>();
             SparsePolynomial::new(vk.num_vars.log_2(), poly_X).evaluate(&rand_sc_unpad[1..])
           };
 
