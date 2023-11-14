@@ -74,21 +74,21 @@ impl SuperNovaAugmentedCircuitParams {
 pub struct SuperNovaAugmentedCircuitInputs<'a, G: Group> {
   pp_digest: G::Scalar,
   i: G::Base,
-  // Input to the circuit for the base case
+  /// Input to the circuit for the base case
   z0: &'a [G::Base],
-  // Input to the circuit for the non-base case
+  /// Input to the circuit for the non-base case
   zi: Option<&'a [G::Base]>,
-  // List of `RelaxedR1CSInstance`.
-  // `None` if this is the base case.
-  // Elements are `None` if the circuit at that index was not yet executed.
+  /// List of `RelaxedR1CSInstance`.
+  /// `None` if this is the base case.
+  /// Elements are `None` if the circuit at that index was not yet executed.
   U: Option<&'a [Option<RelaxedR1CSInstance<G>>]>,
-  // R1CS proof to be folded into U
+  /// R1CS proof to be folded into U
   u: Option<&'a R1CSInstance<G>>,
-  // Nova folding proof for accumulating u into U[j]
+  /// Nova folding proof for accumulating u into U[j]
   T: Option<&'a Commitment<G>>,
-  // Index of the current circuit
+  /// Index of the current circuit
   program_counter: Option<G::Base>,
-  // Index j of circuit being folded into U[j]
+  /// Index j of circuit being folded into U[j]
   last_augmented_circuit_index: G::Base,
 }
 
