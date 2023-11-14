@@ -9,7 +9,7 @@ use nova_snark::{
   supernova::{PublicParams, RecursiveSNARK},
   traits::{
     circuit_supernova::{StepCircuit, TrivialTestCircuit},
-    snark::default_commitment_key_hint,
+    snark::default_ck_hint,
     Group,
   },
 };
@@ -105,11 +105,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(1, num_cons);
-    let pp = PublicParams::new(
-      &bench,
-      &*default_commitment_key_hint(),
-      &*default_commitment_key_hint(),
-    );
+    let pp = PublicParams::new(&bench, &*default_ck_hint(), &*default_ck_hint());
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
@@ -197,11 +193,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
 
     let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
       NonUniformBench::new(2, num_cons);
-    let pp = PublicParams::new(
-      &bench,
-      &*default_commitment_key_hint(),
-      &*default_commitment_key_hint(),
-    );
+    let pp = PublicParams::new(&bench, &*default_ck_hint(), &*default_ck_hint());
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing

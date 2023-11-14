@@ -803,7 +803,7 @@ mod tests {
       r1cs::{NovaShape, NovaWitness},
       {solver::SatisfyingAssignment, test_shape_cs::TestShapeCS},
     },
-    traits::snark::default_commitment_key_hint,
+    traits::snark::default_ck_hint,
   };
   use ff::{Field, PrimeFieldBits};
   use pasta_curves::{arithmetic::CurveAffine, group::Curve, pallas, vesta};
@@ -1049,7 +1049,7 @@ mod tests {
     let mut cs: TestShapeCS<G2> = TestShapeCS::new();
     let _ = synthesize_smul::<G1, _>(cs.namespace(|| "synthesize"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_commitment_key_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<G2>::new();
@@ -1105,7 +1105,7 @@ mod tests {
     let mut cs: TestShapeCS<G2> = TestShapeCS::new();
     let _ = synthesize_add_equal::<G1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_commitment_key_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<G2>::new();
@@ -1165,7 +1165,7 @@ mod tests {
     let mut cs: TestShapeCS<G2> = TestShapeCS::new();
     let _ = synthesize_add_negation::<G1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_commitment_key_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<G2>::new();
