@@ -237,6 +237,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
         .as_ref()
         .and_then(|inputs| inputs.T.map(|T| T.to_coordinates())),
     )?;
+    T.check_on_curve(cs.namespace(|| "check T on curve"))?;
 
     Ok((
       params,
