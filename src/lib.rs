@@ -1061,13 +1061,13 @@ mod tests {
     test_pp_digest_with::<G1, G2, _, _, EE<_>, EE<_>>(
       &trivial_circuit1,
       &trivial_circuit2,
-      "fd9cafd3d142c3ab694e35384293211fcf377fa484343d0d6889e6664103c802",
+      "cb581e2d5c4b2ef2ddbe2d6849e0da810352f59bcdaca51476dcf9e16072f100",
     );
 
     test_pp_digest_with::<G1, G2, _, _, EE<_>, EE<_>>(
       &cubic_circuit1,
       &trivial_circuit2,
-      "6701f6db5a6e3f0e0002740913d6f465ec432cdf59a0dcc68152904a9a4f9d00",
+      "3cc29bb864910463e0501bac84cdefc1d4327e9c2ef5b0fd6d45ad1741f1a401",
     );
 
     let trivial_circuit1_grumpkin = TrivialCircuit::<<bn256::Point as Group>::Scalar>::default();
@@ -1077,12 +1077,12 @@ mod tests {
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "184d05f08dca260f010cb48c6cf8c5eb61dedfc270e5a18226eb622cf7da0203",
+      "c26cc841d42c19bf98bc2482e66cd30903922f2a923927b85d66f375a821f101",
     );
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "2fb992932b2a642b4ce8f52646a7ef6a5a486682716cf969df50021107afff03",
+      "4c484cab71e93dda69b420beb7276af969c2034a7ffb0ea8e6964e96a7e5a901",
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<secp256k1::Point as Group>::Scalar>::default();
@@ -1092,12 +1092,12 @@ mod tests {
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "da68dde1bb88f9a342fe7facedf14ab5e7f3d9afc2777697606ff3de061d1601",
+      "b794d655fb39891eaf530ca3be1ec2a5ac97f72a0d07c45dbb84529d8a611502",
     );
     test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "4a7d379403a99a46592b70c8446206542ce09e08dc96c0ba57f36efce8b0fa00",
+      "50e6acf363c31c2ac1c9c646b4494cb21aae6cb648c7b0d4c95015c811fba302",
     );
   }
 
