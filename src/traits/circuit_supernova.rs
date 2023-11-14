@@ -15,7 +15,7 @@ pub trait StepCircuit<F: PrimeField>: Send + Sync + Clone {
   /// Return this `StepCircuit`'s assigned index, for use when enforcing the program counter.
   fn circuit_index(&self) -> usize;
 
-  /// Sythesize the circuit for a computation step and return variable
+  /// Synthesize the circuit for a computation step and return variable
   /// that corresponds to the output of the step `pc_{i+1}` and `z_{i+1}`
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
@@ -109,6 +109,7 @@ where
     z: &[AllocatedNum<F>],
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     assert!(program_counter.is_none());
+    assert_eq!(z.len(), 1, "Arity of trivial step circuit should be 1");
     Ok((None, z.to_vec()))
   }
 }
