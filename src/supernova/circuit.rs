@@ -45,7 +45,7 @@ use abomonation_derive::Abomonation;
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-use super::utils::get_from_vec_alloc_relaxed_r1cs;
+use super::{num_ro_inputs, utils::get_from_vec_alloc_relaxed_r1cs};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct SuperNovaAugmentedCircuitParams {
@@ -328,15 +328,15 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     ),
     SynthesisError,
   > {
-    // Check that u.x[0] = Hash(params, i, program_counter, U[], z0, zi)
+    // Check that u.x[0] = Hash(params, i, program_counter, z0, zi, U[])
     let mut ro = G::ROCircuit::new(
       self.ro_consts.clone(),
-      2 // params_next, i_new
-      + program_counter.as_ref().map_or(0, |_|
-                                        usize::from(self.params.is_primary_circuit)
-      ) // optional program counter
-        + 2 * arity // zo, z1
-        + num_augmented_circuits * (7 + 2 * self.params.n_limbs), // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
+      num_ro_inputs(
+        self.num_augmented_circuits,
+        self.params.get_n_limbs(),
+        arity,
+        self.params.is_primary_circuit,
+      ),
     );
     ro.absorb(params);
     ro.absorb(i);
@@ -544,10 +544,12 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     // Compute the new hash H(params, i+1, program_counter, z0, z_{i+1}, U_next)
     let mut ro = G::ROCircuit::new(
       self.ro_consts.clone(),
-      2 // params_next, i_new
-      + program_counter.as_ref().map_or(0, |_| 1) // optional program counter
-        + 2 * arity // zo, z1
-        + num_augmented_circuits * (7 + 2 * self.params.n_limbs), // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
+      num_ro_inputs(
+        self.num_augmented_circuits,
+        self.params.get_n_limbs(),
+        self.step_circuit.arity(),
+        self.params.is_primary_circuit,
+      ),
     );
     ro.absorb(&params);
     ro.absorb(&i_next);

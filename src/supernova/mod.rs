@@ -844,17 +844,15 @@ where
       }
     }
 
-    let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
-    + 2 * pp[circuit_index].F_arity // zo, z1
-    + (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // # 1 * (7 + [X0, X1]*#num_limb)
+    let hash_primary = {
+      let num_absorbs = num_ro_inputs(
+        self.num_augmented_circuits,
+        pp.augmented_circuit_params_primary.get_n_limbs(),
+        pp[circuit_index].F_arity,
+        true, // is_primary
+      );
 
-    // secondary circuit
-    let num_field_secondary_ro = 2 // params_next, i_new
-    + 2 * pp.circuit_shape_secondary.F_arity // zo, z1
-    + self.num_augmented_circuits * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augmented_circuits * (7 + [X0, X1]*#num_limb)
-
-    let (hash_primary, hash_secondary) = {
-      let mut hasher = <G2 as Group>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
+      let mut hasher = <G2 as Group>::RO::new(pp.ro_consts_secondary.clone(), num_absorbs);
       hasher.absorb(self.pp_digest);
       hasher.absorb(G1::Scalar::from(self.i as u64));
       hasher.absorb(self.program_counter);
@@ -867,17 +865,25 @@ where
       }
 
       self.r_U_secondary.absorb_in_ro(&mut hasher);
+      hasher.squeeze(NUM_HASH_BITS)
+    };
 
-      let mut hasher2 =
-        <G1 as Group>::RO::new(pp.ro_consts_primary.clone(), num_field_secondary_ro);
-      hasher2.absorb(scalar_as_base::<G1>(self.pp_digest));
-      hasher2.absorb(G2::Scalar::from(self.i as u64));
+    let hash_secondary = {
+      let num_absorbs = num_ro_inputs(
+        self.num_augmented_circuits,
+        pp.augmented_circuit_params_secondary.get_n_limbs(),
+        pp.circuit_shape_secondary.F_arity,
+        false, // is_primary
+      );
+      let mut hasher = <G1 as Group>::RO::new(pp.ro_consts_primary.clone(), num_absorbs);
+      hasher.absorb(scalar_as_base::<G1>(self.pp_digest));
+      hasher.absorb(G2::Scalar::from(self.i as u64));
 
       for e in z0_secondary {
-        hasher2.absorb(*e);
+        hasher.absorb(*e);
       }
       for e in &self.zi_secondary {
-        hasher2.absorb(*e);
+        hasher.absorb(*e);
       }
 
       self.r_U_primary.iter().enumerate().for_each(|(i, U)| {
@@ -886,13 +892,9 @@ where
             &pp.ck_primary,
             &pp[i].r1cs_shape,
           ))
-          .absorb_in_ro(&mut hasher2);
+          .absorb_in_ro(&mut hasher);
       });
-
-      (
-        hasher.squeeze(NUM_HASH_BITS),
-        hasher2.squeeze(NUM_HASH_BITS),
-      )
+      hasher.squeeze(NUM_HASH_BITS)
     };
 
     if hash_primary != self.l_u_secondary.X[0] {
@@ -1043,6 +1045,20 @@ pub fn circuit_digest<
   let F_arity = circuit.arity();
   let circuit_params = CircuitShape::new(cs.r1cs_shape(), F_arity);
   circuit_params.digest()
+}
+
+/// Compute the number of absorbs for the random-oracle computing the circuit output
+/// X = H(vk, i, pc, z0, zi, U)
+fn num_ro_inputs(num_circuits: usize, num_limbs: usize, arity: usize, is_primary: bool) -> usize {
+  let num_circuits = if is_primary { 1 } else { num_circuits };
+
+  // [W(x,y,∞), E(x,y,∞), u] + [X0, X1] * #num_limb
+  let instance_size = 3 + 3 + 1 + 2 * num_limbs;
+
+  2 // params, i
+    + is_primary as usize // optional program counter
+      + 2 * arity // z0, zi
+      + num_circuits * instance_size
 }
 
 pub mod error;
