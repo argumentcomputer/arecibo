@@ -86,25 +86,22 @@ pub type CommitmentKeyHint<G> = dyn Fn(&R1CSShape<G>) -> usize;
 /// # Arguments
 ///
 /// * `S`: The shape of the R1CS matrices.
-/// * `commitment_key_hint`: A function that provides a floor for the number of generators. A good function to
+/// * `ck_floor`: A function that provides a floor for the number of generators. A good function to
 ///   provide is the `commitment_key_floor` field in the trait `RelaxedR1CSSNARKTrait`.
 ///
 pub fn commitment_key<G: Group>(
   S: &R1CSShape<G>,
-  commitment_key_floor: &CommitmentKeyHint<G>,
+  ck_floor: &CommitmentKeyHint<G>,
 ) -> CommitmentKey<G> {
-  let size = commitment_key_size(S, commitment_key_floor);
+  let size = commitment_key_size(S, ck_floor);
   G::CE::setup(b"ck", size)
 }
 
 /// Computes the number of generators required for the commitment key corresponding to shape `S`.
-pub fn commitment_key_size<G: Group>(
-  S: &R1CSShape<G>,
-  commitment_key_floor: &CommitmentKeyHint<G>,
-) -> usize {
+pub fn commitment_key_size<G: Group>(S: &R1CSShape<G>, ck_floor: &CommitmentKeyHint<G>) -> usize {
   let num_cons = S.num_cons;
   let num_vars = S.num_vars;
-  let ck_hint = commitment_key_floor(S);
+  let ck_hint = ck_floor(S);
   max(max(num_cons, num_vars), ck_hint)
 }
 
