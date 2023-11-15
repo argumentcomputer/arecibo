@@ -11,13 +11,12 @@ use crate::{
 };
 use bellpepper_core::{Index, LinearCombination};
 use ff::PrimeField;
-use vecshard::ShardExt;
 
 /// `NovaWitness` provide a method for acquiring an `R1CSInstance` and `R1CSWitness` from implementers.
 pub trait NovaWitness<G: Group> {
   /// Return an instance and witness, given a shape and ck.
   fn r1cs_instance_and_witness(
-    self,
+    &self,
     shape: &R1CSShape<G>,
     ck: &CommitmentKey<G>,
   ) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError>;
@@ -40,19 +39,16 @@ pub trait NovaShape<G: Group> {
 
 impl<G: Group> NovaWitness<G> for SatisfyingAssignment<G> {
   fn r1cs_instance_and_witness(
-    self,
+    &self,
     shape: &R1CSShape<G>,
     ck: &CommitmentKey<G>,
   ) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError> {
-    let (input_assignment, aux_assignment) = self.to_assignments();
-
-    let W = R1CSWitness::<G>::new(shape, aux_assignment)?;
-
-    let (_, X) = input_assignment.split_inplace_at(1);
+    let W = R1CSWitness::<G>::new(shape, self.aux_assignment())?;
+    let X = &self.input_assignment()[1..];
 
     let comm_W = W.commit(ck);
 
-    let instance = R1CSInstance::<G>::new(shape, &comm_W, X.into())?;
+    let instance = R1CSInstance::<G>::new(shape, &comm_W, X)?;
 
     Ok((instance, W))
   }
