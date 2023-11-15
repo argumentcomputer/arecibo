@@ -33,16 +33,13 @@ pub struct PolyEvalWitness<G: Group> {
 }
 
 impl<G: Group> PolyEvalWitness<G> {
-  fn pad(W: &[PolyEvalWitness<G>]) -> Vec<PolyEvalWitness<G>> {
+  fn pad(mut W: Vec<PolyEvalWitness<G>>) -> Vec<PolyEvalWitness<G>> {
     // determine the maximum size
     if let Some(n) = W.iter().map(|w| w.p.len()).max() {
-      W.iter()
-        .map(|w| {
-          let mut p = vec![G::Scalar::ZERO; n];
-          p[..w.p.len()].copy_from_slice(&w.p);
-          PolyEvalWitness { p }
-        })
-        .collect()
+      W.iter_mut().for_each(|w| {
+        w.p.resize(n, G::Scalar::ZERO);
+      });
+      W
     } else {
       Vec::new()
     }
@@ -94,14 +91,14 @@ pub struct PolyEvalInstance<G: Group> {
 }
 
 impl<G: Group> PolyEvalInstance<G> {
-  fn pad(U: &[PolyEvalInstance<G>]) -> Vec<PolyEvalInstance<G>> {
+  fn pad(U: Vec<PolyEvalInstance<G>>) -> Vec<PolyEvalInstance<G>> {
     // determine the maximum size
     if let Some(ell) = U.iter().map(|u| u.x.len()).max() {
-      U.iter()
-        .map(|u| {
+      U.into_iter()
+        .map(|mut u| {
           let mut x = vec![G::Scalar::ZERO; ell - u.x.len()];
-          x.extend(u.x.clone());
-          PolyEvalInstance { c: u.c, x, e: u.e }
+          x.append(&mut u.x);
+          PolyEvalInstance { x, ..u }
         })
         .collect()
     } else {
