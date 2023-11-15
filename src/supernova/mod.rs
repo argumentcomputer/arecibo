@@ -1056,7 +1056,7 @@ fn num_ro_inputs(num_circuits: usize, num_limbs: usize, arity: usize, is_primary
   let instance_size = 3 + 3 + 1 + 2 * num_limbs;
 
   2 // params, i
-    + is_primary as usize // optional program counter
+    + usize::from(is_primary) // optional program counter
       + 2 * arity // z0, zi
       + num_circuits * instance_size
 }

@@ -198,6 +198,7 @@ pub fn alloc_num_equals<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// Check that two numbers are equal and return a bit
+#[allow(unused)]
 pub fn alloc_num_equals_const<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   a: &AllocatedNum<F>,
