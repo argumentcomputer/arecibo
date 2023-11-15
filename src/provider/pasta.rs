@@ -70,7 +70,7 @@ macro_rules! impl_traits {
       #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
       #[tracing::instrument(
         skip_all,
-        level = "trace",
+        // level = "trace",
         name = "<_ as Group>::vartime_multiscalar_mul"
       )]
       fn vartime_multiscalar_mul(

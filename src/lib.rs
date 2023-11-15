@@ -264,19 +264,19 @@ where
   }
 }
 
-/// A resource sink for [`RecursiveSNARK`]
-pub struct ResourceSink<G1, G2>
-where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-{
-  l_w_primary: R1CSWitness<G1>,
-  l_u_primary: R1CSInstance<G1>,
-  /// buffer for `commit_T`
-  T_primary: Vec<G1::Scalar>,
-  /// buffer for `commit_T`
-  T_secondary: Vec<G2::Scalar>,
-}
+// /// A resource sink for [`RecursiveSNARK`]
+// pub struct ResourceSink<G1, G2>
+// where
+//   G1: Group<Base = <G2 as Group>::Scalar>,
+//   G2: Group<Base = <G1 as Group>::Scalar>,
+// {
+//   l_w_primary: R1CSWitness<G1>,
+//   l_u_primary: R1CSInstance<G1>,
+//   /// buffer for `commit_T`
+//   T_primary: Vec<G1::Scalar>,
+//   /// buffer for `commit_T`
+//   T_secondary: Vec<G2::Scalar>,
+// }
 
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -296,8 +296,15 @@ where
   r_W_secondary: RelaxedR1CSWitness<G2>,
   r_U_secondary: RelaxedR1CSInstance<G2>,
 
+  l_w_primary: R1CSWitness<G1>,
+  l_u_primary: R1CSInstance<G1>,
   l_w_secondary: R1CSWitness<G2>,
   l_u_secondary: R1CSInstance<G2>,
+
+  /// buffer for `commit_T`
+  T_primary: Vec<G1::Scalar>,
+  /// buffer for `commit_T`
+  T_secondary: Vec<G2::Scalar>,
 
   i: usize,
   zi_primary: Vec<G1::Scalar>,
@@ -319,7 +326,7 @@ where
     c_secondary: &C2,
     z0_primary: &[G1::Scalar],
     z0_secondary: &[G2::Scalar],
-  ) -> Result<(Self, ResourceSink<G1, G2>), NovaError> {
+  ) -> Result<Self, NovaError> {
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
       return Err(NovaError::InvalidInitialInputLength);
     }
@@ -429,8 +436,13 @@ where
       r_W_secondary,
       r_U_secondary,
 
+      l_w_primary,
+      l_u_primary,
       l_w_secondary,
       l_u_secondary,
+
+      T_primary: default_T(r1cs_primary),
+      T_secondary: default_T(r1cs_secondary),
 
       i: 0,
       zi_primary,
@@ -441,14 +453,14 @@ where
     // resize the witness buffers to be as snug as possible
     recursive_snark.shrink_to_fit();
 
-    let sink = ResourceSink {
-      l_w_primary,
-      l_u_primary,
-      T_primary: default_T(r1cs_primary),
-      T_secondary: default_T(r1cs_secondary),
-    };
+    // let sink = ResourceSink {
+    //   l_w_primary,
+    //   l_u_primary,
+    //   T_primary: default_T(r1cs_primary),
+    //   T_secondary: default_T(r1cs_secondary),
+    // };
 
-    Ok((recursive_snark, sink))
+    Ok(recursive_snark)
   }
 
   /// Shrink the witness buffers to the exact size they need to be
@@ -467,7 +479,7 @@ where
     pp: &PublicParams<G1, G2, C1, C2>,
     c_primary: &C1,
     c_secondary: &C2,
-    sink: &mut ResourceSink<G1, G2>,
+    // sink: &mut ResourceSink<G1, G2>,
   ) -> Result<(), NovaError> {
     // first step was already done in the constructor
     if self.i == 0 {
@@ -492,14 +504,14 @@ where
       &mut self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
-      &mut sink.T_secondary,
+      &mut self.T_secondary,
     )
     .expect("Unable to fold secondary");
 
     // increment `l_u_primary` and `l_w_primary`
     let mut cs_primary = WitnessViewCS::<G1::Scalar>::new_view(
-      &mut sink.l_u_primary.one_and_X,
-      &mut sink.l_w_primary.W,
+      &mut self.l_u_primary.one_and_X,
+      &mut self.l_w_primary.W,
     );
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<G1>(pp.digest()),
@@ -527,7 +539,7 @@ where
     //   .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
     //   .map_err(|_e| NovaError::UnSat)
     //   .expect("Nova error unsat");
-    sink.l_u_primary.comm_W = sink.l_w_primary.commit(&pp.ck_primary);
+    self.l_u_primary.comm_W = self.l_w_primary.commit(&pp.ck_primary);
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
@@ -537,9 +549,9 @@ where
       &pp.circuit_shape_primary.r1cs_shape,
       &mut self.r_U_primary,
       &mut self.r_W_primary,
-      &sink.l_u_primary,
-      &sink.l_w_primary,
-      &mut sink.T_primary,
+      &self.l_u_primary,
+      &self.l_w_primary,
+      &mut self.T_primary,
     )
     .expect("Unable to fold primary");
 
@@ -554,7 +566,7 @@ where
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
       Some(r_U_primary_i),
-      Some(sink.l_u_primary.clone()),
+      Some(self.l_u_primary.clone()),
       Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
     );
 
@@ -1173,7 +1185,7 @@ mod tests {
     let num_steps = 1;
 
     // produce a recursive SNARK
-    let (mut recursive_snark, mut sink) = RecursiveSNARK::new(
+    let mut recursive_snark = RecursiveSNARK::new(
       &pp,
       &test_circuit1,
       &test_circuit2,
@@ -1182,7 +1194,7 @@ mod tests {
     )
     .unwrap();
 
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2, &mut sink);
+    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2);
 
     assert!(res.is_ok());
 
@@ -1230,7 +1242,7 @@ mod tests {
     let num_steps = 3;
 
     // produce a recursive SNARK
-    let (mut recursive_snark, mut sink) = RecursiveSNARK::<
+    let mut recursive_snark = RecursiveSNARK::<
       G1,
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
@@ -1245,7 +1257,7 @@ mod tests {
     .unwrap();
 
     for i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary, &mut sink);
+      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -1318,7 +1330,7 @@ mod tests {
     let num_steps = 3;
 
     // produce a recursive SNARK
-    let (mut recursive_snark, mut sink) = RecursiveSNARK::<
+    let mut recursive_snark = RecursiveSNARK::<
       G1,
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
@@ -1333,7 +1345,7 @@ mod tests {
     .unwrap();
 
     for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary, &mut sink);
+      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
       assert!(res.is_ok());
     }
 
@@ -1415,7 +1427,7 @@ mod tests {
     let num_steps = 3;
 
     // produce a recursive SNARK
-    let (mut recursive_snark, mut sink) = RecursiveSNARK::<
+    let mut recursive_snark = RecursiveSNARK::<
       G1,
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
@@ -1430,7 +1442,7 @@ mod tests {
     .unwrap();
 
     for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary, &mut sink);
+      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
       assert!(res.is_ok());
     }
 
@@ -1590,7 +1602,7 @@ mod tests {
     let z0_secondary = vec![<G2 as Group>::Scalar::ZERO];
 
     // produce a recursive SNARK
-    let (mut recursive_snark, mut sink) = RecursiveSNARK::<
+    let mut recursive_snark = RecursiveSNARK::<
       G1,
       G2,
       FifthRootCheckingCircuit<<G1 as Group>::Scalar>,
@@ -1605,7 +1617,7 @@ mod tests {
     .unwrap();
 
     for circuit_primary in roots.iter().take(num_steps) {
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, &mut sink);
+      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
       assert!(res.is_ok());
     }
 
@@ -1661,7 +1673,7 @@ mod tests {
     let num_steps = 1;
 
     // produce a recursive SNARK
-    let (mut recursive_snark, mut sink) = RecursiveSNARK::<
+    let mut recursive_snark = RecursiveSNARK::<
       G1,
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
@@ -1676,7 +1688,7 @@ mod tests {
     .unwrap();
 
     // produce a recursive SNARK
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2, &mut sink);
+    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2);
 
     assert!(res.is_ok());
 
