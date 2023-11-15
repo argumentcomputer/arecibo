@@ -133,9 +133,23 @@ impl<F: PrimeField> SparseMatrix<F> {
     name = "SparseMatrix::multiply_vec_unchecked"
   )]
   pub fn multiply_witness_unchecked(&self, W: &[F], u_and_X: &[F]) -> Vec<F> {
-    let num_vars = W.len();
     // preallocate the result vector
-    let mut result = Vec::with_capacity(self.indptr.len() - 1);
+    let mut sink = Vec::with_capacity(self.indptr.len() - 1);
+    self.multiply_witness_into_unchecked(W, u_and_X, &mut sink);
+    sink
+  }
+
+  /// Multiply by a witness representing a dense vector; uses rayon/gpu.
+  pub fn multiply_witness_into(&self, W: &[F], u_and_X: &[F], sink: &mut Vec<F>) {
+    assert_eq!(self.cols, W.len() + u_and_X.len(), "invalid shape");
+
+    self.multiply_witness_into_unchecked(W, u_and_X, sink);
+  }
+
+  /// Multiply by a witness representing a dense vector; uses rayon/gpu.
+  /// This does not check that the shape of the matrix/vector are compatible.
+  pub fn multiply_witness_into_unchecked(&self, W: &[F], u_and_X: &[F], sink: &mut Vec<F>) {
+    let num_vars = W.len();
     self
       .indptr
       .par_windows(2)
@@ -151,8 +165,7 @@ impl<F: PrimeField> SparseMatrix<F> {
             acc + val
           })
       })
-      .collect_into_vec(&mut result);
-    result
+      .collect_into_vec(sink);
   }
 
   /// number of non-zero entries

@@ -4,7 +4,9 @@
 use crate::{
   constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
-  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  r1cs::{
+    R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  },
   scalar_as_base,
   traits::{commitment::CommitmentTrait, AbsorbInROTrait, Group, ROTrait},
   Commitment, CommitmentKey, CompressedCommitment,
@@ -65,7 +67,6 @@ impl<G: Group> NIFS<G> {
 
     // fold the witness using `r` and `T`
     let W = W1.fold(W2, &T, &r)?;
-
     // return the folded instance and witness
     Ok((
       Self {
@@ -92,6 +93,8 @@ impl<G: Group> NIFS<G> {
     U2: &R1CSInstance<G>,
     W2: &R1CSWitness<G>,
     T: &mut Vec<G::Scalar>,
+    ABC_Z_1: &mut Option<R1CSResult<G>>,
+    ABC_Z_2: &mut R1CSResult<G>,
   ) -> Result<NIFS<G>, NovaError> {
     // initialize a new RO
     let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
@@ -104,7 +107,7 @@ impl<G: Group> NIFS<G> {
     U2.absorb_in_ro(&mut ro);
 
     // compute a commitment to the cross-term
-    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, T)?;
+    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, T, ABC_Z_1, ABC_Z_2)?;
 
     // append `comm_T` to the transcript and obtain a challenge
     comm_T.absorb_in_ro(&mut ro);
@@ -117,6 +120,12 @@ impl<G: Group> NIFS<G> {
 
     // fold the witness using `r` and `T`
     W1.fold_mut(W2, T, &r)?;
+
+    // update `ABC_Z_1` using `r`
+    ABC_Z_1
+      .as_mut()
+      .unwrap()
+      .fold_mut(ABC_Z_2, &r);
 
     // return the commitment
     Ok(Self {

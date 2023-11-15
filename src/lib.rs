@@ -42,7 +42,7 @@ use ff::{Field, PrimeField};
 use gadgets::utils::scalar_as_base;
 use nifs::NIFS;
 use r1cs::{
-  CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness, R1CSResult,
 };
 use serde::{Deserialize, Serialize};
 use traits::{
@@ -264,19 +264,19 @@ where
   }
 }
 
-// /// A resource sink for [`RecursiveSNARK`]
-// pub struct ResourceSink<G1, G2>
-// where
-//   G1: Group<Base = <G2 as Group>::Scalar>,
-//   G2: Group<Base = <G1 as Group>::Scalar>,
-// {
-//   l_w_primary: R1CSWitness<G1>,
-//   l_u_primary: R1CSInstance<G1>,
-//   /// buffer for `commit_T`
-//   T_primary: Vec<G1::Scalar>,
-//   /// buffer for `commit_T`
-//   T_secondary: Vec<G2::Scalar>,
-// }
+/// A resource sink for [`RecursiveSNARK`]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct ResourceSink<G: Group> {
+  l_w: R1CSWitness<G>,
+  l_u: R1CSInstance<G>,
+
+  ABC_Z_1: Option<R1CSResult<G>>,
+  ABC_Z_2: R1CSResult<G>,
+
+  /// buffer for `commit_T`
+  T: Vec<G::Scalar>,
+}
 
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -296,15 +296,11 @@ where
   r_W_secondary: RelaxedR1CSWitness<G2>,
   r_U_secondary: RelaxedR1CSInstance<G2>,
 
-  l_w_primary: R1CSWitness<G1>,
-  l_u_primary: R1CSInstance<G1>,
   l_w_secondary: R1CSWitness<G2>,
   l_u_secondary: R1CSInstance<G2>,
 
-  /// buffer for `commit_T`
-  T_primary: Vec<G1::Scalar>,
-  /// buffer for `commit_T`
-  T_secondary: Vec<G2::Scalar>,
+  sink_primary: ResourceSink<G1>,
+  sink_secondary: ResourceSink<G2>,
 
   i: usize,
   zi_primary: Vec<G1::Scalar>,
@@ -427,6 +423,25 @@ where
       .collect::<Result<Vec<<G2 as Group>::Scalar>, NovaError>>()
       .expect("Nova error synthesis");
 
+    let sink_primary = ResourceSink {
+      l_w: l_w_primary,
+      l_u: l_u_primary,
+      ABC_Z_1: None,
+      ABC_Z_2: R1CSResult::default(r1cs_primary),
+      T: default_T(r1cs_primary),
+    };
+
+    let sink_secondary = ResourceSink {
+      l_w: R1CSWitness { W: vec![] },
+      l_u: R1CSInstance {
+        comm_W: Commitment::<G2>::default(),
+        one_and_X: vec![],
+      },
+      ABC_Z_1: None,
+      ABC_Z_2: R1CSResult::default(r1cs_secondary),
+      T: default_T(r1cs_secondary),
+    };
+
     let mut recursive_snark = Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
@@ -435,14 +450,11 @@ where
       r_U_primary,
       r_W_secondary,
       r_U_secondary,
-
-      l_w_primary,
-      l_u_primary,
       l_w_secondary,
       l_u_secondary,
 
-      T_primary: default_T(r1cs_primary),
-      T_secondary: default_T(r1cs_secondary),
+      sink_primary,
+      sink_secondary,
 
       i: 0,
       zi_primary,
@@ -504,14 +516,16 @@ where
       &mut self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
-      &mut self.T_secondary,
+      &mut self.sink_secondary.T,
+      &mut self.sink_secondary.ABC_Z_1,
+      &mut self.sink_secondary.ABC_Z_2,
     )
     .expect("Unable to fold secondary");
 
     // increment `l_u_primary` and `l_w_primary`
     let mut cs_primary = WitnessViewCS::<G1::Scalar>::new_view(
-      &mut self.l_u_primary.one_and_X,
-      &mut self.l_w_primary.W,
+      &mut self.sink_primary.l_u.one_and_X,
+      &mut self.sink_primary.l_w.W,
     );
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<G1>(pp.digest()),
@@ -539,7 +553,7 @@ where
     //   .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
     //   .map_err(|_e| NovaError::UnSat)
     //   .expect("Nova error unsat");
-    self.l_u_primary.comm_W = self.l_w_primary.commit(&pp.ck_primary);
+    self.sink_primary.l_u.comm_W = self.sink_primary.l_w.commit(&pp.ck_primary);
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
@@ -549,9 +563,11 @@ where
       &pp.circuit_shape_primary.r1cs_shape,
       &mut self.r_U_primary,
       &mut self.r_W_primary,
-      &self.l_u_primary,
-      &self.l_w_primary,
-      &mut self.T_primary,
+      &self.sink_primary.l_u,
+      &self.sink_primary.l_w,
+      &mut self.sink_primary.T,
+      &mut self.sink_primary.ABC_Z_1,
+      &mut self.sink_primary.ABC_Z_2,
     )
     .expect("Unable to fold primary");
 
@@ -566,7 +582,7 @@ where
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
       Some(r_U_primary_i),
-      Some(self.l_u_primary.clone()),
+      Some(self.sink_primary.l_u.clone()),
       Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
     );
 

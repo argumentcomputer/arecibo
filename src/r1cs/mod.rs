@@ -44,6 +44,14 @@ pub struct R1CSShape<G: Group> {
 
 impl<G: Group> SimpleDigestible for R1CSShape<G> {}
 
+/// A type that holds the result of a R1CS multiplication
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct R1CSResult<G: Group> {
+  pub(crate) AZ: Vec<G::Scalar>,
+  pub(crate) BZ: Vec<G::Scalar>,
+  pub(crate) CZ: Vec<G::Scalar>,
+}
+
 /// A type that holds a witness for a given R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct R1CSWitness<G: Group> {
@@ -219,6 +227,31 @@ impl<G: Group> R1CSShape<G> {
     Ok((Az, Bz, Cz))
   }
 
+  pub(crate) fn multiply_witness_into(
+    &self,
+    W: &[G::Scalar],
+    u_and_X: &[G::Scalar],
+    ABC_Z: &mut R1CSResult<G>,
+  ) -> Result<(), NovaError> {
+    if u_and_X.len() != self.num_io + 1 || W.len() != self.num_vars {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    let R1CSResult { AZ, BZ, CZ } = ABC_Z;
+
+    rayon::join(
+      || self.A.multiply_witness_into(W, u_and_X, AZ),
+      || {
+        rayon::join(
+          || self.B.multiply_witness_into(W, u_and_X, BZ),
+          || self.C.multiply_witness_into(W, u_and_X, CZ),
+        )
+      },
+    );
+
+    Ok(())
+  }
+
   /// Checks if the Relaxed R1CS instance is satisfiable given a witness and its shape
   pub fn is_sat_relaxed(
     &self,
@@ -361,12 +394,30 @@ impl<G: Group> R1CSShape<G> {
     U2: &R1CSInstance<G>,
     W2: &R1CSWitness<G>,
     T: &mut Vec<G::Scalar>,
+    ABC_Z_1: &mut Option<R1CSResult<G>>,
+    ABC_Z_2: &mut R1CSResult<G>,
   ) -> Result<Commitment<G>, NovaError> {
-    let (AZ_1, BZ_1, CZ_1) = tracing::info_span!("AZ_1, BZ_1, CZ_1")
-      .in_scope(|| self.multiply_witness(&W1.W, &U1.u_and_X))?;
+    let R1CSResult {
+      AZ: AZ_1,
+      BZ: BZ_1,
+      CZ: CZ_1,
+    } = if let Some(ABC_Z_1) = ABC_Z_1 {
+      ABC_Z_1
+    } else {
+      *ABC_Z_1 = Some(R1CSResult::default(self));
+      tracing::info_span!("AZ_1, BZ_1, CZ_1")
+        .in_scope(|| self.multiply_witness_into(&W1.W, &U1.u_and_X, ABC_Z_1.as_mut().unwrap()))?;
+      ABC_Z_1.as_mut().unwrap()
+    };
 
-    let (AZ_2, BZ_2, CZ_2) = tracing::info_span!("AZ_2, BZ_2, CZ_2")
-      .in_scope(|| self.multiply_witness(&W2.W, &U2.one_and_X))?;
+    tracing::info_span!("AZ_2, BZ_2, CZ_2")
+      .in_scope(|| self.multiply_witness_into(&W2.W, &U2.one_and_X, ABC_Z_2))?;
+
+    let R1CSResult {
+      AZ: AZ_2,
+      BZ: BZ_2,
+      CZ: CZ_2,
+    } = ABC_Z_2;
 
     // this doesn't allocate memory but has bad temporal cache locality -- should test to see which is faster
     T.clear();
@@ -446,6 +497,36 @@ impl<G: Group> R1CSShape<G> {
       C: C_padded,
       digest: OnceCell::new(),
     }
+  }
+}
+
+impl<G: Group> R1CSResult<G> {
+  /// Produces a default `R1CSResult` given an `R1CSShape`
+  pub fn default(S: &R1CSShape<G>) -> R1CSResult<G> {
+    R1CSResult {
+      AZ: vec![G::Scalar::ZERO; S.num_cons],
+      BZ: vec![G::Scalar::ZERO; S.num_cons],
+      CZ: vec![G::Scalar::ZERO; S.num_cons],
+    }
+  }
+
+  /// Commits to the witness using the supplied generators
+  pub fn fold_mut(&mut self, other: &Self, r: &G::Scalar) {
+    self
+      .AZ
+      .par_iter_mut()
+      .zip(&other.AZ)
+      .for_each(|(a, b)| *a += *r * *b);
+    self
+      .BZ
+      .par_iter_mut()
+      .zip(&other.BZ)
+      .for_each(|(a, b)| *a += *r * *b);
+    self
+      .CZ
+      .par_iter_mut()
+      .zip(&other.CZ)
+      .for_each(|(a, b)| *a += *r * *b);
   }
 }
 
