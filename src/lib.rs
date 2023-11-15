@@ -29,6 +29,7 @@ pub mod supernova;
 
 use once_cell::sync::OnceCell;
 
+use crate::bellpepper::solver::WithShapeBasedPreAllocation;
 use crate::bellpepper::{
   r1cs::{NovaShape, NovaWitness},
   shape_cs::ShapeCS,
@@ -37,7 +38,6 @@ use crate::bellpepper::{
 use crate::digest::{DigestComputer, SimpleDigestible};
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
-use bellpepper_core::ConstraintSystem;
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
 use core::marker::PhantomData;
@@ -312,7 +312,8 @@ where
     }
 
     // base case for the primary
-    let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    let mut cs_primary =
+      SatisfyingAssignment::<G1>::new_from_shape_parameters(&pp.circuit_shape_primary.r1cs_shape);
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<G1>(pp.digest()),
       G1::Scalar::ZERO,
@@ -339,7 +340,8 @@ where
       .expect("Nova error unsat");
 
     // base case for the secondary
-    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    let mut cs_secondary =
+      SatisfyingAssignment::<G2>::new_from_shape_parameters(&pp.circuit_shape_secondary.r1cs_shape);
     let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       G2::Scalar::ZERO,
@@ -443,7 +445,8 @@ where
     )
     .expect("Unable to fold secondary");
 
-    let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    let mut cs_primary =
+      SatisfyingAssignment::<G1>::new_from_shape_parameters(&pp.circuit_shape_primary.r1cs_shape);
     let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<G1>(pp.digest()),
       G1::Scalar::from(self.i as u64),
@@ -483,7 +486,8 @@ where
     )
     .expect("Unable to fold primary");
 
-    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    let mut cs_secondary =
+      SatisfyingAssignment::<G2>::new_from_shape_parameters(&pp.circuit_shape_secondary.r1cs_shape);
     let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       G2::Scalar::from(self.i as u64),

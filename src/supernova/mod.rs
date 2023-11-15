@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::ops::Index;
 
 use crate::{
-  bellpepper::shape_cs::ShapeCS,
+  bellpepper::{shape_cs::ShapeCS, solver::WithShapeBasedPreAllocation},
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
@@ -450,7 +450,9 @@ where
     }
 
     // base case for the primary
-    let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    let mut cs_primary = SatisfyingAssignment::<G1>::new_from_shape_parameters(
+      &pp.circuit_shapes[circuit_index].r1cs_shape,
+    );
     let program_counter = G1::Scalar::from(circuit_index as u64);
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
       SuperNovaAugmentedCircuitInputs::new(
@@ -491,7 +493,8 @@ where
       })?;
 
     // base case for the secondary
-    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    let mut cs_secondary =
+      SatisfyingAssignment::<G2>::new_from_shape_parameters(&pp.circuit_shape_secondary.r1cs_shape);
     let u_primary_index = G2::Scalar::from(circuit_index as u64);
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
       SuperNovaAugmentedCircuitInputs::new(

@@ -5,7 +5,7 @@ use crate::{
   bellpepper::{
     r1cs::{NovaShape, NovaWitness},
     shape_cs::ShapeCS,
-    solver::SatisfyingAssignment,
+    solver::{SatisfyingAssignment, WithShapeBasedPreAllocation},
   },
   errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
@@ -121,7 +121,7 @@ impl<G: Group, S: RelaxedR1CSSNARKTrait<G>, C: StepCircuit<G::Scalar>> DirectSNA
 
   /// Produces a proof of satisfiability of the provided circuit
   pub fn prove(pk: &ProverKey<G, S>, sc: C, z_i: &[G::Scalar]) -> Result<Self, NovaError> {
-    let mut cs = SatisfyingAssignment::<G>::new();
+    let mut cs = SatisfyingAssignment::<G>::new_from_shape_parameters(&pk.S);
 
     let circuit: DirectCircuit<G, C> = DirectCircuit {
       z_i: Some(z_i.to_vec()),
