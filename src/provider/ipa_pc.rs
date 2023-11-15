@@ -1,7 +1,7 @@
 //! This module implements `EvaluationEngine` using an IPA-based polynomial commitment scheme
 use crate::{
   errors::NovaError,
-  provider::pedersen::CommitmentKeyExtTrait,
+  provider::{pedersen::CommitmentKeyExtTrait, GroupExt},
   spartan::polys::eq::EqPolynomial,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -42,7 +42,7 @@ pub struct EvaluationEngine<G: Group> {
 
 impl<G> EvaluationEngineTrait<G> for EvaluationEngine<G>
 where
-  G: Group,
+  G: GroupExt,
   CommitmentKey<G>: CommitmentKeyExtTrait<G>,
 {
   type ProverKey = ProverKey<G>;
@@ -164,7 +164,7 @@ pub struct InnerProductArgument<G: Group> {
 
 impl<G> InnerProductArgument<G>
 where
-  G: Group,
+  G: GroupExt,
   CommitmentKey<G>: CommitmentKeyExtTrait<G>,
 {
   const fn protocol_name() -> &'static [u8] {

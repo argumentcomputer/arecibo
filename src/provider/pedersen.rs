@@ -1,9 +1,10 @@
 //! This module provides an implementation of a commitment engine
 use crate::{
   errors::NovaError,
+  provider::{CompressedGroup, GroupExt},
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
-    AbsorbInROTrait, CompressedGroup, Group, ROTrait, TranscriptReprTrait,
+    AbsorbInROTrait, Group, ROTrait, TranscriptReprTrait,
   },
 };
 use abomonation_derive::Abomonation;
@@ -19,13 +20,13 @@ use serde::{Deserialize, Serialize};
 /// A type that holds commitment generators
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_omit_bounds]
-pub struct CommitmentKey<G: Group> {
+pub struct CommitmentKey<G: GroupExt> {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<G::PreprocessedGroupElement>,
 }
 
 /// [CommitmentKey]s are often large, and this helps with cloning bottlenecks
-impl<G: Group> Clone for CommitmentKey<G> {
+impl<G: GroupExt> Clone for CommitmentKey<G> {
   fn clone(&self) -> Self {
     Self {
       ck: self.ck.par_iter().cloned().collect(),
@@ -33,7 +34,7 @@ impl<G: Group> Clone for CommitmentKey<G> {
   }
 }
 
-impl<G: Group> Len for CommitmentKey<G> {
+impl<G: GroupExt> Len for CommitmentKey<G> {
   fn length(&self) -> usize {
     self.ck.len()
   }
@@ -43,7 +44,7 @@ impl<G: Group> Len for CommitmentKey<G> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_omit_bounds]
-pub struct Commitment<G: Group> {
+pub struct Commitment<G: GroupExt> {
   #[abomonate_with(Vec<[u64; 12]>)] // this is a hack; we just assume the size of the element.
   pub(crate) comm: G,
 }
@@ -51,11 +52,11 @@ pub struct Commitment<G: Group> {
 /// A type that holds a compressed commitment
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct CompressedCommitment<G: Group> {
+pub struct CompressedCommitment<G: GroupExt> {
   comm: G::CompressedGroupElement,
 }
 
-impl<G: Group> CommitmentTrait<G> for Commitment<G> {
+impl<G: GroupExt> CommitmentTrait<G> for Commitment<G> {
   type CompressedCommitment = CompressedCommitment<G>;
 
   fn compress(&self) -> Self::CompressedCommitment {
@@ -69,7 +70,7 @@ impl<G: Group> CommitmentTrait<G> for Commitment<G> {
   }
 
   fn decompress(c: &Self::CompressedCommitment) -> Result<Self, NovaError> {
-    let comm = c.comm.decompress();
+    let comm = <G as GroupExt>::CompressedGroupElement::decompress(&c.comm);
     if comm.is_none() {
       return Err(NovaError::DecompressionError);
     }
@@ -79,13 +80,13 @@ impl<G: Group> CommitmentTrait<G> for Commitment<G> {
   }
 }
 
-impl<G: Group> Default for Commitment<G> {
+impl<G: GroupExt> Default for Commitment<G> {
   fn default() -> Self {
     Commitment { comm: G::zero() }
   }
 }
 
-impl<G: Group> TranscriptReprTrait<G> for Commitment<G> {
+impl<G: GroupExt> TranscriptReprTrait<G> for Commitment<G> {
   fn to_transcript_bytes(&self) -> Vec<u8> {
     let (x, y, is_infinity) = self.comm.to_coordinates();
     let is_infinity_byte = (!is_infinity).into();
@@ -98,7 +99,7 @@ impl<G: Group> TranscriptReprTrait<G> for Commitment<G> {
   }
 }
 
-impl<G: Group> AbsorbInROTrait<G> for Commitment<G> {
+impl<G: GroupExt> AbsorbInROTrait<G> for Commitment<G> {
   fn absorb_in_ro(&self, ro: &mut G::RO) {
     let (x, y, is_infinity) = self.comm.to_coordinates();
     ro.absorb(x);
@@ -111,20 +112,20 @@ impl<G: Group> AbsorbInROTrait<G> for Commitment<G> {
   }
 }
 
-impl<G: Group> TranscriptReprTrait<G> for CompressedCommitment<G> {
+impl<G: GroupExt> TranscriptReprTrait<G> for CompressedCommitment<G> {
   fn to_transcript_bytes(&self) -> Vec<u8> {
     self.comm.to_transcript_bytes()
   }
 }
 
-impl<G: Group> MulAssign<G::Scalar> for Commitment<G> {
+impl<G: GroupExt> MulAssign<G::Scalar> for Commitment<G> {
   fn mul_assign(&mut self, scalar: G::Scalar) {
     let result = (self as &Commitment<G>).comm * scalar;
     *self = Commitment { comm: result };
   }
 }
 
-impl<'a, 'b, G: Group> Mul<&'b G::Scalar> for &'a Commitment<G> {
+impl<'a, 'b, G: GroupExt> Mul<&'b G::Scalar> for &'a Commitment<G> {
   type Output = Commitment<G>;
   fn mul(self, scalar: &'b G::Scalar) -> Commitment<G> {
     Commitment {
@@ -133,7 +134,7 @@ impl<'a, 'b, G: Group> Mul<&'b G::Scalar> for &'a Commitment<G> {
   }
 }
 
-impl<G: Group> Mul<G::Scalar> for Commitment<G> {
+impl<G: GroupExt> Mul<G::Scalar> for Commitment<G> {
   type Output = Commitment<G>;
 
   fn mul(self, scalar: G::Scalar) -> Commitment<G> {
@@ -143,14 +144,14 @@ impl<G: Group> Mul<G::Scalar> for Commitment<G> {
   }
 }
 
-impl<'b, G: Group> AddAssign<&'b Commitment<G>> for Commitment<G> {
+impl<'b, G: GroupExt> AddAssign<&'b Commitment<G>> for Commitment<G> {
   fn add_assign(&mut self, other: &'b Commitment<G>) {
     let result = (self as &Commitment<G>).comm + other.comm;
     *self = Commitment { comm: result };
   }
 }
 
-impl<'a, 'b, G: Group> Add<&'b Commitment<G>> for &'a Commitment<G> {
+impl<'a, 'b, G: GroupExt> Add<&'b Commitment<G>> for &'a Commitment<G> {
   type Output = Commitment<G>;
   fn add(self, other: &'b Commitment<G>) -> Commitment<G> {
     Commitment {
@@ -194,16 +195,16 @@ macro_rules! define_add_assign_variants {
   };
 }
 
-define_add_assign_variants!(G = Group, LHS = Commitment<G>, RHS = Commitment<G>);
-define_add_variants!(G = Group, LHS = Commitment<G>, RHS = Commitment<G>, Output = Commitment<G>);
+define_add_assign_variants!(G = GroupExt, LHS = Commitment<G>, RHS = Commitment<G>);
+define_add_variants!(G = GroupExt, LHS = Commitment<G>, RHS = Commitment<G>, Output = Commitment<G>);
 
 /// Provides a commitment engine
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommitmentEngine<G: Group> {
+pub struct CommitmentEngine<G: GroupExt> {
   _p: PhantomData<G>,
 }
 
-impl<G: Group> CommitmentEngineTrait<G> for CommitmentEngine<G> {
+impl<G: GroupExt> CommitmentEngineTrait<G> for CommitmentEngine<G> {
   type CommitmentKey = CommitmentKey<G>;
   type Commitment = Commitment<G>;
 
@@ -222,7 +223,7 @@ impl<G: Group> CommitmentEngineTrait<G> for CommitmentEngine<G> {
 }
 
 /// A trait listing properties of a commitment key that can be managed in a divide-and-conquer fashion
-pub trait CommitmentKeyExtTrait<G: Group> {
+pub trait CommitmentKeyExtTrait<G: GroupExt> {
   /// Splits the commitment key into two pieces at a specified point
   fn split_at(&self, n: usize) -> (Self, Self)
   where
@@ -245,7 +246,7 @@ pub trait CommitmentKeyExtTrait<G: Group> {
     Self: Sized;
 }
 
-impl<G: Group<CE = CommitmentEngine<G>>> CommitmentKeyExtTrait<G> for CommitmentKey<G> {
+impl<G: Group<CE = CommitmentEngine<G>> + GroupExt> CommitmentKeyExtTrait<G> for CommitmentKey<G> {
   fn split_at(&self, n: usize) -> (CommitmentKey<G>, CommitmentKey<G>) {
     (
       CommitmentKey {
