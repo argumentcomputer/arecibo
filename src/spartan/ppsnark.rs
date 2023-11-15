@@ -292,11 +292,11 @@ impl<G: Group> MemorySumcheckInstance<G> {
   pub fn new(
     ck: &CommitmentKey<G>,
     r: &G::Scalar,
-    T_row: Vec<G::Scalar>,
-    W_row: Vec<G::Scalar>,
+    T_row: &[G::Scalar],
+    W_row: &[G::Scalar],
     ts_row: Vec<G::Scalar>,
-    T_col: Vec<G::Scalar>,
-    W_col: Vec<G::Scalar>,
+    T_col: &[G::Scalar],
+    W_col: &[G::Scalar],
     ts_col: Vec<G::Scalar>,
     transcript: &mut G::TE,
   ) -> Result<(Self, [Commitment<G>; 4], [Vec<G::Scalar>; 4]), NovaError> {
@@ -373,8 +373,8 @@ impl<G: Group> MemorySumcheckInstance<G> {
       ((t_plus_r_inv_row, w_plus_r_inv_row), (t_plus_r_row, w_plus_r_row)),
       ((t_plus_r_inv_col, w_plus_r_inv_col), (t_plus_r_col, w_plus_r_col)),
     ) = rayon::join(
-      || helper(&T_row, &W_row, &ts_row, r),
-      || helper(&T_col, &W_col, &ts_col, r),
+      || helper(T_row, W_row, &ts_row, r),
+      || helper(T_col, W_col, &ts_col, r),
     );
 
     let t_plus_r_inv_row = t_plus_r_inv_row?;
@@ -1161,11 +1161,11 @@ where
         MemorySumcheckInstance::new(
           ck,
           &r,
-          T_row,
-          W_row,
+          &T_row,
+          &W_row,
           pk.S_repr.ts_row.clone(),
-          T_col,
-          W_col,
+          &T_col,
+          &W_col,
           pk.S_repr.ts_col.clone(),
           &mut transcript,
         )

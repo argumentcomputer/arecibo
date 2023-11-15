@@ -300,7 +300,7 @@ where
       w_u_vec.into_iter().unzip();
 
     let (batched_u, batched_w, sc_proof_batch, claims_batch_left) =
-      batch_eval_prove(u_vec, w_vec, &mut transcript)?;
+      batch_eval_prove(&u_vec, &w_vec, &mut transcript)?;
 
     let eval_arg = EE::prove(
       ck,
@@ -445,7 +445,7 @@ where
     ];
 
     let batched_u = batch_eval_verify(
-      u_vec,
+      &u_vec,
       &mut transcript,
       &self.sc_proof_batch,
       &self.evals_batch,
@@ -468,8 +468,8 @@ where
 /// Proves a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
 fn batch_eval_prove<G: Group>(
-  u_vec: Vec<PolyEvalInstance<G>>,
-  w_vec: Vec<PolyEvalWitness<G>>,
+  u_vec: &[PolyEvalInstance<G>],
+  w_vec: &[PolyEvalWitness<G>],
   transcript: &mut G::TE,
 ) -> Result<
   (
@@ -482,8 +482,8 @@ fn batch_eval_prove<G: Group>(
 > {
   assert_eq!(u_vec.len(), w_vec.len());
 
-  let w_vec_padded = PolyEvalWitness::pad(&w_vec); // pad the polynomials to be of the same size
-  let u_vec_padded = PolyEvalInstance::pad(&u_vec); // pad the evaluation points
+  let w_vec_padded = PolyEvalWitness::pad(w_vec); // pad the polynomials to be of the same size
+  let u_vec_padded = PolyEvalInstance::pad(u_vec); // pad the evaluation points
 
   // generate a challenge
   let rho = transcript.squeeze(b"r")?;
@@ -551,14 +551,14 @@ fn batch_eval_prove<G: Group>(
 /// Verifies a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
 fn batch_eval_verify<G: Group>(
-  u_vec: Vec<PolyEvalInstance<G>>,
+  u_vec: &[PolyEvalInstance<G>],
   transcript: &mut G::TE,
   sc_proof_batch: &SumcheckProof<G>,
   evals_batch: &[G::Scalar],
 ) -> Result<PolyEvalInstance<G>, NovaError> {
   assert_eq!(evals_batch.len(), evals_batch.len());
 
-  let u_vec_padded = PolyEvalInstance::pad(&u_vec); // pad the evaluation points
+  let u_vec_padded = PolyEvalInstance::pad(u_vec); // pad the evaluation points
 
   // generate a challenge
   let rho = transcript.squeeze(b"r")?;
