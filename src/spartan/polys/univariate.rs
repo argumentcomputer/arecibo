@@ -22,23 +22,34 @@ pub struct CompressedUniPoly<Scalar: PrimeField> {
 }
 
 impl<Scalar: PrimeField> UniPoly<Scalar> {
+  /// Return a `UniPoly` which evaluates to `evals[i]` at `i`.
   pub fn from_evals(evals: &[Scalar]) -> Self {
     // we only support degree-2 or degree-3 univariate polynomials
     assert!(evals.len() == 3 || evals.len() == 4);
     let two_inv = Scalar::from(2).invert().unwrap();
     let coeffs = if evals.len() == 3 {
       // ax^2 + bx + c
+      // evals[0] = c
+      // evals[1] = a + b + c
+      // evals[2] = 4a + 2b + c
       let c = evals[0];
+      // 1/2 * (4a + 2b + c - 2(a + b + c) + c)
       let a = two_inv * (evals[2] - evals[1] - evals[1] + c);
       let b = evals[1] - c - a;
       vec![c, b, a]
     } else {
       // ax^3 + bx^2 + cx + d
+      // evals[0] = d
+      // evals[1] = a + b + c + d
+      // evals[2] = 8a + 4b + 2c + d
+      // evals[3] = 27a + 9b + 3c + 3
       let six_inv = Scalar::from(6).invert().unwrap();
 
       let d = evals[0];
+      // 1/6 * ((27a + 9b + 3c + d) - 3(8a + 4b + 2c + d) + 3(a + b + c + d) - d)
       let a = six_inv
         * (evals[3] - evals[2] - evals[2] - evals[2] + evals[1] + evals[1] + evals[1] - evals[0]);
+      // 1/2 * (2d - 5(a + b + c + d) + 4(8a + 4b + 2c + d) - (27a + 9b + 3c + d))
       let b = two_inv
         * (evals[0] + evals[0] - evals[1] - evals[1] - evals[1] - evals[1] - evals[1]
           + evals[2]
@@ -46,6 +57,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
           + evals[2]
           + evals[2]
           - evals[3]);
+      // (a + b + c + d) - d - a -b
       let c = evals[1] - d - a - b;
       vec![d, c, b, a]
     };

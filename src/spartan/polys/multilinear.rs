@@ -31,6 +31,8 @@ use crate::spartan::{math::Math, polys::eq::EqPolynomial};
 /// $$
 ///
 /// Vector $Z$ indicates $Z(e)$ where $e$ ranges from $0$ to $2^m-1$.
+/// The point representation of $e$ is a (bit-)big-endian vector of bits (see `test_layout`).
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MultilinearPolynomial<Scalar: PrimeField> {
   num_vars: usize,           // the number of variables in the multilinear polynomial
@@ -58,12 +60,24 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     self.Z.len()
   }
 
-  /// Binds the polynomial's top variable using the given scalar.
+  /// Checks if the multilinear polynomial is empty.
+  ///
+  /// This method returns true if the polynomial has no evaluations, and false otherwise.
+  pub fn is_empty(&self) -> bool {
+    self.Z.is_empty()
+  }
+
+  /// Binds the polynomial's top variable to the given scalar.
+  ///
+  /// This yields a new polynomial of one fewer variables than the original.
   ///
   /// This operation modifies the polynomial in-place.
+  ///
+  /// By definition, the top variable has the value one in each of the evaluations of the last half (of self.Z). Each of
+  /// these 'one' evaluations has a corresponding 'zero' evaluation, in the same relative position of the first half. We
+  /// adjust these remaining evaluations so the remaining, diminished evaluation table is increased by the appropriate
+  /// value.
   pub fn bind_poly_var_top(&mut self, r: &Scalar) {
-    assert!(self.num_vars > 0);
-
     let n = self.len() / 2;
 
     let (left, right) = self.Z.split_at_mut(n);
@@ -72,6 +86,15 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
       .par_iter_mut()
       .zip_eq(right.par_iter())
       .for_each(|(a, b)| {
+        // The right evals include all terms 'active' in the non-top vars (left evals) plus the corresponding terms of the top var.
+        // To isolate only the relevant terms of the top var, we subtract out `a` to get `b - a`.
+        // Then we scale these top-var terms by r: r * (b - a).
+        // Finally we add back in the low terms.
+        // Put differently, since we only want to bind the top var, we subtract the other terms before scaling it, and add them back afterward.
+        // This gives a + r(b - a) as the general expression.
+        // We iterate over all low terms, adjusting them for the bound top var, whose evals will be removed.
+        // This has the net effect of leaving the sum of the new evals equal to the sum of the old evals when the top var is bound to `r` -- as desired.
+        // [This algorithm is described in the proof of Lemma 4.3 of Thaler's Proofs, Arguments, and Zero-Knowledge.]
         *a += *r * (*b - *a);
       });
 
@@ -407,5 +430,36 @@ mod tests {
     partial_and_evaluate_with::<Fp>();
     partial_and_evaluate_with::<bn256::Scalar>();
     partial_and_evaluate_with::<secp256k1::Scalar>();
+  }
+
+  fn to_bits_be<F: PrimeField>(bit_count: usize, mut n: usize) -> Vec<F> {
+    let mut bits = Vec::with_capacity(bit_count);
+
+    for _ in 0..bit_count {
+      bits.push(if (n & 1) == 1 { F::ONE } else { F::ZERO });
+      n /= 2;
+    }
+    bits.reverse();
+    bits
+  }
+
+  fn test_layout_with<F: PrimeField>(s: usize) {
+    let rng = &mut rand::rngs::OsRng;
+    let n = 1 << s;
+    let evals = (0..n).map(|_| F::random(rng.clone())).collect::<Vec<_>>();
+
+    let p = MultilinearPolynomial::new(evals.clone());
+
+    for (i, eval) in evals.iter().enumerate() {
+      let bits = to_bits_be(s, i);
+      let e = p.evaluate(&bits);
+
+      assert_eq!(&e, eval);
+    }
+  }
+
+  #[test]
+  fn test_layout() {
+    test_layout_with::<Fp>(3);
   }
 }
