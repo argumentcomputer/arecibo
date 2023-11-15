@@ -300,7 +300,7 @@ where
       w_u_vec.into_iter().unzip();
 
     let (batched_u, batched_w, sc_proof_batch, claims_batch_left) =
-      batch_eval_prove(&u_vec, &w_vec, &mut transcript)?;
+      batch_eval_prove(u_vec, w_vec, &mut transcript)?;
 
     let eval_arg = EE::prove(
       ck,
@@ -445,7 +445,7 @@ where
     ];
 
     let batched_u = batch_eval_verify(
-      &u_vec,
+      u_vec,
       &mut transcript,
       &self.sc_proof_batch,
       &self.evals_batch,
@@ -468,8 +468,8 @@ where
 /// Proves a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
 fn batch_eval_prove<G: Group>(
-  u_vec: &[PolyEvalInstance<G>],
-  w_vec: &[PolyEvalWitness<G>],
+  u_vec: Vec<PolyEvalInstance<G>>,
+  w_vec: Vec<PolyEvalWitness<G>>,
   transcript: &mut G::TE,
 ) -> Result<
   (
@@ -551,7 +551,7 @@ fn batch_eval_prove<G: Group>(
 /// Verifies a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
 fn batch_eval_verify<G: Group>(
-  u_vec: &[PolyEvalInstance<G>],
+  u_vec: Vec<PolyEvalInstance<G>>,
   transcript: &mut G::TE,
   sc_proof_batch: &SumcheckProof<G>,
   evals_batch: &[G::Scalar],
@@ -562,9 +562,9 @@ fn batch_eval_verify<G: Group>(
 
   // generate a challenge
   let rho = transcript.squeeze(b"r")?;
-  let num_claims = u_vec.len();
+  let num_claims: usize = u_vec_padded.len();
   let powers_of_rho = powers::<G>(&rho, num_claims);
-  let claim_batch_joint = u_vec
+  let claim_batch_joint = u_vec_padded
     .iter()
     .zip(powers_of_rho.iter())
     .map(|(u, p)| u.e * p)
