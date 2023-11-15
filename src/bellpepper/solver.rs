@@ -2,6 +2,7 @@
 
 use crate::{r1cs::R1CSShape, traits::Group};
 
+use ff::Field;
 use bellpepper::util_cs::witness_cs::WitnessCS;
 use bellpepper_core::ConstraintSystem;
 
@@ -18,6 +19,9 @@ pub trait WithShapeBasedPreAllocation<G: Group>: ConstraintSystem<<G as Group>::
 /// SatisfyingAssignment knows how to pre-allocate its internal storage given an R1CSShape.
 impl<G: Group> WithShapeBasedPreAllocation<G> for SatisfyingAssignment<G> {
   fn new_from_shape_parameters(r1cs_shape: &R1CSShape<G>) -> Self {
-    SatisfyingAssignment::<G>::with_capacity(r1cs_shape.num_io + 1, r1cs_shape.num_vars)
+    let mut cs = SatisfyingAssignment::<G>::with_capacity(r1cs_shape.num_io + 1, r1cs_shape.num_vars);
+    // TODO: fix this bug in WitnessCS, compare SatisfyingAssignment::new()
+    cs.extend_inputs(&[G::Scalar::ONE]);
+    cs
   }
 }
