@@ -1,13 +1,12 @@
 use bellpepper_core::{
-  boolean::Boolean, num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError,
+  boolean::{AllocatedBit, Boolean},
+  num::AllocatedNum,
+  ConstraintSystem, LinearCombination, SynthesisError,
 };
 use ff::PrimeField;
 
 use crate::{
-  gadgets::{
-    r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
-    utils::alloc_num_equals_const,
-  },
+  gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
   traits::Group,
 };
 
@@ -55,8 +54,7 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
 }
 
 /// Compute a selector vector `s` of size `num_indices`, such that
-/// `s[i] == 1` if i = `target_index` and 0 otherwise.
-/// Returns a SynthesisError if `target_index` is not in the range 0..num_indices.
+/// `s[i] == 1` if i == `target_index` and 0 otherwise.
 pub fn get_selector_vec_from_index<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   target_index: &AllocatedNum<F>,
@@ -64,35 +62,57 @@ pub fn get_selector_vec_from_index<F: PrimeField, CS: ConstraintSystem<F>>(
 ) -> Result<Vec<Boolean>, SynthesisError> {
   assert_ne!(num_indices, 0);
 
-  // Trivial case, return [1]
+  // Trivial case: return [1], enforce `target_index == 0`
   if num_indices == 1 {
+    cs.enforce(
+      || "target_index = 0",
+      |lc| lc,
+      |lc| lc,
+      |lc| lc + target_index.get_variable(),
+    );
+
     return Ok(vec![Boolean::Constant(true)]);
   }
 
+  // Compute the selector vector non-deterministically
   let selector = (0..num_indices)
     .map(|idx| {
       // b <- idx == target_index
-      Ok(Boolean::Is(alloc_num_equals_const(
-        cs.namespace(|| format!("check {:?} equal bit", idx)),
-        target_index,
-        F::from(idx as u64),
+      Ok(Boolean::Is(AllocatedBit::alloc(
+        cs.namespace(|| format!("allocate s_{:?}", idx)),
+        target_index.get_value().map(|v| v == F::from(idx as u64)),
       )?))
     })
     .collect::<Result<Vec<Boolean>, SynthesisError>>()?;
 
-  // Enforce ∑selector[i] = 1
-  let selected_sum = selector
-    .iter()
-    .fold(LinearCombination::default(), |lc, bit| {
+  // Enforce ∑ selector[i] = 1
+  {
+    let selected_sum = selector.iter().fold(LinearCombination::zero(), |lc, bit| {
       lc + &bit.lc(CS::one(), F::ONE)
     });
+    cs.enforce(
+      || "exactly-one-selection",
+      |_| selected_sum,
+      |lc| lc + CS::one(),
+      |lc| lc + CS::one(),
+    );
+  }
 
-  cs.enforce(
-    || "exactly-one-selection",
-    |_| selected_sum,
-    |lc| lc + CS::one(),
-    |lc| lc + CS::one(),
-  );
+  // Enforce `target_index - ∑ i * selector[i] = 0``
+  {
+    let selected_value = selector
+      .iter()
+      .enumerate()
+      .fold(LinearCombination::zero(), |lc, (i, bit)| {
+        lc + &bit.lc(CS::one(), F::from(i as u64))
+      });
+    cs.enforce(
+      || "target_index - ∑ i * selector[i] = 0",
+      |lc| lc,
+      |lc| lc,
+      |lc| lc + target_index.get_variable() - &selected_value,
+    );
+  }
 
   Ok(selector)
 }
@@ -141,7 +161,7 @@ mod test {
   #[test]
   fn test_get_selector() {
     for n in 1..4 {
-      for selected in 0..n {
+      for selected in 0..(2 * n) {
         let mut cs = TestConstraintSystem::<Base>::new();
 
         let allocated_target =
@@ -149,18 +169,17 @@ mod test {
 
         let selector_vec = get_selector_vec_from_index(&mut cs, &allocated_target, n).unwrap();
 
-        let is_valid = selector_vec
-          .iter()
-          .try_fold(false, |res, bit| bit.get_value().map(|bit| res | bit))
-          .unwrap();
-
         if selected < n {
+          // Check that the selector bits are correct
+          assert_eq!(selector_vec.len(), n);
+          for (i, bit) in selector_vec.iter().enumerate() {
+            assert_eq!(bit.get_value().unwrap(), i == selected);
+          }
+
           assert!(cs.is_satisfied());
-          assert!(is_valid);
         } else {
           // If selected is out of range, the circuit must be unsatisfied.
           assert!(!cs.is_satisfied());
-          assert!(!is_valid);
         }
       }
     }
