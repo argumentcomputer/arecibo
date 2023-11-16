@@ -62,18 +62,6 @@ pub fn get_selector_vec_from_index<F: PrimeField, CS: ConstraintSystem<F>>(
 ) -> Result<Vec<Boolean>, SynthesisError> {
   assert_ne!(num_indices, 0);
 
-  // Trivial case: return [1], enforce `target_index == 0`
-  if num_indices == 1 {
-    cs.enforce(
-      || "target_index = 0",
-      |lc| lc,
-      |lc| lc,
-      |lc| lc + target_index.get_variable(),
-    );
-
-    return Ok(vec![Boolean::Constant(true)]);
-  }
-
   // Compute the selector vector non-deterministically
   let selector = (0..num_indices)
     .map(|idx| {
