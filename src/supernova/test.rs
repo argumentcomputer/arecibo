@@ -727,7 +727,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, _>(
     &test_rom_secp,
-    "243c5c71410d9ba3c18b7033c5170951011933d0b800fe0f6a95d1f01dd2d502",
+    "2322ae73400aa1cf488bfb342036f7d1e799c2aad22551ccbdf6c769840a1802",
   );
 }
 
