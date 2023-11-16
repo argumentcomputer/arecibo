@@ -1069,6 +1069,9 @@ mod tests {
     let trivial_circuit2_grumpkin = TrivialCircuit::<<grumpkin::Point as Group>::Scalar>::default();
     let cubic_circuit1_grumpkin = CubicCircuit::<<bn256::Point as Group>::Scalar>::default();
 
+    // These tests should not need be different on the "asm" feature for bn256.
+    // See https://github.com/privacy-scaling-explorations/halo2curves/issues/100 for why they are - closing the issue there
+    // should eliminate the discrepancy here.
     #[cfg(feature = "asm")]
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
