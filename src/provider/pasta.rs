@@ -5,8 +5,9 @@ use crate::{
     keccak::Keccak256Transcript,
     pedersen::CommitmentEngine,
     poseidon::{PoseidonRO, PoseidonROCircuit},
+    CompressedGroup, GroupExt,
   },
-  traits::{CompressedGroup, Group, PrimeFieldExt, TranscriptReprTrait},
+  traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use digest::{ExtendableOutput, Update};
 use ff::{FromUniformBytes, PrimeField};
@@ -55,17 +56,30 @@ macro_rules! impl_traits {
     $name_compressed:ident,
     $name_curve:ident,
     $name_curve_affine:ident,
-    $order_str:literal
+    $order_str:literal,
+    $base_str:literal
   ) => {
     impl Group for $name::Point {
       type Base = $name::Base;
       type Scalar = $name::Scalar;
-      type CompressedGroupElement = $name_compressed;
-      type PreprocessedGroupElement = $name::Affine;
       type RO = PoseidonRO<Self::Base, Self::Scalar>;
       type ROCircuit = PoseidonROCircuit<Self::Base>;
       type TE = Keccak256Transcript<Self>;
       type CE = CommitmentEngine<Self>;
+
+      fn get_curve_params() -> (Self::Base, Self::Base, BigInt, BigInt) {
+        let A = $name::Point::a();
+        let B = $name::Point::b();
+        let order = BigInt::from_str_radix($order_str, 16).unwrap();
+        let base = BigInt::from_str_radix($base_str, 16).unwrap();
+
+        (A, B, order, base)
+      }
+    }
+
+    impl GroupExt for $name::Point {
+      type CompressedGroupElement = $name_compressed;
+      type PreprocessedGroupElement = $name::Affine;
 
       #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
       #[tracing::instrument(
@@ -92,12 +106,12 @@ macro_rules! impl_traits {
         cpu_best_multiexp(scalars, bases)
       }
 
-      fn preprocessed(&self) -> Self::PreprocessedGroupElement {
-        self.to_affine()
-      }
-
       fn compress(&self) -> Self::CompressedGroupElement {
         $name_compressed::new(self.to_bytes())
+      }
+
+      fn preprocessed(&self) -> Self::PreprocessedGroupElement {
+        self.to_affine()
       }
 
       fn from_label(label: &'static [u8], n: usize) -> Vec<Self::PreprocessedGroupElement> {
@@ -146,6 +160,10 @@ macro_rules! impl_traits {
         }
       }
 
+      fn zero() -> Self {
+        $name::Point::identity()
+      }
+
       fn to_coordinates(&self) -> (Self::Base, Self::Base, bool) {
         let coordinates = self.to_affine().coordinates();
         if coordinates.is_some().unwrap_u8() == 1 {
@@ -153,22 +171,6 @@ macro_rules! impl_traits {
         } else {
           (Self::Base::zero(), Self::Base::zero(), true)
         }
-      }
-
-      fn get_curve_params() -> (Self::Base, Self::Base, BigInt) {
-        let A = $name::Point::a();
-        let B = $name::Point::b();
-        let order = BigInt::from_str_radix($order_str, 16).unwrap();
-
-        (A, B, order)
-      }
-
-      fn zero() -> Self {
-        $name::Point::identity()
-      }
-
-      fn get_generator() -> Self {
-        $name::Point::generator()
       }
     }
 
@@ -192,19 +194,13 @@ macro_rules! impl_traits {
         Some($name_curve::from_bytes(&self.repr).unwrap())
       }
     }
+
+    impl<G: Group> TranscriptReprTrait<G> for $name::Scalar {
+      fn to_transcript_bytes(&self) -> Vec<u8> {
+        self.to_repr().to_vec()
+      }
+    }
   };
-}
-
-impl<G: Group> TranscriptReprTrait<G> for pallas::Base {
-  fn to_transcript_bytes(&self) -> Vec<u8> {
-    self.to_repr().to_vec()
-  }
-}
-
-impl<G: Group> TranscriptReprTrait<G> for pallas::Scalar {
-  fn to_transcript_bytes(&self) -> Vec<u8> {
-    self.to_repr().to_vec()
-  }
 }
 
 impl_traits!(
@@ -212,7 +208,8 @@ impl_traits!(
   PallasCompressedElementWrapper,
   Ep,
   EpAffine,
-  "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001"
+  "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001",
+  "40000000000000000000000000000000224698fc094cf91b992d30ed00000001"
 );
 
 impl_traits!(
@@ -220,7 +217,8 @@ impl_traits!(
   VestaCompressedElementWrapper,
   Eq,
   EqAffine,
-  "40000000000000000000000000000000224698fc094cf91b992d30ed00000001"
+  "40000000000000000000000000000000224698fc094cf91b992d30ed00000001",
+  "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001"
 );
 
 #[cfg(test)]
@@ -248,7 +246,7 @@ mod tests {
     for n in [
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1021,
     ] {
-      let ck_par = <G as Group>::from_label(label, n);
+      let ck_par = <G as GroupExt>::from_label(label, n);
       let ck_ser = from_label_serial(label, n);
       assert_eq!(ck_par.len(), n);
       assert_eq!(ck_ser.len(), n);

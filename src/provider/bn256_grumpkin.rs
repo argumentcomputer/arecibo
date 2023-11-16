@@ -6,8 +6,9 @@ use crate::{
     keccak::Keccak256Transcript,
     pedersen::CommitmentEngine,
     poseidon::{PoseidonRO, PoseidonROCircuit},
+    CompressedGroup, GroupExt,
   },
-  traits::{CompressedGroup, Group, PrimeFieldExt, TranscriptReprTrait},
+  traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use digest::{ExtendableOutput, Update};
 use ff::{FromUniformBytes, PrimeField};
@@ -41,24 +42,13 @@ pub mod grumpkin {
   };
 }
 
-impl<G: Group> TranscriptReprTrait<G> for grumpkin::Base {
-  fn to_transcript_bytes(&self) -> Vec<u8> {
-    self.to_repr().to_vec()
-  }
-}
-
-impl<G: Group> TranscriptReprTrait<G> for grumpkin::Scalar {
-  fn to_transcript_bytes(&self) -> Vec<u8> {
-    self.to_repr().to_vec()
-  }
-}
-
 impl_traits!(
   bn256,
   Bn256Compressed,
   Bn256Point,
   Bn256Affine,
-  "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001"
+  "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
+  "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47"
 );
 
 impl_traits!(
@@ -66,7 +56,8 @@ impl_traits!(
   GrumpkinCompressed,
   GrumpkinPoint,
   GrumpkinAffine,
-  "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47"
+  "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47",
+  "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001"
 );
 
 #[cfg(test)]
@@ -94,7 +85,7 @@ mod tests {
     for n in [
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1021,
     ] {
-      let ck_par = <G as Group>::from_label(label, n);
+      let ck_par = <G as GroupExt>::from_label(label, n);
       let ck_ser = from_label_serial(label, n);
       assert_eq!(ck_par.len(), n);
       assert_eq!(ck_ser.len(), n);

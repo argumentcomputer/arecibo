@@ -942,10 +942,14 @@ type CE<G> = <G as Group>::CE;
 
 #[cfg(test)]
 mod tests {
-  use crate::provider::bn256_grumpkin::{bn256, grumpkin};
-  use crate::provider::secp_secq::{secp256k1, secq256k1};
-  use crate::traits::evaluation::EvaluationEngineTrait;
-  use crate::traits::snark::default_ck_hint;
+  use crate::{
+    provider::{
+      bn256_grumpkin::{bn256, grumpkin},
+      secp_secq::{secp256k1, secq256k1},
+      GroupExt,
+    },
+    traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
+  };
   use core::fmt::Write;
 
   use super::*;
@@ -1014,8 +1018,8 @@ mod tests {
 
   fn test_pp_digest_with<G1, G2, T1, T2, E1, E2>(circuit1: &T1, circuit2: &T2, _expected: &str)
   where
-    G1: Group<Base = <G2 as Group>::Scalar>,
-    G2: Group<Base = <G1 as Group>::Scalar>,
+    G1: Group<Base = <G2 as Group>::Scalar> + GroupExt,
+    G2: Group<Base = <G1 as Group>::Scalar> + GroupExt,
     T1: StepCircuit<G1::Scalar>,
     T2: StepCircuit<G2::Scalar>,
     E1: EvaluationEngineTrait<G1>,
@@ -1065,11 +1069,28 @@ mod tests {
     let trivial_circuit2_grumpkin = TrivialCircuit::<<grumpkin::Point as Group>::Scalar>::default();
     let cubic_circuit1_grumpkin = CubicCircuit::<<bn256::Point as Group>::Scalar>::default();
 
+    // These tests should not need be different on the "asm" feature for bn256.
+    // See https://github.com/privacy-scaling-explorations/halo2curves/issues/100 for why they are - closing the issue there
+    // should eliminate the discrepancy here.
+    #[cfg(feature = "asm")]
+    test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
+      &trivial_circuit1_grumpkin,
+      &trivial_circuit2_grumpkin,
+      "c4ecd363a6c1473de7e0d24fc1dbb660f563556e2e13fb4614acdff04cab7701",
+    );
+    #[cfg(feature = "asm")]
+    test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
+      &cubic_circuit1_grumpkin,
+      &trivial_circuit2_grumpkin,
+      "4853a6463b6309f6ae76442934d0a423f51f1e10abaddd0d39bf5644ed589100",
+    );
+    #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "c26cc841d42c19bf98bc2482e66cd30903922f2a923927b85d66f375a821f101",
     );
+    #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,

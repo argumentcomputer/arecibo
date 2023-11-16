@@ -33,6 +33,9 @@ jobs:
     - name: Linux Tests in parallel, with nextest profile ci and cargo profile dev-ci
       run: |
         cargo nextest run --profile ci --workspace --cargo-profile dev-ci
+    - name: Run test_pp_digest with the asm feature
+      run: |
+        cargo nextest run --profile ci --workspace --cargo-profile dev-ci --features "asm" -E 'test(test_pp_digest)'
 
   check-lurk-compiles:
     if: github.event_name == 'pull_request'
