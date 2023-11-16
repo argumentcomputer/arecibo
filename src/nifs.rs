@@ -1,6 +1,7 @@
 //! This module implements a non-interactive folding scheme
 #![allow(non_snake_case)]
 
+use crate::traits::commitment::CommitmentEngineTrait;
 use crate::{
   constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
@@ -9,7 +10,7 @@ use crate::{
   },
   scalar_as_base,
   traits::{commitment::CommitmentTrait, AbsorbInROTrait, Group, ROTrait},
-  Commitment, CommitmentKey, CompressedCommitment,
+  Commitment, CommitmentKey, CompressedCommitment, CE,
 };
 use serde::{Deserialize, Serialize};
 
@@ -90,12 +91,38 @@ impl<G: Group> NIFS<G> {
     S: &R1CSShape<G>,
     U1: &mut RelaxedR1CSInstance<G>,
     W1: &mut RelaxedR1CSWitness<G>,
-    U2: &R1CSInstance<G>,
+    U2: &mut R1CSInstance<G>,
     W2: &R1CSWitness<G>,
     T: &mut Vec<G::Scalar>,
     ABC_Z_1: &mut Option<R1CSResult<G>>,
     ABC_Z_2: &mut R1CSResult<G>,
   ) -> Result<NIFS<G>, NovaError> {
+    let comm_T: <<G as Group>::CE as CommitmentEngineTrait<G>>::Commitment = {
+      let RelaxedR1CSInstance {
+        comm_W: _,
+        comm_E: _,
+        u_and_X: u_and_X1,
+      } = U1;
+      let RelaxedR1CSWitness { W: W1, E: _ } = W1;
+      let R1CSInstance {
+        comm_W,
+        one_and_X: one_and_X2,
+      } = U2;
+      let R1CSWitness { W: W2 } = W2;
+
+      std::thread::scope(|s| {
+        s.spawn(|| {
+          *comm_W = CE::<G>::commit(ck, W2);
+        });
+        s.spawn(|| {
+          // compute a commitment to the cross-term
+          S.commit_T_into(ck, u_and_X1, W1, one_and_X2, W2, T, ABC_Z_1, ABC_Z_2).unwrap();
+        });
+      });
+
+      CE::<G>::commit(ck, T)
+    };
+
     // initialize a new RO
     let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 
@@ -105,9 +132,6 @@ impl<G: Group> NIFS<G> {
     // append U1 and U2 to transcript
     U1.absorb_in_ro(&mut ro);
     U2.absorb_in_ro(&mut ro);
-
-    // compute a commitment to the cross-term
-    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, T, ABC_Z_1, ABC_Z_2)?;
 
     // append `comm_T` to the transcript and obtain a challenge
     comm_T.absorb_in_ro(&mut ro);
@@ -122,10 +146,7 @@ impl<G: Group> NIFS<G> {
     W1.fold_mut(W2, T, &r)?;
 
     // update `ABC_Z_1` using `r`
-    ABC_Z_1
-      .as_mut()
-      .unwrap()
-      .fold_mut(ABC_Z_2, &r);
+    ABC_Z_1.as_mut().unwrap().fold_mut(ABC_Z_2, &r);
 
     // return the commitment
     Ok(Self {

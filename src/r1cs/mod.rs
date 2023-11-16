@@ -388,15 +388,15 @@ impl<G: Group> R1CSShape<G> {
   /// This is [`R1CSShape::commit_T`] but into a buffer.
   pub fn commit_T_into(
     &self,
-    ck: &CommitmentKey<G>,
-    U1: &RelaxedR1CSInstance<G>,
-    W1: &RelaxedR1CSWitness<G>,
-    U2: &R1CSInstance<G>,
-    W2: &R1CSWitness<G>,
+    _ck: &CommitmentKey<G>,
+    u_and_X1: &[G::Scalar],
+    W1: &[G::Scalar],
+    one_and_X2: &[G::Scalar],
+    W2: &[G::Scalar],
     T: &mut Vec<G::Scalar>,
     ABC_Z_1: &mut Option<R1CSResult<G>>,
     ABC_Z_2: &mut R1CSResult<G>,
-  ) -> Result<Commitment<G>, NovaError> {
+  ) -> Result<(), NovaError> {
     let R1CSResult {
       AZ: AZ_1,
       BZ: BZ_1,
@@ -406,12 +406,12 @@ impl<G: Group> R1CSShape<G> {
     } else {
       *ABC_Z_1 = Some(R1CSResult::default(self));
       tracing::info_span!("AZ_1, BZ_1, CZ_1")
-        .in_scope(|| self.multiply_witness_into(&W1.W, &U1.u_and_X, ABC_Z_1.as_mut().unwrap()))?;
+        .in_scope(|| self.multiply_witness_into(&W1, u_and_X1, ABC_Z_1.as_mut().unwrap()))?;
       ABC_Z_1.as_mut().unwrap()
     };
 
     tracing::info_span!("AZ_2, BZ_2, CZ_2")
-      .in_scope(|| self.multiply_witness_into(&W2.W, &U2.one_and_X, ABC_Z_2))?;
+      .in_scope(|| self.multiply_witness_into(W2, one_and_X2, ABC_Z_2))?;
 
     let R1CSResult {
       AZ: AZ_2,
@@ -427,15 +427,13 @@ impl<G: Group> R1CSShape<G> {
         .map(|i| {
           let AZ_1_circ_BZ_2 = AZ_1[i] * BZ_2[i];
           let AZ_2_circ_BZ_1 = AZ_2[i] * BZ_1[i];
-          let u_1_cdot_CZ_2 = U1.u_and_X[0] * CZ_2[i];
+          let u_1_cdot_CZ_2 = u_and_X1[0] * CZ_2[i];
           AZ_1_circ_BZ_2 + AZ_2_circ_BZ_1 - u_1_cdot_CZ_2 - CZ_1[i]
         })
         .collect_into_vec(T)
     });
 
-    let comm_T = CE::<G>::commit(ck, T);
-
-    Ok(comm_T)
+    Ok(())
   }
 
   /// Pads the `R1CSShape` so that the number of variables is a power of two

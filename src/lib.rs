@@ -514,7 +514,7 @@ where
       &pp.circuit_shape_secondary.r1cs_shape,
       &mut self.r_U_secondary,
       &mut self.r_W_secondary,
-      &self.l_u_secondary,
+      &mut self.l_u_secondary,
       &self.l_w_secondary,
       &mut self.sink_secondary.T,
       &mut self.sink_secondary.ABC_Z_1,
@@ -553,7 +553,14 @@ where
     //   .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
     //   .map_err(|_e| NovaError::UnSat)
     //   .expect("Nova error unsat");
-    self.sink_primary.l_u.comm_W = self.sink_primary.l_w.commit(&pp.ck_primary);
+
+    // let l_u_primary = &mut self.sink_primary.l_u;
+    // let l_w_primary = &mut self.sink_primary.l_w;
+    // let comm_W_handle = std::thread::scope(|s| {
+    //   s.spawn(move || {
+    //     l_u_primary.comm_W = l_w_primary.commit(&pp.ck_primary)
+    //   })
+    // });
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
@@ -563,13 +570,15 @@ where
       &pp.circuit_shape_primary.r1cs_shape,
       &mut self.r_U_primary,
       &mut self.r_W_primary,
-      &self.sink_primary.l_u,
+      &mut self.sink_primary.l_u,
       &self.sink_primary.l_w,
       &mut self.sink_primary.T,
       &mut self.sink_primary.ABC_Z_1,
       &mut self.sink_primary.ABC_Z_2,
     )
     .expect("Unable to fold primary");
+
+    // comm_W_handle.join().unwrap();
 
     // increment `l_u_secondary` and `l_w_secondary`
     let mut cs_secondary = WitnessViewCS::<G2::Scalar>::new_view(
