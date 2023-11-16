@@ -1,8 +1,4 @@
-use crate::bellpepper::test_shape_cs::TestShapeCS;
-use crate::gadgets::utils::alloc_const;
-use crate::gadgets::utils::alloc_num_equals;
-use crate::gadgets::utils::conditionally_select;
-use crate::gadgets::utils::{alloc_one, alloc_zero};
+use crate::gadgets::utils::alloc_zero;
 use crate::provider::bn256_grumpkin::bn256;
 use crate::provider::bn256_grumpkin::grumpkin;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
@@ -12,62 +8,16 @@ use crate::traits::circuit_supernova::{
   EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
 };
 use crate::traits::snark::default_ck_hint;
-use bellpepper::gadgets::{boolean::Boolean, Assignment};
+use crate::{bellpepper::test_shape_cs::TestShapeCS, gadgets::utils::alloc_one};
 use bellpepper_core::num::AllocatedNum;
-use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
 use ff::Field;
 use ff::PrimeField;
 use std::fmt::Write;
 use tap::TapOptional;
 
-use super::*;
-
-fn constrain_augmented_circuit_index<F: PrimeField, CS: ConstraintSystem<F>>(
-  mut cs: CS,
-  program_counter: &AllocatedNum<F>,
-  rom: &[AllocatedNum<F>],
-  circuit_index: &AllocatedNum<F>,
-) -> Result<(), SynthesisError> {
-  // select target when index match or empty
-  let zero = alloc_zero(cs.namespace(|| "zero"));
-  let rom_values = rom
-    .iter()
-    .enumerate()
-    .map(|(i, rom_value)| {
-      let index_alloc = alloc_const(
-        cs.namespace(|| format!("rom_values {} index ", i)),
-        F::from(i as u64),
-      )?;
-      let equal_bit = Boolean::from(alloc_num_equals(
-        cs.namespace(|| format!("rom_values {} equal bit", i)),
-        &index_alloc,
-        program_counter,
-      )?);
-      conditionally_select(
-        cs.namespace(|| format!("rom_values {} conditionally_select ", i)),
-        rom_value,
-        &zero,
-        &equal_bit,
-      )
-    })
-    .collect::<Result<Vec<AllocatedNum<F>>, SynthesisError>>()?;
-
-  let sum_lc = rom_values
-    .iter()
-    .fold(LinearCombination::<F>::zero(), |acc_lc, row_value| {
-      acc_lc + row_value.get_variable()
-    });
-
-  cs.enforce(
-    || "sum_lc == circuit_index",
-    |lc| lc + circuit_index.get_variable() - &sum_lc,
-    |lc| lc + CS::one(),
-    |lc| lc,
-  );
-
-  Ok(())
-}
+use super::{utils::get_selector_vec_from_index, *};
 
 #[derive(Clone, Debug, Default)]
 struct CubicCircuit<F: PrimeField> {
@@ -88,55 +38,58 @@ where
     }
   }
 }
-/// c = a + b where a, b is `AllocatedNum`
-pub fn add_allocated_num<F: PrimeField, CS: ConstraintSystem<F>>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: &AllocatedNum<F>,
-) -> Result<AllocatedNum<F>, SynthesisError> {
-  let c = AllocatedNum::alloc(cs.namespace(|| "c"), || {
-    Ok(*a.get_value().get()? + b.get_value().get()?)
-  })?;
-  cs.enforce(
-    || "Check u_fold",
-    |lc| lc + a.get_variable() + b.get_variable(),
-    |lc| lc + CS::one(),
-    |lc| lc + c.get_variable(),
-  );
-  Ok(c)
-}
 
 fn next_rom_index_and_pc<F: PrimeField, CS: ConstraintSystem<F>>(
   cs: &mut CS,
   rom_index: &AllocatedNum<F>,
   allocated_rom: &[AllocatedNum<F>],
+  pc: &AllocatedNum<F>,
 ) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError> {
-  let one = alloc_one(cs.namespace(|| "alloc one"));
-
-  let rom_index_next = add_allocated_num(
-    // rom_index = rom_index + 1
-    cs.namespace(|| "rom_index = rom_index + 1".to_string()),
+  // Compute a selector for the current rom_index in allocated_rom
+  let current_rom_selector = get_selector_vec_from_index(
+    cs.namespace(|| "rom selector"),
     rom_index,
-    &one,
+    allocated_rom.len(),
   )?;
-  let pc_next = AllocatedNum::alloc(&mut cs.namespace(|| "pc_next"), || {
-    rom_index_next
-      .get_value()
-      .and_then(|f| {
-        let n: u64 = u64::from_le_bytes(f.to_repr().as_ref()[0..8].try_into().unwrap());
-        allocated_rom
-          .get(n as usize)
-          .and_then(|x| x.get_value())
-          .or(Some(F::ZERO))
-      })
-      .ok_or(SynthesisError::AssignmentMissing)
-  })?;
-  constrain_augmented_circuit_index(
-    cs.namespace(|| "CubicCircuit agumented circuit constraint"),
-    &rom_index_next,
-    allocated_rom,
-    &pc_next,
-  )?;
+
+  // Enforce that allocated_rom[rom_index] = pc
+  for (rom, bit) in allocated_rom.iter().zip(current_rom_selector.iter()) {
+    // if bit = 1, then rom = pc
+    // bit * (rom - pc) = 0
+    cs.enforce(
+      || "enforce bit = 1 => rom = pc",
+      |lc| lc + &bit.lc(CS::one(), F::ONE),
+      |lc| lc + rom.get_variable() - pc.get_variable(),
+      |lc| lc,
+    );
+  }
+
+  // Get the index of the current rom, or the index of the invalid rom if no match
+  let current_rom_index = current_rom_selector
+    .iter()
+    .position(|bit| bit.get_value().is_some_and(|v| v))
+    .unwrap_or_default();
+  let next_rom_index = current_rom_index + 1;
+
+  let rom_index_next = AllocatedNum::alloc_infallible(cs.namespace(|| "next rom index"), || {
+    F::from(next_rom_index as u64)
+  });
+  cs.enforce(
+    || " rom_index + 1 - next_rom_index_num = 0",
+    |lc| lc,
+    |lc| lc,
+    |lc| lc + rom_index.get_variable() + CS::one() - rom_index_next.get_variable(),
+  );
+
+  // Allocate the next pc without checking.
+  // The next iteration will check whether the next pc is valid.
+  let pc_next = AllocatedNum::alloc_infallible(cs.namespace(|| "next pc"), || {
+    allocated_rom
+      .get(next_rom_index)
+      .and_then(|v| v.get_value())
+      .unwrap_or(-F::ONE)
+  });
+
   Ok((rom_index_next, pc_next))
 }
 
@@ -155,7 +108,7 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    _pc: Option<&AllocatedNum<F>>,
+    pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let rom_index = &z[1];
@@ -165,6 +118,7 @@ where
       &mut cs.namespace(|| "next and rom_index and pc"),
       rom_index,
       allocated_rom,
+      pc.ok_or(SynthesisError::AssignmentMissing)?,
     )?;
 
     // Consider a cubic equation: `x^3 + x + 5 = y`, where `x` and `y` are respectively the input and output.
@@ -232,7 +186,7 @@ where
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    _pc: Option<&AllocatedNum<F>>,
+    pc: Option<&AllocatedNum<F>>,
     z: &[AllocatedNum<F>],
   ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
     let rom_index = &z[1];
@@ -242,13 +196,7 @@ where
       &mut cs.namespace(|| "next and rom_index and pc"),
       rom_index,
       allocated_rom,
-    )?;
-
-    constrain_augmented_circuit_index(
-      cs.namespace(|| "SquareCircuit agumented circuit constraint"),
-      &rom_index_next,
-      allocated_rom,
-      &pc_next,
+      pc.ok_or(SynthesisError::AssignmentMissing)?,
     )?;
 
     // Consider an equation: `x^2 + x + 5 = y`, where `x` and `y` are respectively the input and output.
@@ -412,10 +360,6 @@ where
       _p: Default::default(),
     }
   }
-
-  fn num_steps(&self) -> usize {
-    self.rom.len()
-  }
 }
 
 fn test_trivial_nivc_with<G1, G2>()
@@ -431,15 +375,11 @@ where
   // This test also ready to add more argumented circuit and ROM can be arbitrary length
 
   // ROM is for constraints the sequence of execution order for opcode
-  // program counter initially point to 0
 
   // TODO: replace with memory commitment along with suggestion from Supernova 4.4 optimisations
 
   // This is mostly done with the existing Nova code. With additions of U_i[] and program_counter checks
   // in the augmented circuit.
-
-  // To save the test time, after each step of iteration, RecursiveSNARK just verfiy the latest U_i[augmented_circuit_index] needs to be a satisfying instance.
-  // TODO At the end of this test, RecursiveSNARK need to verify all U_i[] are satisfying instances
 
   let rom = vec![
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
@@ -447,15 +387,12 @@ where
   ]; // Rom can be arbitrary length.
 
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
-  let num_steps = test_rom.num_steps();
 
   let pp = PublicParams::new(&test_rom, &*default_ck_hint(), &*default_ck_hint());
 
-  let initial_program_counter = test_rom.initial_program_counter();
-
   // extend z0_primary/secondary with rom content
   let mut z0_primary = vec![<G1 as Group>::Scalar::ONE];
-  z0_primary.push(initial_program_counter);
+  z0_primary.push(<G1 as Group>::Scalar::ZERO); // rom_index = 0
   z0_primary.extend(
     test_rom
       .rom
@@ -466,55 +403,37 @@ where
 
   let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
 
-  for _ in 0..num_steps {
-    let program_counter = recursive_snark_option.as_ref().map_or_else(
-      || initial_program_counter,
-      |recursive_snark| recursive_snark.program_counter,
-    );
+  for &op_code in test_rom.rom.iter() {
+    let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
+      RecursiveSNARK::new(
+        &pp,
+        &test_rom,
+        &test_rom.primary_circuit(op_code),
+        &test_rom.secondary_circuit(),
+        &z0_primary,
+        &z0_secondary,
+      )
+      .unwrap()
+    });
 
-    // The program counter directly specifies the next circuit index.
-    let augmented_circuit_index = u32::from_le_bytes(
-      // convert program counter from field to usize (only took le 4 bytes)
-      program_counter.to_repr().as_ref()[0..4].try_into().unwrap(),
-    ) as usize;
-
-    let mut recursive_snark =
-      recursive_snark_option.unwrap_or_else(|| match augmented_circuit_index {
-        OPCODE_0 | OPCODE_1 => RecursiveSNARK::new(
+    let circuit_primary = test_rom.primary_circuit(op_code);
+    let circuit_secondary = test_rom.secondary_circuit();
+    recursive_snark
+      .prove_step(&pp, &circuit_primary, &circuit_secondary)
+      .unwrap();
+    recursive_snark
+      .verify(&pp, op_code, &z0_primary, &z0_secondary)
+      .map_err(|err| {
+        print_constraints_name_on_error_index(
+          &err,
           &pp,
-          &test_rom,
-          &test_rom.primary_circuit(augmented_circuit_index),
-          &test_rom.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
+          &circuit_primary,
+          &circuit_secondary,
+          test_rom.num_circuits(),
         )
-        .unwrap(),
-        _ => {
-          unimplemented!()
-        }
-      });
-    match augmented_circuit_index {
-      OPCODE_0 | OPCODE_1 => {
-        let circuit_primary = test_rom.primary_circuit(augmented_circuit_index);
-        let circuit_secondary = test_rom.secondary_circuit();
-        recursive_snark
-          .prove_step(&pp, &circuit_primary, &circuit_secondary)
-          .unwrap();
-        recursive_snark
-          .verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary)
-          .map_err(|err| {
-            print_constraints_name_on_error_index(
-              &err,
-              &pp,
-              &circuit_primary,
-              &circuit_secondary,
-              test_rom.num_circuits(),
-            )
-          })
-          .unwrap();
-      }
-      _ => (),
-    }
+      })
+      .unwrap();
+
     recursive_snark_option = Some(recursive_snark)
   }
 
@@ -531,6 +450,9 @@ where
   println!("zi_primary: {:?}", zi_primary);
   println!("zi_secondary: {:?}", zi_secondary);
   println!("final program_counter: {:?}", program_counter);
+
+  // The final program counter should be -1
+  assert_eq!(*program_counter, -<G1 as Group>::Scalar::ONE);
 }
 
 #[test]
@@ -773,7 +695,7 @@ where
       |lc| lc + x.get_variable(),
     );
 
-    let next_pc = alloc_const(&mut cs.namespace(|| "next_pc"), F::ONE)?;
+    let next_pc = alloc_one(&mut cs.namespace(|| "next_pc"));
 
     Ok((Some(next_pc), vec![y]))
   }
@@ -822,7 +744,7 @@ where
       |lc| lc + x.get_variable(),
     );
 
-    let next_pc = alloc_const(&mut cs.namespace(|| "next_pc"), F::ZERO)?;
+    let next_pc = alloc_zero(&mut cs.namespace(|| "next_pc"));
 
     Ok((Some(next_pc), vec![y]))
   }
