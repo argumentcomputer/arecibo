@@ -619,7 +619,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<G1, G2, _, _, _>(
     &test_rom,
-    "e6b6b796fb32c09d487e07f34967cb146497b4fae85a8e22c151a3aa6aa83602",
+    "7e203fdfeab0ee8f56f8948497f8de73539d52e64cef89e44fff84711cf8b100",
   );
 
   let rom = vec![
@@ -634,7 +634,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<bn256::Point, grumpkin::Point, _, _, _>(
     &test_rom_grumpkin,
-    "0faa3a07d225e8f92a0823f93f462abbb34c063fefa500a8fb131c0829b68600",
+    "6f72db6927b6a12e95e1d5237298e1e20f0215b63ef8d76a361930eb76f71003",
   );
 
   let rom = vec![
@@ -649,7 +649,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<secp256k1::Point, secq256k1::Point, _, _, _>(
     &test_rom_secp,
-    "2322ae73400aa1cf488bfb342036f7d1e799c2aad22551ccbdf6c769840a1802",
+    "0c2f7c68efcc5f4c42a25670ea896bc082c9753d04fc2e5b3a41531ed4e91602",
   );
 }
 
