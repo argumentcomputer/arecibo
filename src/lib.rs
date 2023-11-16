@@ -42,7 +42,8 @@ use ff::{Field, PrimeField};
 use gadgets::utils::scalar_as_base;
 use nifs::NIFS;
 use r1cs::{
-  CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness, R1CSResult,
+  CommitmentKeyHint, R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance,
+  RelaxedR1CSWitness,
 };
 use serde::{Deserialize, Serialize};
 use traits::{
@@ -507,46 +508,49 @@ where
 
     // fold the secondary circuit's instance
     // increments `r_U_secondary` and `r_W_secondary`
-    let nifs_secondary = NIFS::prove_mut(
-      &pp.ck_secondary,
-      &pp.ro_consts_secondary,
-      &scalar_as_base::<G1>(pp.digest()),
-      &pp.circuit_shape_secondary.r1cs_shape,
-      &mut self.r_U_secondary,
-      &mut self.r_W_secondary,
-      &mut self.l_u_secondary,
-      &self.l_w_secondary,
-      &mut self.sink_secondary.T,
-      &mut self.sink_secondary.ABC_Z_1,
-      &mut self.sink_secondary.ABC_Z_2,
-    )
-    .expect("Unable to fold secondary");
+    let nifs_secondary = tracing::info_span!("nifs_secondary").in_scope(|| {
+      NIFS::prove_mut(
+        &pp.ck_secondary,
+        &pp.ro_consts_secondary,
+        &scalar_as_base::<G1>(pp.digest()),
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &mut self.r_U_secondary,
+        &mut self.r_W_secondary,
+        &mut self.l_u_secondary,
+        &self.l_w_secondary,
+        &mut self.sink_secondary.T,
+        &mut self.sink_secondary.ABC_Z_1,
+        &mut self.sink_secondary.ABC_Z_2,
+      )
+      .expect("Unable to fold secondary")
+    });
 
-    // increment `l_u_primary` and `l_w_primary`
-    let mut cs_primary = WitnessViewCS::<G1::Scalar>::new_view(
-      &mut self.sink_primary.l_u.one_and_X,
-      &mut self.sink_primary.l_w.W,
-    );
-    let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<G1>(pp.digest()),
-      G1::Scalar::from(self.i as u64),
-      self.z0_primary.to_vec(),
-      Some(self.zi_primary.clone()),
-      Some(r_U_secondary_i),
-      Some(l_u_secondary_i),
-      Some(Commitment::<G2>::decompress(&nifs_secondary.comm_T)?),
-    );
+    let zi_primary = tracing::info_span!("cs_primary").in_scope(|| {
+      // increment `l_u_primary` and `l_w_primary`
+      let mut cs_primary = WitnessViewCS::<G1::Scalar>::new_view(
+        &mut self.sink_primary.l_u.one_and_X,
+        &mut self.sink_primary.l_w.W,
+      );
+      let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
+        scalar_as_base::<G1>(pp.digest()),
+        G1::Scalar::from(self.i as u64),
+        self.z0_primary.to_vec(),
+        Some(self.zi_primary.clone()),
+        Some(r_U_secondary_i),
+        Some(l_u_secondary_i),
+        Some(Commitment::<G2>::decompress(&nifs_secondary.comm_T)?),
+      );
 
-    let circuit_primary: NovaAugmentedCircuit<'_, G2, C1> = NovaAugmentedCircuit::new(
-      &pp.augmented_circuit_params_primary,
-      Some(inputs_primary),
-      c_primary,
-      pp.ro_consts_circuit_primary.clone(),
-    );
-
-    let zi_primary = circuit_primary
-      .synthesize(&mut cs_primary)
-      .map_err(|_| NovaError::SynthesisError)?;
+      let circuit_primary: NovaAugmentedCircuit<'_, G2, C1> = NovaAugmentedCircuit::new(
+        &pp.augmented_circuit_params_primary,
+        Some(inputs_primary),
+        c_primary,
+        pp.ro_consts_circuit_primary.clone(),
+      );
+      circuit_primary
+        .synthesize(&mut cs_primary)
+        .map_err(|_| NovaError::SynthesisError)
+    })?;
 
     // TODO: check length of witness
     // let (l_u_primary, l_w_primary) = cs_primary
@@ -563,63 +567,70 @@ where
     // });
 
     // fold the primary circuit's instance
-    let nifs_primary = NIFS::prove_mut(
-      &pp.ck_primary,
-      &pp.ro_consts_primary,
-      &pp.digest(),
-      &pp.circuit_shape_primary.r1cs_shape,
-      &mut self.r_U_primary,
-      &mut self.r_W_primary,
-      &mut self.sink_primary.l_u,
-      &self.sink_primary.l_w,
-      &mut self.sink_primary.T,
-      &mut self.sink_primary.ABC_Z_1,
-      &mut self.sink_primary.ABC_Z_2,
-    )
-    .expect("Unable to fold primary");
+    let nifs_primary = tracing::info_span!("nifs_primary").in_scope(|| {
+      NIFS::prove_mut(
+        &pp.ck_primary,
+        &pp.ro_consts_primary,
+        &pp.digest(),
+        &pp.circuit_shape_primary.r1cs_shape,
+        &mut self.r_U_primary,
+        &mut self.r_W_primary,
+        &mut self.sink_primary.l_u,
+        &self.sink_primary.l_w,
+        &mut self.sink_primary.T,
+        &mut self.sink_primary.ABC_Z_1,
+        &mut self.sink_primary.ABC_Z_2,
+      )
+      .expect("Unable to fold primary")
+    });
 
     // comm_W_handle.join().unwrap();
 
-    // increment `l_u_secondary` and `l_w_secondary`
-    let mut cs_secondary = WitnessViewCS::<G2::Scalar>::new_view(
-      &mut self.l_u_secondary.one_and_X,
-      &mut self.l_w_secondary.W,
-    );
-    let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
-      pp.digest(),
-      G2::Scalar::from(self.i as u64),
-      self.z0_secondary.to_vec(),
-      Some(self.zi_secondary.clone()),
-      Some(r_U_primary_i),
-      Some(self.sink_primary.l_u.clone()),
-      Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
-    );
+    let zi_secondary = tracing::info_span!("cs_secondary").in_scope(|| {
+      // increment `l_u_secondary` and `l_w_secondary`
+      let mut cs_secondary = WitnessViewCS::<G2::Scalar>::new_view(
+        &mut self.l_u_secondary.one_and_X,
+        &mut self.l_w_secondary.W,
+      );
+      let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
+        pp.digest(),
+        G2::Scalar::from(self.i as u64),
+        self.z0_secondary.to_vec(),
+        Some(self.zi_secondary.clone()),
+        Some(r_U_primary_i),
+        Some(self.sink_primary.l_u.clone()),
+        Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
+      );
 
-    let circuit_secondary: NovaAugmentedCircuit<'_, G1, C2> = NovaAugmentedCircuit::new(
-      &pp.augmented_circuit_params_secondary,
-      Some(inputs_secondary),
-      c_secondary,
-      pp.ro_consts_circuit_secondary.clone(),
-    );
-    let zi_secondary = circuit_secondary
-      .synthesize(&mut cs_secondary)
-      .map_err(|_| NovaError::SynthesisError)?;
+      let circuit_secondary: NovaAugmentedCircuit<'_, G1, C2> = NovaAugmentedCircuit::new(
+        &pp.augmented_circuit_params_secondary,
+        Some(inputs_secondary),
+        c_secondary,
+        pp.ro_consts_circuit_secondary.clone(),
+      );
+      circuit_secondary
+        .synthesize(&mut cs_secondary)
+        .map_err(|_| NovaError::SynthesisError)
+    })?;
 
     // TODO: check length of witness
     // let (l_u_secondary, l_w_secondary) = cs_secondary
     //   .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
     //   .map_err(|_e| NovaError::UnSat)?;
-    self.l_u_secondary.comm_W = self.l_w_secondary.commit(&pp.ck_secondary);
+    tracing::info_span!("l_u_secondary.comm_W")
+      .in_scope(|| self.l_u_secondary.comm_W = self.l_w_secondary.commit(&pp.ck_secondary));
 
     // update the running instances and witnesses
-    self.zi_primary = zi_primary
-      .iter()
-      .map(|v| v.get_value().ok_or(NovaError::SynthesisError))
-      .collect::<Result<Vec<<G1 as Group>::Scalar>, NovaError>>()?;
-    self.zi_secondary = zi_secondary
-      .iter()
-      .map(|v| v.get_value().ok_or(NovaError::SynthesisError))
-      .collect::<Result<Vec<<G2 as Group>::Scalar>, NovaError>>()?;
+    self.zi_secondary = tracing::info_span!("zi").in_scope(|| {
+      self.zi_primary = zi_primary
+        .iter()
+        .map(|v| v.get_value().ok_or(NovaError::SynthesisError))
+        .collect::<Result<Vec<<G1 as Group>::Scalar>, NovaError>>()?;
+      zi_secondary
+        .iter()
+        .map(|v| v.get_value().ok_or(NovaError::SynthesisError))
+        .collect::<Result<Vec<<G2 as Group>::Scalar>, NovaError>>()
+    })?;
 
     self.i += 1;
     Ok(())
