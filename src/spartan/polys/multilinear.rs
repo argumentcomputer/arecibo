@@ -71,7 +71,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     )
   }
 
-  /// Bounds the polynomial's top variable using the given scalar.
+  /// Binds the polynomial's top variable using the given scalar.
   ///
   /// This operation modifies the polynomial in-place.
   pub fn bind_poly_var_top(&mut self, r: &Scalar) {
