@@ -5,18 +5,16 @@ use core::marker::PhantomData;
 use criterion::*;
 use ff::PrimeField;
 use nova_snark::{
+  provider::pasta::{PallasEngine, VestaEngine},
   supernova::NonUniformCircuit,
   supernova::{PublicParams, RecursiveSNARK},
   traits::{
     circuit_supernova::{StepCircuit, TrivialTestCircuit},
     snark::default_ck_hint,
-    Group,
+    Engine,
   },
 };
 use std::time::Duration;
-
-type G1 = pasta_curves::pallas::Point;
-type G2 = pasta_curves::vesta::Point;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
 // Then `cargo criterion --bench recursive-snark-supernova`. The results are located in `target/criterion/data/<name-of-benchmark>`.
@@ -40,22 +38,22 @@ cfg_if::cfg_if! {
 
 criterion_main!(recursive_snark_supernova);
 
-struct NonUniformBench<G1, G2, S>
+struct NonUniformBench<E1, E2, S>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  S: StepCircuit<G2::Scalar> + Default,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  S: StepCircuit<E2::Scalar> + Default,
 {
   num_circuits: usize,
   num_cons: usize,
-  _p: PhantomData<(G1, G2, S)>,
+  _p: PhantomData<(E1, E2, S)>,
 }
 
-impl<G1, G2, S> NonUniformBench<G1, G2, S>
+impl<E1, E2, S> NonUniformBench<E1, E2, S>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  S: StepCircuit<G2::Scalar> + Default,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  S: StepCircuit<E2::Scalar> + Default,
 {
   fn new(num_circuits: usize, num_cons: usize) -> Self {
     Self {
@@ -66,25 +64,25 @@ where
   }
 }
 
-impl<G1, G2, S>
-  NonUniformCircuit<G1, G2, NonTrivialTestCircuit<G1::Scalar>, TrivialTestCircuit<G2::Scalar>>
-  for NonUniformBench<G1, G2, S>
+impl<E1, E2, S>
+  NonUniformCircuit<E1, E2, NonTrivialTestCircuit<E1::Scalar>, TrivialTestCircuit<E2::Scalar>>
+  for NonUniformBench<E1, E2, S>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  S: StepCircuit<G2::Scalar> + Default,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  S: StepCircuit<E2::Scalar> + Default,
 {
   fn num_circuits(&self) -> usize {
     self.num_circuits
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> NonTrivialTestCircuit<G1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> NonTrivialTestCircuit<E1::Scalar> {
     assert!(circuit_index < self.num_circuits);
 
     NonTrivialTestCircuit::new(self.num_cons)
   }
 
-  fn secondary_circuit(&self) -> TrivialTestCircuit<G2::Scalar> {
+  fn secondary_circuit(&self) -> TrivialTestCircuit<E2::Scalar> {
     Default::default()
   }
 }
@@ -103,8 +101,11 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
     ));
     group.sample_size(10);
 
-    let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
-      NonUniformBench::new(1, num_cons);
+    let bench = NonUniformBench::<
+      PallasEngine,
+      VestaEngine,
+      TrivialTestCircuit<<VestaEngine as Engine>::Scalar>,
+    >::new(1, num_cons);
     let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
 
     // Bench time to produce a recursive SNARK;
@@ -112,9 +113,9 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
     // the first step is cheaper than other steps owing to the presence of
     // a lot of zeros in the satisfying assignment
     let num_warmup_steps = 10;
-    let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
-    let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
-    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
+    let z0_primary = vec![<PallasEngine as Engine>::Scalar::from(2u64)];
+    let z0_secondary = vec![<VestaEngine as Engine>::Scalar::from(2u64)];
+    let mut recursive_snark_option: Option<RecursiveSNARK<PallasEngine, VestaEngine>> = None;
 
     for _ in 0..num_warmup_steps {
       let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
@@ -167,8 +168,8 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
           .verify(
             black_box(&pp),
             black_box(0),
-            black_box(&[<G1 as Group>::Scalar::from(2u64)]),
-            black_box(&[<G2 as Group>::Scalar::from(2u64)]),
+            black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
+            black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
           )
           .is_ok());
       });
@@ -191,8 +192,11 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     ));
     group.sample_size(10);
 
-    let bench: NonUniformBench<G1, G2, TrivialTestCircuit<<G2 as Group>::Scalar>> =
-      NonUniformBench::new(2, num_cons);
+    let bench: NonUniformBench<
+      PallasEngine,
+      VestaEngine,
+      TrivialTestCircuit<<VestaEngine as Engine>::Scalar>,
+    > = NonUniformBench::new(2, num_cons);
     let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
 
     // Bench time to produce a recursive SNARK;
@@ -200,9 +204,9 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
     // the first step is cheaper than other steps owing to the presence of
     // a lot of zeros in the satisfying assignment
     let num_warmup_steps = 10;
-    let z0_primary = vec![<G1 as Group>::Scalar::from(2u64)];
-    let z0_secondary = vec![<G2 as Group>::Scalar::from(2u64)];
-    let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
+    let z0_primary = vec![<PallasEngine as Engine>::Scalar::from(2u64)];
+    let z0_secondary = vec![<VestaEngine as Engine>::Scalar::from(2u64)];
+    let mut recursive_snark_option: Option<RecursiveSNARK<PallasEngine, VestaEngine>> = None;
     let mut selected_augmented_circuit = 0;
 
     for _ in 0..num_warmup_steps {
@@ -273,8 +277,8 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
           .verify(
             black_box(&pp),
             black_box(0),
-            black_box(&[<G1 as Group>::Scalar::from(2u64)]),
-            black_box(&[<G2 as Group>::Scalar::from(2u64)]),
+            black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
+            black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
           )
           .is_ok());
       });

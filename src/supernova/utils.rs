@@ -7,7 +7,7 @@ use ff::PrimeField;
 
 use crate::{
   gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
-  traits::Group,
+  traits::Engine,
 };
 
 /// Return the element of `a` given by the indicator bit in `selector_vec`.
@@ -19,16 +19,17 @@ use crate::{
 // We should plan to rely on a well-designed gadget offering a common interface but that adapts its implementation based
 // on the size of inputs (known at synthesis time). The threshold size depends on the size of the elements of `a`. The
 // larger the elements, the fewer are needed before multicase becomes cost-effective.
-pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Group>::Base>>(
+pub fn get_from_vec_alloc_relaxed_r1cs<E: Engine, CS: ConstraintSystem<<E as Engine>::Base>>(
   mut cs: CS,
-  a: &[AllocatedRelaxedR1CSInstance<G>],
+  a: &[AllocatedRelaxedR1CSInstance<E>],
   selector_vec: &[Boolean],
-) -> Result<AllocatedRelaxedR1CSInstance<G>, SynthesisError> {
+) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
   assert_eq!(a.len(), selector_vec.len());
 
   // Compare all instances in `a` to the first one
-  let first = a
+  let first: AllocatedRelaxedR1CSInstance<E> = a
     .get(0)
+    .cloned()
     .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?;
 
   // Since `selector_vec` is correct, only one entry is 1.
@@ -39,15 +40,13 @@ pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Grou
     .zip(selector_vec.iter())
     .enumerate()
     .skip(1)
-    .try_fold(first.clone(), |matched, (i, (candidate, equal_bit))| {
-      let next_matched_allocated = conditionally_select_alloc_relaxed_r1cs(
+    .try_fold(first, |matched, (i, (candidate, equal_bit))| {
+      conditionally_select_alloc_relaxed_r1cs(
         cs.namespace(|| format!("next_matched_allocated-{:?}", i)),
         candidate,
         &matched,
         equal_bit,
-      )?;
-
-      Ok::<AllocatedRelaxedR1CSInstance<G>, SynthesisError>(next_matched_allocated)
+      )
     })?;
 
   Ok(selected)
@@ -107,9 +106,11 @@ pub fn get_selector_vec_from_index<F: PrimeField, CS: ConstraintSystem<F>>(
 
 #[cfg(test)]
 mod test {
+  use crate::provider::pasta::PallasEngine;
+
   use super::*;
   use bellpepper_core::test_cs::TestConstraintSystem;
-  use pasta_curves::pallas::{Base, Point};
+  use pasta_curves::pallas::Base;
 
   #[test]
   fn test_get_from_vec_alloc_relaxed_r1cs_bounds() {
@@ -125,7 +126,7 @@ mod test {
 
       let vec = (0..n)
         .map(|i| {
-          AllocatedRelaxedR1CSInstance::<Point>::default(
+          AllocatedRelaxedR1CSInstance::<PallasEngine>::default(
             &mut cs.namespace(|| format!("elt-{i}")),
             4,
             64,
