@@ -70,6 +70,7 @@ pub fn alloc_one<F: PrimeField, CS: ConstraintSystem<F>>(mut cs: CS) -> Allocate
 
 /// alloc a field as a constant
 /// implemented refer from <https://github.com/lurk-lab/lurk-rs/blob/4335fbb3290ed1a1176e29428f7daacb47f8033d/src/circuit/gadgets/data.rs#L387-L402>
+#[allow(unused)]
 pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   val: F,
@@ -197,6 +198,7 @@ pub fn alloc_num_equals<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// Check that two numbers are equal and return a bit
+#[allow(unused)]
 pub fn alloc_num_equals_const<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   a: &AllocatedNum<F>,

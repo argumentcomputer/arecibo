@@ -1,19 +1,18 @@
 use bellpepper_core::{
-  boolean::Boolean, num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError,
+  boolean::{AllocatedBit, Boolean},
+  num::AllocatedNum,
+  ConstraintSystem, LinearCombination, SynthesisError,
 };
-use ff::Field;
+use ff::PrimeField;
 
 use crate::{
-  gadgets::{
-    r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
-    utils::alloc_num_equals_const,
-  },
+  gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
   traits::Group,
 };
 
-/// Return the element of `a` at `target_index`.
+/// Return the element of `a` given by the indicator bit in `selector_vec`.
 ///
-/// If `target_index` is out of bounds, the circuit will be unsatisified.
+/// This function assumes `selector_vec` has been properly constrained", i.e. that exactly one entry is equal to 1.  
 //
 // NOTE: When `a` is greater than 5 (estimated), it will be cheaper to use a multicase gadget.
 //
@@ -23,60 +22,87 @@ use crate::{
 pub fn get_from_vec_alloc_relaxed_r1cs<G: Group, CS: ConstraintSystem<<G as Group>::Base>>(
   mut cs: CS,
   a: &[AllocatedRelaxedR1CSInstance<G>],
-  target_index: &AllocatedNum<G::Base>,
-) -> Result<(Vec<Boolean>, AllocatedRelaxedR1CSInstance<G>), SynthesisError> {
-  let mut a = a.iter().enumerate();
-  let mut selector: Vec<Boolean> = Vec::with_capacity(a.len());
+  selector_vec: &[Boolean],
+) -> Result<AllocatedRelaxedR1CSInstance<G>, SynthesisError> {
+  assert_eq!(a.len(), selector_vec.len());
 
-  let first_selected = alloc_num_equals_const(
-    cs.namespace(|| "check 0 equal bit".to_string()),
-    target_index,
-    G::Base::from(0),
-  )?;
-
-  selector.push(Boolean::Is(first_selected.clone()));
-
+  // Compare all instances in `a` to the first one
   let first = a
-    .next()
-    .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?
-    .1
-    .clone();
+    .get(0)
+    .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?;
 
-  let initial_sum = Boolean::from(first_selected).lc(CS::one(), G::Base::ONE);
-
-  let (selected, selected_sum) = a.try_fold(
-    (first, initial_sum),
-    |(matched, mut selected_sum), (i, candidate)| {
-      let equal_bit = Boolean::Is(alloc_num_equals_const(
-        cs.namespace(|| format!("check {:?} equal bit", i)),
-        target_index,
-        G::Base::from(i as u64),
-      )?);
-
-      selector.push(equal_bit.clone());
-      selected_sum = selected_sum + &equal_bit.lc(CS::one(), G::Base::ONE);
+  // Since `selector_vec` is correct, only one entry is 1.
+  // If selector_vec[0] is 1, then all `conditionally_select` will return `first`.
+  // Otherwise, the correct instance will be selected.
+  let selected = a
+    .iter()
+    .zip(selector_vec.iter())
+    .enumerate()
+    .skip(1)
+    .try_fold(first.clone(), |matched, (i, (candidate, equal_bit))| {
       let next_matched_allocated = conditionally_select_alloc_relaxed_r1cs(
         cs.namespace(|| format!("next_matched_allocated-{:?}", i)),
         candidate,
         &matched,
-        &equal_bit,
+        equal_bit,
       )?;
 
-      Ok::<(AllocatedRelaxedR1CSInstance<G>, LinearCombination<G::Base>), SynthesisError>((
-        next_matched_allocated,
-        selected_sum,
-      ))
-    },
-  )?;
+      Ok::<AllocatedRelaxedR1CSInstance<G>, SynthesisError>(next_matched_allocated)
+    })?;
 
-  cs.enforce(
-    || "exactly-one-selection",
-    |_| selected_sum,
-    |lc| lc + CS::one(),
-    |lc| lc + CS::one(),
-  );
+  Ok(selected)
+}
 
-  Ok((selector, selected))
+/// Compute a selector vector `s` of size `num_indices`, such that
+/// `s[i] == 1` if i == `target_index` and 0 otherwise.
+pub fn get_selector_vec_from_index<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  target_index: &AllocatedNum<F>,
+  num_indices: usize,
+) -> Result<Vec<Boolean>, SynthesisError> {
+  assert_ne!(num_indices, 0);
+
+  // Compute the selector vector non-deterministically
+  let selector = (0..num_indices)
+    .map(|idx| {
+      // b <- idx == target_index
+      Ok(Boolean::Is(AllocatedBit::alloc(
+        cs.namespace(|| format!("allocate s_{:?}", idx)),
+        target_index.get_value().map(|v| v == F::from(idx as u64)),
+      )?))
+    })
+    .collect::<Result<Vec<Boolean>, SynthesisError>>()?;
+
+  // Enforce ∑ selector[i] = 1
+  {
+    let selected_sum = selector.iter().fold(LinearCombination::zero(), |lc, bit| {
+      lc + &bit.lc(CS::one(), F::ONE)
+    });
+    cs.enforce(
+      || "exactly-one-selection",
+      |_| selected_sum,
+      |lc| lc + CS::one(),
+      |lc| lc + CS::one(),
+    );
+  }
+
+  // Enforce `target_index - ∑ i * selector[i] = 0``
+  {
+    let selected_value = selector
+      .iter()
+      .enumerate()
+      .fold(LinearCombination::zero(), |lc, (i, bit)| {
+        lc + &bit.lc(CS::one(), F::from(i as u64))
+      });
+    cs.enforce(
+      || "target_index - ∑ i * selector[i] = 0",
+      |lc| lc,
+      |lc| lc,
+      |lc| lc + target_index.get_variable() - &selected_value,
+    );
+  }
+
+  Ok(selector)
 }
 
 #[cfg(test)]
@@ -92,6 +118,11 @@ mod test {
     for selected in 0..(2 * n) {
       let mut cs = TestConstraintSystem::<Base>::new();
 
+      let allocated_target =
+        alloc_const(&mut cs.namespace(|| "target"), Base::from(selected as u64)).unwrap();
+
+      let selector_vec = get_selector_vec_from_index(&mut cs, &allocated_target, n).unwrap();
+
       let vec = (0..n)
         .map(|i| {
           AllocatedRelaxedR1CSInstance::<Point>::default(
@@ -103,10 +134,7 @@ mod test {
         })
         .collect::<Vec<_>>();
 
-      let allocated_target =
-        alloc_const(&mut cs.namespace(|| "target"), Base::from(selected as u64)).unwrap();
-
-      get_from_vec_alloc_relaxed_r1cs(&mut cs.namespace(|| "test-fn"), &vec, &allocated_target)
+      get_from_vec_alloc_relaxed_r1cs(&mut cs.namespace(|| "test-fn"), &vec, &selector_vec)
         .unwrap();
 
       if selected < n {
@@ -114,6 +142,33 @@ mod test {
       } else {
         // If selected is out of range, the circuit must be unsatisfied.
         assert!(!cs.is_satisfied())
+      }
+    }
+  }
+
+  #[test]
+  fn test_get_selector() {
+    for n in 1..4 {
+      for selected in 0..(2 * n) {
+        let mut cs = TestConstraintSystem::<Base>::new();
+
+        let allocated_target =
+          alloc_const(&mut cs.namespace(|| "target"), Base::from(selected as u64)).unwrap();
+
+        let selector_vec = get_selector_vec_from_index(&mut cs, &allocated_target, n).unwrap();
+
+        if selected < n {
+          // Check that the selector bits are correct
+          assert_eq!(selector_vec.len(), n);
+          for (i, bit) in selector_vec.iter().enumerate() {
+            assert_eq!(bit.get_value().unwrap(), i == selected);
+          }
+
+          assert!(cs.is_satisfied());
+        } else {
+          // If selected is out of range, the circuit must be unsatisfied.
+          assert!(!cs.is_satisfied());
+        }
       }
     }
   }
