@@ -64,10 +64,10 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     self.Z.is_empty()
   }
 
-  /// Bounds the polynomial's top variable using the given scalar.
+  /// Binds the polynomial's top variable using the given scalar.
   ///
   /// This operation modifies the polynomial in-place.
-  pub fn bound_poly_var_top(&mut self, r: &Scalar) {
+  pub fn bind_poly_var_top(&mut self, r: &Scalar) {
     if self.num_vars == 0 {
       return;
     }

@@ -570,7 +570,7 @@ impl<G: Group> SumcheckEngine<G> for MemorySumcheckInstance<G> {
       &mut self.poly_eq,
     ]
     .par_iter_mut()
-    .for_each(|poly| poly.bound_poly_var_top(r));
+    .for_each(|poly| poly.bind_poly_var_top(r));
   }
 
   fn final_claims(&self) -> Vec<Vec<G::Scalar>> {
@@ -686,7 +686,7 @@ impl<G: Group> SumcheckEngine<G> for OuterSumcheckInstance<G> {
       &mut self.poly_Mz,
     ]
     .par_iter_mut()
-    .for_each(|poly| poly.bound_poly_var_top(r));
+    .for_each(|poly| poly.bind_poly_var_top(r));
   }
 
   fn final_claims(&self) -> Vec<Vec<G::Scalar>> {
@@ -736,7 +736,7 @@ impl<G: Group> SumcheckEngine<G> for InnerSumcheckInstance<G> {
       &mut self.poly_val,
     ]
     .par_iter_mut()
-    .for_each(|poly| poly.bound_poly_var_top(r));
+    .for_each(|poly| poly.bind_poly_var_top(r));
   }
 
   fn final_claims(&self) -> Vec<Vec<G::Scalar>> {
