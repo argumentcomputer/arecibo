@@ -123,7 +123,7 @@ impl<E: Engine> SumcheckProof<E> {
       // Set up next round
       claim_per_round = poly.evaluate(&r_i);
 
-      // bound all tables to the verifier's challenege
+      // bind all tables to the verifier's challenge
       rayon::join(
         || poly_A.bind_poly_var_top(&r_i),
         || poly_B.bind_poly_var_top(&r_i),
@@ -416,7 +416,7 @@ impl<E: Engine> SumcheckProof<E> {
       claim_per_round = poly.evaluate(&r_i);
 
       // bound the first table to the verifier's challenge
-      poly_A.bound_poly_var_top(&r_i);
+      poly_A.bind_poly_var_top(&r_i);
 
       // bound all rest of the tables to the verifier's challenge
       poly_B_vec
@@ -427,11 +427,11 @@ impl<E: Engine> SumcheckProof<E> {
           let _ = rayon::join(
             || {
               rayon::join(
-                || poly_B.bound_poly_var_top(&r_i),
-                || poly_C.bound_poly_var_top(&r_i),
+                || poly_B.bind_poly_var_top(&r_i),
+                || poly_C.bind_poly_var_top(&r_i),
               )
             },
-            || poly_D.bound_poly_var_top(&r_i),
+            || poly_D.bind_poly_var_top(&r_i),
           );
         });
     }
