@@ -554,91 +554,200 @@ mod test {
     test_nivc_trivial_with_compression_with::<secp256k1::Point, secq256k1::Point, EE<_>, EE<_>>();
   }
 
-  // TODO: Figure out what to do about this test
-  // fn test_compression_detects_circuit_num_with<G1, G2, E1, E2>()
-  // where
-  //   G1: Group<Base = <G2 as Group>::Scalar>,
-  //   G2: Group<Base = <G1 as Group>::Scalar>,
-  //   E1: EvaluationEngineTrait<G1>,
-  //   E2: EvaluationEngineTrait<G2>,
-  //   <G1::Scalar as PrimeField>::Repr: Abomonation,
-  //   <G2::Scalar as PrimeField>::Repr: Abomonation,
-  // {
-  //   const NUM_STEPS: usize = 6;
+  #[derive(Clone)]
+  struct BigPowerCircuit<G: Group> {
+    _p: PhantomData<G>,
+  }
 
-  //   let test_nivc = TestNIVC::<G1, G2>::new();
+  impl<G: Group> StepCircuit<G::Scalar> for BigPowerCircuit<G> {
+    fn arity(&self) -> usize {
+      1
+    }
 
-  //   let pp = PublicParams::new(
-  //     &test_nivc,
-  //     &*default_commitment_key_hint(),
-  //     &*default_commitment_key_hint(),
-  //   );
+    fn circuit_index(&self) -> usize {
+      1
+    }
 
-  //   let initial_pc = test_nivc.initial_program_counter();
-  //   let mut augmented_circuit_index = field_as_usize(initial_pc);
+    fn synthesize<CS: ConstraintSystem<G::Scalar>>(
+      &self,
+      cs: &mut CS,
+      _pc: Option<&AllocatedNum<G::Scalar>>,
+      z: &[AllocatedNum<G::Scalar>],
+    ) -> Result<
+      (
+        Option<AllocatedNum<G::Scalar>>,
+        Vec<AllocatedNum<G::Scalar>>,
+      ),
+      SynthesisError,
+    > {
+      let mut x = z[0].clone();
+      let mut y = x.clone();
+      for i in 0..10_000 {
+        y = x.square(cs.namespace(|| format!("x_sq_{i}")))?;
+        x = y.clone();
+      }
 
-  //   let z0_primary = vec![G1::Scalar::from(17u64)];
-  //   let z0_secondary = vec![G2::Scalar::ZERO];
+      let next_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || Ok(G::Scalar::from(0u64)))?;
 
-  //   let mut recursive_snark = RecursiveSNARK::iter_base_step(
-  //     &pp,
-  //     augmented_circuit_index,
-  //     &test_nivc.primary_circuit(augmented_circuit_index),
-  //     &test_nivc.secondary_circuit(),
-  //     Some(initial_pc),
-  //     augmented_circuit_index,
-  //     2,
-  //     &z0_primary,
-  //     &z0_secondary,
-  //   )
-  //   .unwrap();
+      cs.enforce(
+        || "next_pc = 0",
+        |lc| lc + CS::one(),
+        |lc| lc + next_pc.get_variable(),
+        |lc| lc,
+      );
 
-  //   for _ in 0..NUM_STEPS {
-  //     let prove_res = recursive_snark.prove_step(
-  //       &pp,
-  //       augmented_circuit_index,
-  //       &test_nivc.primary_circuit(augmented_circuit_index),
-  //       &test_nivc.secondary_circuit(),
-  //     );
+      Ok((Some(next_pc), vec![y]))
+    }
+  }
 
-  //     let verify_res =
-  //       recursive_snark.verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary);
+  #[derive(Clone)]
+  enum BigTestCircuit<G: Group> {
+    Square(SquareCircuit<G>),
+    BigPower(BigPowerCircuit<G>),
+  }
 
-  //     assert!(prove_res.is_ok());
-  //     assert!(verify_res.is_ok());
+  impl<G: Group> BigTestCircuit<G> {
+    fn new(num_steps: usize) -> Vec<Self> {
+      let mut circuits = Vec::new();
 
-  //     let program_counter = recursive_snark.get_program_counter();
-  //     augmented_circuit_index = field_as_usize(program_counter);
-  //   }
+      for idx in 0..num_steps {
+        if idx % 2 == 0 {
+          circuits.push(Self::Square(SquareCircuit { _p: PhantomData }))
+        } else {
+          circuits.push(Self::BigPower(BigPowerCircuit { _p: PhantomData }))
+        }
+      }
 
-  //   let (prover_key, verifier_key) =
-  //     CompressedSNARK::<_, _, _, _, S<G1, E1>, S<G2, E2>>::setup(&pp).unwrap();
+      circuits
+    }
+  }
 
-  //   let mut recursive_snark_truncated = recursive_snark.clone();
+  impl<G: Group> StepCircuit<G::Scalar> for BigTestCircuit<G> {
+    fn arity(&self) -> usize {
+      1
+    }
 
-  //   recursive_snark_truncated.r_U_primary.pop();
-  //   recursive_snark_truncated.r_W_primary.pop();
+    fn circuit_index(&self) -> usize {
+      match self {
+        BigTestCircuit::Square(c) => c.circuit_index(),
+        BigTestCircuit::BigPower(c) => c.circuit_index(),
+      }
+    }
 
-  //   let bad_proof = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark_truncated);
-  //   assert!(bad_proof.is_err());
+    fn synthesize<CS: ConstraintSystem<G::Scalar>>(
+      &self,
+      cs: &mut CS,
+      pc: Option<&AllocatedNum<G::Scalar>>,
+      z: &[AllocatedNum<G::Scalar>],
+    ) -> Result<
+      (
+        Option<AllocatedNum<G::Scalar>>,
+        Vec<AllocatedNum<G::Scalar>>,
+      ),
+      SynthesisError,
+    > {
+      match self {
+        BigTestCircuit::Square(c) => c.synthesize(cs, pc, z),
+        BigTestCircuit::BigPower(c) => c.synthesize(cs, pc, z),
+      }
+    }
+  }
 
-  //   let compressed_snark = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark).unwrap();
+  impl<G1, G2> NonUniformCircuit<G1, G2, BigTestCircuit<G1>, TrivialSecondaryCircuit<G2::Scalar>>
+    for BigTestCircuit<G1>
+  where
+    G1: Group<Base = <G2 as Group>::Scalar>,
+    G2: Group<Base = <G1 as Group>::Scalar>,
+  {
+    fn num_circuits(&self) -> usize {
+      2
+    }
 
-  //   let mut bad_compressed_snark = compressed_snark.clone();
+    fn primary_circuit(&self, circuit_index: usize) -> BigTestCircuit<G1> {
+      match circuit_index {
+        0 => Self::Square(SquareCircuit { _p: PhantomData }),
+        1 => Self::BigPower(BigPowerCircuit { _p: PhantomData }),
+        _ => panic!("Invalid circuit index"),
+      }
+    }
 
-  //   bad_compressed_snark.r_U_primary.pop();
-  //   bad_compressed_snark.r_W_snark_primary.pop();
+    fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G2::Scalar> {
+      Default::default()
+    }
+  }
 
-  //   let bad_verification =
-  //     bad_compressed_snark.verify(&pp, &verifier_key, z0_primary, z0_secondary);
-  //   assert!(bad_verification.is_err());
-  // }
+  fn test_compression_with_circuit_size_difference_with<G1, G2, E1, E2>()
+  where
+    G1: Group<Base = <G2 as Group>::Scalar>,
+    G2: Group<Base = <G1 as Group>::Scalar>,
+    E1: EvaluationEngineTrait<G1>,
+    E2: EvaluationEngineTrait<G2>,
+    <G1::Scalar as PrimeField>::Repr: Abomonation,
+    <G2::Scalar as PrimeField>::Repr: Abomonation,
+  {
+    const NUM_STEPS: usize = 6;
 
-  // #[test]
-  // #[should_panic]
-  // fn test_compression_detects_circuit_num() {
-  //   test_compression_detects_circuit_num_with::<pallas::Point, vesta::Point, EE<_>, EE<_>>();
-  //   test_compression_detects_circuit_num_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>();
-  //   test_compression_detects_circuit_num_with::<secp256k1::Point, secq256k1::Point, EE<_>, EE<_>>();
-  // }
+    let secondary_circuit = TrivialSecondaryCircuit::default();
+    let test_circuits = BigTestCircuit::new(NUM_STEPS);
+
+    let pp = PublicParams::new(
+      &test_circuits[0],
+      &*default_commitment_key_hint(),
+      &*default_commitment_key_hint(),
+    );
+
+    let initial_pc = G1::Scalar::ZERO;
+    let augmented_circuit_index = field_as_usize(initial_pc);
+
+    let z0_primary = vec![G1::Scalar::from(17u64)];
+    let z0_secondary = vec![<G2 as Group>::Scalar::ZERO];
+
+    let mut recursive_snark = RecursiveSNARK::new(
+      &pp,
+      &test_circuits[0],
+      &test_circuits[0],
+      &secondary_circuit,
+      &z0_primary,
+      &z0_secondary,
+    )
+    .unwrap();
+
+    for circuit in test_circuits.iter().take(NUM_STEPS) {
+      let prove_res = recursive_snark.prove_step(&pp, circuit, &secondary_circuit);
+
+      let verify_res =
+        recursive_snark.verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary);
+
+      assert!(prove_res.is_ok());
+      assert!(verify_res.is_ok());
+    }
+
+    let (prover_key, verifier_key) =
+      CompressedSNARK::<_, _, _, _, S1<G1, E1>, S2<G2, E2>>::setup(&pp).unwrap();
+
+    let compressed_prove_res = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark);
+
+    assert!(compressed_prove_res.is_ok());
+
+    let compressed_snark = compressed_prove_res.unwrap();
+
+    let compressed_verify_res =
+      compressed_snark.verify(&pp, &verifier_key, z0_primary, z0_secondary);
+
+    assert!(compressed_verify_res.is_ok());
+  }
+
+  #[test]
+  fn test_compression_with_circuit_size_difference() {
+    test_compression_with_circuit_size_difference_with::<pallas::Point, vesta::Point, EE<_>, EE<_>>(
+    );
+    test_compression_with_circuit_size_difference_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>(
+    );
+    test_compression_with_circuit_size_difference_with::<
+      secp256k1::Point,
+      secq256k1::Point,
+      EE<_>,
+      EE<_>,
+    >();
+  }
 }
