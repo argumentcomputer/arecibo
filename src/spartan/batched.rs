@@ -277,10 +277,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
         .collect::<Vec<_>>(),
     );
 
-    let evals_E = E_polys
-      .iter()
-      .map(|e| e.evaluate(&r_x)) // TODO: evaluate without clone
-      .collect::<Vec<_>>();
+    let evals_E = E_polys.iter().map(|e| e.evaluate(&r_x)).collect::<Vec<_>>();
 
     claims_Az
       .iter()
@@ -317,7 +314,9 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       let (evals_As, evals_Bs, evals_Cs) = S.iter().fold(
         (vec![], vec![], vec![]),
         |(mut acc_A, mut acc_B, mut acc_C), s| {
-          let (evals_A, evals_B, evals_C) = compute_eval_table_sparse(s, &evals_rx); // TODO: Truncate
+          let mut truncated_evals_rx = evals_rx.clone();
+          truncated_evals_rx.truncate(s.num_cons);
+          let (evals_A, evals_B, evals_C) = compute_eval_table_sparse(s, &truncated_evals_rx); // TODO: Truncate
           acc_A.push(evals_A);
           acc_B.push(evals_B);
           acc_C.push(evals_C);
