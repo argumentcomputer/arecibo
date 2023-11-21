@@ -404,20 +404,21 @@ where
   let mut recursive_snark_option: Option<RecursiveSNARK<G1, G2>> = None;
 
   for &op_code in test_rom.rom.iter() {
+    let circuit_primary = test_rom.primary_circuit(op_code);
+    let circuit_secondary = test_rom.secondary_circuit();
+
     let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
       RecursiveSNARK::new(
         &pp,
         &test_rom,
-        &test_rom.primary_circuit(op_code),
-        &test_rom.secondary_circuit(),
+        &circuit_primary,
+        &circuit_secondary,
         &z0_primary,
         &z0_secondary,
       )
       .unwrap()
     });
 
-    let circuit_primary = test_rom.primary_circuit(op_code);
-    let circuit_secondary = test_rom.secondary_circuit();
     recursive_snark
       .prove_step(&pp, &circuit_primary, &circuit_secondary)
       .unwrap();
