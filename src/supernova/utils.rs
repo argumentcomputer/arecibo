@@ -108,7 +108,6 @@ pub fn get_selector_vec_from_index<F: PrimeField, CS: ConstraintSystem<F>>(
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::gadgets::utils::alloc_const;
   use bellpepper_core::test_cs::TestConstraintSystem;
   use pasta_curves::pallas::{Base, Point};
 
@@ -118,8 +117,9 @@ mod test {
     for selected in 0..(2 * n) {
       let mut cs = TestConstraintSystem::<Base>::new();
 
-      let allocated_target =
-        alloc_const(&mut cs.namespace(|| "target"), Base::from(selected as u64)).unwrap();
+      let allocated_target = AllocatedNum::alloc_infallible(&mut cs.namespace(|| "target"), || {
+        Base::from(selected as u64)
+      });
 
       let selector_vec = get_selector_vec_from_index(&mut cs, &allocated_target, n).unwrap();
 
@@ -153,7 +153,9 @@ mod test {
         let mut cs = TestConstraintSystem::<Base>::new();
 
         let allocated_target =
-          alloc_const(&mut cs.namespace(|| "target"), Base::from(selected as u64)).unwrap();
+          AllocatedNum::alloc_infallible(&mut cs.namespace(|| "target"), || {
+            Base::from(selected as u64)
+          });
 
         let selector_vec = get_selector_vec_from_index(&mut cs, &allocated_target, n).unwrap();
 

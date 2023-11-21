@@ -68,26 +68,6 @@ pub fn alloc_one<F: PrimeField, CS: ConstraintSystem<F>>(mut cs: CS) -> Allocate
   one
 }
 
-/// alloc a field as a constant
-/// implemented refer from <https://github.com/lurk-lab/lurk-rs/blob/4335fbb3290ed1a1176e29428f7daacb47f8033d/src/circuit/gadgets/data.rs#L387-L402>
-#[allow(unused)]
-pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(
-  mut cs: CS,
-  val: F,
-) -> Result<AllocatedNum<F>, SynthesisError> {
-  let allocated = AllocatedNum::<F>::alloc(cs.namespace(|| "allocate const"), || Ok(val))?;
-
-  // allocated * 1 = val
-  cs.enforce(
-    || "enforce constant",
-    |lc| lc + allocated.get_variable(),
-    |lc| lc + CS::one(),
-    |_| Boolean::Constant(true).lc(CS::one(), val),
-  );
-
-  Ok(allocated)
-}
-
 /// Allocate a scalar as a base. Only to be used if the scalar fits in base!
 pub fn alloc_scalar_as_base<G, CS>(
   mut cs: CS,
@@ -191,47 +171,6 @@ pub fn alloc_num_equals<F: PrimeField, CS: ConstraintSystem<F>>(
     || "r*(a - b) = 0",
     |lc| lc + r.get_variable(),
     |lc| lc + a.get_variable() - b.get_variable(),
-    |lc| lc,
-  );
-
-  Ok(r)
-}
-
-/// Check that two numbers are equal and return a bit
-#[allow(unused)]
-pub fn alloc_num_equals_const<F: PrimeField, CS: ConstraintSystem<F>>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: F,
-) -> Result<AllocatedBit, SynthesisError> {
-  // Allocate and constrain `r`: result boolean bit.
-  // It equals `true` if `a` equals `b`, `false` otherwise
-  let r_value = a.get_value().map(|a_val| a_val == b);
-
-  let r = AllocatedBit::alloc(cs.namespace(|| "r"), r_value)?;
-
-  // Allocate t s.t. t=1 if a == b else 1/(a - b)
-
-  let t = AllocatedNum::alloc(cs.namespace(|| "t"), || {
-    let a_val = *a.get_value().get()?;
-    Ok(if a_val == b {
-      F::ONE
-    } else {
-      (a_val - b).invert().unwrap()
-    })
-  })?;
-
-  cs.enforce(
-    || "t*(a - b) = 1 - r",
-    |lc| lc + t.get_variable(),
-    |lc| lc + a.get_variable() - (b, CS::one()),
-    |lc| lc + CS::one() - r.get_variable(),
-  );
-
-  cs.enforce(
-    || "r*(a - b) = 0",
-    |lc| lc + r.get_variable(),
-    |lc| lc + a.get_variable() - (b, CS::one()),
     |lc| lc,
   );
 
@@ -485,31 +424,4 @@ pub fn select_num_or_one<F: PrimeField, CS: ConstraintSystem<F>>(
   );
 
   Ok(c)
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use crate::r1cs::util::FWrap;
-  use bellpepper_core::test_cs::TestConstraintSystem;
-  use pasta_curves::pallas::Scalar as Fr;
-  use proptest::prelude::*;
-
-  proptest! {
-    #[test]
-    fn test_enforce_alloc_num_equal_const((a, b) in any::<(FWrap<Fr>, FWrap<Fr>)>()) {
-      prop_assume!(a != b);
-
-        let test_a_b = |a, b| {
-            let mut cs = TestConstraintSystem::<Fr>::new();
-            let a_num = AllocatedNum::alloc_infallible(cs.namespace(|| "a_num"), || a);
-            let r = alloc_num_equals_const(&mut cs, &a_num, b);
-            assert_eq!(r.unwrap().get_value().unwrap(), a==b);
-        };
-        // negative testing
-        test_a_b(a.0, b.0);
-        // positive testing
-        test_a_b(a.0, a.0);
-    }
-  }
 }
