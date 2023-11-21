@@ -1,4 +1,7 @@
-//! TODO: Doc
+//! This module implements `BatchedRelaxedR1CSSNARKTrait` using Spartan that is generic over the polynomial commitment
+//! and evaluation argument (i.e., a PCS) This version of Spartan does not use preprocessing so the verifier keeps the
+//! entire description of R1CS matrices. This is essentially optimal for the verifier when using an IPA-based polynomial
+//! commitment scheme. This batched implementation batches the outer and inner sumchecks of the Spartan SNARK.
 
 use ff::Field;
 use serde::{Deserialize, Serialize};
@@ -30,7 +33,9 @@ use crate::{
   CommitmentKey,
 };
 
-///TODO: Doc
+/// A succinct proof of knowledge of a witness to a batch of relaxed R1CS instances
+/// The proof is produced using Spartan's combination of the sum-check and
+/// the commitment to a vector viewed as a polynomial commitment
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct BatchedRelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
@@ -44,7 +49,7 @@ pub struct BatchedRelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
   eval_arg: EE::EvaluationArgument,
 }
 
-/// TODO: Doc
+/// A type that represents the prover's key
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
@@ -52,7 +57,7 @@ pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
   vk_digest: G::Scalar,
 }
 
-/// TODO: Doc
+/// A type that represents the verifier's key
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
