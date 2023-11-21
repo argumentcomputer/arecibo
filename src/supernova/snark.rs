@@ -15,7 +15,7 @@ use crate::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
 use ff::PrimeField;
 use std::marker::PhantomData;
 
-/// TODO: Doc
+/// A type that holds the prover key for `CompressedSNARK`
 pub struct ProverKey<G1, G2, C1, C2, S1, S2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -30,7 +30,7 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
-/// TODO: Doc
+/// A type that holds the verifier key for `CompressedSNARK`
 pub struct VerifierKey<G1, G2, C1, C2, S1, S2>
 where
   G1: Group<Base = <G2 as Group>::Scalar>,
@@ -45,7 +45,7 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
-/// TODO: Doc
+/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
 #[derive(Debug, Clone)]
 pub struct CompressedSNARK<G1, G2, C1, C2, S1, S2>
 where
@@ -81,7 +81,7 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<G1>,
   S2: RelaxedR1CSSNARKTrait<G2>,
 {
-  /// TODO: Doc
+  /// Creates prover and verifier keys for `CompressedSNARK`
   pub fn setup(
     pp: &PublicParams<G1, G2, C1, C2>,
   ) -> Result<
@@ -110,7 +110,7 @@ where
     Ok((prover_key, verifier_key))
   }
 
-  /// TODO: Doc
+  /// Create a new `CompressedSNARK`
   pub fn prove(
     pp: &PublicParams<G1, G2, C1, C2>,
     pk: &ProverKey<G1, G2, C1, C2, S1, S2>,
@@ -199,7 +199,7 @@ where
     Ok(compressed_snark)
   }
 
-  /// TODO: Doc
+  /// Verify the correctness of the `CompressedSNARK`
   pub fn verify(
     &self,
     pp: &PublicParams<G1, G2, C1, C2>,
