@@ -61,29 +61,32 @@ pub trait RelaxedR1CSSNARKTrait<G: Group>:
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<G>) -> Result<(), NovaError>;
 }
 
-/// TODO: Doc
+/// A trait that defines the behavior of a `zkSNARK` to prove knowledge of satisfying witness to batches of relaxed R1CS instances.
 pub trait BatchedRelaxedR1CSSNARKTrait<G: Group>:
   Send + Sync + Serialize + for<'de> Deserialize<'de>
 {
-  /// TODO: Doc
+  /// A type that represents the prover's key
   type ProverKey: Send + Sync + Serialize + for<'de> Deserialize<'de>; // + Abomonation; //TODO: Uncomment this
 
-  /// TODO: Doc
+  /// A type that represents the verifier's key
   type VerifierKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + DigestHelperTrait<G>;
   //+ Abomonation; // TODO: Uncomment this
 
-  /// TODO: Doc
+  /// This associated function (not a method) provides a hint that offers
+  /// a minimum sizing cue for the commitment key used by this SNARK
+  /// implementation. The commitment key passed in setup should then
+  /// be at least as large as this hint.
   fn commitment_key_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
     default_commitment_key_hint()
   }
 
-  /// TODO: Doc
+  /// Produces the keys for the prover and the verifier
   fn setup(
     ck: &CommitmentKey<G>,
     S: &[R1CSShape<G>],
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError>;
 
-  /// TODO: Doc
+  /// Produces a new SNARK for a batch of relaxed R1CS
   fn prove(
     ck: &CommitmentKey<G>,
     pk: &Self::ProverKey,
@@ -92,7 +95,7 @@ pub trait BatchedRelaxedR1CSSNARKTrait<G: Group>:
     W: &[RelaxedR1CSWitness<G>],
   ) -> Result<Self, NovaError>;
 
-  /// TODO: Doc
+  /// Verifies a SNARK for a batch of relaxed R1CS
   fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<G>]) -> Result<(), NovaError>;
 }
 
