@@ -1,11 +1,11 @@
 use crate::gadgets::utils::alloc_zero;
-use crate::provider::bn256_grumpkin::Bn256Engine;
-use crate::provider::bn256_grumpkin::GrumpkinEngine;
-use crate::provider::pasta::PallasEngine;
-use crate::provider::pasta::VestaEngine;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
-use crate::provider::secp_secq::Secp256k1Engine;
-use crate::provider::secp_secq::Secq256k1Engine;
+use crate::provider::Bn256Engine;
+use crate::provider::GrumpkinEngine;
+use crate::provider::PallasEngine;
+use crate::provider::Secp256k1Engine;
+use crate::provider::Secq256k1Engine;
+use crate::provider::VestaEngine;
 use crate::traits::circuit_supernova::{
   EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
 };

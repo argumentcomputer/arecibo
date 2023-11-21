@@ -106,7 +106,7 @@ pub fn get_selector_vec_from_index<F: PrimeField, CS: ConstraintSystem<F>>(
 
 #[cfg(test)]
 mod test {
-  use crate::provider::pasta::PallasEngine;
+  use crate::provider::PallasEngine;
 
   use super::*;
   use bellpepper_core::test_cs::TestConstraintSystem;
