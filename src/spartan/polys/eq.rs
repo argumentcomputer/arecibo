@@ -23,6 +23,14 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   /// Creates a new `EqPolynomial` from a vector of Scalars `r`.
   ///
   /// Each Scalar in `r` corresponds to a bit from the binary representation of an input value `e`.
+  ///
+  /// Note that the `EqPolynomial` is fully-defined by its `evals`. We describe `r` in terms of the `EqPolynomial`'s
+  /// evaluations on the boolean hypercube, but that does not imply that the elements of `r` must themselves be bits
+  /// (`Scalar::ZERO` or `Scalar::ONE`). When evaluating `EqPolynomial` on the boolean hypercube, each Scalar in `r`
+  /// contributes to the term associated with one bit of the input point, $$x_i$$. If the elements of `r` are indeed
+  /// bits, then `EqPolynomial` acts as an equality predicate (testing each input point's equality with `e`). However,
+  /// since `EqPolynomial` is just a polynomial, nothing requires that its defining inputs be provided as points of the
+  /// boolean hypercube -- as long as its evals are calculated according to its defining formula.
   pub const fn new(r: Vec<Scalar>) -> Self {
     EqPolynomial { r }
   }
@@ -64,11 +72,23 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
       evals_left
         .par_iter_mut()
         .zip_eq(evals_right.par_iter_mut())
-        .for_each(|(x, y)| {
-          *y = *x * r;
-          *x -= &*y;
+        .for_each(|(running_product, term)| {
+          // Most-significant bits' evals come first. Each new eval is a product of the previous, and this bit's term --
+          // which is the evaluation, at 0 or 1, of (e_i * x_i + (1 - e_i) * (1 - x_i)).
+          // Substituting r for e_i: (r * x_i + (1 - r) * (1 - x_i))
+          // x_i is 'this bit', which is either 0 or 1.
+          //
+          // running_product is the product of all the more-significant bits' terms so far.
+          // term represents this bit's term when x_i is 1, which by definition is r.
+          // multiply them to get the total evaluation when this bit (x_i) is 1.
+          *term = *running_product * r;
+          // This bit's term when x_i = 0 is 1 - r.
+          // (1 - r) * running_product = running_product - (r * running_product) = running_product - term
+          *running_product -= *term;
         });
 
+      // size doubles each iteration, because each new (less-significant) bit contributes an evaluation combining each
+      // of the previous with a term evaluated with the new bit set to both 0 and 1.
       size *= 2;
     }
 

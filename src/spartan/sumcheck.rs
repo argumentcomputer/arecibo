@@ -115,7 +115,7 @@ impl<E: Engine> SumcheckProof<E> {
                 // The target is the evaluation that will be used to create a univariate-polynomial whose evaluation at
                 // the target is the sum of the combined non-top evaluations.
                 //
-                // The following `reduce `operation effects the sum.
+                // The following `reduce` operation effects the sum.
                 //
                 // The required targets are the evaluation points 0 and 2.
                 //
