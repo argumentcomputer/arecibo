@@ -91,16 +91,20 @@ mod tests {
   use pasta_curves::Fp;
 
   fn test_eq_polynomial_with<F: PrimeField>() {
-    let eq_poly = EqPolynomial::<F>::new(vec![F::ONE, F::ZERO, F::ONE]);
+    // Most-significant 'bit' first.
+    let eq_poly = EqPolynomial::<F>::new(vec![F::ONE, F::ZERO, F::ZERO]);
     let y = eq_poly.evaluate(vec![F::ONE, F::ONE, F::ONE].as_slice());
     assert_eq!(y, F::ZERO);
 
-    let y = eq_poly.evaluate(vec![F::ONE, F::ZERO, F::ONE].as_slice());
+    let y = eq_poly.evaluate(vec![F::ONE, F::ZERO, F::ZERO].as_slice());
     assert_eq!(y, F::ONE);
 
     let eval_list = eq_poly.evals();
-    for (i, &coeff) in eval_list.iter().enumerate().take((2_usize).pow(3)) {
-      if i == 5 {
+    assert_eq!((2_usize).pow(3), eval_list.len());
+
+    for (i, &coeff) in eval_list.iter().enumerate() {
+      // 0b100 corresponds to [F::ONE, F::ZERO, F::ZERO]
+      if i == 0b100 {
         assert_eq!(coeff, F::ONE);
       } else {
         assert_eq!(coeff, F::ZERO);
