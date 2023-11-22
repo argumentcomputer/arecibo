@@ -91,6 +91,69 @@ impl<G: Group> NIFS<G> {
     S: &R1CSShape<G>,
     U1: &mut RelaxedR1CSInstance<G>,
     W1: &mut RelaxedR1CSWitness<G>,
+    U2: &R1CSInstance<G>,
+    W2: &R1CSWitness<G>,
+    T: &mut Vec<G::Scalar>,
+    ABC_Z_1: &mut Option<R1CSResult<G>>,
+    ABC_Z_2: &mut R1CSResult<G>,
+  ) -> Result<NIFS<G>, NovaError> {
+    // initialize a new RO
+    let mut ro = G::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+
+    // append the digest of pp to the transcript
+    ro.absorb(scalar_as_base::<G>(*pp_digest));
+
+    // append U1 and U2 to transcript
+    U1.absorb_in_ro(&mut ro);
+    U2.absorb_in_ro(&mut ro);
+
+    // compute a commitment to the cross-term
+    S.commit_T_into(
+      ck,
+      &U1.u_and_X,
+      &W1.W,
+      &U2.one_and_X,
+      &W2.W,
+      T,
+      ABC_Z_1,
+      ABC_Z_2,
+    )?;
+
+    let comm_T = CE::<G>::commit(ck, T);
+
+    // append `comm_T` to the transcript and obtain a challenge
+    comm_T.absorb_in_ro(&mut ro);
+
+    // compute a challenge from the RO
+    let r = ro.squeeze(NUM_CHALLENGE_BITS);
+
+    // fold the instance using `r` and `comm_T`
+    U1.fold_mut(U2, &comm_T, &r);
+
+    // fold the witness using `r` and `T`
+    W1.fold_mut(W2, T, &r)?;
+
+    // return the commitment
+    Ok(Self {
+      comm_T: comm_T.compress(),
+    })
+  }
+
+  /// Takes as input a Relaxed R1CS instance-witness tuple `(U1, W1)` and
+  /// an R1CS instance-witness tuple `(U2, W2)` with the same structure `shape`
+  /// and defined with respect to the same `ck`, and updates `(U1, W1)` by folding
+  /// `(U2, W2)` into it with the guarantee that the updated witness `W` satisfies
+  /// the updated instance `U` if and only if `W1` satisfies `U1` and `W2` satisfies `U2`.
+  #[cfg(feature = "ptl")]
+  #[allow(clippy::too_many_arguments)]
+  #[tracing::instrument(skip_all, level = "trace", name = "NIFS::prove_mut")]
+  pub fn prove_mut_ptl(
+    ck: &CommitmentKey<G>,
+    ro_consts: &ROConstants<G>,
+    pp_digest: &G::Scalar,
+    S: &R1CSShape<G>,
+    U1: &mut RelaxedR1CSInstance<G>,
+    W1: &mut RelaxedR1CSWitness<G>,
     U2: &mut R1CSInstance<G>,
     W2: &R1CSWitness<G>,
     T: &mut Vec<G::Scalar>,
@@ -116,7 +179,8 @@ impl<G: Group> NIFS<G> {
         });
         s.spawn(|| {
           // compute a commitment to the cross-term
-          S.commit_T_into(ck, u_and_X1, W1, one_and_X2, W2, T, ABC_Z_1, ABC_Z_2).unwrap();
+          S.commit_T_into(ck, u_and_X1, W1, one_and_X2, W2, T, ABC_Z_1, ABC_Z_2)
+            .unwrap();
         });
       });
 

@@ -568,20 +568,40 @@ where
 
     // fold the primary circuit's instance
     let nifs_primary = tracing::info_span!("nifs_primary").in_scope(|| {
-      NIFS::prove_mut(
-        &pp.ck_primary,
-        &pp.ro_consts_primary,
-        &pp.digest(),
-        &pp.circuit_shape_primary.r1cs_shape,
-        &mut self.r_U_primary,
-        &mut self.r_W_primary,
-        &mut self.sink_primary.l_u,
-        &self.sink_primary.l_w,
-        &mut self.sink_primary.T,
-        &mut self.sink_primary.ABC_Z_1,
-        &mut self.sink_primary.ABC_Z_2,
-      )
-      .expect("Unable to fold primary")
+      cfg_if::cfg_if! {
+        if #[cfg(feature = "ptl")] {
+          NIFS::prove_mut_ptl(
+            &pp.ck_primary,
+            &pp.ro_consts_primary,
+            &pp.digest(),
+            &pp.circuit_shape_primary.r1cs_shape,
+            &mut self.r_U_primary,
+            &mut self.r_W_primary,
+            &mut self.sink_primary.l_u,
+            &self.sink_primary.l_w,
+            &mut self.sink_primary.T,
+            &mut self.sink_primary.ABC_Z_1,
+            &mut self.sink_primary.ABC_Z_2,
+          )
+          .expect("Unable to fold primary")
+        } else {
+          NIFS::prove_mut(
+            &pp.ck_primary,
+            &pp.ro_consts_primary,
+            &pp.digest(),
+            &pp.circuit_shape_primary.r1cs_shape,
+            &mut self.r_U_primary,
+            &mut self.r_W_primary,
+            &mut self.sink_primary.l_u,
+            &self.sink_primary.l_w,
+            &mut self.sink_primary.T,
+            &mut self.sink_primary.ABC_Z_1,
+            &mut self.sink_primary.ABC_Z_2,
+          )
+          .expect("Unable to fold primary")
+        }
+      }
+      
     });
 
     // comm_W_handle.join().unwrap();
