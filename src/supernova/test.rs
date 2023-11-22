@@ -388,7 +388,7 @@ where
 
   let test_rom = TestROM::<G1, G2, TrivialSecondaryCircuit<G2::Scalar>>::new(rom);
 
-  let pp = PublicParams::new(&test_rom, &*default_ck_hint(), &*default_ck_hint());
+  let pp = PublicParams::setup(&test_rom, &*default_ck_hint(), &*default_ck_hint());
 
   // extend z0_primary/secondary with rom content
   let mut z0_primary = vec![<G1 as Group>::Scalar::ONE];
@@ -589,7 +589,7 @@ where
   // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
   // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
-  let pp = PublicParams::<G1, G2, T1, T2>::new(
+  let pp = PublicParams::<G1, G2, T1, T2>::setup(
     non_uniform_circuit,
     &*default_ck_hint(),
     &*default_ck_hint(),
@@ -864,7 +864,7 @@ where
     G2,
     RootCheckingCircuit<<G1 as Group>::Scalar>,
     TrivialSecondaryCircuit<<G2 as Group>::Scalar>,
-  >::new(&roots[0], &*default_ck_hint(), &*default_ck_hint());
+  >::setup(&roots[0], &*default_ck_hint(), &*default_ck_hint());
   // produce a recursive SNARK
 
   let circuit_primary = &roots[0];

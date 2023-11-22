@@ -183,7 +183,7 @@ where
   /// * `ck_hint1`: A `CommitmentKeyHint` for `G1`, which is a function that provides a hint
   ///    for the number of generators required in the commitment scheme for the primary circuit.
   /// * `ck_hint2`: A `CommitmentKeyHint` for `G2`, similar to `ck_hint1`, but for the secondary circuit.
-  pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(
+  pub fn setup<NC: NonUniformCircuit<G1, G2, C1, C2>>(
     non_uniform_circuit: &NC,
     ck_hint1: &CommitmentKeyHint<G1>,
     ck_hint2: &CommitmentKeyHint<G2>,

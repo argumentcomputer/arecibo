@@ -170,7 +170,7 @@ fn main() {
       G2,
       MinRootCircuit<<G1 as Group>::Scalar>,
       TrivialCircuit<<G2 as Group>::Scalar>,
-    >::new(
+    >::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),

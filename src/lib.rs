@@ -177,9 +177,9 @@ where
   /// let ck_hint1 = &*SPrime::<G1>::ck_floor();
   /// let ck_hint2 = &*SPrime::<G2>::ck_floor();
   ///
-  /// let pp = PublicParams::new(&circuit1, &circuit2, ck_hint1, ck_hint2);
+  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2);
   /// ```
-  pub fn new(
+  pub fn setup(
     c_primary: &C1,
     c_secondary: &C2,
     ck_hint1: &CommitmentKeyHint<G1>,
@@ -1030,7 +1030,7 @@ mod tests {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let ck_hint1 = &*SPrime::<G1, E1>::ck_floor();
     let ck_hint2 = &*SPrime::<G2, E2>::ck_floor();
-    let pp = PublicParams::<G1, G2, T1, T2>::new(circuit1, circuit2, ck_hint1, ck_hint2);
+    let pp = PublicParams::<G1, G2, T1, T2>::setup(circuit1, circuit2, ck_hint1, ck_hint2);
 
     let digest_str = pp
       .digest()
@@ -1127,7 +1127,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       TrivialCircuit<<G2 as Group>::Scalar>,
-    >::new(
+    >::setup(
       &test_circuit1,
       &test_circuit2,
       &*default_ck_hint(),
@@ -1183,7 +1183,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new(
+    >::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),
@@ -1271,7 +1271,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new(
+    >::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),
@@ -1368,7 +1368,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new(
+    >::setup(
       &circuit_primary,
       &circuit_secondary,
       &*SPrime::<_, E1>::ck_floor(),
@@ -1539,7 +1539,7 @@ mod tests {
       G2,
       FifthRootCheckingCircuit<<G1 as Group>::Scalar>,
       TrivialCircuit<<G2 as Group>::Scalar>,
-    >::new(
+    >::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),
@@ -1619,7 +1619,7 @@ mod tests {
       G2,
       TrivialCircuit<<G1 as Group>::Scalar>,
       CubicCircuit<<G2 as Group>::Scalar>,
-    >::new(
+    >::setup(
       &test_circuit1,
       &test_circuit2,
       &*default_ck_hint(),
