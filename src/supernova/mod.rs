@@ -16,7 +16,7 @@ use crate::{
   traits::{
     circuit_supernova::StepCircuit,
     commitment::{CommitmentEngineTrait, CommitmentTrait},
-    AbsorbInROTrait, Group, ROConstants, ROConstantsCircuit, ROTrait,
+    AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
   CircuitShape, Commitment, CommitmentKey,
 };
@@ -46,29 +46,30 @@ use self::error::SuperNovaError;
 
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CircuitDigests<G: Group> {
-  digests: Vec<G::Scalar>,
+pub struct CircuitDigests<E: Engine> {
+  digests: Vec<E::Scalar>,
 }
 
-impl<G: Group> SimpleDigestible for CircuitDigests<G> {}
+impl<E: Engine> SimpleDigestible for CircuitDigests<E> {}
 
-impl<G: Group> std::ops::Deref for CircuitDigests<G> {
-  type Target = Vec<G::Scalar>;
+impl<E: Engine> std::ops::Deref for CircuitDigests<E> {
+  type Target = Vec<E::Scalar>;
 
   fn deref(&self) -> &Self::Target {
     &self.digests
   }
 }
 
-impl<G: Group> CircuitDigests<G> {
+impl<E: Engine> CircuitDigests<E> {
   /// Construct a new [CircuitDigests]
-  pub fn new(digests: Vec<G::Scalar>) -> Self {
+  pub fn new(digests: Vec<E::Scalar>) -> Self {
     CircuitDigests { digests }
   }
 
   /// Return the [CircuitDigests]' digest.
-  pub fn digest(&self) -> G::Scalar {
-    let dc: DigestComputer<'_, <G as Group>::Scalar, CircuitDigests<G>> = DigestComputer::new(self);
+  pub fn digest(&self) -> E::Scalar {
+    let dc: DigestComputer<'_, <E as Engine>::Scalar, CircuitDigests<E>> =
+      DigestComputer::new(self);
     dc.digest().expect("Failure in computing digest")
   }
 }
@@ -76,30 +77,30 @@ impl<G: Group> CircuitDigests<G> {
 /// A vector of [CircuitParams] corresponding to a set of [PublicParams]
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct PublicParams<G1, G2, C1, C2>
+pub struct PublicParams<E1, E2, C1, C2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
 {
   /// The internal circuit shapes
-  pub circuit_shapes: Vec<CircuitShape<G1>>,
+  pub circuit_shapes: Vec<CircuitShape<E1>>,
 
-  ro_consts_primary: ROConstants<G1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<G2>,
-  ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
+  ro_consts_primary: ROConstants<E1>,
+  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  ck_primary: CommitmentKey<E1>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants<G2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
-  ck_secondary: CommitmentKey<G2>,
-  circuit_shape_secondary: CircuitShape<G2>,
+  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
+  ck_secondary: CommitmentKey<E2>,
+  circuit_shape_secondary: CircuitShape<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   /// Digest constructed from this `PublicParams`' parameters
   #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<G1::Scalar>,
+  digest: OnceCell<E1::Scalar>,
   _p: PhantomData<(C1, C2)>,
 }
 
@@ -110,60 +111,60 @@ where
 #[serde(bound = "")]
 #[abomonation_bounds(
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  <G1::Scalar as PrimeField>::Repr: Abomonation,
-  <G2::Scalar as PrimeField>::Repr: Abomonation,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  <E1::Scalar as PrimeField>::Repr: Abomonation,
+  <E2::Scalar as PrimeField>::Repr: Abomonation,
 )]
-pub struct AuxParams<G1, G2>
+pub struct AuxParams<E1, E2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  ro_consts_primary: ROConstants<G1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<G2>,
-  ck_primary: CommitmentKey<G1>, // This is shared between all circuit params
+  ro_consts_primary: ROConstants<E1>,
+  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  ck_primary: CommitmentKey<E1>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants<G2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<G1>,
-  ck_secondary: CommitmentKey<G2>,
-  circuit_shape_secondary: CircuitShape<G2>,
+  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
+  ck_secondary: CommitmentKey<E2>,
+  circuit_shape_secondary: CircuitShape<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
-  #[abomonate_with(<G1::Scalar as PrimeField>::Repr)]
-  digest: G1::Scalar,
+  #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
+  digest: E1::Scalar,
 }
 
-impl<G1, G2, C1, C2> Index<usize> for PublicParams<G1, G2, C1, C2>
+impl<E1, E2, C1, C2> Index<usize> for PublicParams<E1, E2, C1, C2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
 {
-  type Output = CircuitShape<G1>;
+  type Output = CircuitShape<E1>;
 
   fn index(&self, index: usize) -> &Self::Output {
     &self.circuit_shapes[index]
   }
 }
 
-impl<G1, G2, C1, C2> SimpleDigestible for PublicParams<G1, G2, C1, C2>
+impl<E1, E2, C1, C2> SimpleDigestible for PublicParams<E1, E2, C1, C2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
 {
 }
 
-impl<G1, G2, C1, C2> PublicParams<G1, G2, C1, C2>
+impl<E1, E2, C1, C2> PublicParams<E1, E2, C1, C2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
 {
   /// Construct a new [PublicParams]
   ///
@@ -180,35 +181,35 @@ where
   /// # Arguments
   ///
   /// * `non_uniform_circuit`: The non-uniform circuit of type `NC`.
-  /// * `ck_hint1`: A `CommitmentKeyHint` for `G1`, which is a function that provides a hint
+  /// * `ck_hint1`: A `CommitmentKeyHint` for `E1`, which is a function that provides a hint
   ///    for the number of generators required in the commitment scheme for the primary circuit.
-  /// * `ck_hint2`: A `CommitmentKeyHint` for `G2`, similar to `ck_hint1`, but for the secondary circuit.
-  pub fn new<NC: NonUniformCircuit<G1, G2, C1, C2>>(
+  /// * `ck_hint2`: A `CommitmentKeyHint` for `E2`, similar to `ck_hint1`, but for the secondary circuit.
+  pub fn setup<NC: NonUniformCircuit<E1, E2, C1, C2>>(
     non_uniform_circuit: &NC,
-    ck_hint1: &CommitmentKeyHint<G1>,
-    ck_hint2: &CommitmentKeyHint<G2>,
+    ck_hint1: &CommitmentKeyHint<E1>,
+    ck_hint2: &CommitmentKeyHint<E2>,
   ) -> Self {
     let num_circuits = non_uniform_circuit.num_circuits();
 
     let augmented_circuit_params_primary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
-    let ro_consts_primary: ROConstants<G1> = ROConstants::<G1>::default();
-    // ro_consts_circuit_primary are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-    let ro_consts_circuit_primary: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
+    let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
+    // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
+    let ro_consts_circuit_primary: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
 
     let circuit_shapes = (0..num_circuits)
       .map(|i| {
         let c_primary = non_uniform_circuit.primary_circuit(i);
         let F_arity = c_primary.arity();
         // Initialize ck for the primary
-        let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
+        let circuit_primary: SuperNovaAugmentedCircuit<'_, E2, C1> = SuperNovaAugmentedCircuit::new(
           &augmented_circuit_params_primary,
           None,
           &c_primary,
           ro_consts_circuit_primary.clone(),
           num_circuits,
         );
-        let mut cs: ShapeCS<G1> = ShapeCS::new();
+        let mut cs: ShapeCS<E1> = ShapeCS::new();
         circuit_primary
           .synthesize(&mut cs)
           .expect("circuit synthesis failed");
@@ -223,19 +224,19 @@ where
 
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
-    let ro_consts_secondary: ROConstants<G2> = ROConstants::<G2>::default();
+    let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
     let c_secondary = non_uniform_circuit.secondary_circuit();
     let F_arity_secondary = c_secondary.arity();
-    let ro_consts_circuit_secondary: ROConstantsCircuit<G1> = ROConstantsCircuit::<G1>::default();
+    let ro_consts_circuit_secondary: ROConstantsCircuit<E1> = ROConstantsCircuit::<E1>::default();
 
-    let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
+    let circuit_secondary: SuperNovaAugmentedCircuit<'_, E1, C2> = SuperNovaAugmentedCircuit::new(
       &augmented_circuit_params_secondary,
       None,
       &c_secondary,
       ro_consts_circuit_secondary.clone(),
       num_circuits,
     );
-    let mut cs: ShapeCS<G2> = ShapeCS::new();
+    let mut cs: ShapeCS<E2> = ShapeCS::new();
     circuit_secondary
       .synthesize(&mut cs)
       .expect("circuit synthesis failed");
@@ -264,7 +265,7 @@ where
   }
 
   /// Breaks down an instance of [PublicParams] into the circuit params and auxilliary params.
-  pub fn into_parts(self) -> (Vec<CircuitShape<G1>>, AuxParams<G1, G2>) {
+  pub fn into_parts(self) -> (Vec<CircuitShape<E1>>, AuxParams<E1, E2>) {
     let digest = self.digest();
 
     let PublicParams {
@@ -299,7 +300,7 @@ where
   }
 
   /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
-  pub fn from_parts(circuit_shapes: Vec<CircuitShape<G1>>, aux_params: AuxParams<G1, G2>) -> Self {
+  pub fn from_parts(circuit_shapes: Vec<CircuitShape<E1>>, aux_params: AuxParams<E1, E2>) -> Self {
     let pp = PublicParams {
       circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
@@ -325,8 +326,8 @@ where
   /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
   /// We don't check that the `aux_params.digest` is a valid digest for the created params.
   pub fn from_parts_unchecked(
-    circuit_shapes: Vec<CircuitShape<G1>>,
-    aux_params: AuxParams<G1, G2>,
+    circuit_shapes: Vec<CircuitShape<E1>>,
+    aux_params: AuxParams<E1, E2>,
   ) -> Self {
     PublicParams {
       circuit_shapes,
@@ -347,24 +348,24 @@ where
   /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
   /// `CircuitShape`.
   fn compute_primary_ck(
-    circuit_params: &[CircuitShape<G1>],
-    ck_hint1: &CommitmentKeyHint<G1>,
-  ) -> CommitmentKey<G1> {
+    circuit_params: &[CircuitShape<E1>],
+    ck_hint1: &CommitmentKeyHint<E1>,
+  ) -> CommitmentKey<E1> {
     let size_primary = circuit_params
       .iter()
       .map(|circuit| commitment_key_size(&circuit.r1cs_shape, ck_hint1))
       .max()
       .unwrap();
 
-    G1::CE::setup(b"ck", size_primary)
+    E1::CE::setup(b"ck", size_primary)
   }
 
   /// Return the [PublicParams]' digest.
-  pub fn digest(&self) -> G1::Scalar {
+  pub fn digest(&self) -> E1::Scalar {
     self
       .digest
       .get_or_try_init(|| {
-        let dc: DigestComputer<'_, <G1 as Group>::Scalar, PublicParams<G1, G2, C1, C2>> =
+        let dc: DigestComputer<'_, <E1 as Engine>::Scalar, PublicParams<E1, E2, C1, C2>> =
           DigestComputer::new(self);
         dc.digest()
       })
@@ -373,7 +374,7 @@ where
   }
 
   /// All of the primary circuit digests of this [PublicParams]
-  pub fn circuit_param_digests(&self) -> CircuitDigests<G1> {
+  pub fn circuit_param_digests(&self) -> CircuitDigests<E1> {
     let digests = self
       .circuit_shapes
       .iter()
@@ -386,57 +387,57 @@ where
 /// A SNARK that proves the correct execution of an non-uniform incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RecursiveSNARK<G1, G2>
+pub struct RecursiveSNARK<E1, E2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
   // Cached digest of the public parameters
-  pp_digest: G1::Scalar,
+  pp_digest: E1::Scalar,
   num_augmented_circuits: usize,
 
   // Number of iterations performed up to now
   i: usize,
 
   // Inputs and outputs of the primary circuits
-  z0_primary: Vec<G1::Scalar>,
-  zi_primary: Vec<G1::Scalar>,
-  program_counter: G1::Scalar,
+  z0_primary: Vec<E1::Scalar>,
+  zi_primary: Vec<E1::Scalar>,
+  program_counter: E1::Scalar,
 
   // Relaxed instances for the primary circuits
   // Entries are `None` if the circuit has not been executed yet
-  r_W_primary: Vec<Option<RelaxedR1CSWitness<G1>>>,
-  r_U_primary: Vec<Option<RelaxedR1CSInstance<G1>>>,
+  r_W_primary: Vec<Option<RelaxedR1CSWitness<E1>>>,
+  r_U_primary: Vec<Option<RelaxedR1CSInstance<E1>>>,
 
   // Inputs and outputs of the secondary circuit
-  z0_secondary: Vec<G2::Scalar>,
-  zi_secondary: Vec<G2::Scalar>,
+  z0_secondary: Vec<E2::Scalar>,
+  zi_secondary: Vec<E2::Scalar>,
   // Relaxed instance for the secondary circuit
-  r_W_secondary: RelaxedR1CSWitness<G2>,
-  r_U_secondary: RelaxedR1CSInstance<G2>,
+  r_W_secondary: RelaxedR1CSWitness<E2>,
+  r_U_secondary: RelaxedR1CSInstance<E2>,
   // Proof for the secondary circuit to be accumulated into r_secondary in the next iteration
-  l_w_secondary: R1CSWitness<G2>,
-  l_u_secondary: R1CSInstance<G2>,
+  l_w_secondary: R1CSWitness<E2>,
+  l_u_secondary: R1CSInstance<E2>,
 }
 
-impl<G1, G2> RecursiveSNARK<G1, G2>
+impl<E1, E2> RecursiveSNARK<E1, E2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
   /// iterate base step to get new instance of recursive SNARK
   #[allow(clippy::too_many_arguments)]
   pub fn new<
-    C0: NonUniformCircuit<G1, G2, C1, C2>,
-    C1: StepCircuit<G1::Scalar>,
-    C2: StepCircuit<G2::Scalar>,
+    C0: NonUniformCircuit<E1, E2, C1, C2>,
+    C1: StepCircuit<E1::Scalar>,
+    C2: StepCircuit<E2::Scalar>,
   >(
-    pp: &PublicParams<G1, G2, C1, C2>,
+    pp: &PublicParams<E1, E2, C1, C2>,
     non_uniform_circuit: &C0,
     c_primary: &C1,
     c_secondary: &C2,
-    z0_primary: &[G1::Scalar],
-    z0_secondary: &[G2::Scalar],
+    z0_primary: &[E1::Scalar],
+    z0_secondary: &[E2::Scalar],
   ) -> Result<Self, SuperNovaError> {
     let num_augmented_circuits = non_uniform_circuit.num_circuits();
     let circuit_index = non_uniform_circuit.initial_circuit_index();
@@ -450,22 +451,22 @@ where
     }
 
     // base case for the primary
-    let mut cs_primary = SatisfyingAssignment::<G1>::new();
-    let program_counter = G1::Scalar::from(circuit_index as u64);
-    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
+    let mut cs_primary = SatisfyingAssignment::<E1>::new();
+    let program_counter = E1::Scalar::from(circuit_index as u64);
+    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, E2> =
       SuperNovaAugmentedCircuitInputs::new(
-        scalar_as_base::<G1>(pp.digest()),
-        G1::Scalar::ZERO,
+        scalar_as_base::<E1>(pp.digest()),
+        E1::Scalar::ZERO,
         z0_primary,
         None,                  // zi = None for basecase
         None,                  // U = [None], since no previous proofs have been computed
         None,                  // u = None since we are not verifying a secondary circuit
         None,                  // T = None since there is not proof to fold
         Some(program_counter), // pc = initial_program_counter for primary circuit
-        G1::Scalar::ZERO,      // u_index is always zero for the primary circuit
+        E1::Scalar::ZERO,      // u_index is always zero for the primary circuit
       );
 
-    let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
+    let circuit_primary: SuperNovaAugmentedCircuit<'_, E2, C1> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_primary,
       Some(inputs_primary),
       c_primary,
@@ -491,12 +492,12 @@ where
       })?;
 
     // base case for the secondary
-    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
-    let u_primary_index = G2::Scalar::from(circuit_index as u64);
-    let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
+    let mut cs_secondary = SatisfyingAssignment::<E2>::new();
+    let u_primary_index = E2::Scalar::from(circuit_index as u64);
+    let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, E1> =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
-        G2::Scalar::ZERO,
+        E2::Scalar::ZERO,
         z0_secondary,
         None,             // zi = None for basecase
         None,             // U = Empty list of accumulators for the primary circuits
@@ -505,7 +506,7 @@ where
         None,             // program_counter is always None for secondary circuit
         u_primary_index,  // index of the circuit proof u_primary
       );
-    let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
+    let circuit_secondary: SuperNovaAugmentedCircuit<'_, E1, C2> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_secondary,
       Some(inputs_secondary),
       c_secondary,
@@ -539,7 +540,7 @@ where
     let l_u_secondary = u_secondary;
 
     // Initialize relaxed instance/witness pair for the secondary circuit proofs
-    let r_W_secondary = RelaxedR1CSWitness::<G2>::default(&pp.circuit_shape_secondary.r1cs_shape);
+    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(&pp.circuit_shape_secondary.r1cs_shape);
     let r_U_secondary =
       RelaxedR1CSInstance::default(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape);
 
@@ -547,7 +548,7 @@ where
     let zi_primary = zi_primary
       .iter()
       .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
-      .collect::<Result<Vec<<G1 as Group>::Scalar>, SuperNovaError>>()?;
+      .collect::<Result<Vec<<E1 as Engine>::Scalar>, SuperNovaError>>()?;
     let zi_primary_pc_next = zi_primary_pc_next
       .expect("zi_primary_pc_next missing")
       .get_value()
@@ -555,16 +556,16 @@ where
     let zi_secondary = zi_secondary
       .iter()
       .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
-      .collect::<Result<Vec<<G2 as Group>::Scalar>, SuperNovaError>>()?;
+      .collect::<Result<Vec<<E2 as Engine>::Scalar>, SuperNovaError>>()?;
 
     // handle the base case by initialize U_next in next round
     let r_W_primary_initial_list = (0..num_augmented_circuits)
       .map(|i| (i == circuit_index).then(|| r_W_primary.clone()))
-      .collect::<Vec<Option<RelaxedR1CSWitness<G1>>>>();
+      .collect::<Vec<Option<RelaxedR1CSWitness<E1>>>>();
 
     let r_U_primary_initial_list = (0..num_augmented_circuits)
       .map(|i| (i == circuit_index).then(|| r_U_primary.clone()))
-      .collect::<Vec<Option<RelaxedR1CSInstance<G1>>>>();
+      .collect::<Vec<Option<RelaxedR1CSInstance<E1>>>>();
     Ok(Self {
       pp_digest: pp.digest(),
       num_augmented_circuits,
@@ -587,9 +588,9 @@ where
   /// executing a step of the incremental computation
   #[allow(clippy::too_many_arguments)]
   #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
-  pub fn prove_step<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn prove_step<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<E2::Scalar>>(
     &mut self,
-    pp: &PublicParams<G1, G2, C1, C2>,
+    pp: &PublicParams<E1, E2, C1, C2>,
     c_primary: &C1,
     c_secondary: &C2,
   ) -> Result<(), SuperNovaError> {
@@ -600,13 +601,13 @@ where
     }
 
     let circuit_index = c_primary.circuit_index();
-    assert_eq!(self.program_counter, G1::Scalar::from(circuit_index as u64));
+    assert_eq!(self.program_counter, E1::Scalar::from(circuit_index as u64));
 
     // fold the secondary circuit's instance
     let (nifs_secondary, (r_U_secondary_folded, r_W_secondary_folded)) = NIFS::prove(
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
-      &scalar_as_base::<G1>(self.pp_digest),
+      &scalar_as_base::<E1>(self.pp_digest),
       &pp.circuit_shape_secondary.r1cs_shape,
       &self.r_U_secondary,
       &self.r_W_secondary,
@@ -622,23 +623,23 @@ where
     // Create single-entry accumulator list for the secondary circuit to hand to SuperNovaAugmentedCircuitInputs
     let r_U_secondary = vec![Some(self.r_U_secondary.clone())];
 
-    let mut cs_primary = SatisfyingAssignment::<G1>::new();
+    let mut cs_primary = SatisfyingAssignment::<E1>::new();
     let T =
-      Commitment::<G2>::decompress(&nifs_secondary.comm_T).map_err(SuperNovaError::NovaError)?;
-    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, G2> =
+      Commitment::<E2>::decompress(&nifs_secondary.comm_T).map_err(SuperNovaError::NovaError)?;
+    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, E2> =
       SuperNovaAugmentedCircuitInputs::new(
-        scalar_as_base::<G1>(self.pp_digest),
-        G1::Scalar::from(self.i as u64),
+        scalar_as_base::<E1>(self.pp_digest),
+        E1::Scalar::from(self.i as u64),
         &self.z0_primary,
         Some(&self.zi_primary),
         Some(&r_U_secondary),
         Some(&self.l_u_secondary),
         Some(&T),
         Some(self.program_counter),
-        G1::Scalar::ZERO,
+        E1::Scalar::ZERO,
       );
 
-    let circuit_primary: SuperNovaAugmentedCircuit<'_, G2, C1> = SuperNovaAugmentedCircuit::new(
+    let circuit_primary: SuperNovaAugmentedCircuit<'_, E2, C1> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_primary,
       Some(inputs_primary),
       c_primary,
@@ -689,23 +690,23 @@ where
       .map_err(SuperNovaError::NovaError)?,
     };
 
-    let mut cs_secondary = SatisfyingAssignment::<G2>::new();
+    let mut cs_secondary = SatisfyingAssignment::<E2>::new();
     let binding =
-      Commitment::<G1>::decompress(&nifs_primary.comm_T).map_err(SuperNovaError::NovaError)?;
-    let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, G1> =
+      Commitment::<E1>::decompress(&nifs_primary.comm_T).map_err(SuperNovaError::NovaError)?;
+    let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, E1> =
       SuperNovaAugmentedCircuitInputs::new(
         self.pp_digest,
-        G2::Scalar::from(self.i as u64),
+        E2::Scalar::from(self.i as u64),
         &self.z0_secondary,
         Some(&self.zi_secondary),
         Some(&self.r_U_primary),
         Some(&l_u_primary),
         Some(&binding),
         None, // pc is always None for secondary circuit
-        G2::Scalar::from(circuit_index as u64),
+        E2::Scalar::from(circuit_index as u64),
       );
 
-    let circuit_secondary: SuperNovaAugmentedCircuit<'_, G1, C2> = SuperNovaAugmentedCircuit::new(
+    let circuit_secondary: SuperNovaAugmentedCircuit<'_, E1, C2> = SuperNovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_secondary,
       Some(inputs_secondary),
       c_secondary,
@@ -732,7 +733,7 @@ where
         v.get_value()
           .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))
       })
-      .collect::<Result<Vec<<G1 as Group>::Scalar>, SuperNovaError>>()?;
+      .collect::<Result<Vec<<E1 as Engine>::Scalar>, SuperNovaError>>()?;
     let zi_primary_pc_next = zi_primary_pc_next
       .expect("zi_primary_pc_next missing")
       .get_value()
@@ -743,7 +744,7 @@ where
         v.get_value()
           .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))
       })
-      .collect::<Result<Vec<<G2 as Group>::Scalar>, SuperNovaError>>()?;
+      .collect::<Result<Vec<<E2 as Engine>::Scalar>, SuperNovaError>>()?;
 
     if zi_primary.len() != pp[circuit_index].F_arity
       || zi_secondary.len() != pp.circuit_shape_secondary.F_arity
@@ -768,13 +769,13 @@ where
   }
 
   /// verify recursive snark
-  pub fn verify<C1: StepCircuit<G1::Scalar>, C2: StepCircuit<G2::Scalar>>(
+  pub fn verify<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<E2::Scalar>>(
     &self,
-    pp: &PublicParams<G1, G2, C1, C2>,
+    pp: &PublicParams<E1, E2, C1, C2>,
     circuit_index: usize,
-    z0_primary: &[G1::Scalar],
-    z0_secondary: &[G2::Scalar],
-  ) -> Result<(Vec<G1::Scalar>, Vec<G2::Scalar>), SuperNovaError> {
+    z0_primary: &[E1::Scalar],
+    z0_secondary: &[E2::Scalar],
+  ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), SuperNovaError> {
     // number of steps cannot be zero
     if self.i == 0 {
       debug!("must verify on valid RecursiveSNARK where i > 0");
@@ -852,9 +853,9 @@ where
         true, // is_primary
       );
 
-      let mut hasher = <G2 as Group>::RO::new(pp.ro_consts_secondary.clone(), num_absorbs);
+      let mut hasher = <E2 as Engine>::RO::new(pp.ro_consts_secondary.clone(), num_absorbs);
       hasher.absorb(self.pp_digest);
-      hasher.absorb(G1::Scalar::from(self.i as u64));
+      hasher.absorb(E1::Scalar::from(self.i as u64));
       hasher.absorb(self.program_counter);
 
       for e in z0_primary {
@@ -875,9 +876,9 @@ where
         pp.circuit_shape_secondary.F_arity,
         false, // is_primary
       );
-      let mut hasher = <G1 as Group>::RO::new(pp.ro_consts_primary.clone(), num_absorbs);
-      hasher.absorb(scalar_as_base::<G1>(self.pp_digest));
-      hasher.absorb(G2::Scalar::from(self.i as u64));
+      let mut hasher = <E1 as Engine>::RO::new(pp.ro_consts_primary.clone(), num_absorbs);
+      hasher.absorb(scalar_as_base::<E1>(self.pp_digest));
+      hasher.absorb(E2::Scalar::from(self.i as u64));
 
       for e in z0_secondary {
         hasher.absorb(*e);
@@ -904,7 +905,7 @@ where
       );
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
-    if hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.X[1]) {
+    if hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.X[1]) {
       debug!(
         "hash_secondary {:?} not equal l_u_secondary.X[1] {:?}",
         hash_secondary, self.l_u_secondary.X[1]
@@ -967,12 +968,12 @@ where
 /// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
 /// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
 /// `self.num_circuits()`.
-pub trait NonUniformCircuit<G1, G2, C1, C2>
+pub trait NonUniformCircuit<E1, E2, C1, C2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
 {
   /// Initial circuit index, defaults to zero.
   fn initial_circuit_index(&self) -> usize {
@@ -990,26 +991,26 @@ where
 }
 
 /// Extension trait to simplify getting scalar form of initial circuit index.
-pub trait InitialProgramCounter<G1, G2, C1, C2>: NonUniformCircuit<G1, G2, C1, C2>
+pub trait InitialProgramCounter<E1, E2, C1, C2>: NonUniformCircuit<E1, E2, C1, C2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
 {
   /// Initial program counter is the initial circuit index as a `Scalar`.
-  fn initial_program_counter(&self) -> G1::Scalar {
-    G1::Scalar::from(self.initial_circuit_index() as u64)
+  fn initial_program_counter(&self) -> E1::Scalar {
+    E1::Scalar::from(self.initial_circuit_index() as u64)
   }
 }
 
-impl<G1, G2, C1, C2, T: NonUniformCircuit<G1, G2, C1, C2>> InitialProgramCounter<G1, G2, C1, C2>
+impl<E1, E2, C1, C2, T: NonUniformCircuit<E1, E2, C1, C2>> InitialProgramCounter<E1, E2, C1, C2>
   for T
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
 {
 }
 
@@ -1018,28 +1019,28 @@ where
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.
 pub fn circuit_digest<
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C: StepCircuit<G1::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C: StepCircuit<E1::Scalar>,
 >(
   circuit: &C,
   num_augmented_circuits: usize,
-) -> G1::Scalar {
+) -> E1::Scalar {
   let augmented_circuit_params =
     SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
-  // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-  let ro_consts_circuit: ROConstantsCircuit<G2> = ROConstantsCircuit::<G2>::default();
+  // ro_consts_circuit are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
+  let ro_consts_circuit: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
 
   // Initialize ck for the primary
-  let augmented_circuit: SuperNovaAugmentedCircuit<'_, G2, C> = SuperNovaAugmentedCircuit::new(
+  let augmented_circuit: SuperNovaAugmentedCircuit<'_, E2, C> = SuperNovaAugmentedCircuit::new(
     &augmented_circuit_params,
     None,
     circuit,
     ro_consts_circuit,
     num_augmented_circuits,
   );
-  let mut cs: ShapeCS<G1> = ShapeCS::new();
+  let mut cs: ShapeCS<E1> = ShapeCS::new();
   let _ = augmented_circuit.synthesize(&mut cs);
 
   let F_arity = circuit.arity();

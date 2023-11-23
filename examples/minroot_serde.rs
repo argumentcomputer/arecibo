@@ -3,17 +3,16 @@
 //! Demonstrates how to use Nova to produce a recursive proof of the correct execution of
 //! iterations of the `MinRoot` function, thereby realizing a Nova-based verifiable delay function (VDF).
 //! We execute a configurable number of iterations of the `MinRoot` function per step of Nova's recursion.
-type G1 = pasta_curves::pallas::Point;
-type G2 = pasta_curves::vesta::Point;
 use abomonation::{decode, encode};
 use abomonation_derive::Abomonation;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use nova_snark::{
+  provider::pasta::{PallasEngine, VestaEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     snark::default_ck_hint,
-    Group,
+    Engine,
   },
   PublicParams,
 };
@@ -146,10 +145,10 @@ fn main() {
   let circuit_primary = MinRootCircuit {
     seq: vec![
       MinRootIteration {
-        x_i: <G1 as Group>::Scalar::zero(),
-        y_i: <G1 as Group>::Scalar::zero(),
-        x_i_plus_1: <G1 as Group>::Scalar::zero(),
-        y_i_plus_1: <G1 as Group>::Scalar::zero(),
+        x_i: <PallasEngine as Engine>::Scalar::zero(),
+        y_i: <PallasEngine as Engine>::Scalar::zero(),
+        x_i_plus_1: <PallasEngine as Engine>::Scalar::zero(),
+        y_i_plus_1: <PallasEngine as Engine>::Scalar::zero(),
       };
       num_iters_per_step
     ],
@@ -164,11 +163,11 @@ fn main() {
     let start = Instant::now();
     println!("Producing public parameters...");
     let pp = PublicParams::<
-      G1,
-      G2,
-      MinRootCircuit<<G1 as Group>::Scalar>,
-      TrivialCircuit<<G2 as Group>::Scalar>,
-    >::new(
+      PallasEngine,
+      VestaEngine,
+      MinRootCircuit<<PallasEngine as Engine>::Scalar>,
+      TrivialCircuit<<VestaEngine as Engine>::Scalar>,
+    >::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),
@@ -186,20 +185,20 @@ fn main() {
   if let Some((result, remaining)) = unsafe {
     decode::<
       PublicParams<
-        G1,
-        G2,
-        MinRootCircuit<<G1 as Group>::Scalar>,
-        TrivialCircuit<<G2 as Group>::Scalar>,
+        PallasEngine,
+        VestaEngine,
+        MinRootCircuit<<PallasEngine as Engine>::Scalar>,
+        TrivialCircuit<<VestaEngine as Engine>::Scalar>,
       >,
     >(&mut bytes)
   } {
     println!("Producing public parameters...");
     let pp = PublicParams::<
-      G1,
-      G2,
-      MinRootCircuit<<G1 as Group>::Scalar>,
-      TrivialCircuit<<G2 as Group>::Scalar>,
-    >::new(
+      PallasEngine,
+      VestaEngine,
+      MinRootCircuit<<PallasEngine as Engine>::Scalar>,
+      TrivialCircuit<<VestaEngine as Engine>::Scalar>,
+    >::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),

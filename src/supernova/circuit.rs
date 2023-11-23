@@ -27,7 +27,7 @@ use crate::{
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{
-    circuit_supernova::EnforcingStepCircuit, commitment::CommitmentTrait, Group, ROCircuitTrait,
+    circuit_supernova::EnforcingStepCircuit, commitment::CommitmentTrait, Engine, ROCircuitTrait,
     ROConstantsCircuit,
   },
   Commitment,
@@ -71,39 +71,39 @@ impl SuperNovaAugmentedCircuitParams {
 }
 
 #[derive(Debug)]
-pub struct SuperNovaAugmentedCircuitInputs<'a, G: Group> {
-  pp_digest: G::Scalar,
-  i: G::Base,
+pub struct SuperNovaAugmentedCircuitInputs<'a, E: Engine> {
+  pp_digest: E::Scalar,
+  i: E::Base,
   /// Input to the circuit for the base case
-  z0: &'a [G::Base],
+  z0: &'a [E::Base],
   /// Input to the circuit for the non-base case
-  zi: Option<&'a [G::Base]>,
+  zi: Option<&'a [E::Base]>,
   /// List of `RelaxedR1CSInstance`.
   /// `None` if this is the base case.
   /// Elements are `None` if the circuit at that index was not yet executed.
-  U: Option<&'a [Option<RelaxedR1CSInstance<G>>]>,
+  U: Option<&'a [Option<RelaxedR1CSInstance<E>>]>,
   /// R1CS proof to be folded into U
-  u: Option<&'a R1CSInstance<G>>,
+  u: Option<&'a R1CSInstance<E>>,
   /// Nova folding proof for accumulating u into U[j]
-  T: Option<&'a Commitment<G>>,
+  T: Option<&'a Commitment<E>>,
   /// Index of the current circuit
-  program_counter: Option<G::Base>,
+  program_counter: Option<E::Base>,
   /// Index j of circuit being folded into U[j]
-  last_augmented_circuit_index: G::Base,
+  last_augmented_circuit_index: E::Base,
 }
 
-impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
+impl<'a, E: Engine> SuperNovaAugmentedCircuitInputs<'a, E> {
   /// Create new inputs/witness for the verification circuit
   pub fn new(
-    pp_digest: G::Scalar,
-    i: G::Base,
-    z0: &'a [G::Base],
-    zi: Option<&'a [G::Base]>,
-    U: Option<&'a [Option<RelaxedR1CSInstance<G>>]>,
-    u: Option<&'a R1CSInstance<G>>,
-    T: Option<&'a Commitment<G>>,
-    program_counter: Option<G::Base>,
-    last_augmented_circuit_index: G::Base,
+    pp_digest: E::Scalar,
+    i: E::Base,
+    z0: &'a [E::Base],
+    zi: Option<&'a [E::Base]>,
+    U: Option<&'a [Option<RelaxedR1CSInstance<E>>]>,
+    u: Option<&'a R1CSInstance<E>>,
+    T: Option<&'a Commitment<E>>,
+    program_counter: Option<E::Base>,
+    last_augmented_circuit_index: E::Base,
   ) -> Self {
     Self {
       pp_digest,
@@ -122,21 +122,21 @@ impl<'a, G: Group> SuperNovaAugmentedCircuitInputs<'a, G> {
 /// The augmented circuit F' in `SuperNova` that includes a step circuit F
 /// and the circuit for the verifier in `SuperNova`'s non-interactive folding scheme,
 /// `SuperNova` NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance `U[last_augmented_circuit_index]`
-pub struct SuperNovaAugmentedCircuit<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> {
+pub struct SuperNovaAugmentedCircuit<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> {
   params: &'a SuperNovaAugmentedCircuitParams,
-  ro_consts: ROConstantsCircuit<G>,
-  inputs: Option<SuperNovaAugmentedCircuitInputs<'a, G>>,
+  ro_consts: ROConstantsCircuit<E>,
+  inputs: Option<SuperNovaAugmentedCircuitInputs<'a, E>>,
   step_circuit: &'a SC,          // The function that is applied for each step
   num_augmented_circuits: usize, // number of overall augmented circuits
 }
 
-impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<'a, G, SC> {
+impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit<'a, E, SC> {
   /// Create a new verification circuit for the input relaxed r1cs instances
   pub const fn new(
     params: &'a SuperNovaAugmentedCircuitParams,
-    inputs: Option<SuperNovaAugmentedCircuitInputs<'a, G>>,
+    inputs: Option<SuperNovaAugmentedCircuitInputs<'a, E>>,
     step_circuit: &'a SC,
-    ro_consts: ROConstantsCircuit<G>,
+    ro_consts: ROConstantsCircuit<E>,
     num_augmented_circuits: usize,
   ) -> Self {
     Self {
@@ -150,21 +150,21 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
 
   /// Allocate all witnesses from the augmented function's non-deterministic inputs.
   /// Optional entries are allocated as their default values.
-  fn alloc_witness<CS: ConstraintSystem<<G as Group>::Base>>(
+  fn alloc_witness<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
     arity: usize,
     num_augmented_circuits: usize,
   ) -> Result<
     (
-      AllocatedNum<G::Base>,
-      AllocatedNum<G::Base>,
-      Vec<AllocatedNum<G::Base>>,
-      Vec<AllocatedNum<G::Base>>,
-      Vec<AllocatedRelaxedR1CSInstance<G>>,
-      AllocatedR1CSInstance<G>,
-      AllocatedPoint<G>,
-      Option<AllocatedNum<G::Base>>,
+      AllocatedNum<E::Base>,
+      AllocatedNum<E::Base>,
+      Vec<AllocatedNum<E::Base>>,
+      Vec<AllocatedNum<E::Base>>,
+      Vec<AllocatedRelaxedR1CSInstance<E>>,
+      AllocatedR1CSInstance<E>,
+      AllocatedPoint<E>,
+      Option<AllocatedNum<E::Base>>,
       Vec<Boolean>,
     ),
     SynthesisError,
@@ -175,7 +175,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
       })?;
 
     // Allocate the params
-    let params = alloc_scalar_as_base::<G, _>(
+    let params = alloc_scalar_as_base::<E, _>(
       cs.namespace(|| "params"),
       self.inputs.as_ref().map(|inputs| inputs.pp_digest),
     )?;
@@ -208,17 +208,17 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
           Ok(self.inputs.get()?.z0[i])
         })
       })
-      .collect::<Result<Vec<AllocatedNum<G::Base>>, _>>()?;
+      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
     // Allocate zi. If inputs.zi is not provided (base case) allocate default value 0
-    let zero = vec![G::Base::ZERO; arity];
+    let zero = vec![E::Base::ZERO; arity];
     let z_i = (0..arity)
       .map(|i| {
         AllocatedNum::alloc(cs.namespace(|| format!("zi_{i}")), || {
           Ok(self.inputs.get()?.zi.unwrap_or(&zero)[i])
         })
       })
-      .collect::<Result<Vec<AllocatedNum<G::Base>>, _>>()?;
+      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
     // Allocate the running instances
     let U = (0..num_augmented_circuits)
@@ -233,7 +233,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
           self.params.n_limbs,
         )
       })
-      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<G>>, _>>()?;
+      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E>>, _>>()?;
 
     // Allocate the r1cs instance to be folded in
     let u = AllocatedR1CSInstance::alloc(
@@ -272,12 +272,12 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
   }
 
   /// Synthesizes base case and returns the new relaxed `R1CSInstance`
-  fn synthesize_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
+  fn synthesize_base_case<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-    u: AllocatedR1CSInstance<G>,
+    u: AllocatedR1CSInstance<E>,
     last_augmented_circuit_selector: &[Boolean],
-  ) -> Result<Vec<AllocatedRelaxedR1CSInstance<G>>, SynthesisError> {
+  ) -> Result<Vec<AllocatedRelaxedR1CSInstance<E>>, SynthesisError> {
     let mut cs = cs.namespace(|| "alloc U_i default");
 
     // Allocate a default relaxed r1cs instance
@@ -312,29 +312,29 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
             equal_bit,
           )
         })
-        .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<G>>, _>>()?
+        .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E>>, _>>()?
     };
     Ok(U_default)
   }
 
   /// Synthesizes non base case and returns the new relaxed `R1CSInstance`
   /// And a boolean indicating if all checks pass
-  fn synthesize_non_base_case<CS: ConstraintSystem<<G as Group>::Base>>(
+  fn synthesize_non_base_case<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-    params: &AllocatedNum<G::Base>,
-    i: &AllocatedNum<G::Base>,
-    z_0: &[AllocatedNum<G::Base>],
-    z_i: &[AllocatedNum<G::Base>],
-    U: &[AllocatedRelaxedR1CSInstance<G>],
-    u: &AllocatedR1CSInstance<G>,
-    T: &AllocatedPoint<G>,
+    params: &AllocatedNum<E::Base>,
+    i: &AllocatedNum<E::Base>,
+    z_0: &[AllocatedNum<E::Base>],
+    z_i: &[AllocatedNum<E::Base>],
+    U: &[AllocatedRelaxedR1CSInstance<E>],
+    u: &AllocatedR1CSInstance<E>,
+    T: &AllocatedPoint<E>,
     arity: usize,
     last_augmented_circuit_selector: &[Boolean],
-    program_counter: &Option<AllocatedNum<G::Base>>,
-  ) -> Result<(Vec<AllocatedRelaxedR1CSInstance<G>>, AllocatedBit), SynthesisError> {
+    program_counter: &Option<AllocatedNum<E::Base>>,
+  ) -> Result<(Vec<AllocatedRelaxedR1CSInstance<E>>, AllocatedBit), SynthesisError> {
     // Check that u.x[0] = Hash(params, i, program_counter, z0, zi, U[])
-    let mut ro = G::ROCircuit::new(
+    let mut ro = E::ROCircuit::new(
       self.ro_consts.clone(),
       num_ro_inputs(
         self.num_augmented_circuits,
@@ -390,7 +390,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     )?;
 
     // update AllocatedRelaxedR1CSInstance on index match augmented circuit index
-    let U_next: Vec<AllocatedRelaxedR1CSInstance<G>> = U
+    let U_next: Vec<AllocatedRelaxedR1CSInstance<E>> = U
       .iter()
       .zip(last_augmented_circuit_selector.iter())
       .map(|(U, equal_bit)| {
@@ -401,15 +401,15 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
           equal_bit,
         )
       })
-      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<G>>, _>>()?;
+      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E>>, _>>()?;
 
     Ok((U_next, check_pass))
   }
 
-  pub fn synthesize<CS: ConstraintSystem<<G as Group>::Base>>(
+  pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
     self,
     cs: &mut CS,
-  ) -> Result<(Option<AllocatedNum<G::Base>>, Vec<AllocatedNum<G::Base>>), SynthesisError> {
+  ) -> Result<(Option<AllocatedNum<E::Base>>, Vec<AllocatedNum<E::Base>>), SynthesisError> {
     let arity = self.step_circuit.arity();
     let num_augmented_circuits = if self.params.is_primary_circuit {
       // primary circuit only fold single running instance with secondary output strict r1cs instance
@@ -434,8 +434,8 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
       let last_augmented_circuit_index = self
         .inputs
         .get()
-        .map_or(G::Base::ZERO, |inputs| inputs.last_augmented_circuit_index);
-      if self.params.is_primary_circuit && last_augmented_circuit_index != G::Base::ZERO {
+        .map_or(E::Base::ZERO, |inputs| inputs.last_augmented_circuit_index);
+      if self.params.is_primary_circuit && last_augmented_circuit_index != E::Base::ZERO {
         return Err(SynthesisError::IncompatibleLengthVector(
           "primary circuit running instance only valid on index 0".to_string(),
         ));
@@ -501,7 +501,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
 
     // Compute i + 1
     let i_next = AllocatedNum::alloc(cs.namespace(|| "i + 1"), || {
-      Ok(*i.get_value().get()? + G::Base::ONE)
+      Ok(*i.get_value().get()? + E::Base::ONE)
     })?;
     cs.enforce(
       || "check i + 1",
@@ -545,7 +545,7 @@ impl<'a, G: Group, SC: EnforcingStepCircuit<G::Base>> SuperNovaAugmentedCircuit<
     // https://eprint.iacr.org/2022/1758.pdf
 
     // Compute the new hash H(params, i+1, program_counter, z0, z_{i+1}, U_next)
-    let mut ro = G::ROCircuit::new(
+    let mut ro = E::ROCircuit::new(
       self.ro_consts.clone(),
       num_ro_inputs(
         self.num_augmented_circuits,
