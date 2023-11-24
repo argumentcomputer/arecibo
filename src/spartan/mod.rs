@@ -38,27 +38,52 @@ pub struct PolyEvalWitness<E: Engine> {
   p: Vec<E::Scalar>, // polynomial
 }
 
-impl<E: Engine> PolyEvalWitness<E> {
-  fn pad(mut W: Vec<PolyEvalWitness<E>>) -> Vec<PolyEvalWitness<E>> {
-    // determine the maximum size
-    if let Some(n) = W.iter().map(|w| w.p.len()).max() {
-      W.iter_mut().for_each(|w| {
-        w.p.resize(n, E::Scalar::ZERO);
-      });
-      W
-    } else {
-      Vec::new()
-    }
-  }
+impl<G: Group> PolyEvalWitness<G> {
+  // fn pad(W: &[PolyEvalWitness<G>]) -> Vec<PolyEvalWitness<G>> {
+  //   // determine the maximum size
+  //   if let Some(n) = W.iter().map(|w| w.p.len()).max() {
+  //     W.iter()
+  //       .map(|w| {
+  //         let mut p = vec![G::Scalar::ZERO; n];
+  //         p[..w.p.len()].copy_from_slice(&w.p);
+  //         PolyEvalWitness { p }
+  //       })
+  //       .collect()
+  //   } else {
+  //     Vec::new()
+  //   }
+  // }
 
-  fn weighted_sum(W: &[PolyEvalWitness<E>], s: &[E::Scalar]) -> PolyEvalWitness<E> {
+  fn weighted_sum(W: Vec<PolyEvalWitness<E>>, s: &[E::Scalar]) -> PolyEvalWitness<E> {
     assert_eq!(W.len(), s.len());
-    let mut p = vec![E::Scalar::ZERO; W[0].p.len()];
-    for i in 0..W.len() {
-      for j in 0..W[i].p.len() {
-        p[j] += W[i].p[j] * s[i]
-      }
-    }
+
+    let size_max = W.iter().map(|w| w.p.len()).max().unwrap();
+
+    let p = W
+      .into_par_iter()
+      .zip(s.par_iter())
+      .map(|(mut w, s)| {
+        w.p.par_iter_mut().for_each(|e| *e *= s);
+        w.p
+      })
+      .reduce(
+        || vec![G::Scalar::ZERO; size_max],
+        |left, right| {
+          let (mut big, small) = if left.len() > right.len() {
+            (left, right)
+          } else {
+            (right, left)
+          };
+
+          big
+            .par_iter_mut()
+            .zip(small.par_iter())
+            .for_each(|(b, s)| *b += s);
+
+          big
+        },
+      );
+
     PolyEvalWitness { p }
   }
 
@@ -97,20 +122,20 @@ pub struct PolyEvalInstance<E: Engine> {
 }
 
 impl<E: Engine> PolyEvalInstance<E> {
-  fn pad(U: Vec<PolyEvalInstance<E>>) -> Vec<PolyEvalInstance<E>> {
-    // determine the maximum size
-    if let Some(ell) = U.iter().map(|u| u.x.len()).max() {
-      U.into_iter()
-        .map(|mut u| {
-          let mut x = vec![E::Scalar::ZERO; ell - u.x.len()];
-          x.append(&mut u.x);
-          PolyEvalInstance { x, ..u }
-        })
-        .collect()
-    } else {
-      Vec::new()
-    }
-  }
+  // fn pad(U: Vec<PolyEvalInstance<E>>) -> Vec<PolyEvalInstance<E>> {
+  //   // determine the maximum size
+  //   if let Some(ell) = U.iter().map(|u| u.x.len()).max() {
+  //     U.into_iter()
+  //       .map(|mut u| {
+  //         let mut x = vec![E::Scalar::ZERO; ell - u.x.len()];
+  //         x.append(&mut u.x);
+  //         PolyEvalInstance { x, ..u }
+  //       })
+  //       .collect()
+  //   } else {
+  //     Vec::new()
+  //   }
+  // }
 
   fn batch(
     c_vec: &[Commitment<E>],
