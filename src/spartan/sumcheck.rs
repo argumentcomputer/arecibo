@@ -140,10 +140,10 @@ impl<G: Group> SumcheckProof<G> {
   }
 
   pub fn prove_quad_batch<F>(
-    claim: &G::Scalar,
-    num_rounds: usize,
-    poly_A_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
-    poly_B_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
+    claims: &[G::Scalar],
+    num_rounds: &[usize],
+    mut poly_A_vec: Vec<MultilinearPolynomial<G::Scalar>>,
+    mut poly_B_vec: Vec<MultilinearPolynomial<G::Scalar>>,
     coeffs: &[G::Scalar],
     comb_func: F,
     transcript: &mut G::TE,
@@ -151,15 +151,50 @@ impl<G: Group> SumcheckProof<G> {
   where
     F: Fn(&G::Scalar, &G::Scalar) -> G::Scalar + Sync,
   {
-    let mut e = *claim;
+    let num_claims = claims.len();
+
+    assert_eq!(num_rounds.len(), num_claims);
+    assert_eq!(poly_A_vec.len(), num_claims);
+    assert_eq!(poly_B_vec.len(), num_claims);
+    assert_eq!(coeffs.len(), num_claims);
+
+    num_rounds
+      .iter()
+      .zip(poly_A_vec.iter().zip(poly_B_vec.iter()))
+      .for_each(|(num_rounds, (poly_A, poly_B))| {
+        let poly_size = 1 << num_rounds;
+        assert_eq!(poly_A.len(), poly_size);
+        assert_eq!(poly_B.len(), poly_size);
+      });
+
+    let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+    let mut e = claims
+      .iter()
+      .zip(num_rounds)
+      .map(|(claim, num_rounds)| {
+        G::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
+      })
+      .zip(coeffs)
+      .map(|(claim, c)| claim * c)
+      .sum();
     let mut r: Vec<G::Scalar> = Vec::new();
     let mut quad_polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
 
-    for _ in 0..num_rounds {
-      let evals: Vec<(G::Scalar, G::Scalar)> = poly_A_vec
+    for current_round in 0..num_rounds_max {
+      let remaining_rounds = num_rounds_max - current_round;
+      let evals: Vec<(G::Scalar, G::Scalar)> = num_rounds
         .par_iter()
-        .zip(poly_B_vec.par_iter())
-        .map(|(poly_A, poly_B)| Self::compute_eval_points_quad(poly_A, poly_B, &comb_func))
+        .zip(claims.par_iter())
+        .zip(poly_A_vec.par_iter().zip(poly_B_vec.par_iter()))
+        .map(|((&num_rounds, claim), (poly_A, poly_B))| {
+          if remaining_rounds <= num_rounds {
+            Self::compute_eval_points_quad(poly_A, poly_B, &comb_func)
+          } else {
+            let remaining_variables = remaining_rounds - num_rounds - 1;
+            let scaled_claim = G::Scalar::from((1 << remaining_variables) as u64) * claim;
+            (scaled_claim.clone(), scaled_claim)
+          }
+        })
         .collect();
 
       let evals_combined_0 = (0..evals.len()).map(|i| evals[i].0 * coeffs[i]).sum();
@@ -176,22 +211,43 @@ impl<G: Group> SumcheckProof<G> {
       r.push(r_i);
 
       // bound all tables to the verifier's challenge
-      poly_A_vec
-        .par_iter_mut()
+      num_rounds
+        .par_iter()
+        .zip(poly_A_vec.par_iter_mut())
         .zip(poly_B_vec.par_iter_mut())
-        .for_each(|(poly_A, poly_B)| {
-          let _ = rayon::join(
-            || poly_A.bind_poly_var_top(&r_i),
-            || poly_B.bind_poly_var_top(&r_i),
-          );
+        .for_each(|((&num_rounds, poly_A), poly_B)| {
+          if remaining_rounds <= num_rounds {
+            let _ = rayon::join(
+              || poly_A.bind_poly_var_top(&r_i),
+              || poly_B.bind_poly_var_top(&r_i),
+            );
+          }
         });
 
       e = poly.evaluate(&r_i);
       quad_polys.push(poly.compress());
     }
+    poly_A_vec.iter().for_each(|p| assert_eq!(p.len(), 1));
+    poly_B_vec.iter().for_each(|p| assert_eq!(p.len(), 1));
 
-    let poly_A_final = (0..poly_A_vec.len()).map(|i| poly_A_vec[i][0]).collect();
-    let poly_B_final = (0..poly_B_vec.len()).map(|i| poly_B_vec[i][0]).collect();
+    let poly_A_final = poly_A_vec
+      .into_iter()
+      .map(|poly| poly[0])
+      .collect::<Vec<_>>();
+    let poly_B_final = poly_B_vec
+      .into_iter()
+      .map(|poly| poly[0])
+      .collect::<Vec<_>>();
+
+    let eval_expected = poly_A_final
+      .iter()
+      .zip(poly_B_final.iter())
+      .map(|(eA, eB)| comb_func(eA, eB))
+      .zip(coeffs.iter())
+      .map(|(e, c)| e * c)
+      .sum::<G::Scalar>();
+    assert_eq!(e, eval_expected);
+
     let claims_prod = (poly_A_final, poly_B_final);
 
     Ok((SumcheckProof::new(quad_polys), r, claims_prod))
@@ -362,38 +418,81 @@ impl<G: Group> SumcheckProof<G> {
   }
 
   pub fn prove_cubic_with_additive_term_batch<F>(
-    claim: &G::Scalar,
-    num_rounds: usize,
-    poly_A: &mut MultilinearPolynomial<G::Scalar>,
-    poly_B_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
-    poly_C_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
-    poly_D_vec: &mut Vec<MultilinearPolynomial<G::Scalar>>,
+    claims: &[G::Scalar],
+    num_rounds: &[usize],
+    mut poly_A_vec: Vec<MultilinearPolynomial<G::Scalar>>,
+    mut poly_B_vec: Vec<MultilinearPolynomial<G::Scalar>>,
+    mut poly_C_vec: Vec<MultilinearPolynomial<G::Scalar>>,
+    mut poly_D_vec: Vec<MultilinearPolynomial<G::Scalar>>,
     coeffs: &[G::Scalar],
     comb_func: F,
     transcript: &mut G::TE,
-  ) -> Result<(Self, Vec<G::Scalar>, G::Scalar, Vec<Vec<G::Scalar>>), NovaError>
+  ) -> Result<(Self, Vec<G::Scalar>, Vec<Vec<G::Scalar>>), NovaError>
   where
     F: Fn(&G::Scalar, &G::Scalar, &G::Scalar, &G::Scalar) -> G::Scalar + Sync,
   {
+    let num_instances = claims.len();
+    assert_eq!(num_rounds.len(), num_instances);
+    assert_eq!(coeffs.len(), num_instances);
+    assert_eq!(poly_A_vec.len(), num_instances);
+    assert_eq!(poly_B_vec.len(), num_instances);
+    assert_eq!(poly_C_vec.len(), num_instances);
+    assert_eq!(poly_D_vec.len(), num_instances);
+
+    num_rounds
+      .iter()
+      .zip(poly_A_vec.iter())
+      .zip(poly_B_vec.iter())
+      .zip(poly_C_vec.iter())
+      .zip(poly_D_vec.iter())
+      .for_each(|((((num_rounds, a), b), c), d)| {
+        let expected_size = 1 << num_rounds;
+        assert_eq!(a.len(), expected_size);
+        assert_eq!(b.len(), expected_size);
+        assert_eq!(c.len(), expected_size);
+        assert_eq!(d.len(), expected_size);
+      });
+    let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+
     let mut r: Vec<G::Scalar> = Vec::new();
     let mut polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
-    let mut claim_per_round = *claim;
+    let mut claim_per_round = claims
+      .iter()
+      .zip(num_rounds)
+      .map(|(claim, num_rounds)| {
+        G::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
+      })
+      .zip(coeffs.iter())
+      .map(|(claim, c)| claim * c)
+      .sum();
 
-    for _ in 0..num_rounds {
-      let evals: Vec<(G::Scalar, G::Scalar, G::Scalar)> = poly_B_vec
+    for current_round in 0..num_rounds_max {
+      let remaining_rounds = num_rounds_max - current_round;
+      let evals: Vec<(G::Scalar, G::Scalar, G::Scalar)> = num_rounds
         .par_iter()
+        .zip(claims.par_iter())
+        .zip(poly_A_vec.par_iter())
+        .zip(poly_B_vec.par_iter())
         .zip(poly_C_vec.par_iter())
         .zip(poly_D_vec.par_iter())
-        .map(|((poly_B, poly_C), poly_D)| {
-          Self::compute_eval_points_cubic_with_additive_term(
-            poly_A, poly_B, poly_C, poly_D, &comb_func,
-          )
-        })
+        .map(
+          |(((((&num_rounds, claim), poly_A), poly_B), poly_C), poly_D)| {
+            if remaining_rounds <= num_rounds {
+              Self::compute_eval_points_cubic_with_additive_term(
+                poly_A, poly_B, poly_C, poly_D, &comb_func,
+              )
+            } else {
+              let remaining_variables = remaining_rounds - num_rounds - 1;
+              let scaled_claim = G::Scalar::from((1 << remaining_variables) as u64) * claim;
+              (scaled_claim.clone(), scaled_claim.clone(), scaled_claim)
+            }
+          },
+        )
         .collect();
 
-      let evals_combined_0 = (0..evals.len()).map(|i| evals[i].0 * coeffs[i]).sum();
-      let evals_combined_2 = (0..evals.len()).map(|i| evals[i].1 * coeffs[i]).sum();
-      let evals_combined_3 = (0..evals.len()).map(|i| evals[i].2 * coeffs[i]).sum();
+      let evals_combined_0 = (0..num_instances).map(|i| evals[i].0 * coeffs[i]).sum();
+      let evals_combined_2 = (0..num_instances).map(|i| evals[i].1 * coeffs[i]).sum();
+      let evals_combined_3 = (0..num_instances).map(|i| evals[i].2 * coeffs[i]).sum();
 
       let evals = vec![
         evals_combined_0,
@@ -415,39 +514,44 @@ impl<G: Group> SumcheckProof<G> {
       // Set up next round
       claim_per_round = poly.evaluate(&r_i);
 
-      // bound the first table to the verifier's challenge
-      poly_A.bind_poly_var_top(&r_i);
-
-      // bound all rest of the tables to the verifier's challenge
-      poly_B_vec
-        .par_iter_mut()
+      // bound all the tables to the verifier's challenge
+      num_rounds
+        .par_iter()
+        .zip(poly_A_vec.par_iter_mut())
+        .zip(poly_B_vec.par_iter_mut())
         .zip(poly_C_vec.par_iter_mut())
         .zip(poly_D_vec.par_iter_mut())
-        .for_each(|((poly_B, poly_C), poly_D)| {
-          let _ = rayon::join(
-            || {
-              rayon::join(
-                || poly_B.bind_poly_var_top(&r_i),
-                || poly_C.bind_poly_var_top(&r_i),
-              )
-            },
-            || poly_D.bind_poly_var_top(&r_i),
-          );
+        .for_each(|((((&num_rounds, poly_A), poly_B), poly_C), poly_D)| {
+          if remaining_rounds <= num_rounds {
+            let _ = rayon::join(
+              || {
+                rayon::join(
+                  || poly_A.bind_poly_var_top(&r_i),
+                  || poly_B.bind_poly_var_top(&r_i),
+                )
+              },
+              || {
+                rayon::join(
+                  || poly_C.bind_poly_var_top(&r_i),
+                  || poly_D.bind_poly_var_top(&r_i),
+                )
+              },
+            );
+          }
         });
     }
 
-    let poly_A_final = poly_A[0];
-    let poly_B_final = (0..poly_B_vec.len()).map(|i| poly_B_vec[i][0]).collect();
-    let poly_C_final = (0..poly_C_vec.len()).map(|i| poly_C_vec[i][0]).collect();
-    let poly_D_final = (0..poly_D_vec.len()).map(|i| poly_D_vec[i][0]).collect();
+    let poly_A_final = poly_A_vec.into_iter().map(|poly| poly[0]).collect();
+    let poly_B_final = poly_B_vec.into_iter().map(|poly| poly[0]).collect();
+    let poly_C_final = poly_C_vec.into_iter().map(|poly| poly[0]).collect();
+    let poly_D_final = poly_D_vec.into_iter().map(|poly| poly[0]).collect();
 
     Ok((
       SumcheckProof {
         compressed_polys: polys,
       },
       r,
-      poly_A_final,
-      vec![poly_B_final, poly_C_final, poly_D_final],
+      vec![poly_A_final, poly_B_final, poly_C_final, poly_D_final],
     ))
   }
 }
