@@ -1044,6 +1044,7 @@ where
       &u.e,
       &self.eval_arg,
     )?;
+
     Ok(())
   }
 }
@@ -1133,10 +1134,10 @@ where
       .zip(outer.iter())
       .zip(inner.iter())
       .flat_map(|((mem, outer), inner)| {
-        Self::scaled_claims(mem, 0, num_rounds)
+        Self::scaled_claims(mem, num_rounds)
           .into_iter()
-          .chain(Self::scaled_claims(outer, 0, num_rounds))
-          .chain(Self::scaled_claims(inner, 0, num_rounds))
+          .chain(Self::scaled_claims(outer, num_rounds))
+          .chain(Self::scaled_claims(inner, num_rounds))
       })
       .collect::<Vec<G::Scalar>>();
 
@@ -1155,7 +1156,7 @@ where
     let mut cubic_polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
 
     for i in 0..num_rounds {
-      let current_size = 1 << (num_rounds - i);
+      let remaining_variables = num_rounds - i;
 
       let evals = mem
         .par_iter()
@@ -1163,11 +1164,11 @@ where
         .zip(inner.par_iter())
         .flat_map(|((mem, outer), inner)| {
           let (evals_mem, (evals_outer, evals_inner)) = rayon::join(
-            || Self::get_evals(mem, i, num_rounds),
+            || Self::get_evals(mem, remaining_variables),
             || {
               rayon::join(
-                || Self::get_evals(outer, i, num_rounds),
-                || Self::get_evals(inner, i, num_rounds),
+                || Self::get_evals(outer, remaining_variables),
+                || Self::get_evals(inner, remaining_variables),
               )
             },
           );
@@ -1205,11 +1206,11 @@ where
         .zip(inner.par_iter_mut())
         .for_each(|((mem, outer), inner)| {
           rayon::join(
-            || Self::bind(mem, current_size, &r_i),
+            || Self::bind(mem, remaining_variables, &r_i),
             || {
               rayon::join(
-                || Self::bind(outer, current_size, &r_i),
-                || Self::bind(inner, current_size, &r_i),
+                || Self::bind(outer, remaining_variables, &r_i),
+                || Self::bind(inner, remaining_variables, &r_i),
               )
             },
           );
@@ -1235,16 +1236,12 @@ where
   // When the size of the current round is larger than the instance's size,
   // the evaluations are constant and equal to the initial claims, appropriately
   // scaled to the current round number.
-  fn get_evals<T: SumcheckEngine<G>>(
-    inst: &T,
-    current_round: usize,
-    num_rounds: usize,
-  ) -> Vec<Vec<G::Scalar>> {
-    let current_size = 1 << (num_rounds - current_round);
-    if inst.size() != current_size {
+  fn get_evals<T: SumcheckEngine<G>>(inst: &T, remaining_variables: usize) -> Vec<Vec<G::Scalar>> {
+    let expected_current_size = 1 << remaining_variables;
+    if inst.size() != expected_current_size {
       let deg = inst.degree();
 
-      Self::scaled_claims(inst, current_round, num_rounds)
+      Self::scaled_claims(inst, remaining_variables - 1)
         .into_iter()
         .map(|scaled_claim| vec![scaled_claim; deg])
         .collect()
@@ -1255,8 +1252,9 @@ where
 
   // When the size of the current round size is larger than the instance's size,
   // binding the polynomials to r has no effect on the polynomial that we imagine repeats.
-  fn bind<T: SumcheckEngine<G>>(inst: &mut T, current_size: usize, r: &G::Scalar) {
-    if inst.size() == current_size {
+  fn bind<T: SumcheckEngine<G>>(inst: &mut T, remaining_variables: usize, r: &G::Scalar) {
+    let expected_current_size = 1 << remaining_variables;
+    if inst.size() == expected_current_size {
       inst.bound(r)
     }
   }
@@ -1264,14 +1262,10 @@ where
   // In the current round, if the polynomials in the instance are smaller than the expected size,
   // the claims are equal to the initial ones, scaled by expected_size/round_size to
   // account for the imagined repetitions of the input polynomials.
-  fn scaled_claims<T: SumcheckEngine<G>>(
-    inst: &T,
-    current_round: usize,
-    num_rounds: usize,
-  ) -> Vec<G::Scalar> {
-    let current_size = 1 << (num_rounds - current_round);
+  fn scaled_claims<T: SumcheckEngine<G>>(inst: &T, remaining_variables: usize) -> Vec<G::Scalar> {
+    let expected_current_size = 1 << remaining_variables;
     let inst_size = inst.size();
-    let num_repetitions = current_size / inst_size;
+    let num_repetitions = expected_current_size / inst_size;
     let scaling = G::Scalar::from(num_repetitions as u64);
     inst
       .initial_claims()
