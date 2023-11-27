@@ -20,7 +20,7 @@ use crate::{
     snark::{DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Group, TranscriptEngineTrait,
   },
-  Commitment, CommitmentKey,
+  CommitmentKey,
 };
 
 use abomonation::Abomonation;
@@ -430,6 +430,18 @@ where
 
 /// Proves a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
+///
+/// # Details
+///
+/// We are given as input a list of instance/witness pairs
+/// u = [(Cᵢ, xᵢ, eᵢ)], w = [Pᵢ], such that
+/// - nᵢ = |xᵢ|
+/// - Cᵢ = Commit(Pᵢ)
+/// - eᵢ = Pᵢ(xᵢ)
+/// - |Pᵢ| = 2^nᵢ
+///
+/// We allow the polynomial Pᵢ to have different sizes, by appropriately scaling
+/// the claims and resulting evaluations from Sumcheck.
 pub(super) fn batch_eval_prove<G: Group>(
   u_vec: Vec<PolyEvalInstance<G>>,
   w_vec: Vec<PolyEvalWitness<G>>,
@@ -446,39 +458,40 @@ pub(super) fn batch_eval_prove<G: Group>(
   let num_claims = u_vec.len();
   assert_eq!(w_vec.len(), num_claims);
 
+  // Compute nᵢ and n = maxᵢ{nᵢ}
   let num_rounds = u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
-  // let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+
+  // Check polynomials match number of variables, i.e. |Pᵢ| = 2^nᵢ
   w_vec
     .iter()
     .zip(num_rounds.iter())
     .for_each(|(w, num_vars)| assert_eq!(w.p.len(), 1 << num_vars));
 
-  // generate a challenge
+  // generate a challenge, and powers of it for random linear combination
   let rho = transcript.squeeze(b"r")?;
-
   let powers_of_rho = powers::<G>(&rho, num_claims);
 
-  let polys_left: Vec<MultilinearPolynomial<G::Scalar>> = w_vec
+  // Create clones of polynomials to be given to Sumcheck
+  // Pᵢ(X)
+  let polys_P: Vec<MultilinearPolynomial<G::Scalar>> = w_vec
     .iter()
     .map(|w| MultilinearPolynomial::new(w.p.clone()))
     .collect();
-  let polys_right: Vec<MultilinearPolynomial<G::Scalar>> = u_vec
+  // eq(xᵢ, X)
+  let polys_eq: Vec<MultilinearPolynomial<G::Scalar>> = u_vec
     .iter()
     .map(|u| MultilinearPolynomial::new(EqPolynomial::new(u.x.clone()).evals()))
     .collect();
-  let claims = u_vec.iter().map(|u| u.e).collect::<Vec<_>>();
-  // let claims = u_vec.iter().map(|u| {
-  //   let scaling_factor = 1 << (num_rounds_max - u.x.len());
-  //   u.e * G::Scalar::from(scaling_factor as u64)
-  // }).collect::<Vec<_>>();
 
-  let comb_func =
-    |poly_A_comp: &G::Scalar, poly_B_comp: &G::Scalar| -> G::Scalar { *poly_A_comp * *poly_B_comp };
-  let (sc_proof_batch, r_z, claims_batch) = SumcheckProof::prove_quad_batch(
+  let claims = u_vec.iter().map(|u| u.e).collect::<Vec<_>>();
+
+  // For each i, check eᵢ = ∑ₓ Pᵢ(x)eq(xᵢ,x), where x ∈ {0,1}^nᵢ
+  let comb_func = |poly_P: &G::Scalar, poly_eq: &G::Scalar| -> G::Scalar { *poly_P * *poly_eq };
+  let (sc_proof_batch, r, claims_batch) = SumcheckProof::prove_quad_batch(
     &claims,
     &num_rounds,
-    polys_left,
-    polys_right,
+    polys_P,
+    polys_eq,
     &powers_of_rho,
     comb_func,
     transcript,
@@ -488,39 +501,17 @@ pub(super) fn batch_eval_prove<G: Group>(
 
   transcript.absorb(b"l", &claims_batch_left.as_slice());
 
-  // we now combine evaluation claims at the same point rz into one
+  // we now combine evaluation claims at the same point r into one
   let gamma = transcript.squeeze(b"g")?;
   let powers_of_gamma: Vec<G::Scalar> = powers::<G>(&gamma, num_claims);
 
-  let w_joint = PolyEvalWitness::weighted_sum(w_vec, &powers_of_gamma);
+  let comms = u_vec.into_iter().map(|u| u.c).collect::<Vec<_>>();
 
-  let scaling_factors = num_rounds.iter().map(|&num_rounds| {
-    r_z
-      .iter()
-      .rev()
-      .skip(num_rounds)
-      .map(|r| G::Scalar::ONE - r)
-      .product::<G::Scalar>()
-  });
+  let u_joint =
+    PolyEvalInstance::batch_diff_size(&comms, &claims_batch_left, &num_rounds, r, gamma);
 
-  let comm_joint = u_vec
-    .iter()
-    .zip(powers_of_gamma.iter())
-    .map(|(u, g_i)| u.c * *g_i)
-    .fold(Commitment::<G>::default(), |acc, item| acc + item);
-
-  let eval_joint = claims_batch_left
-    .iter()
-    .zip(scaling_factors)
-    .zip(powers_of_gamma.iter())
-    .map(|((e, scaling_factor), g_i)| scaling_factor * e * g_i)
-    .sum();
-
-  let u_joint = PolyEvalInstance {
-    c: comm_joint,
-    x: r_z,
-    e: eval_joint,
-  };
+  // P = ∑ᵢ γⁱ⋅Pᵢ
+  let w_joint = PolyEvalWitness::batch_diff_size(w_vec, &powers_of_gamma);
 
   Ok((u_joint, w_joint, sc_proof_batch, claims_batch_left))
 }
@@ -533,37 +524,29 @@ pub(super) fn batch_eval_verify<G: Group>(
   sc_proof_batch: &SumcheckProof<G>,
   evals_batch: &[G::Scalar],
 ) -> Result<PolyEvalInstance<G>, NovaError> {
-  assert_eq!(evals_batch.len(), u_vec.len());
+  let num_claims = u_vec.len();
+  assert_eq!(evals_batch.len(), num_claims);
 
   // generate a challenge
   let rho = transcript.squeeze(b"r")?;
-  let num_claims = u_vec.len();
   let powers_of_rho = powers::<G>(&rho, num_claims);
 
+  // Compute nᵢ and n = maxᵢ{nᵢ}
   let num_rounds = u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
   let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
 
-  let claim_batch_joint = u_vec
-    .iter()
-    .zip(num_rounds.iter())
-    .map(|(u, num_rounds)| {
-      let scaling_factor = 1 << (num_rounds_max - num_rounds);
-      u.e * G::Scalar::from(scaling_factor as u64)
-    })
-    .zip(powers_of_rho.iter())
-    .map(|(e, p)| e * p)
-    .sum();
+  let claims = u_vec.iter().map(|u| u.e).collect::<Vec<_>>();
 
-  let (claim_batch_final, r_z) =
-    sc_proof_batch.verify(claim_batch_joint, num_rounds_max, 2, transcript)?;
+  let (claim_batch_final, r) =
+    sc_proof_batch.verify_batch(&claims, &num_rounds, &powers_of_rho, 2, transcript)?;
 
   let claim_batch_final_expected = {
-    let evals_rz = u_vec.iter().map(|u| {
-      let (_, r_z_hi) = r_z.split_at(num_rounds_max - u.x.len());
-      EqPolynomial::new(r_z_hi.to_vec()).evaluate(&u.x)
+    let evals_r = u_vec.iter().map(|u| {
+      let (_, r_hi) = r.split_at(num_rounds_max - u.x.len());
+      EqPolynomial::new(r_hi.to_vec()).evaluate(&u.x)
     });
 
-    evals_rz
+    evals_r
       .zip(evals_batch.iter())
       .zip(powers_of_rho.iter())
       .map(|((e_i, p_i), rho_i)| e_i * *p_i * rho_i)
@@ -576,33 +559,12 @@ pub(super) fn batch_eval_verify<G: Group>(
 
   transcript.absorb(b"l", &evals_batch);
 
-  // we now combine evaluation claims at the same point rz into one
+  // we now combine evaluation claims at the same point r into one
   let gamma = transcript.squeeze(b"g")?;
-  let powers_of_gamma: Vec<G::Scalar> = powers::<G>(&gamma, num_claims);
 
-  let scaling_factors = u_vec.iter().map(|u| {
-    r_z
-      .iter()
-      .rev()
-      .skip(u.x.len())
-      .map(|r| G::Scalar::ONE - r)
-      .product::<G::Scalar>()
-  });
+  let comms = u_vec.into_iter().map(|u| u.c).collect::<Vec<_>>();
 
-  let comm_joint = u_vec
-    .iter()
-    .zip(powers_of_gamma.iter())
-    .fold(Commitment::<G>::default(), |acc, (u, g_i)| acc + u.c * *g_i);
+  let u_joint = PolyEvalInstance::batch_diff_size(&comms, evals_batch, &num_rounds, r, gamma);
 
-  let eval_joint = scaling_factors
-    .zip(evals_batch.iter())
-    .zip(powers_of_gamma.iter())
-    .map(|((s, e), g_i)| s * *e * *g_i)
-    .sum();
-
-  Ok(PolyEvalInstance::<G> {
-    c: comm_joint,
-    x: r_z,
-    e: eval_joint,
-  })
+  Ok(u_joint)
 }

@@ -61,6 +61,39 @@ impl<G: Group> SumcheckProof<G> {
     Ok((e, r))
   }
 
+  pub fn verify_batch(
+    &self,
+    claims: &[G::Scalar],
+    num_rounds: &[usize],
+    coeffs: &[G::Scalar],
+    degree_bound: usize,
+    transcript: &mut G::TE,
+  ) -> Result<(G::Scalar, Vec<G::Scalar>), NovaError> {
+    let num_instances = claims.len();
+    assert_eq!(num_rounds.len(), num_instances);
+    assert_eq!(coeffs.len(), num_instances);
+
+    // n = maxᵢ{nᵢ}
+    let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+
+    // Random linear combination of claims,
+    // where each claim is scaled by 2^{n-nᵢ} to account for the padding.
+    //
+    // claim = ∑ᵢ coeffᵢ⋅2^{n-nᵢ}⋅cᵢ
+    let claim = claims
+      .iter()
+      .zip(num_rounds.iter())
+      .map(|(claim, num_rounds)| {
+        let scaling_factor = 1 << (num_rounds_max - num_rounds);
+        G::Scalar::from(scaling_factor as u64) * claim
+      })
+      .zip(coeffs.iter())
+      .map(|(scaled_claim, coeff)| scaled_claim * coeff)
+      .sum();
+
+    self.verify(claim, num_rounds_max, degree_bound, transcript)
+  }
+
   #[inline]
   pub(in crate::spartan) fn compute_eval_points_quad<F>(
     poly_A: &MultilinearPolynomial<G::Scalar>,
@@ -192,7 +225,7 @@ impl<G: Group> SumcheckProof<G> {
           } else {
             let remaining_variables = remaining_rounds - num_rounds - 1;
             let scaled_claim = G::Scalar::from((1 << remaining_variables) as u64) * claim;
-            (scaled_claim.clone(), scaled_claim)
+            (scaled_claim, scaled_claim)
           }
         })
         .collect();
@@ -484,7 +517,7 @@ impl<G: Group> SumcheckProof<G> {
             } else {
               let remaining_variables = remaining_rounds - num_rounds - 1;
               let scaled_claim = G::Scalar::from((1 << remaining_variables) as u64) * claim;
-              (scaled_claim.clone(), scaled_claim.clone(), scaled_claim)
+              (scaled_claim, scaled_claim, scaled_claim)
             }
           },
         )
