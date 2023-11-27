@@ -25,6 +25,7 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
+use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
@@ -159,8 +160,7 @@ where
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
       return Err(PCSError::LengthError.into());
     }
-    // TODO: remove the undue clone in the creation of an UVKZGPoly
-    UVKZGPCS::commit(&pp.commit_pp, &UVKZGPoly::new(poly.Z.clone())).map(|c| c.into())
+    UVKZGPCS::commit(&pp.commit_pp, UVKZGPoly::ref_cast(&poly.Z)).map(|c| c.into())
   }
 
   /// Generate a commitment for a list of polynomials
@@ -466,10 +466,9 @@ where
     eval: &NE::Scalar,
   ) -> Result<Self::EvaluationArgument, NovaError> {
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
-    // TODO: the following two lines will need to change base
     let polynomial = MultilinearPolynomial::new(poly.to_vec());
-
     let evaluation = ZMEvaluation(*eval);
+
     ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
   }
 
