@@ -188,7 +188,6 @@ where
   ) -> Result<ZMProof<E>, NovaError> {
     transcript.dom_sep(Self::protocol_name());
 
-    let num_vars = poly.get_num_vars();
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
       return Err(NovaError::PCSError(PCSError::LengthError));
@@ -198,6 +197,7 @@ where
     debug_assert_eq!(poly.evaluate(point), eval.0);
 
     let (quotients, remainder) = quotients(poly, point);
+    debug_assert_eq!(quotients.len(), poly.get_num_vars());
     debug_assert_eq!(remainder, eval.0);
 
     // TODO: this should be a Cow
@@ -217,36 +217,9 @@ where
     // Get challenge y
     let y = transcript.squeeze(b"y")?;
 
-    let powers_of_y = (0..num_vars)
-      .scan(y, |acc, _| {
-        let val = *acc;
-        *acc *= y;
-        Some(val)
-      })
-      .collect::<Vec<E::Fr>>();
-
-    // Compute the batched, lifted-degree quotient `\hat{q}``
-    // q_hat = \sum_{i=0}^{num_vars-1} y^i \cdot q_i(x)
-    let q_hat = {
-      let q_hat = powers_of_y
-        .iter()
-        .zip(quotients_polys.iter().map(|qp| qp.as_ref()))
-        .enumerate()
-        .fold(
-          vec![E::Fr::ZERO; 1 << num_vars],
-          |mut q_hat, (idx, (power_of_y, q))| {
-            let offset = q_hat.len() - (1 << idx);
-            q_hat[offset..]
-              .par_iter_mut()
-              .zip(q)
-              .for_each(|(q_hat, q)| {
-                *q_hat += *power_of_y * *q;
-              });
-            q_hat
-          },
-        );
-      UVKZGPoly::new(q_hat)
-    };
+    // Compute the batched, lifted-degree quotient `\hat{q}`
+    // q_hat = \sum_{i=0}^{num_vars-1} y^i * q_i(x)
+    let q_hat = batched_lifted_degree_quotient(y, &quotients_polys);
     // Compute and absorb the commitment C_q = [\hat{q}]
     let q_hat_comm = UVKZGPCS::commit(&pp.commit_pp, &q_hat)?;
     transcript.absorb(b"q_hat", &q_hat_comm);
@@ -390,6 +363,41 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
   quotients.reverse();
 
   (quotients, remainder[0])
+}
+
+// Compute the batched, lifted-degree quotient `\hat{q}`
+fn batched_lifted_degree_quotient<F: PrimeField>(
+  y: F,
+  quotients_polys: &[UVKZGPoly<F>],
+) -> UVKZGPoly<F> {
+  let num_vars = quotients_polys.len();
+
+  let powers_of_y = (0..num_vars)
+    .scan(y, |acc, _| {
+      let val = *acc;
+      *acc *= y;
+      Some(val)
+    })
+    .collect::<Vec<F>>();
+
+  let q_hat = powers_of_y
+    .iter()
+    .zip(quotients_polys.iter().map(|qp| qp.as_ref()))
+    .enumerate()
+    .fold(
+      vec![F::ZERO; 1 << num_vars],
+      |mut q_hat, (idx, (power_of_y, q))| {
+        let offset = q_hat.len() - (1 << idx);
+        q_hat[offset..]
+          .par_iter_mut()
+          .zip(q)
+          .for_each(|(q_hat, q)| {
+            *q_hat += *power_of_y * *q;
+          });
+        q_hat
+      },
+    );
+  UVKZGPoly::new(q_hat)
 }
 
 /// Computes some key terms necessary for computing the partially evaluated univariate ZM polynomial
