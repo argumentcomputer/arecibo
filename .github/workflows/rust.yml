@@ -28,6 +28,8 @@ jobs:
       uses: actions-rs/toolchain@v1
     - uses: taiki-e/install-action@nextest
     - uses: Swatinem/rust-cache@v2
+    - name: Check the minroot example compiles under the abomonate feature
+      run: cargo check --profile dev-ci --features "abomonate" --examples 
     - name: Build, with benches & examples
       run: cargo build --profile dev-ci --benches --examples 
     - name: Linux Tests in parallel, with nextest profile ci and cargo profile dev-ci
