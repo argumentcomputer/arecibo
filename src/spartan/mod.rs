@@ -39,29 +39,20 @@ pub struct PolyEvalWitness<E: Engine> {
 }
 
 impl<G: Group> PolyEvalWitness<G> {
-  // fn pad(W: &[PolyEvalWitness<G>]) -> Vec<PolyEvalWitness<G>> {
-  //   // determine the maximum size
-  //   if let Some(n) = W.iter().map(|w| w.p.len()).max() {
-  //     W.iter()
-  //       .map(|w| {
-  //         let mut p = vec![G::Scalar::ZERO; n];
-  //         p[..w.p.len()].copy_from_slice(&w.p);
-  //         PolyEvalWitness { p }
-  //       })
-  //       .collect()
-  //   } else {
-  //     Vec::new()
-  //   }
-  // }
-
-  fn weighted_sum(W: Vec<PolyEvalWitness<E>>, s: &[E::Scalar]) -> PolyEvalWitness<E> {
-    assert_eq!(W.len(), s.len());
+  /// Given [Pᵢ] and [sᵢ], compute P = ∑ᵢ sᵢ⋅Pᵢ
+  ///
+  /// # Details
+  ///
+  /// We allow the input polynomials to have different sizes, and interpret smaller ones as
+  /// being padded with 0 to the maximum size of all polynomials.
+  fn batch_diff_size(W: Vec<PolyEvalWitness<E>>, s: E::Scalar) -> PolyEvalWitness<E> {
+    let powers = powers::<G>(&s, W.len());
 
     let size_max = W.iter().map(|w| w.p.len()).max().unwrap();
 
     let p = W
       .into_par_iter()
-      .zip(s.par_iter())
+      .zip(powers.par_iter())
       .map(|(mut w, s)| {
         w.p.par_iter_mut().for_each(|e| *e *= s);
         w.p
@@ -69,6 +60,7 @@ impl<G: Group> PolyEvalWitness<G> {
       .reduce(
         || vec![G::Scalar::ZERO; size_max],
         |left, right| {
+          // Sum into the largest polynomial
           let (mut big, small) = if left.len() > right.len() {
             (left, right)
           } else {
@@ -121,21 +113,60 @@ pub struct PolyEvalInstance<E: Engine> {
   e: E::Scalar,      // claimed evaluation
 }
 
-impl<E: Engine> PolyEvalInstance<E> {
-  // fn pad(U: Vec<PolyEvalInstance<E>>) -> Vec<PolyEvalInstance<E>> {
-  //   // determine the maximum size
-  //   if let Some(ell) = U.iter().map(|u| u.x.len()).max() {
-  //     U.into_iter()
-  //       .map(|mut u| {
-  //         let mut x = vec![E::Scalar::ZERO; ell - u.x.len()];
-  //         x.append(&mut u.x);
-  //         PolyEvalInstance { x, ..u }
-  //       })
-  //       .collect()
-  //   } else {
-  //     Vec::new()
-  //   }
-  // }
+impl<G: Group> PolyEvalInstance<G> {
+  fn batch_diff_size(
+    c_vec: &[Commitment<G>],
+    e_vec: &[G::Scalar],
+    num_vars: &[usize],
+    x: Vec<G::Scalar>,
+    s: G::Scalar,
+  ) -> PolyEvalInstance<G> {
+    let num_instances = num_vars.len();
+    assert_eq!(c_vec.len(), num_instances);
+    assert_eq!(e_vec.len(), num_instances);
+
+    let num_vars_max = x.len();
+    let powers: Vec<G::Scalar> = powers::<G>(&s, num_instances);
+    // Rescale evaluations by the first Lagrange polynomial,
+    // so that we can check its evaluation against x
+    let evals_scaled = e_vec
+      .iter()
+      .zip(num_vars.iter())
+      .map(|(eval, num_rounds)| {
+        // x_lo = [ x[0]   , ..., x[n-nᵢ-1] ]
+        // x_hi = [ x[n-nᵢ], ..., x[n]      ]
+        let (r_lo, _r_hi) = x.split_at(num_vars_max - num_rounds);
+        // Compute L₀(x_lo)
+        let lagrange_eval = r_lo
+          .iter()
+          .map(|r| G::Scalar::ONE - r)
+          .product::<G::Scalar>();
+
+        // vᵢ = L₀(x_lo)⋅Pᵢ(x_hi)
+        lagrange_eval * eval
+      })
+      .collect::<Vec<_>>();
+
+    // C = ∑ᵢ γⁱ⋅Cᵢ
+    let comm_joint = c_vec
+      .iter()
+      .zip(powers.iter())
+      .map(|(c, g_i)| *c * *g_i)
+      .fold(Commitment::<G>::default(), |acc, item| acc + item);
+
+    // v = ∑ᵢ γⁱ⋅vᵢ
+    let eval_joint = evals_scaled
+      .into_iter()
+      .zip(powers.iter())
+      .map(|(e, g_i)| e * g_i)
+      .sum();
+
+    PolyEvalInstance {
+      c: comm_joint,
+      x,
+      e: eval_joint,
+    }
+  }
 
   fn batch(
     c_vec: &[Commitment<E>],
@@ -143,12 +174,17 @@ impl<E: Engine> PolyEvalInstance<E> {
     e_vec: &[E::Scalar],
     s: &E::Scalar,
   ) -> PolyEvalInstance<E> {
-    let powers_of_s = powers::<E>(s, c_vec.len());
+    let num_instances = c_vec.len();
+    assert_eq!(e_vec.len(), num_instances);
+
+    let powers_of_s = powers::<E>(s, num_instances);
+    // Weighted sum of evaluations
     let e = e_vec
       .par_iter()
       .zip_eq(powers_of_s.par_iter())
       .map(|(e, p)| *e * p)
       .sum();
+    // Weighted sum of commitments
     let c = c_vec
       .par_iter()
       .zip_eq(powers_of_s.par_iter())
