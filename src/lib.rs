@@ -266,14 +266,14 @@ where
 /// A resource sink for [`RecursiveSNARK`]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct ResourceSink<G1, G2>
+pub struct ResourceSink<E1, E2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  l_w_primary: R1CSWitness<G1>,
-  l_u_primary: R1CSInstance<G1>,
-  _p: PhantomData<(G1, G2)>,
+  l_w_primary: R1CSWitness<E1>,
+  l_u_primary: R1CSInstance<E1>,
+  _p: PhantomData<(E1, E2)>,
 }
 
 /// A SNARK that proves the correct execution of an incremental computation
@@ -286,16 +286,16 @@ where
   C1: StepCircuit<E1::Scalar>,
   C2: StepCircuit<E2::Scalar>,
 {
-  z0_primary: Vec<G1::Scalar>,
-  z0_secondary: Vec<G2::Scalar>,
-  r_W_primary: RelaxedR1CSWitness<G1>,
-  r_U_primary: RelaxedR1CSInstance<G1>,
-  r_W_secondary: RelaxedR1CSWitness<G2>,
-  r_U_secondary: RelaxedR1CSInstance<G2>,
-  l_w_secondary: R1CSWitness<G2>,
-  l_u_secondary: R1CSInstance<G2>,
+  z0_primary: Vec<E1::Scalar>,
+  z0_secondary: Vec<E2::Scalar>,
+  r_W_primary: RelaxedR1CSWitness<E1>,
+  r_U_primary: RelaxedR1CSInstance<E1>,
+  r_W_secondary: RelaxedR1CSWitness<E2>,
+  r_U_secondary: RelaxedR1CSInstance<E2>,
+  l_w_secondary: R1CSWitness<E2>,
+  l_u_secondary: R1CSInstance<E2>,
 
-  sink: ResourceSink<G1, G2>,
+  sink: ResourceSink<E1, E2>,
   i: usize,
   zi_primary: Vec<E1::Scalar>,
   zi_secondary: Vec<E2::Scalar>,
@@ -327,10 +327,10 @@ where
     // base case for the primary
     let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
     let mut cs_primary =
-      WitnessViewCS::<G1::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
-    let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<G1>(pp.digest()),
-      G1::Scalar::ZERO,
+      WitnessViewCS::<E1::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
+    let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
+      scalar_as_base::<E1>(pp.digest()),
+      E1::Scalar::ZERO,
       z0_primary.to_vec(),
       None,
       None,
@@ -359,8 +359,8 @@ where
     // base case for the secondary
     let (mut input_assignment, mut aux_assignment) = (Vec::new(), Vec::new());
     let mut cs_secondary =
-      WitnessViewCS::<G2::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
-    let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
+      WitnessViewCS::<E2::Scalar>::new_view(&mut input_assignment, &mut aux_assignment);
+    let inputs_secondary: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       E2::Scalar::ZERO,
       z0_secondary.to_vec(),
@@ -397,8 +397,8 @@ where
     // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
-    let r_W_secondary = RelaxedR1CSWitness::<G2>::default(r1cs_secondary);
-    let r_U_secondary = RelaxedR1CSInstance::<G2>::default(&pp.ck_secondary, r1cs_secondary);
+    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
@@ -487,13 +487,13 @@ where
     .expect("Unable to fold secondary");
 
     // increment `l_u_primary` and `l_w_primary`
-    let mut cs_primary = WitnessViewCS::<G1::Scalar>::new_view(
+    let mut cs_primary = WitnessViewCS::<E1::Scalar>::new_view(
       &mut self.sink.l_u_primary.X,
       &mut self.sink.l_w_primary.W,
     );
-    let inputs_primary: NovaAugmentedCircuitInputs<G2> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<G1>(pp.digest()),
-      G1::Scalar::from(self.i as u64),
+    let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
+      scalar_as_base::<E1>(pp.digest()),
+      E1::Scalar::from(self.i as u64),
       self.z0_primary.to_vec(),
       Some(self.zi_primary.clone()),
       Some(self.r_U_secondary.clone()),
@@ -534,15 +534,15 @@ where
 
     // increment `l_u_secondary` and `l_w_secondary`
     let mut cs_secondary =
-      WitnessViewCS::<G2::Scalar>::new_view(&mut self.l_u_secondary.X, &mut self.l_w_secondary.W);
-    let inputs_secondary: NovaAugmentedCircuitInputs<G1> = NovaAugmentedCircuitInputs::new(
+      WitnessViewCS::<E2::Scalar>::new_view(&mut self.l_u_secondary.X, &mut self.l_w_secondary.W);
+    let inputs_secondary: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       E2::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
       Some(self.r_U_primary.clone()),
       Some(self.sink.l_u_primary.clone()),
-      Some(Commitment::<G1>::decompress(&nifs_primary.comm_T)?),
+      Some(Commitment::<E1>::decompress(&nifs_primary.comm_T)?),
     );
 
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(

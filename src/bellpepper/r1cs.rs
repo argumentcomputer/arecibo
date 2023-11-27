@@ -40,15 +40,15 @@ pub trait NovaShape<E: Engine> {
 impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
   fn r1cs_instance_and_witness(
     &self,
-    shape: &R1CSShape<G>,
-    ck: &CommitmentKey<G>,
-  ) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError> {
-    let W = R1CSWitness::<G>::new(shape, self.aux_assignment().to_owned())?;
+    shape: &R1CSShape<E>,
+    ck: &CommitmentKey<E>,
+  ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
+    let W = R1CSWitness::<E>::new(shape, self.aux_assignment().to_owned())?;
     let X = self.input_assignment()[1..].to_owned();
 
     let comm_W = W.commit(ck);
 
-    let instance = R1CSInstance::<G>::new(shape, comm_W, X)?;
+    let instance = R1CSInstance::<E>::new(shape, comm_W, X)?;
 
     Ok((instance, W))
   }

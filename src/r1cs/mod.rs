@@ -46,8 +46,8 @@ impl<E: Engine> SimpleDigestible for R1CSShape<E> {}
 
 /// A type that holds a witness for a given R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct R1CSWitness<G: Group> {
-  pub(crate) W: Vec<G::Scalar>,
+pub struct R1CSWitness<E: Engine> {
+  pub(crate) W: Vec<E::Scalar>,
 }
 
 /// A type that holds an R1CS instance
@@ -384,16 +384,16 @@ impl<E: Engine> R1CSShape<E> {
   }
 }
 
-impl<G: Group> R1CSWitness<G> {
+impl<E: Engine> R1CSWitness<E> {
   /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
-  pub fn default(S: &R1CSShape<G>) -> R1CSWitness<G> {
+  pub fn default(S: &R1CSShape<E>) -> R1CSWitness<E> {
     R1CSWitness {
-      W: vec![G::Scalar::ZERO; S.num_vars],
+      W: vec![E::Scalar::ZERO; S.num_vars],
     }
   }
 
   /// A method to create a witness object using a vector of scalars
-  pub fn new(S: &R1CSShape<G>, W: Vec<G::Scalar>) -> Result<R1CSWitness<G>, NovaError> {
+  pub fn new(S: &R1CSShape<E>, W: Vec<E::Scalar>) -> Result<R1CSWitness<E>, NovaError> {
     if S.num_vars != W.len() {
       Err(NovaError::InvalidWitnessLength)
     } else {
@@ -407,20 +407,20 @@ impl<G: Group> R1CSWitness<G> {
   }
 }
 
-impl<G: Group> R1CSInstance<G> {
+impl<E: Engine> R1CSInstance<E> {
   /// Produces a default `R1CSInstance` given `CommitmentKey` and `R1CSShape`
-  pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> R1CSInstance<G> {
-    let comm_W = Commitment::<G>::default();
-    let X = vec![G::Scalar::ZERO; S.num_io];
+  pub fn default(_ck: &CommitmentKey<E>, S: &R1CSShape<E>) -> R1CSInstance<E> {
+    let comm_W = Commitment::<E>::default();
+    let X = vec![E::Scalar::ZERO; S.num_io];
     R1CSInstance { comm_W, X }
   }
 
   /// A method to create an instance object using consitituent elements
   pub fn new(
-    S: &R1CSShape<G>,
-    comm_W: Commitment<G>,
-    X: Vec<G::Scalar>,
-  ) -> Result<R1CSInstance<G>, NovaError> {
+    S: &R1CSShape<E>,
+    comm_W: Commitment<E>,
+    X: Vec<E::Scalar>,
+  ) -> Result<R1CSInstance<E>, NovaError> {
     if S.num_io != X.len() {
       Err(NovaError::InvalidInputLength)
     } else {
@@ -448,10 +448,10 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
   }
 
   /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
-  pub fn from_r1cs_witness(S: &R1CSShape<G>, witness: R1CSWitness<G>) -> RelaxedR1CSWitness<G> {
+  pub fn from_r1cs_witness(S: &R1CSShape<E>, witness: R1CSWitness<E>) -> RelaxedR1CSWitness<E> {
     RelaxedR1CSWitness {
       W: witness.W,
-      E: vec![G::Scalar::ZERO; S.num_cons],
+      E: vec![E::Scalar::ZERO; S.num_cons],
     }
   }
 
@@ -513,17 +513,17 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance(
-    _ck: &CommitmentKey<G>,
-    S: &R1CSShape<G>,
-    instance: R1CSInstance<G>,
-  ) -> RelaxedR1CSInstance<G> {
+    _ck: &CommitmentKey<E>,
+    S: &R1CSShape<E>,
+    instance: R1CSInstance<E>,
+  ) -> RelaxedR1CSInstance<E> {
     assert_eq!(S.num_io, instance.X.len());
     // assert_eq!(G::Scalar::ONE, instance.X[0]);
 
     RelaxedR1CSInstance {
       comm_W: instance.comm_W,
-      comm_E: Commitment::<G>::default(),
-      u: G::Scalar::ONE,
+      comm_E: Commitment::<E>::default(),
+      u: E::Scalar::ONE,
       X: instance.X,
     }
   }
@@ -600,16 +600,16 @@ impl<E: Engine> AbsorbInROTrait<E> for RelaxedR1CSInstance<E> {
 }
 
 /// Return an instance and witness, given a shape, ck, and the needed vectors.
-pub fn instance_and_witness<G: Group>(
-  shape: &R1CSShape<G>,
-  ck: &CommitmentKey<G>,
-  input_assignment: &[G::Scalar],
-  aux_assignment: Vec<G::Scalar>,
-) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError> {
-  let W = R1CSWitness::<G>::new(shape, aux_assignment)?;
+pub fn instance_and_witness<E: Engine>(
+  shape: &R1CSShape<E>,
+  ck: &CommitmentKey<E>,
+  input_assignment: &[E::Scalar],
+  aux_assignment: Vec<E::Scalar>,
+) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
+  let W = R1CSWitness::<E>::new(shape, aux_assignment)?;
   let comm_W = W.commit(ck);
   let X = input_assignment[1..].to_owned();
-  let instance = R1CSInstance::<G>::new(shape, comm_W, X)?;
+  let instance = R1CSInstance::<E>::new(shape, comm_W, X)?;
 
   Ok((instance, W))
 }
