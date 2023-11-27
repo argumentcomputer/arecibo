@@ -46,8 +46,8 @@ impl<E: Engine> SimpleDigestible for R1CSShape<E> {}
 
 /// A type that holds a witness for a given R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct R1CSWitness<E: Engine> {
-  W: Vec<E::Scalar>,
+pub struct R1CSWitness<G: Group> {
+  pub(crate) W: Vec<G::Scalar>,
 }
 
 /// A type that holds an R1CS instance
@@ -384,13 +384,20 @@ impl<E: Engine> R1CSShape<E> {
   }
 }
 
-impl<E: Engine> R1CSWitness<E> {
+impl<G: Group> R1CSWitness<G> {
+  /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
+  pub fn default(S: &R1CSShape<G>) -> R1CSWitness<G> {
+    R1CSWitness {
+      W: vec![G::Scalar::ZERO; S.num_vars],
+    }
+  }
+
   /// A method to create a witness object using a vector of scalars
-  pub fn new(S: &R1CSShape<E>, W: &[E::Scalar]) -> Result<R1CSWitness<E>, NovaError> {
+  pub fn new(S: &R1CSShape<G>, W: Vec<G::Scalar>) -> Result<R1CSWitness<G>, NovaError> {
     if S.num_vars != W.len() {
       Err(NovaError::InvalidWitnessLength)
     } else {
-      Ok(R1CSWitness { W: W.to_owned() })
+      Ok(R1CSWitness { W })
     }
   }
 
@@ -400,20 +407,24 @@ impl<E: Engine> R1CSWitness<E> {
   }
 }
 
-impl<E: Engine> R1CSInstance<E> {
+impl<G: Group> R1CSInstance<G> {
+  /// Produces a default `R1CSInstance` given `CommitmentKey` and `R1CSShape`
+  pub fn default(_ck: &CommitmentKey<G>, S: &R1CSShape<G>) -> R1CSInstance<G> {
+    let comm_W = Commitment::<G>::default();
+    let X = vec![G::Scalar::ZERO; S.num_io];
+    R1CSInstance { comm_W, X }
+  }
+
   /// A method to create an instance object using consitituent elements
   pub fn new(
-    S: &R1CSShape<E>,
-    comm_W: &Commitment<E>,
-    X: &[E::Scalar],
-  ) -> Result<R1CSInstance<E>, NovaError> {
+    S: &R1CSShape<G>,
+    comm_W: Commitment<G>,
+    X: Vec<G::Scalar>,
+  ) -> Result<R1CSInstance<G>, NovaError> {
     if S.num_io != X.len() {
       Err(NovaError::InvalidInputLength)
     } else {
-      Ok(R1CSInstance {
-        comm_W: *comm_W,
-        X: X.to_owned(),
-      })
+      Ok(R1CSInstance { comm_W, X })
     }
   }
 }
@@ -437,10 +448,10 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
   }
 
   /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
-  pub fn from_r1cs_witness(S: &R1CSShape<E>, witness: &R1CSWitness<E>) -> RelaxedR1CSWitness<E> {
+  pub fn from_r1cs_witness(S: &R1CSShape<G>, witness: R1CSWitness<G>) -> RelaxedR1CSWitness<G> {
     RelaxedR1CSWitness {
-      W: witness.W.clone(),
-      E: vec![E::Scalar::ZERO; S.num_cons],
+      W: witness.W,
+      E: vec![G::Scalar::ZERO; S.num_cons],
     }
   }
 
@@ -502,15 +513,19 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance(
-    ck: &CommitmentKey<E>,
-    S: &R1CSShape<E>,
-    instance: &R1CSInstance<E>,
-  ) -> RelaxedR1CSInstance<E> {
-    let mut r_instance = RelaxedR1CSInstance::default(ck, S);
-    r_instance.comm_W = instance.comm_W;
-    r_instance.u = E::Scalar::ONE;
-    r_instance.X = instance.X.clone();
-    r_instance
+    _ck: &CommitmentKey<G>,
+    S: &R1CSShape<G>,
+    instance: R1CSInstance<G>,
+  ) -> RelaxedR1CSInstance<G> {
+    assert_eq!(S.num_io, instance.X.len());
+    // assert_eq!(G::Scalar::ONE, instance.X[0]);
+
+    RelaxedR1CSInstance {
+      comm_W: instance.comm_W,
+      comm_E: Commitment::<G>::default(),
+      u: G::Scalar::ONE,
+      X: instance.X,
+    }
   }
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
@@ -582,6 +597,21 @@ impl<E: Engine> AbsorbInROTrait<E> for RelaxedR1CSInstance<E> {
       }
     }
   }
+}
+
+/// Return an instance and witness, given a shape, ck, and the needed vectors.
+pub fn instance_and_witness<G: Group>(
+  shape: &R1CSShape<G>,
+  ck: &CommitmentKey<G>,
+  input_assignment: &[G::Scalar],
+  aux_assignment: Vec<G::Scalar>,
+) -> Result<(R1CSInstance<G>, R1CSWitness<G>), NovaError> {
+  let W = R1CSWitness::<G>::new(shape, aux_assignment)?;
+  let comm_W = W.commit(ck);
+  let X = input_assignment[1..].to_owned();
+  let instance = R1CSInstance::<G>::new(shape, comm_W, X)?;
+
+  Ok((instance, W))
 }
 
 #[cfg(test)]
