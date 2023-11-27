@@ -1,13 +1,10 @@
 //! This module implements the Nova traits for `pallas::Point`, `pallas::Scalar`, `vesta::Point`, `vesta::Scalar`.
 use crate::{
   provider::{
-    cpu_best_multiexp,
-    keccak::Keccak256Transcript,
-    pedersen::CommitmentEngine,
-    poseidon::{PoseidonRO, PoseidonROCircuit},
-    CompressedGroup, DlogGroup,
+    msm::cpu_best_msm,
+    traits::{CompressedGroup, DlogGroup},
   },
-  traits::{Engine, Group, PrimeFieldExt, TranscriptReprTrait},
+  traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use digest::{ExtendableOutput, Update};
 use ff::{FromUniformBytes, PrimeField};
@@ -50,17 +47,8 @@ impl VestaCompressedElementWrapper {
   }
 }
 
-/// An implementation of the Nova `Engine` trait with Pallas curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct PallasEngine;
-
-/// An implementation of the Nova `Engine` trait with Vesta curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct VestaEngine;
-
 macro_rules! impl_traits {
   (
-    $engine:ident,
     $name:ident,
     $name_compressed:ident,
     $name_curve:ident,
@@ -68,16 +56,6 @@ macro_rules! impl_traits {
     $order_str:literal,
     $base_str:literal
   ) => {
-    impl Engine for $engine {
-      type Base = $name::Base;
-      type Scalar = $name::Scalar;
-      type GE = $name::Point;
-      type RO = PoseidonRO<Self::Base, Self::Scalar>;
-      type ROCircuit = PoseidonROCircuit<Self::Base>;
-      type TE = Keccak256Transcript<Self>;
-      type CE = CommitmentEngine<Self>;
-    }
-
     impl Group for $name::Point {
       type Base = $name::Base;
       type Scalar = $name::Scalar;
@@ -96,7 +74,6 @@ macro_rules! impl_traits {
       type CompressedGroupElement = $name_compressed;
       type PreprocessedGroupElement = $name::Affine;
 
-      #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
       #[tracing::instrument(
         skip_all,
         level = "trace",
@@ -106,27 +83,22 @@ macro_rules! impl_traits {
         scalars: &[Self::Scalar],
         bases: &[Self::PreprocessedGroupElement],
       ) -> Self {
+        #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         if scalars.len() >= 128 {
           pasta_msm::$name(bases, scalars)
         } else {
-          cpu_best_multiexp(scalars, bases)
+          cpu_best_msm(scalars, bases)
         }
-      }
-
-      #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-      fn vartime_multiscalar_mul(
-        scalars: &[Self::Scalar],
-        bases: &[Self::PreprocessedGroupElement],
-      ) -> Self {
-        cpu_best_multiexp(scalars, bases)
-      }
-
-      fn compress(&self) -> Self::CompressedGroupElement {
-        $name_compressed::new(self.to_bytes())
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        cpu_best_msm(scalars, bases)
       }
 
       fn preprocessed(&self) -> Self::PreprocessedGroupElement {
         self.to_affine()
+      }
+
+      fn compress(&self) -> Self::CompressedGroupElement {
+        $name_compressed::new(self.to_bytes())
       }
 
       fn from_label(label: &'static [u8], n: usize) -> Vec<Self::PreprocessedGroupElement> {
@@ -196,17 +168,17 @@ macro_rules! impl_traits {
       }
     }
 
-    impl<G: DlogGroup> TranscriptReprTrait<G> for $name_compressed {
-      fn to_transcript_bytes(&self) -> Vec<u8> {
-        self.repr.to_vec()
-      }
-    }
-
     impl CompressedGroup for $name_compressed {
       type GroupElement = $name::Point;
 
       fn decompress(&self) -> Option<$name::Point> {
         Some($name_curve::from_bytes(&self.repr).unwrap())
+      }
+    }
+
+    impl<G: DlogGroup> TranscriptReprTrait<G> for $name_compressed {
+      fn to_transcript_bytes(&self) -> Vec<u8> {
+        self.repr.to_vec()
       }
     }
 
@@ -219,7 +191,6 @@ macro_rules! impl_traits {
 }
 
 impl_traits!(
-  PallasEngine,
   pallas,
   PallasCompressedElementWrapper,
   Ep,
@@ -229,7 +200,6 @@ impl_traits!(
 );
 
 impl_traits!(
-  VestaEngine,
   vesta,
   VestaCompressedElementWrapper,
   Eq,
@@ -237,37 +207,3 @@ impl_traits!(
   "40000000000000000000000000000000224698fc094cf91b992d30ed00000001",
   "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001"
 );
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-  type G = <PallasEngine as Engine>::GE;
-
-  fn from_label_serial(label: &'static [u8], n: usize) -> Vec<EpAffine> {
-    let mut shake = Shake256::default();
-    shake.update(label);
-    let mut reader = shake.finalize_xof();
-    let mut ck = Vec::new();
-    for _ in 0..n {
-      let mut uniform_bytes = [0u8; 32];
-      reader.read_exact(&mut uniform_bytes).unwrap();
-      let hash = Ep::hash_to_curve("from_uniform_bytes");
-      ck.push(hash(&uniform_bytes).to_affine());
-    }
-    ck
-  }
-
-  #[test]
-  fn test_from_label() {
-    let label = b"test_from_label";
-    for n in [
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1021,
-    ] {
-      let ck_par = <G as DlogGroup>::from_label(label, n);
-      let ck_ser = from_label_serial(label, n);
-      assert_eq!(ck_par.len(), n);
-      assert_eq!(ck_ser.len(), n);
-      assert_eq!(ck_par, ck_ser);
-    }
-  }
-}

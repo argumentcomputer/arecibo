@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use criterion::*;
 use ff::PrimeField;
 use nova_snark::{
-  provider::pasta::{PallasEngine, VestaEngine},
+  provider::{PallasEngine, VestaEngine},
   supernova::NonUniformCircuit,
   supernova::{PublicParams, RecursiveSNARK},
   traits::{
