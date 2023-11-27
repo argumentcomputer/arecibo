@@ -229,7 +229,8 @@ where
     let z = transcript.squeeze(b"z")?;
 
     // Compute batched degree and ZM-identity quotient polynomial pi
-    let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
+    let (eval_scalar, (degree_check_q_scalars, zmpoly_q_scalars)) =
+      eval_and_quotient_scalars(y, x, z, point);
     // f = z * poly.Z + q\_hat + (-z * Φ_n(x) * e) + \sum_k (q\_scalars_k * q_k)
     let mut f = UVKZGPoly::new(poly.Z.clone());
     f *= &z;
@@ -237,9 +238,10 @@ where
     f[0] += eval_scalar * eval.0;
     quotients_polys
       .into_iter()
-      .zip(q_scalars)
-      .for_each(|(mut q, scalar)| {
-        q *= &scalar;
+      .zip(degree_check_q_scalars)
+      .zip(zmpoly_q_scalars)
+      .for_each(|((mut q, degree_check_scalar), zm_poly_scalar)| {
+        q *= &(degree_check_scalar + zm_poly_scalar);
         f += &q;
       });
     debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
@@ -285,7 +287,14 @@ where
     let x = transcript.squeeze(b"x")?;
     let z = transcript.squeeze(b"z")?;
 
-    let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
+    let (eval_scalar, (mut q_scalars, zmpoly_q_scalars)) =
+      eval_and_quotient_scalars(y, x, z, point);
+    q_scalars
+      .iter_mut()
+      .zip(zmpoly_q_scalars)
+      .for_each(|(scalar, zm_poly_scalar)| {
+        *scalar += zm_poly_scalar;
+      });
     let scalars = [vec![E::Fr::ONE, z, eval_scalar * evaluation.0], q_scalars].concat();
     let bases = [
       vec![proof.cqhat.0, comm.0, vk.vp.g],
@@ -401,7 +410,7 @@ fn batched_lifted_degree_quotient<F: PrimeField>(
 }
 
 /// Computes some key terms necessary for computing the partially evaluated univariate ZM polynomial
-fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec<F>) {
+fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, (Vec<F>, Vec<F>)) {
   let num_vars = point.len();
 
   // squares_of_x = [x, x^2, .. x^{2^k}, .. x^{2^num_vars}]
@@ -449,10 +458,10 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec
     .zip(point.iter().rev()) // assume variables come in LE form u_n..u_0
     .map(
       |(((((power_of_y, offset_of_x), square_of_x), v_i), v_j), u_i)| {
-        -(power_of_y * offset_of_x + z * (square_of_x * v_j - *u_i * v_i))
+        (-(power_of_y * offset_of_x), -(z * (square_of_x * v_j - *u_i * v_i)))
       },
     )
-    .collect::<Vec<_>>();
+    .unzip();
 
   // -vs[0] * z = -z \frac{x^{2^{num\_vars}} - 1}{x - 1} = -z Φ_n(x)
   (-vs[0] * z, q_scalars)
@@ -657,7 +666,7 @@ mod test {
     let quotients = vec![q_0, q_1, q_2];
 
     // Generate a random y challenge
-    let y_challenge = Fr::random(&mut rng); // Assuming rng is a random number generator
+    let y_challenge = Fr::random(&mut rng);
 
     // Compute batched quotient \hat{q} using the function
     let batched_quotient = batched_lifted_degree_quotient(y_challenge, &quotients);
