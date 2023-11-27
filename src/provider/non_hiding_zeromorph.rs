@@ -226,6 +226,7 @@ where
       .collect::<Vec<E::Fr>>();
 
     // Compute the batched, lifted-degree quotient `\hat{q}``
+    // q_hat = \sum_{i=0}^{num_vars-1} y^i \cdot q_i(x)
     let q_hat = {
       let q_hat = powers_of_y
         .iter()
@@ -256,6 +257,7 @@ where
 
     // Compute batched degree and ZM-identity quotient polynomial pi
     let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
+    // f = z * poly.Z + q\_hat + (-z * Φ_n(x) * e) + \sum_k (q\_scalars_k * q_k)
     let mut f = UVKZGPoly::new(poly.Z.clone());
     f *= &z;
     f += &q_hat;
@@ -390,12 +392,15 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
   (quotients, remainder[0])
 }
 
+/// Computes some key terms necessary for computing the partially evaluated univariate ZM polynomial
 fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec<F>) {
   let num_vars = point.len();
 
+  // squares_of_x = [x, x^2, .. x^{2^k}, .. x^{2^num_vars}]
   let squares_of_x = iter::successors(Some(x), |&x| Some(x.square()))
     .take(num_vars + 1)
     .collect::<Vec<_>>();
+  // offsets_of_x = [Π_{j=i}^{num_vars-1} x^{2^j}, i \in 0..=num_vars-1] = [x^{2^num_vars - 2^i}, i \in 0..=num_vars-1]
   let offsets_of_x = {
     let mut offsets_of_x = squares_of_x
       .iter()
@@ -409,6 +414,10 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec
     offsets_of_x.reverse();
     offsets_of_x
   };
+
+  // vs = [ \frac{(x^{2^{num_vars}} - 1)}{x^{2^i} - 1}, i \in 0..=num_vars-1]
+  // Note Φ_{n-i}(x^{2^i}) = \frac{(x^{2^i})^{2^{n-i|} - 1}{x^{2^i} - 1} = \frac{(x^{2^{num_vars}} - 1)}{x^{2^i} - 1} = vs[i]
+  //      Φ_{n-i-1}(x^{2^{i+1}}) = \frac{(x^{2^{i+1}})^{2^{n-i-1}} - 1}{x^{2^{i+1}} - 1} = \frac{(x^{2^{num_vars}} - 1)}{x^{2^{i+1}} - 1} = vs[i+1]
   let vs = {
     let v_numer = squares_of_x[num_vars] - F::ONE;
     let mut v_denoms = squares_of_x
@@ -421,12 +430,15 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec
       .map(|v_denom| v_numer * v_denom)
       .collect::<Vec<_>>()
   };
+
+  // q_scalars = [- (y^i * x^{2^num_vars - 2^i} + z * (x^{2^i} * vs_{i+1} - u_i * vs_i)), i = 0..=num_vars-1]
+  //           = [- (y^i * x^{2^num_vars - 2^i} + z * (x^{2^i} * Φ_{n-i-1}(x^{2^{i+1}}) - u_i * Φ_{n-i}(x^{2^i}))), i = 0..=num_vars-1]
   let q_scalars = iter::successors(Some(y), |acc| Some(*acc * y))
     .zip(offsets_of_x)
     .zip(squares_of_x)
     .zip(&vs)
     .zip(&vs[1..])
-    .zip(point.iter().rev()) // assume variables come in LE form
+    .zip(point.iter().rev()) // assume variables come in LE form u_n..u_0
     .map(
       |(((((power_of_y, offset_of_x), square_of_x), v_i), v_j), u_i)| {
         -(power_of_y * offset_of_x + z * (square_of_x * v_j - *u_i * v_i))
@@ -434,6 +446,7 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec
     )
     .collect::<Vec<_>>();
 
+  // -vs[0] * z = -z \frac{x^{2^{num\_vars}} - 1}{x - 1} = -z Φ_n(x)
   (-vs[0] * z, q_scalars)
 }
 
