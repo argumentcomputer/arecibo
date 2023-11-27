@@ -525,8 +525,8 @@ mod test {
     provider::{
       bn256_grumpkin::{bn256, Bn256Engine},
       keccak::Keccak256Transcript,
-      non_hiding_kzg::UVUniversalKZGParam,
-      non_hiding_zeromorph::{trim, ZMEvaluation, ZMPCS},
+      non_hiding_kzg::{UVKZGPoly, UVUniversalKZGParam},
+      non_hiding_zeromorph::{batched_lifted_degree_quotient, trim, ZMEvaluation, ZMPCS},
       DlogGroup,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
@@ -639,5 +639,52 @@ mod test {
       bool::from(result.is_zero()),
       "The computed quotients should satisfy the polynomial identity."
     );
+  }
+
+  #[test]
+  fn test_batched_lifted_degree_quotient() {
+    // Define the field and polynomial types
+    type Fr = bn256::Scalar;
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let num_vars = 3;
+    let n = 1 << num_vars; // Assuming N = 2^num_vars
+
+    // Define mock q_k with deg(q_k) = 2^k - 1
+    let q_0 = UVKZGPoly::new(vec![Fr::one()]);
+    let q_1 = UVKZGPoly::new(vec![Fr::from(2), Fr::from(3)]);
+    let q_2 = UVKZGPoly::new(vec![Fr::from(4), Fr::from(5), Fr::from(6), Fr::from(7)]);
+    let quotients = vec![q_0, q_1, q_2];
+
+    // Generate a random y challenge
+    let y_challenge = Fr::random(&mut rng); // Assuming rng is a random number generator
+
+    // Compute batched quotient \hat{q} using the function
+    let batched_quotient = batched_lifted_degree_quotient(y_challenge, &quotients);
+
+    // Now explicitly define q_k_lifted = X^{N-2^k} * q_k and compute the expected batched result
+    let q_0_lifted = [vec![Fr::zero(); n - 1], vec![Fr::one()]].concat();
+    let q_1_lifted = [vec![Fr::zero(); n - 2], vec![Fr::from(2), Fr::from(3)]].concat();
+    let q_2_lifted = [
+      vec![Fr::zero(); n - 4],
+      vec![Fr::from(4), Fr::from(5), Fr::from(6), Fr::from(7)],
+    ]
+    .concat();
+
+    // Explicitly compute \hat{q}
+    let mut batched_quotient_expected = vec![Fr::zero(); n];
+    batched_quotient_expected
+      .iter_mut()
+      .zip(q_0_lifted)
+      .zip(q_1_lifted)
+      .zip(q_2_lifted)
+      .for_each(|(((res, q_0), q_1), q_2)| {
+        *res += y_challenge * q_0
+          + y_challenge * y_challenge * q_1
+          + y_challenge * y_challenge * y_challenge * q_2;
+      });
+
+    // Compare the computed and expected batched quotients
+    assert_eq!(batched_quotient, UVKZGPoly::new(batched_quotient_expected));
   }
 }
