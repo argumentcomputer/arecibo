@@ -291,7 +291,7 @@ where
     comm: &ZMCommitment<E>,
     point: &[E::Fr],
     evaluation: &ZMEvaluation<E>,
-    proof: ZMProof<E>,
+    proof: &ZMProof<E>,
   ) -> Result<bool, NovaError> {
     transcript.dom_sep(Self::protocol_name());
 
@@ -483,8 +483,7 @@ where
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     let evaluation = ZMEvaluation(*eval);
 
-    // TODO: this clone is unsightly!
-    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg.clone())?;
+    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg)?;
     Ok(())
   }
 }
@@ -554,7 +553,7 @@ mod test {
         &comm,
         point.as_slice(),
         &eval,
-        proof,
+        &proof,
       );
 
       // check both random oracles are synced, as expected
