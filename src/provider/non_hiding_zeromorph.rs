@@ -522,7 +522,7 @@ where
 mod test {
   use std::iter;
 
-  use ff::{Field, PrimeFieldBits};
+  use ff::{Field, PrimeField, PrimeFieldBits};
   use halo2curves::bn256::Bn256;
   use pairing::MultiMillerLoop;
   use rand::thread_rng;
@@ -556,7 +556,6 @@ mod test {
     let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
 
     for num_vars in 3..max_vars {
-      // this takes a while, run in --release
       // Setup
       let (pp, vk) = {
         let poly_size = 1 << (num_vars + 1);
@@ -736,5 +735,66 @@ mod test {
       zeta_x_scalars[2],
       -y_challenge * y_challenge * x_challenge.pow_vartime([n - 3 - 1])
     );
+  }
+
+  // Evaluate phi using an inefficient formula
+  fn phi<F: PrimeField>(challenge: F, n: usize) -> F {
+    let length = 1 << n;
+    let mut result = F::ZERO;
+    let mut current = F::ONE; // Start with x^0
+
+    for _ in 0..length {
+      result += current;
+      current *= challenge; // Increment the power of x for the next iteration
+    }
+
+    result
+  }
+
+  #[test]
+  fn test_partially_evaluated_quotient_z() {
+    // Define the field and polynomial types
+    type Fr = bn256::Scalar;
+
+    let num_vars: usize = 3;
+
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    // Define some mock q_k with deg(q_k) = 2^k - 1
+    let _q_0 = UVKZGPoly::new(vec![Fr::one()]);
+    let _q_1 = UVKZGPoly::new(vec![Fr::from(2), Fr::from(3)]);
+    let _q_2 = UVKZGPoly::new(vec![Fr::from(4), Fr::from(5), Fr::from(6), Fr::from(7)]);
+
+    // Unused in this test
+    let y_challenge = Fr::random(&mut rng);
+
+    let x_challenge = Fr::random(&mut rng);
+    let z_challenge = Fr::random(&mut rng);
+
+    let u_challenge: Vec<_> = (0..num_vars)
+      .map(|_| bn256::Scalar::random(&mut rng))
+      .collect();
+
+    // Construct Z_x using the function
+    let (_eval_scalar, (_left_quo_scalars, zeta_x_scalars)) =
+      eval_and_quotient_scalars(y_challenge, x_challenge, z_challenge, &u_challenge);
+
+    // beware the Nova coefficient evaluation order!
+    let u_rev = {
+      let mut res = u_challenge.clone();
+      res.reverse();
+      res
+    };
+
+    // Compute Z_x directly
+    for k in 0..num_vars {
+      let x_pow_2k = x_challenge.pow([1 << k]);
+      let x_pow_2kp1 = x_challenge.pow([1 << (k + 1)]);
+      let mut scalar =
+        x_pow_2k * phi(x_pow_2kp1, num_vars - k - 1) - u_rev[k] * phi(x_pow_2k, num_vars - k);
+      scalar *= z_challenge;
+      scalar *= -Fr::ONE;
+      assert_eq!(zeta_x_scalars[k], scalar);
+    }
   }
 }
