@@ -43,11 +43,11 @@ mod utils {
 
   /// this is dangerous
   #[allow(non_snake_case)]
-  unsafe fn exhume_F<'a, F: PrimeField>(f: &mut F, bytes: &'a mut [u8]) -> Option<&'a mut [u8]> {
+  unsafe fn exhume_F<'a, F: PrimeField>(f: &mut F, bytes: &'a mut [u8]) -> &'a mut [u8] {
     let (mine, rest) = bytes.split_at_mut(size_of::<F>());
     let mine = (mine as *const [u8]) as *const F;
     std::ptr::write(f, std::ptr::read(mine));
-    Some(rest)
+    rest
   }
   impl<F: PrimeField> abomonation::Abomonation for MinRootIteration<F> {
     unsafe fn entomb<W: Write>(&self, bytes: &mut W) -> std::io::Result<()> {
@@ -59,10 +59,10 @@ mod utils {
     }
 
     unsafe fn exhume<'b>(&mut self, bytes: &'b mut [u8]) -> Option<&'b mut [u8]> {
-      let bytes = exhume_F(&mut self.x_i, bytes)?;
-      let bytes = exhume_F(&mut self.y_i, bytes)?;
-      let bytes = exhume_F(&mut self.x_i_plus_1, bytes)?;
-      let bytes = exhume_F(&mut self.y_i_plus_1, bytes)?;
+      let bytes = exhume_F(&mut self.x_i, bytes);
+      let bytes = exhume_F(&mut self.y_i, bytes);
+      let bytes = exhume_F(&mut self.x_i_plus_1, bytes);
+      let bytes = exhume_F(&mut self.y_i_plus_1, bytes);
       Some(bytes)
     }
 
