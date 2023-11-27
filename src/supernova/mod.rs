@@ -527,12 +527,12 @@ where
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
     let r_W_primary =
-      RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, &l_w_primary);
+      RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, l_w_primary);
 
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
       &pp.ck_primary,
       &pp[circuit_index].r1cs_shape,
-      &l_u_primary,
+      l_u_primary,
     );
 
     // IVC proof of the secondary circuit
