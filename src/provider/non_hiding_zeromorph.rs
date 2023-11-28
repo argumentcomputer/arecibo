@@ -526,10 +526,10 @@ where
 mod test {
   use std::iter;
 
-  
-  use halo2curves::bn256::Fr as Scalar;
   use ff::{Field, PrimeField, PrimeFieldBits};
   use halo2curves::bn256::Bn256;
+  use halo2curves::bn256::Fr as Scalar;
+  use itertools::Itertools as _;
   use pairing::MultiMillerLoop;
   use rand::thread_rng;
   use rand_chacha::ChaCha20Rng;
@@ -538,13 +538,13 @@ mod test {
   use super::quotients;
   use crate::{
     provider::{
-      Bn256Engine,
       keccak::Keccak256Transcript,
       non_hiding_kzg::{UVKZGPoly, UVUniversalKZGParam},
       non_hiding_zeromorph::{
         batched_lifted_degree_quotient, eval_and_quotient_scalars, trim, ZMEvaluation, ZMPCS,
       },
       traits::DlogGroup,
+      Bn256Engine,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
     traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
@@ -615,9 +615,7 @@ mod test {
     // Construct a random multilinear polynomial f, and u such that f(u) = v.
     let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
     let poly = MultilinearPolynomial::random(num_vars, &mut rng);
-    let u_challenge: Vec<_> = (0..num_vars)
-      .map(|_| Scalar::random(&mut rng))
-      .collect();
+    let u_challenge: Vec<_> = (0..num_vars).map(|_| Scalar::random(&mut rng)).collect();
     let v_evaluation = poly.evaluate(&u_challenge);
 
     // Compute the multilinear quotients q_k = q_k(X_0, ..., X_{k-1})
@@ -629,9 +627,7 @@ mod test {
     // Check that the identity holds for a random evaluation point z
     // poly - poly(z) = Σ (X_k - z_k) * q_k(X_0, ..., X_{k-1})
     // except for our inversion of coefficient order in polynomials and points (see below)
-    let z_challenge: Vec<_> = (0..num_vars)
-      .map(|_| Scalar::random(&mut rng))
-      .collect();
+    let z_challenge: Vec<_> = (0..num_vars).map(|_| Scalar::random(&mut rng)).collect();
     let mut result = poly.evaluate(&z_challenge);
     result -= v_evaluation;
 

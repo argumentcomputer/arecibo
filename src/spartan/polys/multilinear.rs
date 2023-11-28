@@ -198,8 +198,8 @@ mod tests {
 
   use super::*;
   use pasta_curves::Fp;
-use rand_chacha::ChaCha20Rng;
-use rand_core::SeedableRng;
+  use rand_chacha::ChaCha20Rng;
+  use rand_core::SeedableRng;
 
   fn make_mlp<F: PrimeField>(len: usize, value: F) -> MultilinearPolynomial<F> {
     MultilinearPolynomial {

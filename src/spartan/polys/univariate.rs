@@ -7,7 +7,6 @@ use std::{
 };
 
 use ff::PrimeField;
-use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
@@ -38,11 +37,6 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
 
   fn zero() -> Self {
     UniPoly::new(Vec::new())
-  }
-
-  pub fn random<R: RngCore + CryptoRng>(degree: usize, mut rng: &mut R) -> Self {
-    let coeffs = (0..=degree).map(|_| Scalar::random(&mut rng)).collect();
-    UniPoly::new(coeffs)
   }
 
   /// Divide self by another polynomial, and returns the
@@ -236,9 +230,8 @@ impl<Scalar: PrimeField> AsRef<Vec<Scalar>> for UniPoly<Scalar> {
 
 #[cfg(test)]
 mod tests {
-  use crate::provider::{bn256_grumpkin, secp_secq::secp256k1};
-
   use super::*;
+  use crate::provider::{bn256_grumpkin, secp_secq::secp256k1};
 
   fn test_from_evals_quad_with<F: PrimeField>() {
     // polynomial is 2x^2 + 3x + 1
