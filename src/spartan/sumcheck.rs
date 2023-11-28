@@ -191,27 +191,25 @@ impl<E: Engine> SumcheckProof<E> {
     assert_eq!(poly_B_vec.len(), num_claims);
     assert_eq!(coeffs.len(), num_claims);
 
-    for &num_rounds in num_rounds.iter() {
+    for (i, &num_rounds) in num_rounds.iter().enumerate() {
       let expected_size = 1 << num_rounds;
 
-      for i in 0..num_claims {
-        // Direct indexing with the assumption that the index will always be in bounds
-        let a = &poly_A_vec[i];
-        let b = &poly_B_vec[i];
+      // Direct indexing with the assumption that the index will always be in bounds
+      let a = &poly_A_vec[i];
+      let b = &poly_B_vec[i];
 
-        assert_eq!(
-          a.len(),
-          expected_size,
-          "Mismatch in size for poly_A_vec at index {}",
-          i
-        );
-        assert_eq!(
-          b.len(),
-          expected_size,
-          "Mismatch in size for poly_B_vec at index {}",
-          i
-        );
-      }
+      assert_eq!(
+        a.len(),
+        expected_size,
+        "Mismatch in size for poly_A_vec at index {}",
+        i
+      );
+      assert_eq!(
+        b.len(),
+        expected_size,
+        "Mismatch in size for poly_B_vec at index {}",
+        i
+      );
     }
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
@@ -486,41 +484,39 @@ impl<E: Engine> SumcheckProof<E> {
     assert_eq!(poly_C_vec.len(), num_instances);
     assert_eq!(poly_D_vec.len(), num_instances);
 
-    for &num_rounds in num_rounds.iter() {
+    for (i, &num_rounds) in num_rounds.iter().enumerate() {
       let expected_size = 1 << num_rounds;
 
-      for i in 0..num_instances {
-        // Direct indexing with the assumption that the index will always be in bounds
-        let a = &poly_A_vec[i];
-        let b = &poly_B_vec[i];
-        let c = &poly_C_vec[i];
-        let d = &poly_D_vec[i];
+      // Direct indexing with the assumption that the index will always be in bounds
+      let a = &poly_A_vec[i];
+      let b = &poly_B_vec[i];
+      let c = &poly_C_vec[i];
+      let d = &poly_D_vec[i];
 
-        assert_eq!(
-          a.len(),
-          expected_size,
-          "Mismatch in size for poly_A_vec at index {}",
-          i
-        );
-        assert_eq!(
-          b.len(),
-          expected_size,
-          "Mismatch in size for poly_B_vec at index {}",
-          i
-        );
-        assert_eq!(
-          c.len(),
-          expected_size,
-          "Mismatch in size for poly_C_vec at index {}",
-          i
-        );
-        assert_eq!(
-          d.len(),
-          expected_size,
-          "Mismatch in size for poly_D_vec at index {}",
-          i
-        );
-      }
+      assert_eq!(
+        a.len(),
+        expected_size,
+        "Mismatch in size for poly_A_vec at index {}",
+        i
+      );
+      assert_eq!(
+        b.len(),
+        expected_size,
+        "Mismatch in size for poly_B_vec at index {}",
+        i
+      );
+      assert_eq!(
+        c.len(),
+        expected_size,
+        "Mismatch in size for poly_C_vec at index {}",
+        i
+      );
+      assert_eq!(
+        d.len(),
+        expected_size,
+        "Mismatch in size for poly_D_vec at index {}",
+        i
+      );
     }
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
