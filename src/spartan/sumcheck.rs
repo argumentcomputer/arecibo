@@ -74,7 +74,7 @@ impl<G: Group> SumcheckProof<G> {
     assert_eq!(coeffs.len(), num_instances);
 
     // n = maxᵢ{nᵢ}
-    let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+    let num_rounds_max = *num_rounds.iter().max().unwrap();
 
     // Random linear combination of claims,
     // where each claim is scaled by 2^{n-nᵢ} to account for the padding.
@@ -191,16 +191,30 @@ impl<G: Group> SumcheckProof<G> {
     assert_eq!(poly_B_vec.len(), num_claims);
     assert_eq!(coeffs.len(), num_claims);
 
-    num_rounds
-      .iter()
-      .zip(poly_A_vec.iter().zip(poly_B_vec.iter()))
-      .for_each(|(num_rounds, (poly_A, poly_B))| {
-        let poly_size = 1 << num_rounds;
-        assert_eq!(poly_A.len(), poly_size);
-        assert_eq!(poly_B.len(), poly_size);
-      });
+    for &num_rounds in num_rounds.iter() {
+      let expected_size = 1 << num_rounds;
 
-    let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+      for i in 0..num_claims {
+        // Direct indexing with the assumption that the index will always be in bounds
+        let a = &poly_A_vec[i];
+        let b = &poly_B_vec[i];
+
+        assert_eq!(
+          a.len(),
+          expected_size,
+          "Mismatch in size for poly_A_vec at index {}",
+          i
+        );
+        assert_eq!(
+          b.len(),
+          expected_size,
+          "Mismatch in size for poly_B_vec at index {}",
+          i
+        );
+      }
+    }
+
+    let num_rounds_max = *num_rounds.iter().max().unwrap();
     let mut e = claims
       .iter()
       .zip(num_rounds)
@@ -472,20 +486,44 @@ impl<G: Group> SumcheckProof<G> {
     assert_eq!(poly_C_vec.len(), num_instances);
     assert_eq!(poly_D_vec.len(), num_instances);
 
-    num_rounds
-      .iter()
-      .zip(poly_A_vec.iter())
-      .zip(poly_B_vec.iter())
-      .zip(poly_C_vec.iter())
-      .zip(poly_D_vec.iter())
-      .for_each(|((((num_rounds, a), b), c), d)| {
-        let expected_size = 1 << num_rounds;
-        assert_eq!(a.len(), expected_size);
-        assert_eq!(b.len(), expected_size);
-        assert_eq!(c.len(), expected_size);
-        assert_eq!(d.len(), expected_size);
-      });
-    let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+    for &num_rounds in num_rounds.iter() {
+      let expected_size = 1 << num_rounds;
+
+      for i in 0..num_instances {
+        // Direct indexing with the assumption that the index will always be in bounds
+        let a = &poly_A_vec[i];
+        let b = &poly_B_vec[i];
+        let c = &poly_C_vec[i];
+        let d = &poly_D_vec[i];
+
+        assert_eq!(
+          a.len(),
+          expected_size,
+          "Mismatch in size for poly_A_vec at index {}",
+          i
+        );
+        assert_eq!(
+          b.len(),
+          expected_size,
+          "Mismatch in size for poly_B_vec at index {}",
+          i
+        );
+        assert_eq!(
+          c.len(),
+          expected_size,
+          "Mismatch in size for poly_C_vec at index {}",
+          i
+        );
+        assert_eq!(
+          d.len(),
+          expected_size,
+          "Mismatch in size for poly_D_vec at index {}",
+          i
+        );
+      }
+    }
+
+    let num_rounds_max = *num_rounds.iter().max().unwrap();
 
     let mut r: Vec<G::Scalar> = Vec::new();
     let mut polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
