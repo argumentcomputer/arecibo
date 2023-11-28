@@ -24,9 +24,10 @@ use itertools::Itertools as _;
 use polys::multilinear::SparsePolynomial;
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
 
+// Creates a vector of the first `n` powers of `s`.
 fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
   assert!(n >= 1);
-  let mut powers = Vec::new();
+  let mut powers = Vec::with_capacity(n);
   powers.push(E::Scalar::ONE);
   for i in 1..n {
     powers.push(powers[i - 1] * s);

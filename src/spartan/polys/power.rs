@@ -30,6 +30,27 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
     }
   }
 
+  /// Create powers the following powers of `t`:
+  /// [t^{2^0}, t^{2^1}, ..., t^{2^{ell-1}}]
+  pub(crate) fn powers(t: &Scalar, ell: usize) -> Vec<Scalar> {
+    let mut t_pow = vec![Scalar::ONE; ell];
+    t_pow[0] = *t;
+    for i in 1..ell {
+      t_pow[i] = t_pow[i - 1].square();
+    }
+    t_pow
+  }
+
+  /// Creates a new `PowPolynomial` from an already-existing vector of powers.
+  /// `t_pow.len()` must be > `ell`
+  pub fn new_from_powers(powers: &[Scalar], ell: usize) -> Self {
+    let t_pow = powers[..ell].to_vec();
+    PowPolynomial {
+      t_pow: t_pow.clone(),
+      eq: EqPolynomial::new(t_pow),
+    }
+  }
+
   /// Evaluates the `PowPolynomial` at a given point `rx`.
   ///
   /// This function computes the value of the polynomial at the point specified by `rx`.
