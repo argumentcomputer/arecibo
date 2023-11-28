@@ -21,7 +21,58 @@ use tracing_texray::TeXRayLayer;
 type E1 = PallasEngine;
 type E2 = VestaEngine;
 
-#[derive(Clone, Debug)]
+#[cfg(feature = "abomonate")]
+mod utils {
+  use super::*;
+  use std::{io::Write, mem::size_of};
+
+  pub const FILEPATH: &str = "/tmp/data";
+  /// Unspeakable horrors from a type safety PoV
+  unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
+    ::core::slice::from_raw_parts((p as *const T) as *const u8, ::core::mem::size_of::<T>())
+  }
+
+  /// this is dangerous
+  #[allow(non_snake_case)]
+  unsafe fn entomb_F<F: PrimeField, W: Write>(f: &F, bytes: &mut W) -> std::io::Result<()> {
+    println!("entomb: {}", size_of::<F>());
+    // this is  dangerous
+    bytes.write_all(any_as_u8_slice(&f))?;
+    Ok(())
+  }
+
+  /// this is dangerous
+  #[allow(non_snake_case)]
+  unsafe fn exhume_F<'a, F: PrimeField>(f: &mut F, bytes: &'a mut [u8]) -> &'a mut [u8] {
+    let (mine, rest) = bytes.split_at_mut(size_of::<F>());
+    let mine = (mine as *const [u8]) as *const F;
+    std::ptr::write(f, std::ptr::read(mine));
+    rest
+  }
+  impl<F: PrimeField> abomonation::Abomonation for MinRootIteration<F> {
+    unsafe fn entomb<W: Write>(&self, bytes: &mut W) -> std::io::Result<()> {
+      entomb_F(&self.x_i, bytes)?;
+      entomb_F(&self.y_i, bytes)?;
+      entomb_F(&self.x_i_plus_1, bytes)?;
+      entomb_F(&self.y_i_plus_1, bytes)?;
+      Ok(())
+    }
+
+    unsafe fn exhume<'b>(&mut self, bytes: &'b mut [u8]) -> Option<&'b mut [u8]> {
+      let bytes = exhume_F(&mut self.x_i, bytes);
+      let bytes = exhume_F(&mut self.y_i, bytes);
+      let bytes = exhume_F(&mut self.x_i_plus_1, bytes);
+      let bytes = exhume_F(&mut self.y_i_plus_1, bytes);
+      Some(bytes)
+    }
+
+    fn extent(&self) -> usize {
+      0
+    }
+  }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 struct MinRootIteration<F: PrimeField> {
   x_i: F,
   y_i: F,
@@ -73,7 +124,7 @@ impl<F: PrimeField> MinRootIteration<F> {
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct MinRootCircuit<F: PrimeField> {
   seq: Vec<MinRootIteration<F>>,
 }
@@ -178,6 +229,15 @@ fn main() {
       &*default_ck_hint(),
     );
     println!("PublicParams::setup, took {:?} ", start.elapsed());
+    #[cfg(feature = "abomonate")]
+    {
+      use abomonation::encode;
+      let mut file = std::fs::File::create(utils::FILEPATH).unwrap();
+      unsafe {
+        encode(&pp, &mut file).unwrap();
+      }
+      println!("Encoded!");
+    }
 
     println!(
       "Number of constraints per step (primary circuit): {}",
@@ -196,6 +256,32 @@ fn main() {
       "Number of variables per step (secondary circuit): {}",
       pp.num_variables().1
     );
+
+    #[cfg(feature = "abomonate")]
+    {
+      use abomonation::decode;
+      use std::io::Read;
+
+      let file = std::fs::File::open(utils::FILEPATH).unwrap();
+      let mut reader = std::io::BufReader::new(file);
+      let mut bytes = Vec::new();
+      reader.read_to_end(&mut bytes).unwrap();
+      if let Some((result, remaining)) = unsafe {
+        decode::<
+          PublicParams<
+            E1,
+            E2,
+            MinRootCircuit<<E1 as Engine>::Scalar>,
+            TrivialCircuit<<E2 as Engine>::Scalar>,
+          >,
+        >(&mut bytes)
+      } {
+        assert!(*result == pp, "decoded parameters not equal to original!");
+        assert!(remaining.is_empty());
+      } else {
+        println!("Decoding failure!");
+      }
+    }
 
     // produce non-deterministic advice
     let (z0_primary, minroot_iterations) = MinRootIteration::new(
