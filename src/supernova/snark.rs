@@ -306,12 +306,9 @@ mod test {
       ipa_pc::EvaluationEngine,
       secp_secq::{secp256k1, secq256k1},
     },
-    spartan::{batched::BatchedRelaxedR1CSSNARK, snark::RelaxedR1CSSNARK},
+    spartan::{batched, batched_ppsnark, snark::RelaxedR1CSSNARK},
     supernova::NonUniformCircuit,
-    traits::{
-      circuit_supernova::TrivialSecondaryCircuit, evaluation::EvaluationEngineTrait,
-      snark::default_commitment_key_hint,
-    },
+    traits::circuit_supernova::TrivialSecondaryCircuit,
   };
 
   use abomonation::Abomonation;
@@ -320,8 +317,9 @@ mod test {
   use pasta_curves::{pallas, vesta};
 
   type EE<G> = EvaluationEngine<G>;
-  type S1<G, EE> = BatchedRelaxedR1CSSNARK<G, EE>;
-  type S2<G, EE> = RelaxedR1CSSNARK<G, EE>;
+  type S1<G> = batched::BatchedRelaxedR1CSSNARK<G, EE<G>>;
+  type S1PP<G> = batched_ppsnark::BatchedRelaxedR1CSSNARK<G, EE<G>>;
+  type S2<G> = RelaxedR1CSSNARK<G, EE<G>>;
 
   #[derive(Clone)]
   struct SquareCircuit<G: Group> {
@@ -486,12 +484,12 @@ mod test {
     }
   }
 
-  fn test_nivc_trivial_with_compression_with<G1, G2, E1, E2>()
+  fn test_nivc_trivial_with_compression_with<G1, G2, S1, S2>()
   where
     G1: Group<Base = <G2 as Group>::Scalar>,
     G2: Group<Base = <G1 as Group>::Scalar>,
-    E1: EvaluationEngineTrait<G1>,
-    E2: EvaluationEngineTrait<G2>,
+    S1: BatchedRelaxedR1CSSNARKTrait<G1>,
+    S2: RelaxedR1CSSNARKTrait<G2>,
     <G1::Scalar as PrimeField>::Repr: Abomonation,
     <G2::Scalar as PrimeField>::Repr: Abomonation,
   {
@@ -502,8 +500,8 @@ mod test {
 
     let pp = PublicParams::new(
       &test_circuits[0],
-      &*default_commitment_key_hint(),
-      &*default_commitment_key_hint(),
+      &*S1::commitment_key_floor(),
+      &*S2::commitment_key_floor(),
     );
 
     let initial_pc = G1::Scalar::ZERO;
@@ -532,8 +530,7 @@ mod test {
       assert!(verify_res.is_ok());
     }
 
-    let (prover_key, verifier_key) =
-      CompressedSNARK::<_, _, _, _, S1<G1, E1>, S2<G2, E2>>::setup(&pp).unwrap();
+    let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
 
     let compressed_prove_res = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark);
 
@@ -549,9 +546,14 @@ mod test {
 
   #[test]
   fn test_nivc_trivial_with_compression() {
-    test_nivc_trivial_with_compression_with::<pallas::Point, vesta::Point, EE<_>, EE<_>>();
-    test_nivc_trivial_with_compression_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>();
-    test_nivc_trivial_with_compression_with::<secp256k1::Point, secq256k1::Point, EE<_>, EE<_>>();
+    // ppSNARK
+    test_nivc_trivial_with_compression_with::<pallas::Point, vesta::Point, S1PP<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<bn256::Point, grumpkin::Point, S1PP<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<secp256k1::Point, secq256k1::Point, S1PP<_>, S2<_>>();
+    // classic SNARK
+    test_nivc_trivial_with_compression_with::<pallas::Point, vesta::Point, S1<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<bn256::Point, grumpkin::Point, S1<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<secp256k1::Point, secq256k1::Point, S1<_>, S2<_>>();
   }
 
   #[derive(Clone)]
@@ -676,12 +678,12 @@ mod test {
     }
   }
 
-  fn test_compression_with_circuit_size_difference_with<G1, G2, E1, E2>()
+  fn test_compression_with_circuit_size_difference_with<G1, G2, S1, S2>()
   where
     G1: Group<Base = <G2 as Group>::Scalar>,
     G2: Group<Base = <G1 as Group>::Scalar>,
-    E1: EvaluationEngineTrait<G1>,
-    E2: EvaluationEngineTrait<G2>,
+    S1: BatchedRelaxedR1CSSNARKTrait<G1>,
+    S2: RelaxedR1CSSNARKTrait<G2>,
     <G1::Scalar as PrimeField>::Repr: Abomonation,
     <G2::Scalar as PrimeField>::Repr: Abomonation,
   {
@@ -692,8 +694,8 @@ mod test {
 
     let pp = PublicParams::new(
       &test_circuits[0],
-      &*default_commitment_key_hint(),
-      &*default_commitment_key_hint(),
+      &*S1::commitment_key_floor(),
+      &*S2::commitment_key_floor(),
     );
 
     let initial_pc = G1::Scalar::ZERO;
@@ -722,8 +724,7 @@ mod test {
       assert!(verify_res.is_ok());
     }
 
-    let (prover_key, verifier_key) =
-      CompressedSNARK::<_, _, _, _, S1<G1, E1>, S2<G2, E2>>::setup(&pp).unwrap();
+    let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
 
     let compressed_prove_res = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark);
 
@@ -739,15 +740,31 @@ mod test {
 
   #[test]
   fn test_compression_with_circuit_size_difference() {
-    test_compression_with_circuit_size_difference_with::<pallas::Point, vesta::Point, EE<_>, EE<_>>(
+    // ppSNARK
+    test_compression_with_circuit_size_difference_with::<pallas::Point, vesta::Point, S1PP<_>, S2<_>>(
     );
-    test_compression_with_circuit_size_difference_with::<bn256::Point, grumpkin::Point, EE<_>, EE<_>>(
+    test_compression_with_circuit_size_difference_with::<
+      bn256::Point,
+      grumpkin::Point,
+      S1PP<_>,
+      S2<_>,
+    >();
+    test_compression_with_circuit_size_difference_with::<
+      secp256k1::Point,
+      secq256k1::Point,
+      S1PP<_>,
+      S2<_>,
+    >();
+    // classic SNARK
+    test_compression_with_circuit_size_difference_with::<pallas::Point, vesta::Point, S1<_>, S2<_>>(
+    );
+    test_compression_with_circuit_size_difference_with::<bn256::Point, grumpkin::Point, S1<_>, S2<_>>(
     );
     test_compression_with_circuit_size_difference_with::<
       secp256k1::Point,
       secq256k1::Point,
-      EE<_>,
-      EE<_>,
+      S1<_>,
+      S2<_>,
     >();
   }
 }

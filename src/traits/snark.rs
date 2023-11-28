@@ -37,6 +37,7 @@ pub trait RelaxedR1CSSNARKTrait<G: Group>:
   /// a minimum sizing cue for the commitment key used by this SNARK
   /// implementation. The commitment key passed in setup should then
   /// be at least as large as this hint.
+  /// TODO: Rename to ck_floor()
   fn commitment_key_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
     // The default is to not put an additional floor on the size of the commitment key
     default_commitment_key_hint()

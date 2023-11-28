@@ -49,25 +49,25 @@ fn padded<G: Group>(v: &[G::Scalar], n: usize, e: &G::Scalar) -> Vec<G::Scalar> 
 #[serde(bound = "")]
 #[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkRepr<G: Group> {
-  N: usize, // size of the vectors
+  pub(super) N: usize, // size of the vectors
 
   // dense representation
   #[abomonate_with(Vec<<G::Scalar as PrimeField>::Repr>)]
-  row: Vec<G::Scalar>,
+  pub(super) row: Vec<G::Scalar>,
   #[abomonate_with(Vec<<G::Scalar as PrimeField>::Repr>)]
-  col: Vec<G::Scalar>,
+  pub(super) col: Vec<G::Scalar>,
   #[abomonate_with(Vec<<G::Scalar as PrimeField>::Repr>)]
-  val_A: Vec<G::Scalar>,
+  pub(super) val_A: Vec<G::Scalar>,
   #[abomonate_with(Vec<<G::Scalar as PrimeField>::Repr>)]
-  val_B: Vec<G::Scalar>,
+  pub(super) val_B: Vec<G::Scalar>,
   #[abomonate_with(Vec<<G::Scalar as PrimeField>::Repr>)]
-  val_C: Vec<G::Scalar>,
+  pub(super) val_C: Vec<G::Scalar>,
 
   // timestamp polynomials
   #[abomonate_with(Vec<<G::Scalar as PrimeField>::Repr>)]
-  ts_row: Vec<G::Scalar>,
+  pub(super) ts_row: Vec<G::Scalar>,
   #[abomonate_with(Vec<<G::Scalar as PrimeField>::Repr>)]
-  ts_col: Vec<G::Scalar>,
+  pub(super) ts_col: Vec<G::Scalar>,
 }
 
 /// A type that holds a commitment to a sparse polynomial
@@ -75,18 +75,18 @@ pub struct R1CSShapeSparkRepr<G: Group> {
 #[serde(bound = "")]
 #[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkCommitment<G: Group> {
-  N: usize, // size of each vector
+  pub(super) N: usize, // size of each vector
 
   // commitments to the dense representation
-  comm_row: Commitment<G>,
-  comm_col: Commitment<G>,
-  comm_val_A: Commitment<G>,
-  comm_val_B: Commitment<G>,
-  comm_val_C: Commitment<G>,
+  pub(super) comm_row: Commitment<G>,
+  pub(super) comm_col: Commitment<G>,
+  pub(super) comm_val_A: Commitment<G>,
+  pub(super) comm_val_B: Commitment<G>,
+  pub(super) comm_val_C: Commitment<G>,
 
   // commitments to the timestamp polynomials
-  comm_ts_row: Commitment<G>,
-  comm_ts_col: Commitment<G>,
+  pub(super) comm_ts_row: Commitment<G>,
+  pub(super) comm_ts_col: Commitment<G>,
 }
 
 impl<G: Group> TranscriptReprTrait<G> for R1CSShapeSparkCommitment<G> {
@@ -182,7 +182,7 @@ impl<G: Group> R1CSShapeSparkRepr<G> {
     }
   }
 
-  fn commit(&self, ck: &CommitmentKey<G>) -> R1CSShapeSparkCommitment<G> {
+  pub(super) fn commit(&self, ck: &CommitmentKey<G>) -> R1CSShapeSparkCommitment<G> {
     let comm_vec: Vec<Commitment<G>> = [
       &self.row,
       &self.col,
@@ -209,7 +209,7 @@ impl<G: Group> R1CSShapeSparkRepr<G> {
   }
 
   // computes evaluation oracles
-  fn evaluation_oracles(
+  pub(super) fn evaluation_oracles(
     &self,
     S: &R1CSShape<G>,
     r_x: &G::Scalar,
@@ -266,7 +266,7 @@ pub trait SumcheckEngine<G: Group>: Send + Sync {
   fn final_claims(&self) -> Vec<Vec<G::Scalar>>;
 }
 
-struct MemorySumcheckInstance<G: Group> {
+pub(super) struct MemorySumcheckInstance<G: Group> {
   // row
   w_plus_r_row: MultilinearPolynomial<G::Scalar>,
   t_plus_r_row: MultilinearPolynomial<G::Scalar>,
@@ -289,17 +289,65 @@ struct MemorySumcheckInstance<G: Group> {
 }
 
 impl<G: Group> MemorySumcheckInstance<G> {
-  pub fn new(
+  /// Computes witnesses for MemoryInstanceSumcheck
+  ///
+  /// # Description
+  /// We use the logUp protocol to prove that
+  /// ∑ TS[i]/(T[i] + r) - 1/(W[i] + r) = 0
+  /// where
+  ///   T_row[i] = mem_row[i]      * gamma + i
+  ///            = eq(tau)[i]      * gamma + i
+  ///   W_row[i] = L_row[i]        * gamma + addr_row[i]
+  ///            = eq(tau)[row[i]] * gamma + addr_row[i]
+  ///   T_col[i] = mem_col[i]      * gamma + i
+  ///            = z[i]            * gamma + i
+  ///   W_col[i] = addr_col[i]     * gamma + addr_col[i]
+  ///            = z[col[i]]       * gamma + addr_col[i]
+  /// and
+  ///   TS_row, TS_col are integer-valued vectors representing the number of reads
+  ///   to each memory cell of L_row, L_col
+  ///
+  /// The function returns oracles for the polynomials TS[i]/(T[i] + r), 1/(W[i] + r),
+  /// as well as auxiliary polynomials T[i] + r, W[i] + r
+  pub fn compute_oracles(
     ck: &CommitmentKey<G>,
     r: &G::Scalar,
-    T_row: Vec<G::Scalar>,
-    W_row: Vec<G::Scalar>,
-    ts_row: Vec<G::Scalar>,
-    T_col: Vec<G::Scalar>,
-    W_col: Vec<G::Scalar>,
-    ts_col: Vec<G::Scalar>,
-    transcript: &mut G::TE,
-  ) -> Result<(Self, [Commitment<G>; 4], [Vec<G::Scalar>; 4]), NovaError> {
+    gamma: &G::Scalar,
+    mem_row: &[G::Scalar],
+    addr_row: &[G::Scalar],
+    L_row: &[G::Scalar],
+    ts_row: &[G::Scalar],
+    mem_col: &[G::Scalar],
+    addr_col: &[G::Scalar],
+    L_col: &[G::Scalar],
+    ts_col: &[G::Scalar],
+  ) -> Result<([Commitment<G>; 4], [Vec<G::Scalar>; 4], [Vec<G::Scalar>; 4]), NovaError> {
+    // hash the tuples of (addr,val) memory contents and read responses into a single field element using `hash_func`
+    let hash_func_vec = |mem: &[G::Scalar],
+                         addr: &[G::Scalar],
+                         lookups: &[G::Scalar]|
+     -> (Vec<G::Scalar>, Vec<G::Scalar>) {
+      let hash_func = |addr: &G::Scalar, val: &G::Scalar| -> G::Scalar { *val * gamma + *addr };
+      assert_eq!(addr.len(), lookups.len());
+      rayon::join(
+        || {
+          (0..mem.len())
+            .map(|i| hash_func(&G::Scalar::from(i as u64), &mem[i]))
+            .collect::<Vec<G::Scalar>>()
+        },
+        || {
+          (0..addr.len())
+            .map(|i| hash_func(&addr[i], &lookups[i]))
+            .collect::<Vec<G::Scalar>>()
+        },
+      )
+    };
+
+    let ((T_row, W_row), (T_col, W_col)) = rayon::join(
+      || hash_func_vec(mem_row, addr_row, L_row),
+      || hash_func_vec(mem_col, addr_col, L_col),
+    );
+
     let batch_invert = |v: &[G::Scalar]| -> Result<Vec<G::Scalar>, NovaError> {
       let mut products = vec![G::Scalar::ZERO; v.len()];
       let mut acc = G::Scalar::ONE;
@@ -373,8 +421,8 @@ impl<G: Group> MemorySumcheckInstance<G> {
       ((t_plus_r_inv_row, w_plus_r_inv_row), (t_plus_r_row, w_plus_r_row)),
       ((t_plus_r_inv_col, w_plus_r_inv_col), (t_plus_r_col, w_plus_r_col)),
     ) = rayon::join(
-      || helper(&T_row, &W_row, &ts_row, r),
-      || helper(&T_col, &W_col, &ts_col, r),
+      || helper(&T_row, &W_row, ts_row, r),
+      || helper(&T_col, &W_col, ts_col, r),
     );
 
     let t_plus_r_inv_row = t_plus_r_inv_row?;
@@ -400,21 +448,6 @@ impl<G: Group> MemorySumcheckInstance<G> {
       },
     );
 
-    // absorb the commitments
-    transcript.absorb(
-      b"l",
-      &[
-        comm_t_plus_r_inv_row,
-        comm_w_plus_r_inv_row,
-        comm_t_plus_r_inv_col,
-        comm_w_plus_r_inv_col,
-      ]
-      .as_slice(),
-    );
-
-    let rho = transcript.squeeze(b"r")?;
-    let poly_eq = MultilinearPolynomial::new(PowPolynomial::new(&rho, T_row.len().log_2()).evals());
-
     let comm_vec = [
       comm_t_plus_r_inv_row,
       comm_w_plus_r_inv_row,
@@ -423,32 +456,43 @@ impl<G: Group> MemorySumcheckInstance<G> {
     ];
 
     let poly_vec = [
-      t_plus_r_inv_row.clone(),
-      w_plus_r_inv_row.clone(),
-      t_plus_r_inv_col.clone(),
-      w_plus_r_inv_col.clone(),
+      t_plus_r_inv_row,
+      w_plus_r_inv_row,
+      t_plus_r_inv_col,
+      w_plus_r_inv_col,
     ];
 
-    let zero = vec![G::Scalar::ZERO; t_plus_r_inv_row.len()];
+    let aux_poly_vec = [t_plus_r_row?, w_plus_r_row?, t_plus_r_col?, w_plus_r_col?];
 
-    Ok((
-      Self {
-        w_plus_r_row: MultilinearPolynomial::new(w_plus_r_row?),
-        t_plus_r_row: MultilinearPolynomial::new(t_plus_r_row?),
-        t_plus_r_inv_row: MultilinearPolynomial::new(t_plus_r_inv_row),
-        w_plus_r_inv_row: MultilinearPolynomial::new(w_plus_r_inv_row),
-        ts_row: MultilinearPolynomial::new(ts_row),
-        w_plus_r_col: MultilinearPolynomial::new(w_plus_r_col?),
-        t_plus_r_col: MultilinearPolynomial::new(t_plus_r_col?),
-        t_plus_r_inv_col: MultilinearPolynomial::new(t_plus_r_inv_col),
-        w_plus_r_inv_col: MultilinearPolynomial::new(w_plus_r_inv_col),
-        ts_col: MultilinearPolynomial::new(ts_col),
-        poly_eq,
-        poly_zero: MultilinearPolynomial::new(zero),
-      },
-      comm_vec,
-      poly_vec,
-    ))
+    Ok((comm_vec, poly_vec, aux_poly_vec))
+  }
+
+  pub fn new(
+    polys_oracle: [Vec<G::Scalar>; 4],
+    polys_aux: [Vec<G::Scalar>; 4],
+    poly_eq: Vec<G::Scalar>,
+    ts_row: Vec<G::Scalar>,
+    ts_col: Vec<G::Scalar>,
+  ) -> Self {
+    let [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col] = polys_oracle;
+    let [t_plus_r_row, w_plus_r_row, t_plus_r_col, w_plus_r_col] = polys_aux;
+
+    let zero = vec![G::Scalar::ZERO; poly_eq.len()];
+
+    Self {
+      w_plus_r_row: MultilinearPolynomial::new(w_plus_r_row),
+      t_plus_r_row: MultilinearPolynomial::new(t_plus_r_row),
+      t_plus_r_inv_row: MultilinearPolynomial::new(t_plus_r_inv_row),
+      w_plus_r_inv_row: MultilinearPolynomial::new(w_plus_r_inv_row),
+      ts_row: MultilinearPolynomial::new(ts_row),
+      w_plus_r_col: MultilinearPolynomial::new(w_plus_r_col),
+      t_plus_r_col: MultilinearPolynomial::new(t_plus_r_col),
+      t_plus_r_inv_col: MultilinearPolynomial::new(t_plus_r_inv_col),
+      w_plus_r_inv_col: MultilinearPolynomial::new(w_plus_r_inv_col),
+      ts_col: MultilinearPolynomial::new(ts_col),
+      poly_eq: MultilinearPolynomial::new(poly_eq),
+      poly_zero: MultilinearPolynomial::new(zero),
+    }
   }
 }
 
@@ -493,6 +537,7 @@ impl<G: Group> SumcheckEngine<G> for MemorySumcheckInstance<G> {
        -> G::Scalar { *poly_A_comp * (*poly_B_comp * *poly_C_comp - *poly_D_comp) };
 
     // inv related evaluation points
+    // 0 = ∑ TS[i]/(T[i] + r) - 1/(W[i] + r)
     let (eval_inv_0_row, eval_inv_2_row, eval_inv_3_row) =
       SumcheckProof::<G>::compute_eval_points_cubic(
         &self.t_plus_r_inv_row,
@@ -510,6 +555,7 @@ impl<G: Group> SumcheckEngine<G> for MemorySumcheckInstance<G> {
       );
 
     // row related evaluation points
+    // 0 = ∑ eq[i] * (inv_T[i] * (T[i] + r) - TS[i]))
     let (eval_T_0_row, eval_T_2_row, eval_T_3_row) =
       SumcheckProof::<G>::compute_eval_points_cubic_with_additive_term(
         &self.poly_eq,
@@ -518,6 +564,7 @@ impl<G: Group> SumcheckEngine<G> for MemorySumcheckInstance<G> {
         &self.ts_row,
         &comb_func3,
       );
+    // 0 = ∑ eq[i] * (inv_W[i] * (T[i] + r) - 1))
     let (eval_W_0_row, eval_W_2_row, eval_W_3_row) =
       SumcheckProof::<G>::compute_eval_points_cubic_with_additive_term(
         &self.poly_eq,
@@ -590,7 +637,7 @@ impl<G: Group> SumcheckEngine<G> for MemorySumcheckInstance<G> {
   }
 }
 
-struct OuterSumcheckInstance<G: Group> {
+pub(super) struct OuterSumcheckInstance<G: Group> {
   poly_tau: MultilinearPolynomial<G::Scalar>,
   poly_Az: MultilinearPolynomial<G::Scalar>,
   poly_Bz: MultilinearPolynomial<G::Scalar>,
@@ -694,11 +741,26 @@ impl<G: Group> SumcheckEngine<G> for OuterSumcheckInstance<G> {
   }
 }
 
-struct InnerSumcheckInstance<G: Group> {
+pub(super) struct InnerSumcheckInstance<G: Group> {
   claim: G::Scalar,
   poly_L_row: MultilinearPolynomial<G::Scalar>,
   poly_L_col: MultilinearPolynomial<G::Scalar>,
   poly_val: MultilinearPolynomial<G::Scalar>,
+}
+impl<G: Group> InnerSumcheckInstance<G> {
+  pub fn new(
+    claim: G::Scalar,
+    poly_L_row: MultilinearPolynomial<G::Scalar>,
+    poly_L_col: MultilinearPolynomial<G::Scalar>,
+    poly_val: MultilinearPolynomial<G::Scalar>,
+  ) -> Self {
+    Self {
+      claim,
+      poly_L_row,
+      poly_L_col,
+      poly_val,
+    }
+  }
 }
 
 impl<G: Group> SumcheckEngine<G> for InnerSumcheckInstance<G> {
@@ -1132,42 +1194,38 @@ where
         // we now need to prove that L_row and L_col are well-formed
 
         // hash the tuples of (addr,val) memory contents and read responses into a single field element using `hash_func`
-        let hash_func_vec = |mem: &[G::Scalar],
-                             addr: &[G::Scalar],
-                             lookups: &[G::Scalar]|
-         -> (Vec<G::Scalar>, Vec<G::Scalar>) {
-          let hash_func = |addr: &G::Scalar, val: &G::Scalar| -> G::Scalar { *val * gamma + *addr };
-          assert_eq!(addr.len(), lookups.len());
-          rayon::join(
-            || {
-              (0..mem.len())
-                .map(|i| hash_func(&G::Scalar::from(i as u64), &mem[i]))
-                .collect::<Vec<G::Scalar>>()
-            },
-            || {
-              (0..addr.len())
-                .map(|i| hash_func(&addr[i], &lookups[i]))
-                .collect::<Vec<G::Scalar>>()
-            },
-          )
-        };
 
-        let ((T_row, W_row), (T_col, W_col)) = rayon::join(
-          || hash_func_vec(&mem_row, &pk.S_repr.row, &L_row),
-          || hash_func_vec(&mem_col, &pk.S_repr.col, &L_col),
-        );
+        let (comm_mem_oracles, mem_oracles, mem_aux) =
+          MemorySumcheckInstance::<G>::compute_oracles(
+            ck,
+            &r,
+            &gamma,
+            &mem_row,
+            &pk.S_repr.row,
+            &L_row,
+            &pk.S_repr.ts_row,
+            &mem_col,
+            &pk.S_repr.col,
+            &L_col,
+            &pk.S_repr.ts_col,
+          )?;
+        // absorb the commitments
+        transcript.absorb(b"l", &comm_mem_oracles.as_slice());
 
-        MemorySumcheckInstance::new(
-          ck,
-          &r,
-          T_row,
-          W_row,
-          pk.S_repr.ts_row.clone(),
-          T_col,
-          W_col,
-          pk.S_repr.ts_col.clone(),
-          &mut transcript,
-        )
+        let rho = transcript.squeeze(b"r")?;
+        let poly_eq = MultilinearPolynomial::new(PowPolynomial::new(&rho, num_rounds_sc).evals());
+
+        Ok((
+          MemorySumcheckInstance::new(
+            mem_oracles.clone(),
+            mem_aux,
+            poly_eq.Z,
+            pk.S_repr.ts_row.clone(),
+            pk.S_repr.ts_col.clone(),
+          ),
+          comm_mem_oracles,
+          mem_oracles,
+        ))
       },
     );
 
@@ -1439,10 +1497,7 @@ where
               factor *= G::Scalar::ONE - r_p
             }
 
-            let rand_sc_unpad = {
-              let l = vk.S_comm.N.log_2() - (2 * vk.num_vars).log_2();
-              rand_sc[l..].to_vec()
-            };
+            let rand_sc_unpad = rand_sc[l..].to_vec();
 
             (factor, rand_sc_unpad)
           };
