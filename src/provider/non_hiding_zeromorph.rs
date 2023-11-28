@@ -218,7 +218,7 @@ where
     let y = transcript.squeeze(b"y")?;
 
     // Compute the batched, lifted-degree quotient `\hat{q}`
-    // q_hat = \sum_{i=0}^{num_vars-1} y^i * q_i(x)
+    // q_hat = \sum_{i=0}^{num_vars-1} y^i *  X^{2^{num_vars} - d_k - 1} * q_i(x)
     let q_hat = batched_lifted_degree_quotient(y, &quotients_polys);
     // Compute and absorb the commitment C_q = [\hat{q}]
     let q_hat_comm = UVKZGPCS::commit(&pp.commit_pp, &q_hat)?;
