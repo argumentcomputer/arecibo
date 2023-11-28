@@ -76,9 +76,6 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   /// This operation modifies the polynomial in-place.
   pub fn bind_poly_var_top(&mut self, r: &Scalar) {
     assert!(self.num_vars > 0);
-    // if self.num_vars == 0 {
-    //   return;
-    // }
 
     let n = self.len() / 2;
 
