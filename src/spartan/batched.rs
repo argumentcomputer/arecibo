@@ -180,9 +180,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Generate tau polynomial corresponding to eq(τ, τ², τ⁴ , …)
     // for a random challenge τ
     let tau = transcript.squeeze(b"t")?;
+    let all_taus = PowPolynomial::powers(&tau, num_rounds_x_max);
+
     let polys_tau = num_rounds_x
       .iter()
-      .map(|&num_rounds_x| PowPolynomial::new(&tau, num_rounds_x).evals())
+      .map(|&num_rounds_x| PowPolynomial::new_from_powers(&all_taus, num_rounds_x).evals())
       .map(MultilinearPolynomial::new)
       .collect::<Vec<_>>();
 
