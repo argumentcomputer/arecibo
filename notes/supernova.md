@@ -15,7 +15,7 @@ By splitting the proof into an instance/witness pair $(u,w) = \pi$, the folding 
 
 ## SuperNova vs. Nova
 
-The main improvement of SuperNova over its predecessor, is to allow each iteration to apply one of several functions to the previous output, whereas Nova only supported the iteration of a single function. 
+The main improvement of SuperNova, is to allow each iteration to apply one of several functions to the previous output, whereas Nova only supported the iteration of a single function. 
 
 Let $F_0, \ldots, F\_{\ell-1}$ be folding circuits with the same arity $a$. 
 In the context of SuperNova, this means that each $F_j$ takes $a$ inputs from the previous iteration, and returns $a$ outputs. 
@@ -24,7 +24,7 @@ These circuits implement the `circuit_supernova::StepCircuit` trait, where the m
 - The `synthesize` function upon input $z_i$ returns the next `program_counter` $\mathsf{pc}\_{i+1}$ alongside the output $z\_{i+1}$. It also accepts the (optional) input program counter $\mathsf{pc}_i$, which can be `None` when $\ell=1$. During circuit synthesis, a constraint enforces $\mathsf{pc}_i \equiv j$. In contrast to the paper, the _predicate_ function $\varphi$ is built into the circuit itself. In other words, we have the signature $(\mathsf{pc}\_{i+1}, z\_{i+1}) \gets F\_{j}(\mathsf{pc}\_{i}, z\_{i})$.
 
 The goal is to efficiently prove the following computation:
-```
+```ignore
 pc_i = pc_0
 z_i = z_0
 for i in 0..num_steps
@@ -76,7 +76,7 @@ At each step, the prover needs to:
 
 In pseudocode, `prove_step` looks something like:
 
-```
+```ignore
 if i = 0 {
 	U[] = [ø;l]
 
