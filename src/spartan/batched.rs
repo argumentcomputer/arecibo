@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 
@@ -173,30 +174,29 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .iter()
       .map(|s| (s.num_cons.log_2(), s.num_vars.log_2() + 1))
       .unzip();
-    let num_rounds_x_max = num_rounds_x.iter().cloned().max().unwrap();
-    let num_rounds_y_max = num_rounds_y.iter().cloned().max().unwrap();
+    let num_rounds_x_max = *num_rounds_x.iter().max().unwrap();
+    let num_rounds_y_max = *num_rounds_y.iter().max().unwrap();
 
     // Generate tau polynomial corresponding to eq(τ, τ², τ⁴ , …)
     // for a random challenge τ
     let tau = transcript.squeeze(b"t")?;
     let polys_tau = num_rounds_x
       .iter()
-      .map(|&num_rounds_x| PowPolynomial::new(&tau, num_rounds_x))
+      .map(|&num_rounds_x| PowPolynomial::new(&tau, num_rounds_x).evals())
+      .map(MultilinearPolynomial::new)
       .collect::<Vec<_>>();
 
     // Compute MLEs of Az, Bz, Cz, uCz + E
-    let (polys_Az_Bz, polys_Cz): (Vec<_>, Vec<_>) = S
+    let (polys_Az, polys_Bz, polys_Cz): (Vec<_>, Vec<_>, Vec<_>) = S
       .par_iter()
       .zip(polys_Z.par_iter())
       .map(|(s, poly_Z)| {
         let (poly_Az, poly_Bz, poly_Cz) = s.multiply_vec(poly_Z)?;
-        Ok(((poly_Az, poly_Bz), poly_Cz))
+        Ok((poly_Az, poly_Bz, poly_Cz))
       })
       .collect::<Result<Vec<_>, _>>()?
       .into_iter()
-      .unzip();
-
-    let (polys_Az, polys_Bz): (Vec<_>, Vec<_>) = polys_Az_Bz.into_iter().unzip();
+      .multiunzip();
 
     let polys_uCz_E = U
       .par_iter()
@@ -220,30 +220,23 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
-    let outer_r_powers = powers::<G>(&outer_r, S.len());
+    let outer_r_powers = powers::<G>(&outer_r, num_instances);
 
     // Verify outer sumcheck: Az * Bz - uCz_E for each instance
     let (sc_proof_outer, r_x, claims_outer) = SumcheckProof::prove_cubic_with_additive_term_batch(
       &vec![G::Scalar::ZERO; num_instances],
       &num_rounds_x,
-      polys_tau
-        .iter()
-        .map(PowPolynomial::evals)
-        .map(MultilinearPolynomial::new)
-        .collect(),
+      polys_tau,
       polys_Az
-        .iter()
-        .cloned()
+        .into_iter()
         .map(MultilinearPolynomial::new)
         .collect(),
       polys_Bz
-        .iter()
-        .cloned()
+        .into_iter()
         .map(MultilinearPolynomial::new)
         .collect(),
       polys_uCz_E
-        .iter()
-        .cloned()
+        .into_iter()
         .map(MultilinearPolynomial::new)
         .collect(),
       &outer_r_powers,
@@ -268,12 +261,12 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
           || MultilinearPolynomial::evaluate_with(poly_Cz, r_x),
           || MultilinearPolynomial::evaluate_with(poly_E, r_x),
         );
-        ([eval_Az, eval_Bz, eval_Cz], eval_E)
+        ((eval_Az, eval_Bz, eval_Cz), eval_E)
       })
       .unzip();
 
     evals_Az_Bz_Cz.iter().zip(evals_E.iter()).for_each(
-      |(&[eval_Az, eval_Bz, eval_Cz], &eval_E)| {
+      |(&(eval_Az, eval_Bz, eval_Cz), &eval_E)| {
         transcript.absorb(
           b"claims_outer",
           &[eval_Az, eval_Bz, eval_Cz, eval_E].as_slice(),
@@ -284,11 +277,11 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
     let inner_r = transcript.squeeze(b"in_r")?;
     let inner_r_square = inner_r.square();
     let inner_r_cube = inner_r_square * inner_r;
-    let inner_r_powers = powers::<G>(&inner_r_cube, S.len());
+    let inner_r_powers = powers::<G>(&inner_r_cube, num_instances);
 
     let claims_inner_joint = evals_Az_Bz_Cz
       .iter()
-      .map(|[eval_Az, eval_Bz, eval_Cz]| *eval_Az + inner_r * eval_Bz + inner_r_square * eval_Cz)
+      .map(|(eval_Az, eval_Bz, eval_Cz)| *eval_Az + inner_r * eval_Bz + inner_r_square * eval_Cz)
       .collect::<Vec<_>>();
 
     let polys_ABCs = {
@@ -354,8 +347,8 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     // Create evaluation instances for W(r_y[1..]) and E(r_x)
     let (w_vec, u_vec) = {
-      let mut w_vec = Vec::with_capacity(2 * S.len());
-      let mut u_vec = Vec::with_capacity(2 * S.len());
+      let mut w_vec = Vec::with_capacity(2 * num_instances);
+      let mut u_vec = Vec::with_capacity(2 * num_instances);
       w_vec.extend(polys_W.into_iter().map(|poly| PolyEvalWitness { p: poly }));
       u_vec.extend(
         evals_W
@@ -397,11 +390,8 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       &batched_u.e,
     )?;
 
-    let (evals_Az_Bz, evals_Cz): (Vec<_>, Vec<_>) = evals_Az_Bz_Cz
-      .into_iter()
-      .map(|[eval_Az, eval_Bz, eval_Cz]| ((eval_Az, eval_Bz), eval_Cz))
-      .unzip();
-    let (evals_Az, evals_Bz): (Vec<_>, Vec<_>) = evals_Az_Bz.into_iter().unzip();
+    let (evals_Az, evals_Bz, evals_Cz): (Vec<_>, Vec<_>, Vec<_>) =
+      evals_Az_Bz_Cz.into_iter().multiunzip();
 
     Ok(BatchedRelaxedR1CSSNARK {
       sc_proof_outer,
@@ -430,8 +420,8 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .iter()
       .map(|s| (s.num_cons.log_2(), s.num_vars.log_2() + 1))
       .unzip();
-    let num_rounds_x_max = num_rounds_x.iter().cloned().max().unwrap();
-    let num_rounds_y_max = num_rounds_y.iter().cloned().max().unwrap();
+    let num_rounds_x_max = *num_rounds_x.iter().max().unwrap();
+    let num_rounds_y_max = *num_rounds_y.iter().max().unwrap();
 
     // Define τ polynomials of the appropriate size for each instance
     let polys_tau = {

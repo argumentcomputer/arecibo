@@ -49,12 +49,14 @@ impl<G: Group> PolyEvalWitness<G> {
     let powers = powers::<G>(&s, W.len());
 
     let size_max = W.iter().map(|w| w.p.len()).max().unwrap();
-
+    // Scale the input polynomials by the power of s
     let p = W
       .into_par_iter()
       .zip(powers.par_iter())
       .map(|(mut w, s)| {
-        w.p.par_iter_mut().for_each(|e| *e *= s);
+        if *s != G::Scalar::ONE {
+          w.p.par_iter_mut().for_each(|e| *e *= s);
+        }
         w.p
       })
       .reduce(
