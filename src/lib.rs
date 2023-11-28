@@ -368,11 +368,11 @@ where
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
     let r_W_primary =
-      RelaxedR1CSWitness::from_r1cs_witness(&pp.circuit_shape_primary.r1cs_shape, &l_w_primary);
+      RelaxedR1CSWitness::from_r1cs_witness(&pp.circuit_shape_primary.r1cs_shape, l_w_primary);
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
       &pp.ck_primary,
       &pp.circuit_shape_primary.r1cs_shape,
-      &l_u_primary,
+      l_u_primary,
     );
 
     // IVC proof for the secondary circuit
@@ -443,7 +443,10 @@ where
     )
     .expect("Unable to fold secondary");
 
-    let mut cs_primary = SatisfyingAssignment::<E1>::new();
+    let mut cs_primary = SatisfyingAssignment::<E1>::with_capacity(
+      pp.circuit_shape_primary.r1cs_shape.num_io + 1,
+      pp.circuit_shape_primary.r1cs_shape.num_vars,
+    );
     let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<E1>(pp.digest()),
       E1::Scalar::from(self.i as u64),
@@ -483,7 +486,10 @@ where
     )
     .expect("Unable to fold primary");
 
-    let mut cs_secondary = SatisfyingAssignment::<E2>::new();
+    let mut cs_secondary = SatisfyingAssignment::<E2>::with_capacity(
+      pp.circuit_shape_secondary.r1cs_shape.num_io + 1,
+      pp.circuit_shape_secondary.r1cs_shape.num_vars,
+    );
     let inputs_secondary: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
       E2::Scalar::from(self.i as u64),
