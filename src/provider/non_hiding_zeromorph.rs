@@ -26,10 +26,11 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
+use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
-use super::kzg_commitment::KZGCommitmentEngine;
+use crate::provider::kzg_commitment::KZGCommitmentEngine;
 
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
@@ -161,8 +162,7 @@ where
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
       return Err(PCSError::LengthError.into());
     }
-    // TODO: remove the undue clone in the creation of an UVKZGPoly
-    UVKZGPCS::commit(&pp.commit_pp, &UVKZGPoly::new(poly.Z.clone())).map(|c| c.into())
+    UVKZGPCS::commit(&pp.commit_pp, UVKZGPoly::ref_cast(&poly.Z)).map(|c| c.into())
   }
 
   /// Generate a commitment for a list of polynomials
@@ -190,7 +190,6 @@ where
   ) -> Result<ZMProof<E>, NovaError> {
     transcript.dom_sep(Self::protocol_name());
 
-    let num_vars = poly.get_num_vars();
     let pp = pp.borrow();
     if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
       return Err(NovaError::PCSError(PCSError::LengthError));
@@ -200,6 +199,7 @@ where
     debug_assert_eq!(poly.evaluate(point), eval.0);
 
     let (quotients, remainder) = quotients(poly, point);
+    debug_assert_eq!(quotients.len(), poly.get_num_vars());
     debug_assert_eq!(remainder, eval.0);
 
     // TODO: this should be a Cow
@@ -219,35 +219,9 @@ where
     // Get challenge y
     let y = transcript.squeeze(b"y")?;
 
-    let powers_of_y = (0..num_vars)
-      .scan(y, |acc, _| {
-        let val = *acc;
-        *acc *= y;
-        Some(val)
-      })
-      .collect::<Vec<E::Fr>>();
-
-    // Compute the batched, lifted-degree quotient `\hat{q}``
-    let q_hat = {
-      let q_hat = powers_of_y
-        .iter()
-        .zip(quotients_polys.iter().map(|qp| qp.as_ref()))
-        .enumerate()
-        .fold(
-          vec![E::Fr::ZERO; 1 << num_vars],
-          |mut q_hat, (idx, (power_of_y, q))| {
-            let offset = q_hat.len() - (1 << idx);
-            q_hat[offset..]
-              .par_iter_mut()
-              .zip(q)
-              .for_each(|(q_hat, q)| {
-                *q_hat += *power_of_y * *q;
-              });
-            q_hat
-          },
-        );
-      UVKZGPoly::new(q_hat)
-    };
+    // Compute the batched, lifted-degree quotient `\hat{q}`
+    // q_hat = \sum_{i=0}^{num_vars-1} y^i *  X^{2^{num_vars} - d_k - 1} * q_i(x)
+    let q_hat = batched_lifted_degree_quotient(y, &quotients_polys);
     // Compute and absorb the commitment C_q = [\hat{q}]
     let q_hat_comm = UVKZGPCS::commit(&pp.commit_pp, &q_hat)?;
     transcript.absorb(b"q_hat", &q_hat_comm);
@@ -257,16 +231,19 @@ where
     let z = transcript.squeeze(b"z")?;
 
     // Compute batched degree and ZM-identity quotient polynomial pi
-    let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
+    let (eval_scalar, (degree_check_q_scalars, zmpoly_q_scalars)) =
+      eval_and_quotient_scalars(y, x, z, point);
+    // f = z * poly.Z + q\_hat + (-z * Φ_n(x) * e) + \sum_k (q\_scalars_k * q_k)
     let mut f = UVKZGPoly::new(poly.Z.clone());
     f *= &z;
     f += &q_hat;
     f[0] += eval_scalar * eval.0;
     quotients_polys
       .into_iter()
-      .zip(q_scalars)
-      .for_each(|(mut q, scalar)| {
-        q *= &scalar;
+      .zip_eq(degree_check_q_scalars)
+      .zip_eq(zmpoly_q_scalars)
+      .for_each(|((mut q, degree_check_scalar), zm_poly_scalar)| {
+        q *= &(degree_check_scalar + zm_poly_scalar);
         f += &q;
       });
     debug_assert_eq!(f.evaluate(&x), E::Fr::ZERO);
@@ -293,7 +270,7 @@ where
     comm: &ZMCommitment<E>,
     point: &[E::Fr],
     evaluation: &ZMEvaluation<E>,
-    proof: ZMProof<E>,
+    proof: &ZMProof<E>,
   ) -> Result<bool, NovaError> {
     transcript.dom_sep(Self::protocol_name());
 
@@ -312,7 +289,14 @@ where
     let x = transcript.squeeze(b"x")?;
     let z = transcript.squeeze(b"z")?;
 
-    let (eval_scalar, q_scalars) = eval_and_quotient_scalars(y, x, z, point);
+    let (eval_scalar, (mut q_scalars, zmpoly_q_scalars)) =
+      eval_and_quotient_scalars(y, x, z, point);
+    q_scalars
+      .iter_mut()
+      .zip_eq(zmpoly_q_scalars)
+      .for_each(|(scalar, zm_poly_scalar)| {
+        *scalar += zm_poly_scalar;
+      });
     let scalars = [vec![E::Fr::ONE, z, eval_scalar * evaluation.0], q_scalars].concat();
     let bases = [
       vec![proof.cqhat.0, comm.0, vk.vp.g],
@@ -392,12 +376,51 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
   (quotients, remainder[0])
 }
 
-fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec<F>) {
+// Compute the batched, lifted-degree quotient `\hat{q}`
+fn batched_lifted_degree_quotient<F: PrimeField>(
+  y: F,
+  quotients_polys: &[UVKZGPoly<F>],
+) -> UVKZGPoly<F> {
+  let num_vars = quotients_polys.len();
+
+  let powers_of_y = (0..num_vars)
+    .scan(F::ONE, |acc, _| {
+      let val = *acc;
+      *acc *= y;
+      Some(val)
+    })
+    .collect::<Vec<F>>();
+
+  #[allow(clippy::disallowed_methods)]
+  let q_hat = powers_of_y
+    .iter()
+    .zip_eq(quotients_polys.iter().map(|qp| qp.as_ref()))
+    .enumerate()
+    .fold(
+      vec![F::ZERO; 1 << num_vars],
+      |mut q_hat, (idx, (power_of_y, q))| {
+        let offset = q_hat.len() - (1 << idx);
+        q_hat[offset..]
+          .par_iter_mut()
+          .zip(q)
+          .for_each(|(q_hat, q)| {
+            *q_hat += *power_of_y * *q;
+          });
+        q_hat
+      },
+    );
+  UVKZGPoly::new(q_hat)
+}
+
+/// Computes some key terms necessary for computing the partially evaluated univariate ZM polynomial
+fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, (Vec<F>, Vec<F>)) {
   let num_vars = point.len();
 
+  // squares_of_x = [x, x^2, .. x^{2^k}, .. x^{2^num_vars}]
   let squares_of_x = iter::successors(Some(x), |&x| Some(x.square()))
     .take(num_vars + 1)
     .collect::<Vec<_>>();
+  // offsets_of_x = [Π_{j=i}^{num_vars-1} x^{2^j}, i \in 0..=num_vars-1] = [x^{2^num_vars - d_i - 1}, i \in 0..=num_vars-1]
   let offsets_of_x = {
     let mut offsets_of_x = squares_of_x
       .iter()
@@ -411,6 +434,10 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec
     offsets_of_x.reverse();
     offsets_of_x
   };
+
+  // vs = [ \frac{(x^{2^{num_vars}} - 1)}{x^{2^i} - 1}, i \in 0..=num_vars-1]
+  // Note Φ_{n-i}(x^{2^i}) = \frac{(x^{2^i})^{2^{n-i|} - 1}{x^{2^i} - 1} = \frac{(x^{2^{num_vars}} - 1)}{x^{2^i} - 1} = vs[i]
+  //      Φ_{n-i-1}(x^{2^{i+1}}) = \frac{(x^{2^{i+1}})^{2^{n-i-1}} - 1}{x^{2^{i+1}} - 1} = \frac{(x^{2^{num_vars}} - 1)}{x^{2^{i+1}} - 1} = vs[i+1]
   let vs = {
     let v_numer = squares_of_x[num_vars] - F::ONE;
     let mut v_denoms = squares_of_x
@@ -423,19 +450,25 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, Vec
       .map(|v_denom| v_numer * v_denom)
       .collect::<Vec<_>>()
   };
-  let q_scalars = iter::successors(Some(y), |acc| Some(*acc * y))
-    .zip(offsets_of_x)
+
+  // q_scalars = [- (y^i * x^{2^num_vars - d_i - 1} + z * (x^{2^i} * vs_{i+1} - u_i * vs_i)), i = 0..=num_vars-1]
+  //           = [- (y^i * x^{2^num_vars - d_i - 1} + z * (x^{2^i} * Φ_{n-i-1}(x^{2^{i+1}}) - u_i * Φ_{n-i}(x^{2^i}))), i = 0..=num_vars-1]
+  let q_scalars = iter::successors(Some(F::ONE), |acc| Some(*acc * y))
+    .zip_eq(offsets_of_x)
+    // length: num_vars + 1
     .zip(squares_of_x)
+    // length: num_vars + 1
     .zip(&vs)
-    .zip(&vs[1..])
-    .zip(point.iter().rev()) // assume variables come in LE form
+    .zip_eq(&vs[1..])
+    .zip_eq(point.iter().rev()) // assume variables come in BE form
     .map(
       |(((((power_of_y, offset_of_x), square_of_x), v_i), v_j), u_i)| {
-        -(power_of_y * offset_of_x + z * (square_of_x * v_j - *u_i * v_i))
+        (-(power_of_y * offset_of_x), -(z * (square_of_x * v_j - *u_i * v_i)))
       },
     )
-    .collect::<Vec<_>>();
+    .unzip();
 
+  // -vs[0] * z = -z \frac{x^{2^{num\_vars}} - 1}{x - 1} = -z Φ_n(x)
   (-vs[0] * z, q_scalars)
 }
 
@@ -467,10 +500,9 @@ where
     eval: &NE::Scalar,
   ) -> Result<Self::EvaluationArgument, NovaError> {
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
-    // TODO: the following two lines will need to change base
     let polynomial = MultilinearPolynomial::new(poly.to_vec());
-
     let evaluation = ZMEvaluation(*eval);
+
     ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
   }
 
@@ -485,8 +517,7 @@ where
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     let evaluation = ZMEvaluation(*eval);
 
-    // TODO: this clone is unsightly!
-    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg.clone())?;
+    ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg)?;
     Ok(())
   }
 }
@@ -495,8 +526,9 @@ where
 mod test {
   use std::iter;
 
+  
   use halo2curves::bn256::Fr as Scalar;
-  use ff::{Field, PrimeFieldBits};
+  use ff::{Field, PrimeField, PrimeFieldBits};
   use halo2curves::bn256::Bn256;
   use pairing::MultiMillerLoop;
   use rand::thread_rng;
@@ -506,11 +538,13 @@ mod test {
   use super::quotients;
   use crate::{
     provider::{
-      keccak::Keccak256Transcript,
-      non_hiding_kzg::UVUniversalKZGParam,
-      non_hiding_zeromorph::{trim, ZMEvaluation, ZMPCS},
-      traits::DlogGroup,
       Bn256Engine,
+      keccak::Keccak256Transcript,
+      non_hiding_kzg::{UVKZGPoly, UVUniversalKZGParam},
+      non_hiding_zeromorph::{
+        batched_lifted_degree_quotient, eval_and_quotient_scalars, trim, ZMEvaluation, ZMPCS,
+      },
+      traits::DlogGroup,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
     traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
@@ -528,7 +562,6 @@ mod test {
     let universal_setup = UVUniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
 
     for num_vars in 3..max_vars {
-      // this takes a while, run in --release
       // Setup
       let (pp, vk) = {
         let poly_size = 1 << (num_vars + 1);
@@ -556,7 +589,7 @@ mod test {
         &comm,
         point.as_slice(),
         &eval,
-        proof,
+        &proof,
       );
 
       // check both random oracles are synced, as expected
@@ -621,5 +654,165 @@ mod test {
       bool::from(result.is_zero()),
       "The computed quotients should satisfy the polynomial identity."
     );
+  }
+
+  #[test]
+  fn test_batched_lifted_degree_quotient() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let num_vars = 3;
+    let n = 1 << num_vars; // Assuming N = 2^num_vars
+
+    // Define mock q_k with deg(q_k) = 2^k - 1
+    let q_0 = UVKZGPoly::new(vec![Scalar::one()]);
+    let q_1 = UVKZGPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
+    let q_2 = UVKZGPoly::new(vec![
+      Scalar::from(4),
+      Scalar::from(5),
+      Scalar::from(6),
+      Scalar::from(7),
+    ]);
+    let quotients = vec![q_0, q_1, q_2];
+
+    // Generate a random y challenge
+    let y_challenge = Scalar::random(&mut rng);
+
+    // Compute batched quotient \hat{q} using the function
+    let batched_quotient = batched_lifted_degree_quotient(y_challenge, &quotients);
+
+    // Now explicitly define q_k_lifted = X^{N-2^k} * q_k and compute the expected batched result
+    let q_0_lifted = [vec![Scalar::zero(); n - 1], vec![Scalar::one()]].concat();
+    let q_1_lifted = [
+      vec![Scalar::zero(); n - 2],
+      vec![Scalar::from(2), Scalar::from(3)],
+    ]
+    .concat();
+    let q_2_lifted = [
+      vec![Scalar::zero(); n - 4],
+      vec![
+        Scalar::from(4),
+        Scalar::from(5),
+        Scalar::from(6),
+        Scalar::from(7),
+      ],
+    ]
+    .concat();
+
+    // Explicitly compute \hat{q}
+    let mut batched_quotient_expected = vec![Scalar::zero(); n];
+    batched_quotient_expected
+      .iter_mut()
+      .zip_eq(q_0_lifted)
+      .zip_eq(q_1_lifted)
+      .zip_eq(q_2_lifted)
+      .for_each(|(((res, q_0), q_1), q_2)| {
+        *res += q_0 + y_challenge * q_1 + y_challenge * y_challenge * q_2;
+      });
+
+    // Compare the computed and expected batched quotients
+    assert_eq!(batched_quotient, UVKZGPoly::new(batched_quotient_expected));
+  }
+
+  #[test]
+  fn test_partially_evaluated_quotient_zeta() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let num_vars = 3;
+
+    // Define some mock q_k with deg(q_k) = 2^k - 1
+    let _q_0 = UVKZGPoly::new(vec![Scalar::one()]);
+    let _q_1 = UVKZGPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
+    let _q_2 = UVKZGPoly::new(vec![
+      Scalar::from(4),
+      Scalar::from(5),
+      Scalar::from(6),
+      Scalar::from(7),
+    ]);
+
+    let y_challenge = Scalar::random(&mut rng);
+
+    let x_challenge = Scalar::random(&mut rng);
+
+    // Unused in this test
+    let u_challenge: Vec<_> = (0..num_vars).map(|_| Scalar::random(&mut rng)).collect();
+    let z_challenge = Scalar::random(&mut rng);
+
+    // Construct zeta_x using the function
+    let (_eval_scalar, (zeta_x_scalars, _right_quo_scalars)) =
+      eval_and_quotient_scalars(y_challenge, x_challenge, z_challenge, &u_challenge);
+
+    // Now construct zeta_x explicitly
+    let n: u64 = 1 << num_vars;
+    // q_batched - \sum_k q_k * y^k * x^{N - deg(q_k) - 1}
+    assert_eq!(zeta_x_scalars[0], -x_challenge.pow([n - 1]));
+    assert_eq!(
+      zeta_x_scalars[1],
+      -y_challenge * x_challenge.pow_vartime([n - 1 - 1])
+    );
+    assert_eq!(
+      zeta_x_scalars[2],
+      -y_challenge * y_challenge * x_challenge.pow_vartime([n - 3 - 1])
+    );
+  }
+
+  // Evaluate phi using an inefficient formula
+  fn phi<F: PrimeField>(challenge: F, n: usize) -> F {
+    let length = 1 << n;
+    let mut result = F::ZERO;
+    let mut current = F::ONE; // Start with x^0
+
+    for _ in 0..length {
+      result += current;
+      current *= challenge; // Increment the power of x for the next iteration
+    }
+
+    result
+  }
+
+  #[test]
+  fn test_partially_evaluated_quotient_z() {
+    let num_vars: usize = 3;
+
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    // Define some mock q_k with deg(q_k) = 2^k - 1
+    let _q_0 = UVKZGPoly::new(vec![Scalar::one()]);
+    let _q_1 = UVKZGPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
+    let _q_2 = UVKZGPoly::new(vec![
+      Scalar::from(4),
+      Scalar::from(5),
+      Scalar::from(6),
+      Scalar::from(7),
+    ]);
+
+    // Unused in this test
+    let y_challenge = Scalar::random(&mut rng);
+
+    let x_challenge = Scalar::random(&mut rng);
+    let z_challenge = Scalar::random(&mut rng);
+
+    let u_challenge: Vec<_> = (0..num_vars).map(|_| Scalar::random(&mut rng)).collect();
+
+    // Construct Z_x using the function
+    let (_eval_scalar, (_left_quo_scalars, zeta_x_scalars)) =
+      eval_and_quotient_scalars(y_challenge, x_challenge, z_challenge, &u_challenge);
+
+    // beware the Nova coefficient evaluation order!
+    let u_rev = {
+      let mut res = u_challenge.clone();
+      res.reverse();
+      res
+    };
+
+    // Compute Z_x directly
+    for k in 0..num_vars {
+      let x_pow_2k = x_challenge.pow([1 << k]);
+      let x_pow_2kp1 = x_challenge.pow([1 << (k + 1)]);
+      let mut scalar =
+        x_pow_2k * phi(x_pow_2kp1, num_vars - k - 1) - u_rev[k] * phi(x_pow_2k, num_vars - k);
+      scalar *= z_challenge;
+      scalar *= -Scalar::ONE;
+      assert_eq!(zeta_x_scalars[k], scalar);
+    }
   }
 }

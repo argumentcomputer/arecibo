@@ -9,13 +9,15 @@ use std::{
 use ff::PrimeField;
 use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::{Group, TranscriptReprTrait};
 
 // ax^2 + bx + c stored as vec![c, b, a]
 // ax^3 + bx^2 + cx + d stored as vec![d, c, b, a]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, RefCast)]
+#[repr(transparent)]
 pub struct UniPoly<Scalar: PrimeField> {
   pub coeffs: Vec<Scalar>,
 }
