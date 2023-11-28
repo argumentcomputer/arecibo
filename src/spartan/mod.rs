@@ -23,9 +23,10 @@ use ff::Field;
 use polys::multilinear::SparsePolynomial;
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
 
+// Creates a vector of the first `n` powers of `s`.
 fn powers<G: Group>(s: &G::Scalar, n: usize) -> Vec<G::Scalar> {
   assert!(n >= 1);
-  let mut powers = Vec::new();
+  let mut powers = Vec::with_capacity(n);
   powers.push(G::Scalar::ONE);
   for i in 1..n {
     powers.push(powers[i - 1] * s);
