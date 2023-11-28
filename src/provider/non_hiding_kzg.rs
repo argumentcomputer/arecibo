@@ -22,11 +22,11 @@ use crate::{
 ))]
 #[abomonation_omit_bounds]
 pub struct UVUniversalKZGParam<E: Engine> {
-  /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to
+  /// Group elements of the form `{ β^i G }`, where `i` ranges from 0 to
   /// `degree`.
   #[abomonate_with(Vec<[u64; 8]>)] // // this is a hack; we just assume the size of the element.
   pub powers_of_g: Vec<E::G1Affine>,
-  /// Group elements of the form `{ \beta^i H }`, where `i` ranges from 0 to
+  /// Group elements of the form `{ β^i H }`, where `i` ranges from 0 to
   /// `degree`.
   #[abomonate_with(Vec<[u64; 16]>)] // this is a hack; we just assume the size of the element.
   pub powers_of_h: Vec<E::G2Affine>,
@@ -73,7 +73,7 @@ pub struct UVKZGVerifierKey<E: Engine> {
   /// The generator of G2.
   #[abomonate_with([u64; 16])] // this is a hack; we just assume the size of the element.
   pub h: E::G2Affine,
-  /// \beta times the above generator of G2.
+  /// β times the above generator of G2.
   #[abomonate_with([u64; 16])] // this is a hack; we just assume the size of the element.
   pub beta_h: E::G2Affine,
 }
