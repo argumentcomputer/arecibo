@@ -35,6 +35,7 @@ use crate::{
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField};
+use itertools::MultiUnzip;
 use once_cell::sync::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -220,13 +221,12 @@ where
     let polys_Z = W
       .par_iter()
       .zip(U.par_iter())
-      .map(|(W, U)| {
-        W.W
-          .iter()
-          .chain([&U.u])
-          .chain(U.X.iter())
-          .cloned()
-          .collect::<Vec<_>>()
+      .zip(N.par_iter())
+      .map(|((W, U), &Ni)| {
+        // poly_Z will be resized later, so we preallocate the correct capacity
+        let mut poly_Z = Vec::with_capacity(Ni);
+        poly_Z.extend(W.W.iter().chain([&U.u]).chain(U.X.iter()));
+        poly_Z
       })
       .collect::<Vec<Vec<G::Scalar>>>();
 
@@ -313,12 +313,22 @@ where
         poly_Z
       })
       .collect::<Vec<_>>();
+    // Pad both W,E to have the same size. This is inefficient for W since the second half is empty,
+    // but it makes it easier to handle the batching at the end.
     let polys_E = polys_E
       .into_par_iter()
       .zip(N.par_iter())
       .map(|(mut poly_E, &Ni)| {
         poly_E.resize(Ni, G::Scalar::ZERO);
         poly_E
+      })
+      .collect::<Vec<_>>();
+    let polys_W = polys_W
+      .into_par_iter()
+      .zip(N.par_iter())
+      .map(|(mut poly_W, &Ni)| {
+        poly_W.resize(Ni, G::Scalar::ZERO);
+        poly_W
       })
       .collect::<Vec<_>>();
 
@@ -455,7 +465,8 @@ where
       let r = transcript.squeeze(b"r")?;
 
       // We start by computing oracles and auxiliary polynomials to help prove the claim
-      let mem_oracles_res = pk
+      // oracles correspond to [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col]
+      let (comms_mem_oracles, polys_mem_oracles, mem_aux): (Vec<_>, Vec<_>, Vec<_>) = pk
         .S_repr
         .iter()
         .zip(polys_tau.iter())
@@ -476,16 +487,13 @@ where
               L_col,
               &s_repr.ts_col,
             )?;
-          Ok(((comm_mem_oracles, poly_mem_oracles), aux_poly_mem_oracles))
+          Ok((comm_mem_oracles, poly_mem_oracles, aux_poly_mem_oracles))
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .multiunzip();
 
-      // Unpack result, and commit to oracles
-      let (mem_oracles, mem_aux): (Vec<_>, Vec<_>) = mem_oracles_res.into_iter().unzip();
-      // [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col]
-      let (comms_mem_oracles, polys_mem_oracles): (Vec<_>, Vec<_>) =
-        mem_oracles.into_iter().unzip();
-
+      // Commit to oracles
       comms_mem_oracles.iter().for_each(|comms| {
         transcript.absorb(b"l", &comms.as_slice());
       });
@@ -549,13 +557,14 @@ where
         .unzip();
 
       let (evals_Cz_W_E, evals_mem_val_row_col): (Vec<_>, Vec<_>) = polys_Az_Bz_Cz
-        .par_iter()
-        .zip(polys_W.par_iter())
-        .zip(polys_E.par_iter())
-        .zip(pk.S_repr.par_iter())
+        .iter()
+        .zip(polys_W.iter())
+        .zip(polys_E.iter())
+        .zip(pk.S_repr.iter())
         .map(|((([_, _, Cz], poly_W), poly_E), s_repr)| {
           let log_Ni = s_repr.N.log_2();
           let (_, rand_sc) = rand_sc.split_at(num_rounds_sc - log_Ni);
+          let rand_sc_evals = EqPolynomial::new(rand_sc.to_vec()).evals();
           let e = [
             Cz,
             poly_W,
@@ -566,8 +575,14 @@ where
             &s_repr.row,
             &s_repr.col,
           ]
-          .into_par_iter()
-          .map(|p| MultilinearPolynomial::evaluate_with(p, rand_sc))
+          .into_iter()
+          .map(|p| {
+            // Manually compute evaluation to avoid recomputing rand_sc_evals
+            p.par_iter()
+              .zip(rand_sc_evals.par_iter())
+              .map(|(p, eq)| *p * eq)
+              .sum()
+          })
           .collect::<Vec<G::Scalar>>();
           ([e[0], e[1], e[2]], [e[3], e[4], e[5], e[6], e[7]])
         })
@@ -640,7 +655,7 @@ where
       .cloned()
       .collect::<Vec<_>>();
 
-    let polys_vec = polys_Az_Bz_Cz
+    let w_vec = polys_Az_Bz_Cz
       .into_iter()
       .zip(polys_W)
       .zip(polys_E)
@@ -663,66 +678,30 @@ where
             S_repr.ts_col.clone(),
           ])
       })
+      .map(|p| PolyEvalWitness::<G> { p })
       .collect::<Vec<_>>();
 
     evals_vec.iter().for_each(|evals| {
       transcript.absorb(b"e", &evals.as_slice()); // comm_vec is already in the transcript
     });
-
-    let evals_vec = evals_vec
-      .into_iter()
-      .zip(N.iter())
-      .flat_map(|(evals, &Ni)| {
-        let (rand_sc_lo, _) = rand_sc.split_at(num_rounds_sc - Ni.log_2());
-        let scaling = rand_sc_lo
-          .iter()
-          .fold(G::Scalar::ONE, |acc, r| acc * (G::Scalar::ONE - r));
-        evals.into_iter().map(move |eval| eval * scaling)
-      })
-      .collect::<Vec<_>>();
+    let evals_vec = evals_vec.into_iter().flatten().collect::<Vec<_>>();
 
     let c = transcript.squeeze(b"c")?;
 
-    // Manually batch since our vectors have different sizes
-    // let w: PolyEvalWitness<G> = PolyEvalWitness::batch(&polys_vec, &c);
-    let poly_batch = {
-      let res = vec![G::Scalar::ZERO; *N.iter().max().unwrap()];
-      let powers_of_s = powers::<G>(&c, polys_vec.len());
-
-      polys_vec
-        .into_par_iter()
-        .zip(powers_of_s.into_par_iter())
-        .map(|(mut poly, s)| {
-          poly.par_iter_mut().for_each(|v| *v *= s);
-          poly
-        })
-        .reduce(
-          || res.clone(),
-          |left, right| {
-            let (small, mut big) = if left.len() < right.len() {
-              (left, right)
-            } else {
-              (right, left)
-            };
-            big
-              .par_iter_mut()
-              .zip(small.par_iter())
-              .for_each(|(l, r)| *l += r);
-            big
-          },
-        )
-    };
-
-    let u: PolyEvalInstance<G> = PolyEvalInstance::batch(&comms_vec, &rand_sc, &evals_vec, &c);
+    // Compute number of variables for each polynomial
+    let num_vars_u = w_vec.iter().map(|w| w.p.len().log_2()).collect::<Vec<_>>();
+    let u_batch =
+      PolyEvalInstance::<G>::batch_diff_size(&comms_vec, &evals_vec, &num_vars_u, rand_sc, c);
+    let w_batch = PolyEvalWitness::<G>::batch_diff_size(w_vec, c);
 
     let eval_arg = EE::prove(
       ck,
       &pk.pk_ee,
       &mut transcript,
-      &u.c,
-      &poly_batch,
-      &rand_sc,
-      &u.e,
+      &u_batch.c,
+      &w_batch.p,
+      &u_batch.x,
+      &u_batch.e,
     )?;
 
     let comms_Az_Bz_Cz = comms_Az_Bz_Cz
@@ -918,6 +897,8 @@ where
               SparsePolynomial::new(num_vars.log_2(), poly_X).evaluate(&rand_sc_unpad[1..])
             };
 
+            // W was evaluated as if it was padded to logNi variables,
+            // so we don't multiply it by (1-rand_sc_unpad[0])
             W + factor * rand_sc_unpad[0] * X
           };
 
