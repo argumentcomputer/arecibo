@@ -26,6 +26,7 @@ use crate::{
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::Field;
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 
 use rayon::prelude::*;
@@ -509,6 +510,12 @@ pub(super) fn batch_eval_prove<E: Engine>(
   let rho = transcript.squeeze(b"r")?;
   let powers_of_rho = powers::<E>(&rho, num_claims);
 
+  let (claims, u_xs, comms): (Vec<_>, Vec<_>, Vec<_>) =
+    u_vec.into_iter().map(|u| (u.e, u.x, u.c)).multiunzip();
+
+  let (claims, u_xs, comms): (Vec<_>, Vec<_>, Vec<_>) =
+    u_vec.into_iter().map(|u| (u.e, u.x, u.c)).multiunzip();
+
   // Create clones of polynomials to be given to Sumcheck
   // Pᵢ(X)
   let polys_P: Vec<MultilinearPolynomial<E::Scalar>> = w_vec
@@ -516,12 +523,10 @@ pub(super) fn batch_eval_prove<E: Engine>(
     .map(|w| MultilinearPolynomial::new(w.p.clone()))
     .collect();
   // eq(xᵢ, X)
-  let polys_eq: Vec<MultilinearPolynomial<E::Scalar>> = u_vec
-    .iter()
-    .map(|u| MultilinearPolynomial::new(EqPolynomial::new(u.x.clone()).evals()))
+  let polys_eq: Vec<MultilinearPolynomial<E::Scalar>> = u_xs
+    .into_iter()
+    .map(|ux| MultilinearPolynomial::new(EqPolynomial::new(ux).evals()))
     .collect();
-
-  let claims = u_vec.iter().map(|u| u.e).collect::<Vec<_>>();
 
   // For each i, check eᵢ = ∑ₓ Pᵢ(x)eq(xᵢ,x), where x ∈ {0,1}^nᵢ
   let comb_func = |poly_P: &G::Scalar, poly_eq: &G::Scalar| -> G::Scalar { *poly_P * *poly_eq };
@@ -541,7 +546,7 @@ pub(super) fn batch_eval_prove<E: Engine>(
 
   // we now combine evaluation claims at the same point r into one
   let gamma = transcript.squeeze(b"g")?;
-  let powers_of_gamma: Vec<E::Scalar> = powers::<E>(&gamma, num_claims);
+  let powers_of_gamma: Vec<G::Scalar> = powers::<G>(&gamma, num_claims);
 
   let comms = u_vec.into_iter().map(|u| u.c).collect::<Vec<_>>();
 
@@ -549,7 +554,7 @@ pub(super) fn batch_eval_prove<E: Engine>(
     PolyEvalInstance::batch_diff_size(&comms, &claims_batch_left, &num_rounds, r, gamma);
 
   // P = ∑ᵢ γⁱ⋅Pᵢ
-  let w_joint = PolyEvalWitness::batch_diff_size(w_vec, &powers_of_gamma);
+  let w_joint = PolyEvalWitness::batch_diff_size(w_vec, gamma);
 
   Ok((u_joint, w_joint, sc_proof_batch, claims_batch_left))
 }
@@ -571,7 +576,7 @@ pub(super) fn batch_eval_verify<G: Group>(
 
   // Compute nᵢ and n = maxᵢ{nᵢ}
   let num_rounds = u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
-  let num_rounds_max = num_rounds.iter().cloned().max().unwrap();
+  let num_rounds_max = *num_rounds.iter().max().unwrap();
 
   let claims = u_vec_padded.iter().map(|u| u.e).collect::<Vec<_>>();
 
