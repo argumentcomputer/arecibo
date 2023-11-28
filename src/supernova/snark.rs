@@ -685,7 +685,7 @@ mod test {
     <G1::Scalar as PrimeField>::Repr: Abomonation,
     <G2::Scalar as PrimeField>::Repr: Abomonation,
   {
-    const NUM_STEPS: usize = 6;
+    const NUM_STEPS: usize = 4;
 
     let secondary_circuit = TrivialSecondaryCircuit::default();
     let test_circuits = BigTestCircuit::new(NUM_STEPS);

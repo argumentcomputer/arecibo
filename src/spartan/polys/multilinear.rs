@@ -68,9 +68,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   ///
   /// This operation modifies the polynomial in-place.
   pub fn bind_poly_var_top(&mut self, r: &Scalar) {
-    if self.num_vars == 0 {
-      return;
-    }
+    assert!(self.num_vars > 0);
 
     let n = self.len() / 2;
 
@@ -105,6 +103,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
 
   /// Evaluates the polynomial with the given evaluations and point.
   pub fn evaluate_with(Z: &[Scalar], r: &[Scalar]) -> Scalar {
+    assert_eq!(1 << r.len(), Z.len());
     EqPolynomial::new(r.to_vec())
       .evals()
       .into_par_iter()
