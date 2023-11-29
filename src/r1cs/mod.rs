@@ -414,8 +414,8 @@ impl<E: Engine> R1CSShape<E> {
         .map(|i| {
           let AZ_1_circ_BZ_2 = AZ_1[i] * BZ_2[i];
           let AZ_2_circ_BZ_1 = AZ_2[i] * BZ_1[i];
-          let u_1_cdot_CZ_2 = U1.u * CZ_2[i];
-          AZ_1_circ_BZ_2 + AZ_2_circ_BZ_1 - u_1_cdot_CZ_2 - CZ_1[i]
+          let u_1_cdot_Cz_2_plus_Cz_1 = U1.u * CZ_2[i] + CZ_1[i];
+          AZ_1_circ_BZ_2 + AZ_2_circ_BZ_1 - u_1_cdot_Cz_2_plus_Cz_1
         })
         .collect_into_vec(T)
     });
@@ -599,12 +599,12 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
     self
       .W
       .par_iter_mut()
-      .zip(&W2.W)
+      .zip_eq(&W2.W)
       .for_each(|(a, b)| *a += *r * *b);
     self
       .E
       .par_iter_mut()
-      .zip(T)
+      .zip_eq(T)
       .for_each(|(a, b)| *a += *r * *b);
 
     Ok(())
@@ -697,7 +697,7 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
     let (X2, comm_W_2) = (&U2.X, &U2.comm_W);
 
     // weighted sum of X, comm_W, comm_E, and u
-    self.X.par_iter_mut().zip(X2).for_each(|(a, b)| {
+    self.X.par_iter_mut().zip_eq(X2).for_each(|(a, b)| {
       *a += *r * *b;
     });
     self.comm_W = self.comm_W + *comm_W_2 * *r;

@@ -271,10 +271,11 @@ where
   }
 }
 
-/// A resource sink for [`RecursiveSNARK`]
+/// A resource buffer for [`RecursiveSNARK`] for storing scratch values that are computed by `prove_step`,
+/// which allows the reuse of memory allocations and avoids unnecessary new allocations in the critical section.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct ResourceSink<E: Engine> {
+pub struct ResourceBuffer<E: Engine> {
   l_w: Option<R1CSWitness<E>>,
   l_u: Option<R1CSInstance<E>>,
 
@@ -304,8 +305,10 @@ where
   l_w_secondary: R1CSWitness<E2>,
   l_u_secondary: R1CSInstance<E2>,
 
-  sink_primary: ResourceSink<E1>,
-  sink_secondary: ResourceSink<E2>,
+  /// Buffer for memory needed by the primary fold-step
+  buffer_primary: ResourceBuffer<E1>,
+  /// Buffer for memory needed by the secondary fold-step
+  buffer_secondary: ResourceBuffer<E2>,
 
   i: usize,
   zi_primary: Vec<E1::Scalar>,
@@ -421,7 +424,7 @@ where
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, NovaError>>()
       .expect("Nova error synthesis");
 
-    let sink_primary = ResourceSink {
+    let buffer_primary = ResourceBuffer {
       l_w: None,
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_primary),
@@ -429,7 +432,7 @@ where
       T: r1cs::default_T(r1cs_primary),
     };
 
-    let sink_secondary = ResourceSink {
+    let buffer_secondary = ResourceBuffer {
       l_w: None,
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_secondary),
@@ -447,8 +450,8 @@ where
       l_w_secondary,
       l_u_secondary,
 
-      sink_primary,
-      sink_secondary,
+      buffer_primary,
+      buffer_secondary,
       i: 0,
       zi_primary,
       zi_secondary,
@@ -474,7 +477,6 @@ where
     // save the inputs before proceeding to the `i+1`th step
     let r_U_primary_i = self.r_U_primary.clone();
     let r_U_secondary_i = self.r_U_secondary.clone();
-    // let l_u_primary_i = self.l_u_primary.clone();
     let l_u_secondary_i = self.l_u_secondary.clone();
 
     // fold the secondary circuit's instance
@@ -487,9 +489,9 @@ where
       &mut self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
-      &mut self.sink_secondary.T,
-      &mut self.sink_secondary.ABC_Z_1,
-      &mut self.sink_secondary.ABC_Z_2,
+      &mut self.buffer_secondary.T,
+      &mut self.buffer_secondary.ABC_Z_1,
+      &mut self.buffer_secondary.ABC_Z_2,
     )
     .expect("Unable to fold secondary");
 
@@ -533,9 +535,9 @@ where
       &mut self.r_W_primary,
       &l_u_primary,
       &l_w_primary,
-      &mut self.sink_primary.T,
-      &mut self.sink_primary.ABC_Z_1,
-      &mut self.sink_primary.ABC_Z_2,
+      &mut self.buffer_primary.T,
+      &mut self.buffer_primary.ABC_Z_1,
+      &mut self.buffer_primary.ABC_Z_2,
     )
     .expect("Unable to fold primary");
 
