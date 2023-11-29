@@ -499,6 +499,8 @@ where
 
       // Sample new random variable for eq polynomial
       let rho = transcript.squeeze(b"r")?;
+      let N_max = N.iter().max().unwrap();
+      let all_rhos = PowPolynomial::powers(&rho, N_max.log_2());
 
       let instances = pk
         .S_repr
@@ -510,7 +512,7 @@ where
           MemorySumcheckInstance::<E>::new(
             polys_mem_oracles.clone(),
             polys_aux,
-            PowPolynomial::new(&rho, Ni.log_2()).evals().to_vec(),
+            PowPolynomial::evals_with_powers(&all_rhos, Ni.log_2()),
             s_repr.ts_row.clone(),
             s_repr.ts_col.clone(),
           )
