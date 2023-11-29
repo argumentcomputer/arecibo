@@ -41,14 +41,11 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
     t_pow
   }
 
-  /// Creates a new `PowPolynomial` from an already-existing vector of powers.
-  /// `t_pow.len()` must be > `ell`
-  pub fn new_from_powers(powers: &[Scalar], ell: usize) -> Self {
+  /// Creates the evals corresponding to a `PowPolynomial` from an already-existing vector of powers.
+  /// `t_pow.len() > ell` must be true.
+  pub(crate) fn evals_with_powers(powers: &[Scalar], ell: usize) -> Vec<Scalar> {
     let t_pow = powers[..ell].to_vec();
-    PowPolynomial {
-      t_pow: t_pow.clone(),
-      eq: EqPolynomial::new(t_pow),
-    }
+    EqPolynomial::new(t_pow).evals()
   }
 
   /// Evaluates the `PowPolynomial` at a given point `rx`.

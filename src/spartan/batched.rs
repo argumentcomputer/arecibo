@@ -184,7 +184,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     let polys_tau = num_rounds_x
       .iter()
-      .map(|&num_rounds_x| PowPolynomial::new_from_powers(&all_taus, num_rounds_x).evals())
+      .map(|&num_rounds_x| PowPolynomial::evals_with_powers(&all_taus, num_rounds_x))
       .map(MultilinearPolynomial::new)
       .collect::<Vec<_>>();
 
