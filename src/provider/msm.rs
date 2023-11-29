@@ -23,7 +23,8 @@ fn cpu_msm_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve
     }
 
     let mut v = [0; 8];
-    for (v, o) in v.iter_mut().zip_eq(bytes.as_ref()[skip_bytes..].iter()) {
+    #[allow(clippy::disallowed_methods)]
+    for (v, o) in v.iter_mut().zip(bytes.as_ref()[skip_bytes..].iter()) {
       *v = *o;
     }
 
