@@ -55,7 +55,7 @@ fn next_rom_index_and_pc<F: PrimeField, CS: ConstraintSystem<F>>(
   )?;
 
   // Enforce that allocated_rom[rom_index] = pc
-  for (rom, bit) in allocated_rom.iter().zip(current_rom_selector.iter()) {
+  for (rom, bit) in allocated_rom.iter().zip_eq(current_rom_selector.iter()) {
     // if bit = 1, then rom = pc
     // bit * (rom - pc) = 0
     cs.enforce(

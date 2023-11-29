@@ -4,6 +4,7 @@ use bellpepper_core::{
   ConstraintSystem, LinearCombination, SynthesisError,
 };
 use ff::PrimeField;
+use itertools::Itertools as _;
 
 use crate::{
   gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
@@ -37,7 +38,7 @@ pub fn get_from_vec_alloc_relaxed_r1cs<E: Engine, CS: ConstraintSystem<<E as Eng
   // Otherwise, the correct instance will be selected.
   let selected = a
     .iter()
-    .zip(selector_vec.iter())
+    .zip_eq(selector_vec.iter())
     .enumerate()
     .skip(1)
     .try_fold(first, |matched, (i, (candidate, equal_bit))| {

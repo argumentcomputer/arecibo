@@ -6,6 +6,7 @@ use super::{
 };
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use ff::PrimeField;
+use itertools::Itertools as _;
 use num_bigint::BigInt;
 use num_traits::cast::ToPrimitive;
 use std::borrow::Borrow;
@@ -267,7 +268,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     // swap the option and iterator
     let limb_values_split =
       (0..self.limbs.len()).map(|i| self.limb_values.as_ref().map(|vs| vs[i]));
-    for (i, (limb, limb_value)) in self.limbs.iter().zip(limb_values_split).enumerate() {
+    for (i, (limb, limb_value)) in self.limbs.iter().zip_eq(limb_values_split).enumerate() {
       Num::new(limb_value, limb.clone())
         .fits_in_bits(cs.namespace(|| format!("{i}")), self.params.limb_width)?;
     }
@@ -284,7 +285,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     let bitvectors: Vec<Bitvector<Scalar>> = self
       .limbs
       .iter()
-      .zip(limb_values_split)
+      .zip_eq(limb_values_split)
       .enumerate()
       .map(|(i, (limb, limb_value))| {
         Num::new(limb_value, limb.clone()).decompose(

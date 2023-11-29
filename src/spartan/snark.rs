@@ -25,6 +25,7 @@ use crate::{
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::Field;
+use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 
 use rayon::prelude::*;
@@ -491,7 +492,7 @@ fn batch_eval_prove<E: Engine>(
   let powers_of_rho = powers::<E>(&rho, num_claims);
   let claim_batch_joint = u_vec_padded
     .iter()
-    .zip(powers_of_rho.iter())
+    .zip_eq(powers_of_rho.iter())
     .map(|(u, p)| u.e * p)
     .sum();
 
@@ -526,13 +527,13 @@ fn batch_eval_prove<E: Engine>(
   let powers_of_gamma: Vec<E::Scalar> = powers::<E>(&gamma, num_claims);
   let comm_joint = u_vec_padded
     .iter()
-    .zip(powers_of_gamma.iter())
+    .zip_eq(powers_of_gamma.iter())
     .map(|(u, g_i)| u.c * *g_i)
     .fold(Commitment::<E>::default(), |acc, item| acc + item);
   let poly_joint = PolyEvalWitness::weighted_sum(&w_vec_padded, &powers_of_gamma);
   let eval_joint = claims_batch_left
     .iter()
-    .zip(powers_of_gamma.iter())
+    .zip_eq(powers_of_gamma.iter())
     .map(|(e, g_i)| *e * *g_i)
     .sum();
 
@@ -556,8 +557,6 @@ fn batch_eval_verify<E: Engine>(
   sc_proof_batch: &SumcheckProof<E>,
   evals_batch: &[E::Scalar],
 ) -> Result<PolyEvalInstance<E>, NovaError> {
-  assert_eq!(evals_batch.len(), evals_batch.len());
-
   let u_vec_padded = PolyEvalInstance::pad(u_vec); // pad the evaluation points
 
   // generate a challenge
@@ -566,7 +565,7 @@ fn batch_eval_verify<E: Engine>(
   let powers_of_rho = powers::<E>(&rho, num_claims);
   let claim_batch_joint = u_vec_padded
     .iter()
-    .zip(powers_of_rho.iter())
+    .zip_eq(powers_of_rho.iter())
     .map(|(u, p)| u.e * p)
     .sum();
 
@@ -584,8 +583,8 @@ fn batch_eval_verify<E: Engine>(
 
     evals
       .iter()
-      .zip(evals_batch.iter())
-      .zip(powers_of_rho.iter())
+      .zip_eq(evals_batch.iter())
+      .zip_eq(powers_of_rho.iter())
       .map(|((e_i, p_i), rho_i)| *e_i * *p_i * rho_i)
       .sum()
   };
@@ -601,12 +600,12 @@ fn batch_eval_verify<E: Engine>(
   let powers_of_gamma: Vec<E::Scalar> = powers::<E>(&gamma, num_claims);
   let comm_joint = u_vec_padded
     .iter()
-    .zip(powers_of_gamma.iter())
+    .zip_eq(powers_of_gamma.iter())
     .map(|(u, g_i)| u.c * *g_i)
     .fold(Commitment::<E>::default(), |acc, item| acc + item);
   let eval_joint = evals_batch
     .iter()
-    .zip(powers_of_gamma.iter())
+    .zip_eq(powers_of_gamma.iter())
     .map(|(e, g_i)| *e * *g_i)
     .sum();
 

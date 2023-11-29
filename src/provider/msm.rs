@@ -1,6 +1,7 @@
 //! This module provides a multi-scalar multiplication routine
 /// Adapted from zcash/halo2
 use ff::PrimeField;
+use itertools::Itertools as _;
 use pasta_curves::{self, arithmetic::CurveAffine, group::Group as AnotherGroup};
 use rayon::{current_num_threads, prelude::*};
 
@@ -22,7 +23,7 @@ fn cpu_msm_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve
     }
 
     let mut v = [0; 8];
-    for (v, o) in v.iter_mut().zip(bytes.as_ref()[skip_bytes..].iter()) {
+    for (v, o) in v.iter_mut().zip_eq(bytes.as_ref()[skip_bytes..].iter()) {
       *v = *o;
     }
 
@@ -67,7 +68,7 @@ fn cpu_msm_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve
 
       let mut buckets = vec![Bucket::None; (1 << c) - 1];
 
-      for (coeff, base) in coeffs.iter().zip(bases.iter()) {
+      for (coeff, base) in coeffs.iter().zip_eq(bases.iter()) {
         let coeff = get_at::<C::Scalar>(segment, c, &coeff.to_repr());
         if coeff != 0 {
           buckets[coeff - 1].add_assign(base);
@@ -101,7 +102,7 @@ pub(crate) fn cpu_best_msm<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) ->
     let chunk = coeffs.len() / num_threads;
     coeffs
       .par_chunks(chunk)
-      .zip(bases.par_chunks(chunk))
+      .zip_eq(bases.par_chunks(chunk))
       .map(|(coeffs, bases)| cpu_msm_serial(coeffs, bases))
       .reduce(C::Curve::identity, |sum, evl| sum + evl)
   } else {
@@ -119,6 +120,7 @@ mod tests {
   };
   use group::{ff::Field, Group};
   use halo2curves::CurveAffine;
+  use itertools::Itertools as _;
   use pasta_curves::{pallas, vesta};
   use rand_core::OsRng;
 
@@ -130,7 +132,7 @@ mod tests {
       .collect::<Vec<_>>();
     let naive = coeffs
       .iter()
-      .zip(bases.iter())
+      .zip_eq(bases.iter())
       .fold(A::CurveExt::identity(), |acc, (coeff, base)| {
         acc + *base * coeff
       });

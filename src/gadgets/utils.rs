@@ -8,6 +8,7 @@ use bellpepper_core::{
   ConstraintSystem, LinearCombination, SynthesisError,
 };
 use ff::{Field, PrimeField, PrimeFieldBits};
+use itertools::Itertools as _;
 use num_bigint::BigInt;
 
 /// Gets as input the little indian representation of a number and spits out the number
@@ -212,7 +213,7 @@ pub fn conditionally_select_vec<F: PrimeField, CS: ConstraintSystem<F>>(
   condition: &Boolean,
 ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
   a.iter()
-    .zip(b.iter())
+    .zip_eq(b.iter())
     .enumerate()
     .map(|(i, (a, b))| {
       conditionally_select(cs.namespace(|| format!("select_{i}")), a, b, condition)
