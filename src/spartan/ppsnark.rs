@@ -74,9 +74,9 @@ pub struct R1CSShapeSparkRepr<E: Engine> {
 /// A type that holds a commitment to a sparse polynomial
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <G::Scalar as PrimeField>::Repr: Abomonation)]
-pub struct R1CSShapeSparkCommitment<G: Group> {
-  N: usize, // size of each vector
+#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
+pub struct R1CSShapeSparkCommitment<E: Engine> {
+  pub(super) N: usize, // size of each vector
 
   // commitments to the dense representation
   pub(super) comm_row: Commitment<E>,
@@ -289,7 +289,7 @@ pub(super) struct MemorySumcheckInstance<E: Engine> {
   poly_zero: MultilinearPolynomial<E::Scalar>,
 }
 
-impl<G: Group> MemorySumcheckInstance<G> {
+impl<E: Engine> MemorySumcheckInstance<E> {
   /// Computes witnesses for MemoryInstanceSumcheck
   ///
   /// # Description
@@ -311,35 +311,35 @@ impl<G: Group> MemorySumcheckInstance<G> {
   /// The function returns oracles for the polynomials TS[i]/(T[i] + r), 1/(W[i] + r),
   /// as well as auxiliary polynomials T[i] + r, W[i] + r
   pub fn compute_oracles(
-    ck: &CommitmentKey<G>,
-    r: &G::Scalar,
-    gamma: &G::Scalar,
-    mem_row: &[G::Scalar],
-    addr_row: &[G::Scalar],
-    L_row: &[G::Scalar],
-    ts_row: &[G::Scalar],
-    mem_col: &[G::Scalar],
-    addr_col: &[G::Scalar],
-    L_col: &[G::Scalar],
-    ts_col: &[G::Scalar],
-  ) -> Result<([Commitment<G>; 4], [Vec<G::Scalar>; 4], [Vec<G::Scalar>; 4]), NovaError> {
+    ck: &CommitmentKey<E>,
+    r: &E::Scalar,
+    gamma: &E::Scalar,
+    mem_row: &[E::Scalar],
+    addr_row: &[E::Scalar],
+    L_row: &[E::Scalar],
+    ts_row: &[E::Scalar],
+    mem_col: &[E::Scalar],
+    addr_col: &[E::Scalar],
+    L_col: &[E::Scalar],
+    ts_col: &[E::Scalar],
+  ) -> Result<([Commitment<E>; 4], [Vec<E::Scalar>; 4], [Vec<E::Scalar>; 4]), NovaError> {
     // hash the tuples of (addr,val) memory contents and read responses into a single field element using `hash_func`
-    let hash_func_vec = |mem: &[G::Scalar],
-                         addr: &[G::Scalar],
-                         lookups: &[G::Scalar]|
-     -> (Vec<G::Scalar>, Vec<G::Scalar>) {
-      let hash_func = |addr: &G::Scalar, val: &G::Scalar| -> G::Scalar { *val * gamma + *addr };
+    let hash_func_vec = |mem: &[E::Scalar],
+                         addr: &[E::Scalar],
+                         lookups: &[E::Scalar]|
+     -> (Vec<E::Scalar>, Vec<E::Scalar>) {
+      let hash_func = |addr: &E::Scalar, val: &E::Scalar| -> E::Scalar { *val * gamma + *addr };
       assert_eq!(addr.len(), lookups.len());
       rayon::join(
         || {
           (0..mem.len())
-            .map(|i| hash_func(&G::Scalar::from(i as u64), &mem[i]))
-            .collect::<Vec<G::Scalar>>()
+            .map(|i| hash_func(&E::Scalar::from(i as u64), &mem[i]))
+            .collect::<Vec<E::Scalar>>()
         },
         || {
           (0..addr.len())
             .map(|i| hash_func(&addr[i], &lookups[i]))
-            .collect::<Vec<G::Scalar>>()
+            .collect::<Vec<E::Scalar>>()
         },
       )
     };
@@ -349,9 +349,9 @@ impl<G: Group> MemorySumcheckInstance<G> {
       || hash_func_vec(mem_col, addr_col, L_col),
     );
 
-    let batch_invert = |v: &[G::Scalar]| -> Result<Vec<G::Scalar>, NovaError> {
-      let mut products = vec![G::Scalar::ZERO; v.len()];
-      let mut acc = G::Scalar::ONE;
+    let batch_invert = |v: &[E::Scalar]| -> Result<Vec<E::Scalar>, NovaError> {
+      let mut products = vec![E::Scalar::ZERO; v.len()];
+      let mut acc = E::Scalar::ONE;
 
       for i in 0..v.len() {
         products[i] = acc;
@@ -422,8 +422,8 @@ impl<G: Group> MemorySumcheckInstance<G> {
       ((t_plus_r_inv_row, w_plus_r_inv_row), (t_plus_r_row, w_plus_r_row)),
       ((t_plus_r_inv_col, w_plus_r_inv_col), (t_plus_r_col, w_plus_r_col)),
     ) = rayon::join(
-      || helper(T_row, W_row, ts_row, r),
-      || helper(T_col, W_col, ts_col, r),
+      || helper(&T_row, &W_row, ts_row, r),
+      || helper(&T_col, &W_col, ts_col, r),
     );
 
     let t_plus_r_inv_row = t_plus_r_inv_row?;
@@ -469,11 +469,11 @@ impl<G: Group> MemorySumcheckInstance<G> {
   }
 
   pub fn new(
-    polys_oracle: [Vec<G::Scalar>; 4],
-    polys_aux: [Vec<G::Scalar>; 4],
-    poly_eq: Vec<G::Scalar>,
-    ts_row: Vec<G::Scalar>,
-    ts_col: Vec<G::Scalar>,
+    polys_oracle: [Vec<E::Scalar>; 4],
+    polys_aux: [Vec<E::Scalar>; 4],
+    poly_eq: Vec<E::Scalar>,
+    ts_row: Vec<E::Scalar>,
+    ts_col: Vec<E::Scalar>,
   ) -> Self {
     let [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col] = polys_oracle;
     let [t_plus_r_row, w_plus_r_row, t_plus_r_col, w_plus_r_col] = polys_aux;
@@ -748,12 +748,12 @@ pub(super) struct InnerSumcheckInstance<E: Engine> {
   poly_L_col: MultilinearPolynomial<E::Scalar>,
   poly_val: MultilinearPolynomial<E::Scalar>,
 }
-impl<G: Group> InnerSumcheckInstance<G> {
+impl<E: Engine> InnerSumcheckInstance<E> {
   pub fn new(
-    claim: G::Scalar,
-    poly_L_row: MultilinearPolynomial<G::Scalar>,
-    poly_L_col: MultilinearPolynomial<G::Scalar>,
-    poly_val: MultilinearPolynomial<G::Scalar>,
+    claim: E::Scalar,
+    poly_L_row: MultilinearPolynomial<E::Scalar>,
+    poly_L_col: MultilinearPolynomial<E::Scalar>,
+    poly_val: MultilinearPolynomial<E::Scalar>,
   ) -> Self {
     Self {
       claim,
@@ -1197,7 +1197,7 @@ where
         // hash the tuples of (addr,val) memory contents and read responses into a single field element using `hash_func`
 
         let (comm_mem_oracles, mem_oracles, mem_aux) =
-          MemorySumcheckInstance::<G>::compute_oracles(
+          MemorySumcheckInstance::<E>::compute_oracles(
             ck,
             &r,
             &gamma,

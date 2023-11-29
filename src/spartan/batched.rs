@@ -33,7 +33,7 @@ use crate::{
   traits::{
     evaluation::EvaluationEngineTrait,
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
-    Group, TranscriptEngineTrait,
+    Engine, TranscriptEngineTrait,
   },
   CommitmentKey,
 };
@@ -43,40 +43,40 @@ use crate::{
 /// the commitment to a vector viewed as a polynomial commitment
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct BatchedRelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
-  sc_proof_outer: SumcheckProof<G>,
+pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
+  sc_proof_outer: SumcheckProof<E>,
   // Claims ([Azᵢ(τᵢ), ])
-  claims_outer: (Vec<G::Scalar>, Vec<G::Scalar>, Vec<G::Scalar>),
-  evals_E: Vec<G::Scalar>,
-  sc_proof_inner: SumcheckProof<G>,
-  evals_W: Vec<G::Scalar>,
-  sc_proof_batch: SumcheckProof<G>,
-  evals_batch: Vec<G::Scalar>,
+  claims_outer: (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>),
+  evals_E: Vec<E::Scalar>,
+  sc_proof_inner: SumcheckProof<E>,
+  evals_W: Vec<E::Scalar>,
+  sc_proof_batch: SumcheckProof<E>,
+  evals_batch: Vec<E::Scalar>,
   eval_arg: EE::EvaluationArgument,
 }
 
 /// A type that represents the prover's key
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
-  vk_digest: G::Scalar,
+  vk_digest: E::Scalar,
 }
 
 /// A type that represents the verifier's key
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <G::Scalar as ff::PrimeField>::Repr: Abomonation)]
-pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
+#[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
+pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   vk_ee: EE::VerifierKey,
-  S: Vec<R1CSShape<G>>,
+  S: Vec<R1CSShape<E>>,
   #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<G::Scalar>,
+  digest: OnceCell<E::Scalar>,
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
-  fn new(shapes: Vec<R1CSShape<G>>, vk_ee: EE::VerifierKey) -> Self {
+impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
+  fn new(shapes: Vec<R1CSShape<E>>, vk_ee: EE::VerifierKey) -> Self {
     VerifierKey {
       vk_ee,
       S: shapes,
@@ -85,15 +85,15 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
   }
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
+impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E, EE> {}
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> DigestHelperTrait<G> for VerifierKey<G, EE> {
+impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierKey<E, EE> {
   /// Returns the digest of the verifier's key.
-  fn digest(&self) -> G::Scalar {
+  fn digest(&self) -> E::Scalar {
     self
       .digest
       .get_or_try_init(|| {
-        let dc = DigestComputer::<G::Scalar, _>::new(self);
+        let dc = DigestComputer::<E::Scalar, _>::new(self);
         dc.digest()
       })
       .cloned()
@@ -101,16 +101,16 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> DigestHelperTrait<G> for VerifierKe
   }
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
-  for BatchedRelaxedR1CSSNARK<G, EE>
+impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
+  for BatchedRelaxedR1CSSNARK<E, EE>
 {
-  type ProverKey = ProverKey<G, EE>;
+  type ProverKey = ProverKey<E, EE>;
 
-  type VerifierKey = VerifierKey<G, EE>;
+  type VerifierKey = VerifierKey<E, EE>;
 
   fn setup(
-    ck: &CommitmentKey<G>,
-    S: &[R1CSShape<G>],
+    ck: &CommitmentKey<E>,
+    S: &[R1CSShape<E>],
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     let (pk_ee, vk_ee) = EE::setup(ck);
 
@@ -127,11 +127,11 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
   }
 
   fn prove(
-    ck: &CommitmentKey<G>,
+    ck: &CommitmentKey<E>,
     pk: &Self::ProverKey,
-    S: &[R1CSShape<G>],
-    U: &[RelaxedR1CSInstance<G>],
-    W: &[RelaxedR1CSWitness<G>],
+    S: &[R1CSShape<E>],
+    U: &[RelaxedR1CSInstance<E>],
+    W: &[RelaxedR1CSWitness<E>],
   ) -> Result<Self, NovaError> {
     let num_instances = U.len();
     // Pad shapes and ensure their sizes are correct
@@ -152,9 +152,9 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .iter()
       .zip(S.iter())
       .map(|(w, s)| w.pad(s))
-      .collect::<Vec<RelaxedR1CSWitness<G>>>();
+      .collect::<Vec<RelaxedR1CSWitness<E>>>();
 
-    let mut transcript = G::TE::new(b"BatchedRelaxedR1CSSNARK");
+    let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
     transcript.absorb(b"vk", &pk.vk_digest);
     U.iter().for_each(|u| {
@@ -207,24 +207,24 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
           .par_iter()
           .zip(poly_E.par_iter())
           .map(|(cz, e)| u.u * cz + e)
-          .collect::<Vec<G::Scalar>>()
+          .collect::<Vec<E::Scalar>>()
       })
       .collect::<Vec<_>>();
 
     let comb_func_outer =
-      |poly_A_comp: &G::Scalar,
-       poly_B_comp: &G::Scalar,
-       poly_C_comp: &G::Scalar,
-       poly_D_comp: &G::Scalar|
-       -> G::Scalar { *poly_A_comp * (*poly_B_comp * *poly_C_comp - *poly_D_comp) };
+      |poly_A_comp: &E::Scalar,
+       poly_B_comp: &E::Scalar,
+       poly_C_comp: &E::Scalar,
+       poly_D_comp: &E::Scalar|
+       -> E::Scalar { *poly_A_comp * (*poly_B_comp * *poly_C_comp - *poly_D_comp) };
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
-    let outer_r_powers = powers::<G>(&outer_r, num_instances);
+    let outer_r_powers = powers::<E>(&outer_r, num_instances);
 
     // Verify outer sumcheck: Az * Bz - uCz_E for each instance
     let (sc_proof_outer, r_x, claims_outer) = SumcheckProof::prove_cubic_with_additive_term_batch(
-      &vec![G::Scalar::ZERO; num_instances],
+      &vec![E::Scalar::ZERO; num_instances],
       &num_rounds_x,
       polys_tau,
       polys_Az
@@ -277,7 +277,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
     let inner_r = transcript.squeeze(b"in_r")?;
     let inner_r_square = inner_r.square();
     let inner_r_cube = inner_r_square * inner_r;
-    let inner_r_powers = powers::<G>(&inner_r_cube, num_instances);
+    let inner_r_powers = powers::<E>(&inner_r_cube, num_instances);
 
     let claims_inner_joint = evals_Az_Bz_Cz
       .iter()
@@ -285,10 +285,10 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .collect::<Vec<_>>();
 
     let polys_ABCs = {
-      let inner = |M_evals_As: Vec<G::Scalar>,
-                   M_evals_Bs: Vec<G::Scalar>,
-                   M_evals_Cs: Vec<G::Scalar>|
-       -> Vec<G::Scalar> {
+      let inner = |M_evals_As: Vec<E::Scalar>,
+                   M_evals_Bs: Vec<E::Scalar>,
+                   M_evals_Cs: Vec<E::Scalar>|
+       -> Vec<E::Scalar> {
         M_evals_As
           .into_par_iter()
           .zip(M_evals_Bs.into_par_iter())
@@ -311,16 +311,16 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .into_iter()
       .zip(num_rounds_y.iter())
       .map(|(mut z, &num_rounds_y)| {
-        z.resize(1 << num_rounds_y, G::Scalar::ZERO);
+        z.resize(1 << num_rounds_y, E::Scalar::ZERO);
         MultilinearPolynomial::new(z)
       })
       .collect::<Vec<_>>();
 
-    let comb_func = |poly_A_comp: &G::Scalar, poly_B_comp: &G::Scalar| -> G::Scalar {
+    let comb_func = |poly_A_comp: &E::Scalar, poly_B_comp: &E::Scalar| -> E::Scalar {
       *poly_A_comp * *poly_B_comp
     };
 
-    let (sc_proof_inner, r_y, _claims_inner): (SumcheckProof<G>, Vec<G::Scalar>, (Vec<_>, Vec<_>)) =
+    let (sc_proof_inner, r_y, _claims_inner): (SumcheckProof<E>, Vec<E::Scalar>, (Vec<_>, Vec<_>)) =
       SumcheckProof::prove_quad_batch(
         &claims_inner_joint,
         &num_rounds_y,
@@ -405,8 +405,8 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
     })
   }
 
-  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<G>]) -> Result<(), NovaError> {
-    let mut transcript = G::TE::new(b"BatchedRelaxedR1CSSNARK");
+  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<E>]) -> Result<(), NovaError> {
+    let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
     transcript.absorb(b"vk", &vk.digest());
     U.iter().for_each(|u| {
@@ -435,10 +435,10 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
-    let outer_r_powers = powers::<G>(&outer_r, num_instances);
+    let outer_r_powers = powers::<E>(&outer_r, num_instances);
 
     let (claim_outer_final, r_x) = self.sc_proof_outer.verify_batch(
-      &vec![G::Scalar::ZERO; num_instances],
+      &vec![E::Scalar::ZERO; num_instances],
       &num_rounds_x,
       &outer_r_powers,
       3,
@@ -489,7 +489,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       })
       .zip(outer_r_powers.iter())
       .map(|(eval, r)| eval * r)
-      .sum::<G::Scalar>();
+      .sum::<E::Scalar>();
 
     if claim_outer_final != claim_outer_final_expected {
       return Err(NovaError::InvalidSumcheckProof);
@@ -498,7 +498,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
     let inner_r = transcript.squeeze(b"in_r")?;
     let inner_r_square = inner_r.square();
     let inner_r_cube = inner_r_square * inner_r;
-    let inner_r_powers = powers::<G>(&inner_r_cube, num_instances);
+    let inner_r_powers = powers::<E>(&inner_r_cube, num_instances);
 
     // Compute inner claim ∑ᵢ r³ⁱ⋅(Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ)
     let claims_inner = ABCE_evals
@@ -515,7 +515,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       2,
       &mut transcript,
     )?;
-    let r_y: Vec<Vec<G::Scalar>> = num_rounds_y
+    let r_y: Vec<Vec<E::Scalar>> = num_rounds_y
       .iter()
       .map(|num_rounds| r_y[(num_rounds_y_max - num_rounds)..].to_vec())
       .collect();
@@ -537,28 +537,28 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
               .iter()
               .enumerate()
               .map(|(i, x_i)| (i + 1, *x_i))
-              .collect::<Vec<(usize, G::Scalar)>>(),
+              .collect::<Vec<(usize, E::Scalar)>>(),
           );
           SparsePolynomial::new(r_y.len() - 1, poly_X).evaluate(&r_y[1..])
         };
-        (G::Scalar::ONE - r_y[0]) * eval_W + r_y[0] * eval_X
+        (E::Scalar::ONE - r_y[0]) * eval_W + r_y[0] * eval_X
       })
       .collect::<Vec<_>>();
 
     // compute evaluations of R1CS matrices M(r_x, r_y) = eq(r_y)ᵀ⋅M⋅eq(r_x)
-    let multi_evaluate = |M_vec: &[&SparseMatrix<G::Scalar>],
-                          r_x: &[G::Scalar],
-                          r_y: &[G::Scalar]|
-     -> Vec<G::Scalar> {
+    let multi_evaluate = |M_vec: &[&SparseMatrix<E::Scalar>],
+                          r_x: &[E::Scalar],
+                          r_y: &[E::Scalar]|
+     -> Vec<E::Scalar> {
       let evaluate_with_table =
-        |M: &SparseMatrix<G::Scalar>, T_x: &[G::Scalar], T_y: &[G::Scalar]| -> G::Scalar {
+        |M: &SparseMatrix<E::Scalar>, T_x: &[E::Scalar], T_y: &[E::Scalar]| -> E::Scalar {
           M.indptr
             .par_windows(2)
             .enumerate()
             .map(|(row_idx, ptrs)| {
               M.get_row_unchecked(ptrs.try_into().unwrap())
                 .map(|(val, col_idx)| T_x[row_idx] * T_y[*col_idx] * val)
-                .sum::<G::Scalar>()
+                .sum::<E::Scalar>()
             })
             .sum()
         };
@@ -586,7 +586,7 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
       .zip(evals_Z.iter())
       .zip(inner_r_powers.iter())
       .map(|((eval, eval_Z), r_i)| eval * r_i * eval_Z)
-      .sum::<G::Scalar>();
+      .sum::<E::Scalar>();
 
     if claim_inner_final != claim_inner_final_expected {
       return Err(NovaError::InvalidSumcheckProof);
