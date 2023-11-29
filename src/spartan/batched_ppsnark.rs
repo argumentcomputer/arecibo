@@ -265,8 +265,9 @@ where
       .map(|&N_i| {
         let log_Ni = N_i.log_2();
         let poly = PowPolynomial::new(&tau, log_Ni);
+        let evals = poly.evals();
         let coords = poly.coordinates();
-        (poly.evals(), coords)
+        (evals, coords)
       })
       .unzip();
 
