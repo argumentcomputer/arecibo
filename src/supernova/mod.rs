@@ -44,13 +44,6 @@ use circuit::{
 
 use self::error::SuperNovaError;
 
-pub mod error;
-pub mod snark;
-pub(crate) mod utils;
-
-#[cfg(test)]
-mod test;
-
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CircuitDigests<E: Engine> {
@@ -391,7 +384,7 @@ where
   }
 
   /// Returns all the primary R1CS Shapes
-  pub fn primary_r1cs_shapes(&self) -> Vec<R1CSShape<G1>> {
+  pub fn primary_r1cs_shapes(&self) -> Vec<R1CSShape<E1>> {
     self
       .circuit_shapes
       .clone()
@@ -1080,6 +1073,7 @@ fn num_ro_inputs(num_circuits: usize, num_limbs: usize, arity: usize, is_primary
 }
 
 pub mod error;
+pub mod snark;
 pub(crate) mod utils;
 
 #[cfg(test)]

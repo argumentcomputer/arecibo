@@ -203,44 +203,6 @@ where
       // compute the initial evaluation table for R(\tau, x)
       let evals_rx = EqPolynomial::new(r_x.clone()).evals();
 
-      // Bounds "row" variables of (A, B, C) matrices viewed as 2d multilinear polynomials
-      let compute_eval_table_sparse =
-        |S: &R1CSShape<E>, rx: &[E::Scalar]| -> (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>) {
-          assert_eq!(rx.len(), S.num_cons);
-
-          let inner = |M: &SparseMatrix<E::Scalar>, M_evals: &mut Vec<E::Scalar>| {
-            for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {
-              for (val, col_idx) in M.get_row_unchecked(ptrs.try_into().unwrap()) {
-                M_evals[*col_idx] += rx[row_idx] * val;
-              }
-            }
-          };
-
-          let (A_evals, (B_evals, C_evals)) = rayon::join(
-            || {
-              let mut A_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
-              inner(&S.A, &mut A_evals);
-              A_evals
-            },
-            || {
-              rayon::join(
-                || {
-                  let mut B_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
-                  inner(&S.B, &mut B_evals);
-                  B_evals
-                },
-                || {
-                  let mut C_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
-                  inner(&S.C, &mut C_evals);
-                  C_evals
-                },
-              )
-            },
-          );
-
-          (A_evals, B_evals, C_evals)
-        };
-
       let (evals_A, evals_B, evals_C) = compute_eval_table_sparse(&S, &evals_rx);
 
       assert_eq!(evals_A.len(), evals_B.len());
@@ -513,9 +475,6 @@ pub(super) fn batch_eval_prove<E: Engine>(
   let (claims, u_xs, comms): (Vec<_>, Vec<_>, Vec<_>) =
     u_vec.into_iter().map(|u| (u.e, u.x, u.c)).multiunzip();
 
-  let (claims, u_xs, comms): (Vec<_>, Vec<_>, Vec<_>) =
-    u_vec.into_iter().map(|u| (u.e, u.x, u.c)).multiunzip();
-
   // Create clones of polynomials to be given to Sumcheck
   // Pᵢ(X)
   let polys_P: Vec<MultilinearPolynomial<E::Scalar>> = w_vec
@@ -529,7 +488,7 @@ pub(super) fn batch_eval_prove<E: Engine>(
     .collect();
 
   // For each i, check eᵢ = ∑ₓ Pᵢ(x)eq(xᵢ,x), where x ∈ {0,1}^nᵢ
-  let comb_func = |poly_P: &G::Scalar, poly_eq: &G::Scalar| -> G::Scalar { *poly_P * *poly_eq };
+  let comb_func = |poly_P: &E::Scalar, poly_eq: &E::Scalar| -> E::Scalar { *poly_P * *poly_eq };
   let (sc_proof_batch, r, claims_batch) = SumcheckProof::prove_quad_batch(
     &claims,
     &num_rounds,
@@ -546,9 +505,6 @@ pub(super) fn batch_eval_prove<E: Engine>(
 
   // we now combine evaluation claims at the same point r into one
   let gamma = transcript.squeeze(b"g")?;
-  let powers_of_gamma: Vec<G::Scalar> = powers::<G>(&gamma, num_claims);
-
-  let comms = u_vec.into_iter().map(|u| u.c).collect::<Vec<_>>();
 
   let u_joint =
     PolyEvalInstance::batch_diff_size(&comms, &claims_batch_left, &num_rounds, r, gamma);
@@ -561,24 +517,24 @@ pub(super) fn batch_eval_prove<E: Engine>(
 
 /// Verifies a batch of polynomial evaluation claims using Sumcheck
 /// reducing them to a single claim at the same point.
-pub(super) fn batch_eval_verify<G: Group>(
-  u_vec: Vec<PolyEvalInstance<G>>,
-  transcript: &mut G::TE,
-  sc_proof_batch: &SumcheckProof<G>,
-  evals_batch: &[G::Scalar],
-) -> Result<PolyEvalInstance<G>, NovaError> {
+pub(super) fn batch_eval_verify<E: Engine>(
+  u_vec: Vec<PolyEvalInstance<E>>,
+  transcript: &mut E::TE,
+  sc_proof_batch: &SumcheckProof<E>,
+  evals_batch: &[E::Scalar],
+) -> Result<PolyEvalInstance<E>, NovaError> {
   let num_claims = u_vec.len();
   assert_eq!(evals_batch.len(), num_claims);
 
   // generate a challenge
   let rho = transcript.squeeze(b"r")?;
-  let powers_of_rho = powers::<G>(&rho, num_claims);
+  let powers_of_rho = powers::<E>(&rho, num_claims);
 
   // Compute nᵢ and n = maxᵢ{nᵢ}
   let num_rounds = u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
   let num_rounds_max = *num_rounds.iter().max().unwrap();
 
-  let claims = u_vec_padded.iter().map(|u| u.e).collect::<Vec<_>>();
+  let claims = u_vec.iter().map(|u| u.e).collect::<Vec<_>>();
 
   let (claim_batch_final, r) =
     sc_proof_batch.verify_batch(&claims, &num_rounds, &powers_of_rho, 2, transcript)?;

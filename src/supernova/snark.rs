@@ -7,7 +7,7 @@ use crate::{
   traits::{
     circuit_supernova::StepCircuit,
     snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-    AbsorbInROTrait, Group, ROTrait,
+    AbsorbInROTrait, Engine, ROTrait,
   },
 };
 use crate::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
@@ -16,14 +16,14 @@ use ff::PrimeField;
 use std::marker::PhantomData;
 
 /// A type that holds the prover key for `CompressedSNARK`
-pub struct ProverKey<G1, G2, C1, C2, S1, S2>
+pub struct ProverKey<E1, E2, C1, C2, S1, S2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-  S1: BatchedRelaxedR1CSSNARKTrait<G1>,
-  S2: RelaxedR1CSSNARKTrait<G2>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
 {
   pk_primary: S1::ProverKey,
   pk_secondary: S2::ProverKey,
@@ -31,14 +31,14 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
-pub struct VerifierKey<G1, G2, C1, C2, S1, S2>
+pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-  S1: BatchedRelaxedR1CSSNARKTrait<G1>,
-  S2: RelaxedR1CSSNARKTrait<G2>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
 {
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
@@ -47,47 +47,47 @@ where
 
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
 #[derive(Debug, Clone)]
-pub struct CompressedSNARK<G1, G2, C1, C2, S1, S2>
+pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-  S1: BatchedRelaxedR1CSSNARKTrait<G1>,
-  S2: RelaxedR1CSSNARKTrait<G2>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
 {
-  r_U_primary: Vec<RelaxedR1CSInstance<G1>>,
+  r_U_primary: Vec<RelaxedR1CSInstance<E1>>,
   r_W_snark_primary: S1,
 
-  r_U_secondary: RelaxedR1CSInstance<G2>,
-  l_u_secondary: R1CSInstance<G2>,
-  nifs_secondary: NIFS<G2>,
+  r_U_secondary: RelaxedR1CSInstance<E2>,
+  l_u_secondary: R1CSInstance<E2>,
+  nifs_secondary: NIFS<E2>,
   f_W_snark_secondary: S2,
 
   num_steps: usize,
-  program_counter: G1::Scalar,
+  program_counter: E1::Scalar,
 
-  zn_primary: Vec<G1::Scalar>,
-  zn_secondary: Vec<G2::Scalar>,
-  _p: PhantomData<(G1, G2, C1, C2, S1, S2)>,
+  zn_primary: Vec<E1::Scalar>,
+  zn_secondary: Vec<E2::Scalar>,
+  _p: PhantomData<(E1, E2, C1, C2, S1, S2)>,
 }
 
-impl<G1, G2, C1, C2, S1, S2> CompressedSNARK<G1, G2, C1, C2, S1, S2>
+impl<E1, E2, C1, C2, S1, S2> CompressedSNARK<E1, E2, C1, C2, S1, S2>
 where
-  G1: Group<Base = <G2 as Group>::Scalar>,
-  G2: Group<Base = <G1 as Group>::Scalar>,
-  C1: StepCircuit<G1::Scalar>,
-  C2: StepCircuit<G2::Scalar>,
-  S1: BatchedRelaxedR1CSSNARKTrait<G1>,
-  S2: RelaxedR1CSSNARKTrait<G2>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
 {
   /// Creates prover and verifier keys for `CompressedSNARK`
   pub fn setup(
-    pp: &PublicParams<G1, G2, C1, C2>,
+    pp: &PublicParams<E1, E2, C1, C2>,
   ) -> Result<
     (
-      ProverKey<G1, G2, C1, C2, S1, S2>,
-      VerifierKey<G1, G2, C1, C2, S1, S2>,
+      ProverKey<E1, E2, C1, C2, S1, S2>,
+      VerifierKey<E1, E2, C1, C2, S1, S2>,
     ),
     SuperNovaError,
   > {
@@ -112,14 +112,14 @@ where
 
   /// Create a new `CompressedSNARK`
   pub fn prove(
-    pp: &PublicParams<G1, G2, C1, C2>,
-    pk: &ProverKey<G1, G2, C1, C2, S1, S2>,
-    recursive_snark: &RecursiveSNARK<G1, G2>,
+    pp: &PublicParams<E1, E2, C1, C2>,
+    pk: &ProverKey<E1, E2, C1, C2, S1, S2>,
+    recursive_snark: &RecursiveSNARK<E1, E2>,
   ) -> Result<Self, SuperNovaError> {
     let res_secondary = NIFS::prove(
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
-      &scalar_as_base::<G1>(pp.digest()),
+      &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
       &recursive_snark.r_U_secondary,
       &recursive_snark.r_W_secondary,
@@ -140,7 +140,7 @@ where
       })
       .collect::<Vec<_>>();
 
-    let r_W_primary: Vec<RelaxedR1CSWitness<G1>> = recursive_snark
+    let r_W_primary: Vec<RelaxedR1CSWitness<E1>> = recursive_snark
       .r_W_primary
       .iter()
       .enumerate()
@@ -202,11 +202,11 @@ where
   /// Verify the correctness of the `CompressedSNARK`
   pub fn verify(
     &self,
-    pp: &PublicParams<G1, G2, C1, C2>,
-    vk: &VerifierKey<G1, G2, C1, C2, S1, S2>,
-    z0_primary: Vec<G1::Scalar>,
-    z0_secondary: Vec<G2::Scalar>,
-  ) -> Result<(Vec<G1::Scalar>, Vec<G2::Scalar>), SuperNovaError> {
+    pp: &PublicParams<E1, E2, C1, C2>,
+    vk: &VerifierKey<E1, E2, C1, C2, S1, S2>,
+    z0_primary: Vec<E1::Scalar>,
+    z0_secondary: Vec<E2::Scalar>,
+  ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), SuperNovaError> {
     let last_circuit_idx = field_as_usize(self.program_counter);
 
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
@@ -221,10 +221,11 @@ where
     + pp.circuit_shapes.len() * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augment
 
     let (hash_primary, hash_secondary) = {
-      let mut hasher = <G2 as Group>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
+      let mut hasher =
+        <E2 as Engine>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
 
       hasher.absorb(pp.digest());
-      hasher.absorb(G1::Scalar::from(self.num_steps as u64));
+      hasher.absorb(E1::Scalar::from(self.num_steps as u64));
       hasher.absorb(self.program_counter);
 
       for e in z0_primary {
@@ -238,10 +239,10 @@ where
       self.r_U_secondary.absorb_in_ro(&mut hasher);
 
       let mut hasher2 =
-        <G1 as Group>::RO::new(pp.ro_consts_primary.clone(), num_field_secondary_ro);
+        <E1 as Engine>::RO::new(pp.ro_consts_primary.clone(), num_field_secondary_ro);
 
-      hasher2.absorb(scalar_as_base::<G1>(pp.digest()));
-      hasher2.absorb(G2::Scalar::from(self.num_steps as u64));
+      hasher2.absorb(scalar_as_base::<E1>(pp.digest()));
+      hasher2.absorb(E2::Scalar::from(self.num_steps as u64));
 
       for e in z0_secondary {
         hasher2.absorb(e);
@@ -265,7 +266,7 @@ where
       return Err(NovaError::ProofVerifyError.into());
     }
 
-    if hash_secondary != scalar_as_base::<G2>(self.l_u_secondary.X[1]) {
+    if hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.X[1]) {
       return Err(NovaError::ProofVerifyError.into());
     }
 
@@ -275,7 +276,7 @@ where
 
     let f_U_secondary = self.nifs_secondary.verify(
       &pp.ro_consts_secondary,
-      &scalar_as_base::<G1>(pp.digest()),
+      &scalar_as_base::<E1>(pp.digest()),
       &self.r_U_secondary,
       &self.l_u_secondary,
     )?;
@@ -302,9 +303,8 @@ mod test {
   use super::*;
   use crate::{
     provider::{
-      bn256_grumpkin::{bn256, grumpkin},
-      ipa_pc::EvaluationEngine,
-      secp_secq::{secp256k1, secq256k1},
+      ipa_pc, Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine,
+      VestaEngine,
     },
     spartan::{batched, batched_ppsnark, snark::RelaxedR1CSSNARK},
     supernova::NonUniformCircuit,
@@ -314,19 +314,18 @@ mod test {
   use abomonation::Abomonation;
   use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use ff::{Field, PrimeField};
-  use pasta_curves::{pallas, vesta};
 
-  type EE<G> = EvaluationEngine<G>;
-  type S1<G> = batched::BatchedRelaxedR1CSSNARK<G, EE<G>>;
-  type S1PP<G> = batched_ppsnark::BatchedRelaxedR1CSSNARK<G, EE<G>>;
-  type S2<G> = RelaxedR1CSSNARK<G, EE<G>>;
+  type EE<E> = ipa_pc::EvaluationEngine<E>;
+  type S1<E> = batched::BatchedRelaxedR1CSSNARK<E, EE<E>>;
+  type S1PP<E> = batched_ppsnark::BatchedRelaxedR1CSSNARK<E, EE<E>>;
+  type S2<E> = RelaxedR1CSSNARK<E, EE<E>>;
 
   #[derive(Clone)]
-  struct SquareCircuit<G: Group> {
-    _p: PhantomData<G>,
+  struct SquareCircuit<E: Engine> {
+    _p: PhantomData<E>,
   }
 
-  impl<G: Group> StepCircuit<G::Scalar> for SquareCircuit<G> {
+  impl<E: Engine> StepCircuit<E::Scalar> for SquareCircuit<E> {
     fn arity(&self) -> usize {
       1
     }
@@ -335,15 +334,15 @@ mod test {
       0
     }
 
-    fn synthesize<CS: ConstraintSystem<G::Scalar>>(
+    fn synthesize<CS: ConstraintSystem<E::Scalar>>(
       &self,
       cs: &mut CS,
-      _pc: Option<&AllocatedNum<G::Scalar>>,
-      z: &[AllocatedNum<G::Scalar>],
+      _pc: Option<&AllocatedNum<E::Scalar>>,
+      z: &[AllocatedNum<E::Scalar>],
     ) -> Result<
       (
-        Option<AllocatedNum<G::Scalar>>,
-        Vec<AllocatedNum<G::Scalar>>,
+        Option<AllocatedNum<E::Scalar>>,
+        Vec<AllocatedNum<E::Scalar>>,
       ),
       SynthesisError,
     > {
@@ -351,7 +350,7 @@ mod test {
 
       let z_next = z_i.square(cs.namespace(|| "z_i^2"))?;
 
-      let next_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || Ok(G::Scalar::from(1u64)))?;
+      let next_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || Ok(E::Scalar::from(1u64)))?;
 
       cs.enforce(
         || "next_pc = 1",
@@ -365,11 +364,11 @@ mod test {
   }
 
   #[derive(Clone)]
-  struct CubeCircuit<G: Group> {
-    _p: PhantomData<G>,
+  struct CubeCircuit<E: Engine> {
+    _p: PhantomData<E>,
   }
 
-  impl<G: Group> StepCircuit<G::Scalar> for CubeCircuit<G> {
+  impl<E: Engine> StepCircuit<E::Scalar> for CubeCircuit<E> {
     fn arity(&self) -> usize {
       1
     }
@@ -378,15 +377,15 @@ mod test {
       1
     }
 
-    fn synthesize<CS: ConstraintSystem<G::Scalar>>(
+    fn synthesize<CS: ConstraintSystem<E::Scalar>>(
       &self,
       cs: &mut CS,
-      _pc: Option<&AllocatedNum<G::Scalar>>,
-      z: &[AllocatedNum<G::Scalar>],
+      _pc: Option<&AllocatedNum<E::Scalar>>,
+      z: &[AllocatedNum<E::Scalar>],
     ) -> Result<
       (
-        Option<AllocatedNum<G::Scalar>>,
-        Vec<AllocatedNum<G::Scalar>>,
+        Option<AllocatedNum<E::Scalar>>,
+        Vec<AllocatedNum<E::Scalar>>,
       ),
       SynthesisError,
     > {
@@ -395,7 +394,7 @@ mod test {
       let z_sq = z_i.square(cs.namespace(|| "z_i^2"))?;
       let z_cu = z_sq.mul(cs.namespace(|| "z_i^3"), z_i)?;
 
-      let next_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || Ok(G::Scalar::from(0u64)))?;
+      let next_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || Ok(E::Scalar::from(0u64)))?;
 
       cs.enforce(
         || "next_pc = 0",
@@ -409,12 +408,12 @@ mod test {
   }
 
   #[derive(Clone)]
-  enum TestCircuit<G: Group> {
-    Square(SquareCircuit<G>),
-    Cube(CubeCircuit<G>),
+  enum TestCircuit<E: Engine> {
+    Square(SquareCircuit<E>),
+    Cube(CubeCircuit<E>),
   }
 
-  impl<G: Group> TestCircuit<G> {
+  impl<E: Engine> TestCircuit<E> {
     fn new(num_steps: usize) -> Vec<Self> {
       let mut circuits = Vec::new();
 
@@ -430,7 +429,7 @@ mod test {
     }
   }
 
-  impl<G: Group> StepCircuit<G::Scalar> for TestCircuit<G> {
+  impl<E: Engine> StepCircuit<E::Scalar> for TestCircuit<E> {
     fn arity(&self) -> usize {
       1
     }
@@ -442,15 +441,15 @@ mod test {
       }
     }
 
-    fn synthesize<CS: ConstraintSystem<G::Scalar>>(
+    fn synthesize<CS: ConstraintSystem<E::Scalar>>(
       &self,
       cs: &mut CS,
-      pc: Option<&AllocatedNum<G::Scalar>>,
-      z: &[AllocatedNum<G::Scalar>],
+      pc: Option<&AllocatedNum<E::Scalar>>,
+      z: &[AllocatedNum<E::Scalar>],
     ) -> Result<
       (
-        Option<AllocatedNum<G::Scalar>>,
-        Vec<AllocatedNum<G::Scalar>>,
+        Option<AllocatedNum<E::Scalar>>,
+        Vec<AllocatedNum<E::Scalar>>,
       ),
       SynthesisError,
     > {
@@ -461,17 +460,17 @@ mod test {
     }
   }
 
-  impl<G1, G2> NonUniformCircuit<G1, G2, TestCircuit<G1>, TrivialSecondaryCircuit<G2::Scalar>>
-    for TestCircuit<G1>
+  impl<E1, E2> NonUniformCircuit<E1, E2, TestCircuit<E1>, TrivialSecondaryCircuit<E2::Scalar>>
+    for TestCircuit<E1>
   where
-    G1: Group<Base = <G2 as Group>::Scalar>,
-    G2: Group<Base = <G1 as Group>::Scalar>,
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
     fn num_circuits(&self) -> usize {
       2
     }
 
-    fn primary_circuit(&self, circuit_index: usize) -> TestCircuit<G1> {
+    fn primary_circuit(&self, circuit_index: usize) -> TestCircuit<E1> {
       match circuit_index {
         0 => Self::Square(SquareCircuit { _p: PhantomData }),
         1 => Self::Cube(CubeCircuit { _p: PhantomData }),
@@ -479,36 +478,32 @@ mod test {
       }
     }
 
-    fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G2::Scalar> {
+    fn secondary_circuit(&self) -> TrivialSecondaryCircuit<E2::Scalar> {
       Default::default()
     }
   }
 
-  fn test_nivc_trivial_with_compression_with<G1, G2, S1, S2>()
+  fn test_nivc_trivial_with_compression_with<E1, E2, S1, S2>()
   where
-    G1: Group<Base = <G2 as Group>::Scalar>,
-    G2: Group<Base = <G1 as Group>::Scalar>,
-    S1: BatchedRelaxedR1CSSNARKTrait<G1>,
-    S2: RelaxedR1CSSNARKTrait<G2>,
-    <G1::Scalar as PrimeField>::Repr: Abomonation,
-    <G2::Scalar as PrimeField>::Repr: Abomonation,
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+    S2: RelaxedR1CSSNARKTrait<E2>,
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+    <E2::Scalar as PrimeField>::Repr: Abomonation,
   {
     const NUM_STEPS: usize = 6;
 
     let secondary_circuit = TrivialSecondaryCircuit::default();
     let test_circuits = TestCircuit::new(NUM_STEPS);
 
-    let pp = PublicParams::new(
-      &test_circuits[0],
-      &*S1::commitment_key_floor(),
-      &*S2::commitment_key_floor(),
-    );
+    let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
 
-    let initial_pc = G1::Scalar::ZERO;
+    let initial_pc = E1::Scalar::ZERO;
     let augmented_circuit_index = field_as_usize(initial_pc);
 
-    let z0_primary = vec![G1::Scalar::from(17u64)];
-    let z0_secondary = vec![<G2 as Group>::Scalar::ZERO];
+    let z0_primary = vec![E1::Scalar::from(17u64)];
+    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
 
     let mut recursive_snark = RecursiveSNARK::new(
       &pp,
@@ -547,21 +542,21 @@ mod test {
   #[test]
   fn test_nivc_trivial_with_compression() {
     // ppSNARK
-    test_nivc_trivial_with_compression_with::<pallas::Point, vesta::Point, S1PP<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<bn256::Point, grumpkin::Point, S1PP<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<secp256k1::Point, secq256k1::Point, S1PP<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<PallasEngine, VestaEngine, S1PP<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<Bn256Engine, GrumpkinEngine, S1PP<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, S1PP<_>, S2<_>>();
     // classic SNARK
-    test_nivc_trivial_with_compression_with::<pallas::Point, vesta::Point, S1<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<bn256::Point, grumpkin::Point, S1<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<secp256k1::Point, secq256k1::Point, S1<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<PallasEngine, VestaEngine, S1<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<Bn256Engine, GrumpkinEngine, S1<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, S1<_>, S2<_>>();
   }
 
   #[derive(Clone)]
-  struct BigPowerCircuit<G: Group> {
-    _p: PhantomData<G>,
+  struct BigPowerCircuit<E: Engine> {
+    _p: PhantomData<E>,
   }
 
-  impl<G: Group> StepCircuit<G::Scalar> for BigPowerCircuit<G> {
+  impl<E: Engine> StepCircuit<E::Scalar> for BigPowerCircuit<E> {
     fn arity(&self) -> usize {
       1
     }
@@ -570,15 +565,15 @@ mod test {
       1
     }
 
-    fn synthesize<CS: ConstraintSystem<G::Scalar>>(
+    fn synthesize<CS: ConstraintSystem<E::Scalar>>(
       &self,
       cs: &mut CS,
-      _pc: Option<&AllocatedNum<G::Scalar>>,
-      z: &[AllocatedNum<G::Scalar>],
+      _pc: Option<&AllocatedNum<E::Scalar>>,
+      z: &[AllocatedNum<E::Scalar>],
     ) -> Result<
       (
-        Option<AllocatedNum<G::Scalar>>,
-        Vec<AllocatedNum<G::Scalar>>,
+        Option<AllocatedNum<E::Scalar>>,
+        Vec<AllocatedNum<E::Scalar>>,
       ),
       SynthesisError,
     > {
@@ -589,7 +584,7 @@ mod test {
         x = y.clone();
       }
 
-      let next_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || Ok(G::Scalar::from(0u64)))?;
+      let next_pc = AllocatedNum::alloc(cs.namespace(|| "next_pc"), || Ok(E::Scalar::from(0u64)))?;
 
       cs.enforce(
         || "next_pc = 0",
@@ -603,12 +598,12 @@ mod test {
   }
 
   #[derive(Clone)]
-  enum BigTestCircuit<G: Group> {
-    Square(SquareCircuit<G>),
-    BigPower(BigPowerCircuit<G>),
+  enum BigTestCircuit<E: Engine> {
+    Square(SquareCircuit<E>),
+    BigPower(BigPowerCircuit<E>),
   }
 
-  impl<G: Group> BigTestCircuit<G> {
+  impl<E: Engine> BigTestCircuit<E> {
     fn new(num_steps: usize) -> Vec<Self> {
       let mut circuits = Vec::new();
 
@@ -624,7 +619,7 @@ mod test {
     }
   }
 
-  impl<G: Group> StepCircuit<G::Scalar> for BigTestCircuit<G> {
+  impl<E: Engine> StepCircuit<E::Scalar> for BigTestCircuit<E> {
     fn arity(&self) -> usize {
       1
     }
@@ -636,15 +631,15 @@ mod test {
       }
     }
 
-    fn synthesize<CS: ConstraintSystem<G::Scalar>>(
+    fn synthesize<CS: ConstraintSystem<E::Scalar>>(
       &self,
       cs: &mut CS,
-      pc: Option<&AllocatedNum<G::Scalar>>,
-      z: &[AllocatedNum<G::Scalar>],
+      pc: Option<&AllocatedNum<E::Scalar>>,
+      z: &[AllocatedNum<E::Scalar>],
     ) -> Result<
       (
-        Option<AllocatedNum<G::Scalar>>,
-        Vec<AllocatedNum<G::Scalar>>,
+        Option<AllocatedNum<E::Scalar>>,
+        Vec<AllocatedNum<E::Scalar>>,
       ),
       SynthesisError,
     > {
@@ -655,17 +650,17 @@ mod test {
     }
   }
 
-  impl<G1, G2> NonUniformCircuit<G1, G2, BigTestCircuit<G1>, TrivialSecondaryCircuit<G2::Scalar>>
-    for BigTestCircuit<G1>
+  impl<E1, E2> NonUniformCircuit<E1, E2, BigTestCircuit<E1>, TrivialSecondaryCircuit<E2::Scalar>>
+    for BigTestCircuit<E1>
   where
-    G1: Group<Base = <G2 as Group>::Scalar>,
-    G2: Group<Base = <G1 as Group>::Scalar>,
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
     fn num_circuits(&self) -> usize {
       2
     }
 
-    fn primary_circuit(&self, circuit_index: usize) -> BigTestCircuit<G1> {
+    fn primary_circuit(&self, circuit_index: usize) -> BigTestCircuit<E1> {
       match circuit_index {
         0 => Self::Square(SquareCircuit { _p: PhantomData }),
         1 => Self::BigPower(BigPowerCircuit { _p: PhantomData }),
@@ -673,36 +668,32 @@ mod test {
       }
     }
 
-    fn secondary_circuit(&self) -> TrivialSecondaryCircuit<G2::Scalar> {
+    fn secondary_circuit(&self) -> TrivialSecondaryCircuit<E2::Scalar> {
       Default::default()
     }
   }
 
-  fn test_compression_with_circuit_size_difference_with<G1, G2, S1, S2>()
+  fn test_compression_with_circuit_size_difference_with<E1, E2, S1, S2>()
   where
-    G1: Group<Base = <G2 as Group>::Scalar>,
-    G2: Group<Base = <G1 as Group>::Scalar>,
-    S1: BatchedRelaxedR1CSSNARKTrait<G1>,
-    S2: RelaxedR1CSSNARKTrait<G2>,
-    <G1::Scalar as PrimeField>::Repr: Abomonation,
-    <G2::Scalar as PrimeField>::Repr: Abomonation,
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+    S2: RelaxedR1CSSNARKTrait<E2>,
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+    <E2::Scalar as PrimeField>::Repr: Abomonation,
   {
     const NUM_STEPS: usize = 4;
 
     let secondary_circuit = TrivialSecondaryCircuit::default();
     let test_circuits = BigTestCircuit::new(NUM_STEPS);
 
-    let pp = PublicParams::new(
-      &test_circuits[0],
-      &*S1::commitment_key_floor(),
-      &*S2::commitment_key_floor(),
-    );
+    let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
 
-    let initial_pc = G1::Scalar::ZERO;
+    let initial_pc = E1::Scalar::ZERO;
     let augmented_circuit_index = field_as_usize(initial_pc);
 
-    let z0_primary = vec![G1::Scalar::from(17u64)];
-    let z0_secondary = vec![<G2 as Group>::Scalar::ZERO];
+    let z0_primary = vec![E1::Scalar::from(17u64)];
+    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
 
     let mut recursive_snark = RecursiveSNARK::new(
       &pp,
@@ -741,28 +732,23 @@ mod test {
   #[test]
   fn test_compression_with_circuit_size_difference() {
     // ppSNARK
-    test_compression_with_circuit_size_difference_with::<pallas::Point, vesta::Point, S1PP<_>, S2<_>>(
+    test_compression_with_circuit_size_difference_with::<PallasEngine, VestaEngine, S1PP<_>, S2<_>>(
+    );
+    test_compression_with_circuit_size_difference_with::<Bn256Engine, GrumpkinEngine, S1PP<_>, S2<_>>(
     );
     test_compression_with_circuit_size_difference_with::<
-      bn256::Point,
-      grumpkin::Point,
-      S1PP<_>,
-      S2<_>,
-    >();
-    test_compression_with_circuit_size_difference_with::<
-      secp256k1::Point,
-      secq256k1::Point,
+      Secp256k1Engine,
+      Secq256k1Engine,
       S1PP<_>,
       S2<_>,
     >();
     // classic SNARK
-    test_compression_with_circuit_size_difference_with::<pallas::Point, vesta::Point, S1<_>, S2<_>>(
-    );
-    test_compression_with_circuit_size_difference_with::<bn256::Point, grumpkin::Point, S1<_>, S2<_>>(
+    test_compression_with_circuit_size_difference_with::<PallasEngine, VestaEngine, S1<_>, S2<_>>();
+    test_compression_with_circuit_size_difference_with::<Bn256Engine, GrumpkinEngine, S1<_>, S2<_>>(
     );
     test_compression_with_circuit_size_difference_with::<
-      secp256k1::Point,
-      secq256k1::Point,
+      Secp256k1Engine,
+      Secq256k1Engine,
       S1<_>,
       S2<_>,
     >();
