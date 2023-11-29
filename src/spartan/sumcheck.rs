@@ -63,12 +63,12 @@ impl<E: Engine> SumcheckProof<E> {
 
   pub fn verify_batch(
     &self,
-    claims: &[G::Scalar],
+    claims: &[E::Scalar],
     num_rounds: &[usize],
-    coeffs: &[G::Scalar],
+    coeffs: &[E::Scalar],
     degree_bound: usize,
-    transcript: &mut G::TE,
-  ) -> Result<(G::Scalar, Vec<G::Scalar>), NovaError> {
+    transcript: &mut E::TE,
+  ) -> Result<(E::Scalar, Vec<E::Scalar>), NovaError> {
     let num_instances = claims.len();
     assert_eq!(num_rounds.len(), num_instances);
     assert_eq!(coeffs.len(), num_instances);
@@ -85,7 +85,7 @@ impl<E: Engine> SumcheckProof<E> {
       .zip(num_rounds.iter())
       .map(|(claim, num_rounds)| {
         let scaling_factor = 1 << (num_rounds_max - num_rounds);
-        G::Scalar::from(scaling_factor as u64) * claim
+        E::Scalar::from(scaling_factor as u64) * claim
       })
       .zip(coeffs.iter())
       .map(|(scaled_claim, coeff)| scaled_claim * coeff)
@@ -217,7 +217,7 @@ impl<E: Engine> SumcheckProof<E> {
       .iter()
       .zip(num_rounds)
       .map(|(claim, num_rounds)| {
-        G::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
+        E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
       })
       .zip(coeffs)
       .map(|(claim, c)| claim * c)
@@ -236,7 +236,7 @@ impl<E: Engine> SumcheckProof<E> {
             Self::compute_eval_points_quad(poly_A, poly_B, &comb_func)
           } else {
             let remaining_variables = remaining_rounds - num_rounds - 1;
-            let scaled_claim = G::Scalar::from((1 << remaining_variables) as u64) * claim;
+            let scaled_claim = E::Scalar::from((1 << remaining_variables) as u64) * claim;
             (scaled_claim, scaled_claim)
           }
         })
@@ -290,7 +290,7 @@ impl<E: Engine> SumcheckProof<E> {
       .map(|(eA, eB)| comb_func(eA, eB))
       .zip(coeffs.iter())
       .map(|(e, c)| e * c)
-      .sum::<G::Scalar>();
+      .sum::<E::Scalar>();
     assert_eq!(e, eval_expected);
 
     let claims_prod = (poly_A_final, poly_B_final);
@@ -463,18 +463,18 @@ impl<E: Engine> SumcheckProof<E> {
   }
 
   pub fn prove_cubic_with_additive_term_batch<F>(
-    claims: &[G::Scalar],
+    claims: &[E::Scalar],
     num_rounds: &[usize],
-    mut poly_A_vec: Vec<MultilinearPolynomial<G::Scalar>>,
-    mut poly_B_vec: Vec<MultilinearPolynomial<G::Scalar>>,
-    mut poly_C_vec: Vec<MultilinearPolynomial<G::Scalar>>,
-    mut poly_D_vec: Vec<MultilinearPolynomial<G::Scalar>>,
-    coeffs: &[G::Scalar],
+    mut poly_A_vec: Vec<MultilinearPolynomial<E::Scalar>>,
+    mut poly_B_vec: Vec<MultilinearPolynomial<E::Scalar>>,
+    mut poly_C_vec: Vec<MultilinearPolynomial<E::Scalar>>,
+    mut poly_D_vec: Vec<MultilinearPolynomial<E::Scalar>>,
+    coeffs: &[E::Scalar],
     comb_func: F,
-    transcript: &mut G::TE,
-  ) -> Result<(Self, Vec<G::Scalar>, Vec<Vec<G::Scalar>>), NovaError>
+    transcript: &mut E::TE,
+  ) -> Result<(Self, Vec<E::Scalar>, Vec<Vec<E::Scalar>>), NovaError>
   where
-    F: Fn(&G::Scalar, &G::Scalar, &G::Scalar, &G::Scalar) -> G::Scalar + Sync,
+    F: Fn(&E::Scalar, &E::Scalar, &E::Scalar, &E::Scalar) -> E::Scalar + Sync,
   {
     let num_instances = claims.len();
     assert_eq!(num_rounds.len(), num_instances);
@@ -521,13 +521,13 @@ impl<E: Engine> SumcheckProof<E> {
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
 
-    let mut r: Vec<G::Scalar> = Vec::new();
-    let mut polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
+    let mut r: Vec<E::Scalar> = Vec::new();
+    let mut polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
     let mut claim_per_round = claims
       .iter()
       .zip(num_rounds)
       .map(|(claim, num_rounds)| {
-        G::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
+        E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
       })
       .zip(coeffs.iter())
       .map(|(claim, c)| claim * c)
@@ -535,7 +535,7 @@ impl<E: Engine> SumcheckProof<E> {
 
     for current_round in 0..num_rounds_max {
       let remaining_rounds = num_rounds_max - current_round;
-      let evals: Vec<(G::Scalar, G::Scalar, G::Scalar)> = num_rounds
+      let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = num_rounds
         .par_iter()
         .zip(claims.par_iter())
         .zip(poly_A_vec.par_iter())
@@ -550,7 +550,7 @@ impl<E: Engine> SumcheckProof<E> {
               )
             } else {
               let remaining_variables = remaining_rounds - num_rounds - 1;
-              let scaled_claim = G::Scalar::from((1 << remaining_variables) as u64) * claim;
+              let scaled_claim = E::Scalar::from((1 << remaining_variables) as u64) * claim;
               (scaled_claim, scaled_claim, scaled_claim)
             }
           },

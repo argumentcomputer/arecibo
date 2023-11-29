@@ -58,12 +58,12 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     self.Z.len()
   }
 
-  /// Checks if the multilinear polynomial is empty.
-  ///
-  /// This method returns true if the polynomial has no evaluations, and false otherwise.
-  pub fn is_empty(&self) -> bool {
-    self.Z.is_empty()
-  }
+  // /// Checks if the multilinear polynomial is empty.
+  // ///
+  // /// This method returns true if the polynomial has no evaluations, and false otherwise.
+  // pub fn is_empty(&self) -> bool {
+  //   self.Z.is_empty()
+  // }
 
   /// Binds the polynomial's top variable using the given scalar.
   ///

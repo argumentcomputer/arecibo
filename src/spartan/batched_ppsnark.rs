@@ -28,7 +28,7 @@ use crate::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     evaluation::EvaluationEngineTrait,
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
-    Group, TranscriptEngineTrait,
+    Engine, TranscriptEngineTrait,
   },
   Commitment, CommitmentKey, CompressedCommitment,
 };
@@ -43,31 +43,31 @@ use serde::{Deserialize, Serialize};
 /// A type that represents the prover's key
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
-#[abomonation_bounds(where < G::Scalar as PrimeField >::Repr: Abomonation)]
-pub struct ProverKey<G: Group, EE: EvaluationEngineTrait<G>> {
+#[abomonation_bounds(where < E::Scalar as PrimeField >::Repr: Abomonation)]
+pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
-  S_repr: Vec<R1CSShapeSparkRepr<G>>,
-  S_comm: Vec<R1CSShapeSparkCommitment<G>>,
-  #[abomonate_with(< G::Scalar as PrimeField >::Repr)]
-  vk_digest: G::Scalar, // digest of verifier's key
+  S_repr: Vec<R1CSShapeSparkRepr<E>>,
+  S_comm: Vec<R1CSShapeSparkCommitment<E>>,
+  #[abomonate_with(<E::Scalar as PrimeField >::Repr)]
+  vk_digest: E::Scalar, // digest of verifier's key
 }
 
 /// A type that represents the verifier's key
 #[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
-#[abomonation_bounds(where < G::Scalar as PrimeField >::Repr: Abomonation)]
-pub struct VerifierKey<G: Group, EE: EvaluationEngineTrait<G>> {
+#[abomonation_bounds(where < E::Scalar as PrimeField >::Repr: Abomonation)]
+pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   vk_ee: EE::VerifierKey,
-  S_comm: Vec<R1CSShapeSparkCommitment<G>>,
+  S_comm: Vec<R1CSShapeSparkCommitment<E>>,
   num_vars: Vec<usize>,
   #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<G::Scalar>,
+  digest: OnceCell<E::Scalar>,
 }
-impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
+impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
   fn new(
     num_vars: Vec<usize>,
-    S_comm: Vec<R1CSShapeSparkCommitment<G>>,
+    S_comm: Vec<R1CSShapeSparkCommitment<E>>,
     vk_ee: EE::VerifierKey,
   ) -> Self {
     VerifierKey {
@@ -78,11 +78,11 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> VerifierKey<G, EE> {
     }
   }
 }
-impl<G: Group, EE: EvaluationEngineTrait<G>> SimpleDigestible for VerifierKey<G, EE> {}
+impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E, EE> {}
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> DigestHelperTrait<G> for VerifierKey<G, EE> {
+impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierKey<E, EE> {
   /// Returns the digest of the verifier's key
-  fn digest(&self) -> G::Scalar {
+  fn digest(&self) -> E::Scalar {
     self
       .digest
       .get_or_try_init(|| {
@@ -99,44 +99,43 @@ impl<G: Group, EE: EvaluationEngineTrait<G>> DigestHelperTrait<G> for VerifierKe
 /// the commitment to a vector viewed as a polynomial commitment
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct BatchedRelaxedR1CSSNARK<G: Group, EE: EvaluationEngineTrait<G>> {
+pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   // commitment to oracles: the first three are for Az, Bz, Cz,
   // and the last two are for memory reads
-  comms_Az_Bz_Cz: Vec<[CompressedCommitment<G>; 3]>,
-  comms_L_row_col: Vec<[CompressedCommitment<G>; 2]>,
+  comms_Az_Bz_Cz: Vec<[CompressedCommitment<E>; 3]>,
+  comms_L_row_col: Vec<[CompressedCommitment<E>; 2]>,
   // commitments to aid the memory checks
   // [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col]
-  comms_mem_oracles: Vec<[CompressedCommitment<G>; 4]>,
+  comms_mem_oracles: Vec<[CompressedCommitment<E>; 4]>,
 
   // claims about Az, Bz, and Cz polynomials
-  evals_Az_Bz_Cz_at_tau: Vec<[G::Scalar; 3]>,
+  evals_Az_Bz_Cz_at_tau: Vec<[E::Scalar; 3]>,
 
   // sum-check
-  sc: SumcheckProof<G>,
+  sc: SumcheckProof<E>,
 
   // claims from the end of sum-check
-  evals_Az_Bz_Cz_W_E: Vec<[G::Scalar; 5]>,
-  evals_L_row_col: Vec<[G::Scalar; 2]>,
+  evals_Az_Bz_Cz_W_E: Vec<[E::Scalar; 5]>,
+  evals_L_row_col: Vec<[E::Scalar; 2]>,
   // [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col]
-  evals_mem_oracle: Vec<[G::Scalar; 4]>,
+  evals_mem_oracle: Vec<[E::Scalar; 4]>,
   // [val_A, val_B, val_C, row, col, ts_row, ts_col]
-  evals_mem_preprocessed: Vec<[G::Scalar; 7]>,
+  evals_mem_preprocessed: Vec<[E::Scalar; 7]>,
 
   // a PCS evaluation argument
   eval_arg: EE::EvaluationArgument,
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARKTrait<G>
-  for BatchedRelaxedR1CSSNARK<G, EE>
+impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
+  for BatchedRelaxedR1CSSNARK<E, EE>
 where
-  <G::Scalar as PrimeField>::Repr: Abomonation,
+  <E::Scalar as PrimeField>::Repr: Abomonation,
 {
-  type ProverKey = ProverKey<G, EE>;
-  type VerifierKey = VerifierKey<G, EE>;
+  type ProverKey = ProverKey<E, EE>;
+  type VerifierKey = VerifierKey<E, EE>;
 
-  // TODO: Replace with ck_floor
-  fn commitment_key_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<G>) -> usize> {
-    Box::new(|shape: &R1CSShape<G>| -> usize {
+  fn ck_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<E>) -> usize> {
+    Box::new(|shape: &R1CSShape<E>| -> usize {
       // the commitment key should be large enough to commit to the R1CS matrices
       std::cmp::max(
         shape.A.len() + shape.B.len() + shape.C.len(),
@@ -146,12 +145,12 @@ where
   }
 
   fn setup(
-    ck: &CommitmentKey<G>,
-    S: &[R1CSShape<G>],
+    ck: &CommitmentKey<E>,
+    S: &[R1CSShape<E>],
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     for s in S.iter() {
       // check the provided commitment key meets minimal requirements
-      if ck.length() < Self::commitment_key_floor()(s) {
+      if ck.length() < Self::ck_floor()(s) {
         // return Err(NovaError::InvalidCommitmentKeyLength);
         return Err(NovaError::InternalError);
       }
@@ -176,11 +175,11 @@ where
   }
 
   fn prove(
-    ck: &CommitmentKey<G>,
+    ck: &CommitmentKey<E>,
     pk: &Self::ProverKey,
-    S: &[R1CSShape<G>],
-    U: &[RelaxedR1CSInstance<G>],
-    W: &[RelaxedR1CSWitness<G>],
+    S: &[R1CSShape<E>],
+    U: &[RelaxedR1CSInstance<E>],
+    W: &[RelaxedR1CSWitness<E>],
   ) -> Result<Self, NovaError> {
     // Pad shapes so that num_vars = num_cons = Nᵢ and check the sizes are correct
     let S = S
@@ -204,14 +203,14 @@ where
       .par_iter()
       .zip(S.par_iter())
       .map(|(w, s)| w.pad(s))
-      .collect::<Vec<RelaxedR1CSWitness<G>>>();
+      .collect::<Vec<RelaxedR1CSWitness<E>>>();
 
     // number of rounds of sum-check
     let num_rounds_sc = N.iter().max().unwrap().log_2();
 
     // Initialize transcript with vk || [Uᵢ]
     // NOTE: We should prepend with the number of instances
-    let mut transcript = G::TE::new(b"BatchedRelaxedR1CSSNARK");
+    let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
     transcript.absorb(b"vk", &pk.vk_digest);
     U.iter().for_each(|u| {
       transcript.absorb(b"U", u);
@@ -228,7 +227,7 @@ where
         poly_Z.extend(W.W.iter().chain([&U.u]).chain(U.X.iter()));
         poly_Z
       })
-      .collect::<Vec<Vec<G::Scalar>>>();
+      .collect::<Vec<Vec<E::Scalar>>>();
 
     // Move polys_W and polys_E, as well as U.u out of U
     let (comms_W_E, us): (Vec<_>, Vec<_>) = U.iter().map(|U| ([U.comm_W, U.comm_E], U.u)).unzip();
@@ -249,8 +248,8 @@ where
       .par_iter()
       .map(|[Az, Bz, Cz]| {
         let (comm_Az, (comm_Bz, comm_Cz)) = rayon::join(
-          || G::CE::commit(ck, Az),
-          || rayon::join(|| G::CE::commit(ck, Bz), || G::CE::commit(ck, Cz)),
+          || E::CE::commit(ck, Az),
+          || rayon::join(|| E::CE::commit(ck, Bz), || E::CE::commit(ck, Cz)),
         );
         [comm_Az, comm_Bz, comm_Cz]
       })
@@ -278,7 +277,7 @@ where
       .for_each(|(az_bz_cz, &Ni)| {
         az_bz_cz
           .par_iter_mut()
-          .for_each(|mz| mz.resize(Ni, G::Scalar::ZERO))
+          .for_each(|mz| mz.resize(Ni, E::Scalar::ZERO))
       });
 
     // Evaluate and commit to [Az(tau), Bz(tau), Cz(tau)]
@@ -309,7 +308,7 @@ where
       .into_par_iter()
       .zip(N.par_iter())
       .map(|(mut poly_Z, &Ni)| {
-        poly_Z.resize(Ni, G::Scalar::ZERO);
+        poly_Z.resize(Ni, E::Scalar::ZERO);
         poly_Z
       })
       .collect::<Vec<_>>();
@@ -319,7 +318,7 @@ where
       .into_par_iter()
       .zip(N.par_iter())
       .map(|(mut poly_E, &Ni)| {
-        poly_E.resize(Ni, G::Scalar::ZERO);
+        poly_E.resize(Ni, E::Scalar::ZERO);
         poly_E
       })
       .collect::<Vec<_>>();
@@ -327,7 +326,7 @@ where
       .into_par_iter()
       .zip(N.par_iter())
       .map(|(mut poly_W, &Ni)| {
-        poly_W.resize(Ni, G::Scalar::ZERO);
+        poly_W.resize(Ni, E::Scalar::ZERO);
         poly_W
       })
       .collect::<Vec<_>>();
@@ -364,7 +363,7 @@ where
       .par_iter()
       .map(|[L_row, L_col]| {
         let (comm_L_row, comm_L_col) =
-          rayon::join(|| G::CE::commit(ck, L_row), || G::CE::commit(ck, L_col));
+          rayon::join(|| E::CE::commit(ck, L_row), || E::CE::commit(ck, L_col));
         [comm_L_row, comm_L_col]
       })
       .collect::<Vec<_>>();
@@ -381,7 +380,7 @@ where
       .par_iter()
       .map(|polys_Az_Bz_Cz| {
         let poly_vec = polys_Az_Bz_Cz.iter().collect::<Vec<_>>();
-        let w = PolyEvalWitness::<G>::batch(&poly_vec, &c);
+        let w = PolyEvalWitness::<E>::batch(&poly_vec, &c);
         w.p
       })
       .collect();
@@ -390,7 +389,7 @@ where
       .iter()
       .zip(evals_Az_Bz_Cz_at_tau.iter())
       .map(|(comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau)| {
-        let u = PolyEvalInstance::<G>::batch(
+        let u = PolyEvalInstance::<E>::batch(
           comm_Az_Bz_Cz.as_slice(),
           &[], // ignored by the function
           evals_Az_Bz_Cz_at_tau.as_slice(),
@@ -448,7 +447,7 @@ where
           .zip(s_repr.val_B.par_iter())
           .zip(s_repr.val_C.par_iter())
           .map(|((v_a, v_b), v_c)| *v_a + c * *v_b + c_square * *v_c)
-          .collect::<Vec<G::Scalar>>();
+          .collect::<Vec<_>>();
         InnerSumcheckInstance::new(
           *eval_Mz,
           MultilinearPolynomial::new(poly_L_row.clone()),
@@ -474,7 +473,7 @@ where
         .zip(polys_L_row_col.iter())
         .map(|(((s_repr, poly_tau), poly_Z), [L_row, L_col])| {
           let (comm_mem_oracles, poly_mem_oracles, aux_poly_mem_oracles) =
-            MemorySumcheckInstance::<G>::compute_oracles(
+            MemorySumcheckInstance::<E>::compute_oracles(
               ck,
               &r,
               &gamma,
@@ -508,7 +507,7 @@ where
         .zip(polys_mem_oracles.par_iter())
         .zip(mem_aux.into_par_iter())
         .map(|(((s_repr, &Ni), polys_mem_oracles), polys_aux)| {
-          MemorySumcheckInstance::<G>::new(
+          MemorySumcheckInstance::<E>::new(
             polys_mem_oracles.clone(),
             polys_aux,
             PowPolynomial::new(&rho, Ni.log_2()).evals().to_vec(),
@@ -583,7 +582,7 @@ where
               .map(|(p, eq)| *p * eq)
               .sum()
           })
-          .collect::<Vec<G::Scalar>>();
+          .collect::<Vec<E::Scalar>>();
           ([e[0], e[1], e[2]], [e[3], e[4], e[5], e[6], e[7]])
         })
         .unzip();
@@ -678,7 +677,7 @@ where
             S_repr.ts_col.clone(),
           ])
       })
-      .map(|p| PolyEvalWitness::<G> { p })
+      .map(|p| PolyEvalWitness::<E> { p })
       .collect::<Vec<_>>();
 
     evals_vec.iter().for_each(|evals| {
@@ -691,8 +690,8 @@ where
     // Compute number of variables for each polynomial
     let num_vars_u = w_vec.iter().map(|w| w.p.len().log_2()).collect::<Vec<_>>();
     let u_batch =
-      PolyEvalInstance::<G>::batch_diff_size(&comms_vec, &evals_vec, &num_vars_u, rand_sc, c);
-    let w_batch = PolyEvalWitness::<G>::batch_diff_size(w_vec, c);
+      PolyEvalInstance::<E>::batch_diff_size(&comms_vec, &evals_vec, &num_vars_u, rand_sc, c);
+    let w_batch = PolyEvalWitness::<E>::batch_diff_size(w_vec, c);
 
     let eval_arg = EE::prove(
       ck,
@@ -731,8 +730,8 @@ where
     })
   }
 
-  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<G>]) -> Result<(), NovaError> {
-    let mut transcript = G::TE::new(b"BatchedRelaxedR1CSSNARK");
+  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<E>]) -> Result<(), NovaError> {
+    let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
     transcript.absorb(b"vk", &vk.digest());
     U.iter().for_each(|u| {
@@ -745,7 +744,7 @@ where
       .map(|comms| {
         comms
           .iter()
-          .map(Commitment::<G>::decompress)
+          .map(Commitment::<E>::decompress)
           .collect::<Result<Vec<_>, _>>()
       })
       .collect::<Result<Vec<_>, _>>()?;
@@ -756,7 +755,7 @@ where
       .map(|comms| {
         comms
           .iter()
-          .map(Commitment::<G>::decompress)
+          .map(Commitment::<E>::decompress)
           .collect::<Result<Vec<_>, _>>()
       })
       .collect::<Result<Vec<_>, _>>()?;
@@ -767,7 +766,7 @@ where
       .map(|comms| {
         comms
           .iter()
-          .map(Commitment::<G>::decompress)
+          .map(Commitment::<E>::decompress)
           .collect::<Result<Vec<_>, _>>()
       })
       .collect::<Result<Vec<_>, _>>()?;
@@ -798,7 +797,7 @@ where
       .iter()
       .zip(self.evals_Az_Bz_Cz_at_tau.iter())
       .map(|(comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau)| {
-        let u = PolyEvalInstance::<G>::batch(
+        let u = PolyEvalInstance::<E>::batch(
           comm_Az_Bz_Cz.as_slice(),
           &tau_coords,
           evals_Az_Bz_Cz_at_tau.as_slice(),
@@ -820,7 +819,7 @@ where
 
     let rho = transcript.squeeze(b"r")?;
     let s = transcript.squeeze(b"r")?;
-    let coeffs = powers::<G>(&s, num_claims);
+    let coeffs = powers::<E>(&s, num_claims);
 
     // Scale initial claims by 2^{log(N)-log(Ni)}
     let claim = coeffs
@@ -829,9 +828,9 @@ where
       .zip(vk.S_comm.iter())
       .map(|((coeffs, eval_Mz), s_comm)| {
         let scaling = 1 << (num_rounds_sc - s_comm.N.log_2()) as u64;
-        G::Scalar::from(scaling) * (coeffs[7] + coeffs[8]) * eval_Mz
+        E::Scalar::from(scaling) * (coeffs[7] + coeffs[8]) * eval_Mz
       })
-      .sum::<G::Scalar>();
+      .sum::<E::Scalar>();
 
     // verify sc
     let (claim_sc_final, rand_sc) = self.sc.verify(claim, num_rounds_sc, 3, &mut transcript)?;
@@ -880,7 +879,7 @@ where
 
               let factor = rand_sc_lo
                 .iter()
-                .fold(G::Scalar::ONE, |acc, r_p| acc * (G::Scalar::ONE - r_p));
+                .fold(E::Scalar::ONE, |acc, r_p| acc * (E::Scalar::ONE - r_p));
 
               (factor, rand_sc_hi)
             };
@@ -892,7 +891,7 @@ where
               poly_X.extend(
                 (0..U.X.len())
                   .map(|i| (i + 1, U.X[i]))
-                  .collect::<Vec<(usize, G::Scalar)>>(),
+                  .collect::<Vec<(usize, E::Scalar)>>(),
               );
               SparsePolynomial::new(num_vars.log_2(), poly_X).evaluate(&rand_sc_unpad[1..])
             };
@@ -930,13 +929,13 @@ where
             w + r
           };
 
-          let claim_mem_final_expected: G::Scalar = coeffs[0]
+          let claim_mem_final_expected: E::Scalar = coeffs[0]
             * (t_plus_r_inv_row - w_plus_r_inv_row)
             + coeffs[1] * (t_plus_r_inv_col - w_plus_r_inv_col)
             + coeffs[2] * (eq_rho * (t_plus_r_inv_row * t_plus_r_row - ts_row))
-            + coeffs[3] * (eq_rho * (w_plus_r_inv_row * w_plus_r_row - G::Scalar::ONE))
+            + coeffs[3] * (eq_rho * (w_plus_r_inv_row * w_plus_r_row - E::Scalar::ONE))
             + coeffs[4] * (eq_rho * (t_plus_r_inv_col * t_plus_r_col - ts_col))
-            + coeffs[5] * (eq_rho * (w_plus_r_inv_col * w_plus_r_col - G::Scalar::ONE));
+            + coeffs[5] * (eq_rho * (w_plus_r_inv_col * w_plus_r_col - E::Scalar::ONE));
 
           let claim_outer_final_expected = coeffs[6] * eq_tau * (Az * Bz - U.u * Cz - E)
             + coeffs[7] * eq_tau * (Az + c * Bz + c * c * Cz);
@@ -946,7 +945,7 @@ where
           claim_mem_final_expected + claim_outer_final_expected + claim_inner_final_expected
         },
       )
-      .sum::<G::Scalar>();
+      .sum::<E::Scalar>();
 
     if claim_sc_final_expected != claim_sc_final {
       return Err(NovaError::InvalidSumcheckProof);
@@ -1009,13 +1008,13 @@ where
         let (rand_sc_lo, _) = rand_sc.split_at(num_rounds_sc - Ni.log_2());
         let scaling = rand_sc_lo
           .iter()
-          .fold(G::Scalar::ONE, |acc, r| acc * (G::Scalar::ONE - r));
+          .fold(E::Scalar::ONE, |acc, r| acc * (E::Scalar::ONE - r));
         evals.into_iter().map(move |eval| scaling * eval)
       })
       .collect::<Vec<_>>();
 
     let c = transcript.squeeze(b"c")?;
-    let u: PolyEvalInstance<G> = PolyEvalInstance::batch(&comms_vec, &rand_sc, &evals_vec, &c);
+    let u: PolyEvalInstance<E> = PolyEvalInstance::batch(&comms_vec, &rand_sc, &evals_vec, &c);
     // verify
     EE::verify(
       &vk.vk_ee,
@@ -1030,9 +1029,9 @@ where
   }
 }
 
-impl<G: Group, EE: EvaluationEngineTrait<G>> BatchedRelaxedR1CSSNARK<G, EE>
+impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARK<E, EE>
 where
-  <G::Scalar as PrimeField>::Repr: Abomonation,
+  <E::Scalar as PrimeField>::Repr: Abomonation,
 {
   /// Runs the batched Sumcheck protocol for the claims of multiple instance of possibly different sizes.
   ///
@@ -1073,21 +1072,21 @@ where
     mut mem: Vec<T1>,
     mut outer: Vec<T2>,
     mut inner: Vec<T3>,
-    transcript: &mut G::TE,
+    transcript: &mut E::TE,
   ) -> Result<
     (
-      SumcheckProof<G>,
-      Vec<G::Scalar>,
-      Vec<Vec<Vec<G::Scalar>>>,
-      Vec<Vec<Vec<G::Scalar>>>,
-      Vec<Vec<Vec<G::Scalar>>>,
+      SumcheckProof<E>,
+      Vec<E::Scalar>,
+      Vec<Vec<Vec<E::Scalar>>>,
+      Vec<Vec<Vec<E::Scalar>>>,
+      Vec<Vec<Vec<E::Scalar>>>,
     ),
     NovaError,
   >
   where
-    T1: SumcheckEngine<G>,
-    T2: SumcheckEngine<G>,
-    T3: SumcheckEngine<G>,
+    T1: SumcheckEngine<E>,
+    T2: SumcheckEngine<E>,
+    T3: SumcheckEngine<E>,
   {
     // sanity checks
     let num_instances = mem.len();
@@ -1120,10 +1119,10 @@ where
           .chain(Self::scaled_claims(outer, num_rounds))
           .chain(Self::scaled_claims(inner, num_rounds))
       })
-      .collect::<Vec<G::Scalar>>();
+      .collect::<Vec<E::Scalar>>();
 
     let s = transcript.squeeze(b"r")?;
-    let coeffs = powers::<G>(&s, claims.len());
+    let coeffs = powers::<E>(&s, claims.len());
 
     // compute the joint claim
     let claim = claims
@@ -1133,8 +1132,8 @@ where
       .sum();
 
     let mut e = claim;
-    let mut r: Vec<G::Scalar> = Vec::new();
-    let mut cubic_polys: Vec<CompressedUniPoly<G::Scalar>> = Vec::new();
+    let mut r: Vec<E::Scalar> = Vec::new();
+    let mut cubic_polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
 
     for i in 0..num_rounds {
       let remaining_variables = num_rounds - i;
@@ -1217,7 +1216,7 @@ where
   // When the size of the current round is larger than the instance's size,
   // the evaluations are constant and equal to the initial claims, appropriately
   // scaled to the current round number.
-  fn get_evals<T: SumcheckEngine<G>>(inst: &T, remaining_variables: usize) -> Vec<Vec<G::Scalar>> {
+  fn get_evals<T: SumcheckEngine<E>>(inst: &T, remaining_variables: usize) -> Vec<Vec<E::Scalar>> {
     let expected_current_size = 1 << remaining_variables;
     if inst.size() != expected_current_size {
       let deg = inst.degree();
@@ -1233,7 +1232,7 @@ where
 
   // When the size of the current round size is larger than the instance's size,
   // binding the polynomials to r has no effect on the polynomial that we imagine repeats.
-  fn bind<T: SumcheckEngine<G>>(inst: &mut T, remaining_variables: usize, r: &G::Scalar) {
+  fn bind<T: SumcheckEngine<E>>(inst: &mut T, remaining_variables: usize, r: &E::Scalar) {
     let expected_current_size = 1 << remaining_variables;
     if inst.size() == expected_current_size {
       inst.bound(r)
@@ -1243,11 +1242,11 @@ where
   // In the current round, if the polynomials in the instance are smaller than the expected size,
   // the claims are equal to the initial ones, scaled by expected_size/round_size to
   // account for the imagined repetitions of the input polynomials.
-  fn scaled_claims<T: SumcheckEngine<G>>(inst: &T, remaining_variables: usize) -> Vec<G::Scalar> {
+  fn scaled_claims<T: SumcheckEngine<E>>(inst: &T, remaining_variables: usize) -> Vec<E::Scalar> {
     let expected_current_size = 1 << remaining_variables;
     let inst_size = inst.size();
     let num_repetitions = expected_current_size / inst_size;
-    let scaling = G::Scalar::from(num_repetitions as u64);
+    let scaling = E::Scalar::from(num_repetitions as u64);
     inst
       .initial_claims()
       .iter()
