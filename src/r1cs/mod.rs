@@ -14,7 +14,7 @@ use crate::{
   traits::{
     commitment::CommitmentEngineTrait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, CE,
+  Commitment, CommitmentKey, ResourceBuffer, CE,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -384,30 +384,29 @@ impl<E: Engine> R1CSShape<E> {
     W1: &RelaxedR1CSWitness<E>,
     U2: &R1CSInstance<E>,
     W2: &R1CSWitness<E>,
-    T: &mut Vec<E::Scalar>,
-    ABC_Z_1: &mut R1CSResult<E>,
-    ABC_Z_2: &mut R1CSResult<E>,
+    buffer: &mut ResourceBuffer<E>,
   ) -> Result<Commitment<E>, NovaError> {
     tracing::info_span!("AZ_1, BZ_1, CZ_1")
-      .in_scope(|| self.multiply_witness_into(&W1.W, &U1.u, &U1.X, ABC_Z_1))?;
+      .in_scope(|| self.multiply_witness_into(&W1.W, &U1.u, &U1.X, &mut buffer.ABC_Z_1))?;
 
     let R1CSResult {
       AZ: AZ_1,
       BZ: BZ_1,
       CZ: CZ_1,
-    } = ABC_Z_1;
+    } = &mut buffer.ABC_Z_1;
 
-    tracing::info_span!("AZ_2, BZ_2, CZ_2")
-      .in_scope(|| self.multiply_witness_into(&W2.W, &E::Scalar::ONE, &U2.X, ABC_Z_2))?;
+    tracing::info_span!("AZ_2, BZ_2, CZ_2").in_scope(|| {
+      self.multiply_witness_into(&W2.W, &E::Scalar::ONE, &U2.X, &mut buffer.ABC_Z_2)
+    })?;
 
     let R1CSResult {
       AZ: AZ_2,
       BZ: BZ_2,
       CZ: CZ_2,
-    } = ABC_Z_2;
+    } = &mut buffer.ABC_Z_2;
 
     // this doesn't allocate memory but has bad temporal cache locality -- should test to see which is faster
-    T.clear();
+    buffer.T.clear();
     tracing::info_span!("T").in_scope(|| {
       (0..AZ_1.len())
         .into_par_iter()
@@ -417,10 +416,16 @@ impl<E: Engine> R1CSShape<E> {
           let u_1_cdot_Cz_2_plus_Cz_1 = U1.u * CZ_2[i] + CZ_1[i];
           AZ_1_circ_BZ_2 + AZ_2_circ_BZ_1 - u_1_cdot_Cz_2_plus_Cz_1
         })
-        .collect_into_vec(T)
+        .collect_into_vec(&mut buffer.T)
     });
 
-    Ok(CE::<E>::commit(ck, T))
+    let comm_T = if CE::<E>::has_preallocated_msm() {
+      CE::<E>::commit_with(&buffer.msm_context, &buffer.T)
+    } else {
+      CE::<E>::commit(ck, &buffer.T)
+    };
+
+    Ok(comm_T)
   }
 
   /// Pads the `R1CSShape` so that the number of variables is a power of two

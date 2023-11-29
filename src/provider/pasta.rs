@@ -50,6 +50,9 @@ impl VestaCompressedElementWrapper {
 macro_rules! impl_traits {
   (
     $name:ident,
+    $name_init:ident,
+    $name_with:ident,
+    $msm_context:ident,
     $name_compressed:ident,
     $name_curve:ident,
     $name_curve_affine:ident,
@@ -73,16 +76,18 @@ macro_rules! impl_traits {
     impl DlogGroup for $name::Point {
       type CompressedGroupElement = $name_compressed;
       type PreprocessedGroupElement = $name::Affine;
+      type MSMContext = pasta_msm::$msm_context;
 
-      #[tracing::instrument(
-        skip_all,
-        level = "trace",
-        name = "<_ as Group>::vartime_multiscalar_mul"
-      )]
-      fn vartime_multiscalar_mul(
-        scalars: &[Self::Scalar],
-        bases: &[Self::PreprocessedGroupElement],
-      ) -> Self {
+      fn has_preallocated_msm() -> bool {
+        true
+      }
+
+      fn msm_init(bases: &[Self::PreprocessedGroupElement]) -> Self::MSMContext {
+        pasta_msm::$name_init(bases, bases.len())
+      }
+
+      #[tracing::instrument(skip_all, level = "trace", name = "<_ as Group>::msm")]
+      fn msm(scalars: &[Self::Scalar], bases: &[Self::PreprocessedGroupElement]) -> Self {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         if scalars.len() >= 128 {
           pasta_msm::$name(bases, scalars)
@@ -91,6 +96,10 @@ macro_rules! impl_traits {
         }
         #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
         cpu_best_msm(scalars, bases)
+      }
+
+      fn msm_with(scalars: &[Self::Scalar], context: &Self::MSMContext) -> Self {
+        pasta_msm::$name_with(context, scalars.len(), scalars)
       }
 
       fn preprocessed(&self) -> Self::PreprocessedGroupElement {
@@ -192,6 +201,9 @@ macro_rules! impl_traits {
 
 impl_traits!(
   pallas,
+  pallas_init,
+  pallas_with,
+  MSMContextPallas,
   PallasCompressedElementWrapper,
   Ep,
   EpAffine,
@@ -201,6 +213,9 @@ impl_traits!(
 
 impl_traits!(
   vesta,
+  vesta_init,
+  vesta_with,
+  MSMContextVesta,
   VestaCompressedElementWrapper,
   Eq,
   EqAffine,

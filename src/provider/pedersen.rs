@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 pub struct CommitmentKey<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<<E::GE as DlogGroup>::PreprocessedGroupElement>,
@@ -33,7 +32,6 @@ where
 impl<E> Clone for CommitmentKey<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   fn clone(&self) -> Self {
     Self {
@@ -45,7 +43,6 @@ where
 impl<E> Len for CommitmentKey<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   fn length(&self) -> usize {
     self.ck.len()
@@ -67,7 +64,6 @@ pub struct Commitment<E: Engine> {
 pub struct CompressedCommitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   comm: <E::GE as DlogGroup>::CompressedGroupElement,
 }
@@ -75,7 +71,6 @@ where
 impl<E> CommitmentTrait<E> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   type CompressedCommitment = CompressedCommitment<E>;
 
@@ -103,7 +98,6 @@ where
 impl<E: Engine> Default for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   fn default() -> Self {
     Commitment {
@@ -115,7 +109,6 @@ where
 impl<E> TranscriptReprTrait<E::GE> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   fn to_transcript_bytes(&self) -> Vec<u8> {
     let (x, y, is_infinity) = self.comm.to_coordinates();
@@ -132,7 +125,6 @@ where
 impl<E> AbsorbInROTrait<E> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   fn absorb_in_ro(&self, ro: &mut E::RO) {
     let (x, y, is_infinity) = self.comm.to_coordinates();
@@ -149,7 +141,6 @@ where
 impl<E> TranscriptReprTrait<E::GE> for CompressedCommitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   fn to_transcript_bytes(&self) -> Vec<u8> {
     self.comm.to_transcript_bytes()
@@ -159,7 +150,6 @@ where
 impl<E> MulAssign<E::Scalar> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   fn mul_assign(&mut self, scalar: E::Scalar) {
     *self = Commitment {
@@ -171,7 +161,6 @@ where
 impl<'a, 'b, E> Mul<&'b E::Scalar> for &'a Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   type Output = Commitment<E>;
   fn mul(self, scalar: &'b E::Scalar) -> Commitment<E> {
@@ -184,7 +173,6 @@ where
 impl<E> Mul<E::Scalar> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   type Output = Commitment<E>;
 
@@ -198,7 +186,6 @@ where
 impl<E> Add for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   type Output = Commitment<E>;
 
@@ -218,7 +205,6 @@ pub struct CommitmentEngine<E: Engine> {
 impl<E> CommitmentEngineTrait<E> for CommitmentEngine<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   type CommitmentKey = CommitmentKey<E>;
   type Commitment = Commitment<E>;
@@ -229,10 +215,28 @@ where
     }
   }
 
+  /// Do we have access to preallocated MSMs?
+  fn has_preallocated_msm() -> bool {
+    E::GE::has_preallocated_msm()
+  }
+
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment {
     assert!(ck.ck.len() >= v.len());
     Commitment {
-      comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[..v.len()]),
+      comm: E::GE::msm(v, &ck.ck[..v.len()]),
+    }
+  }
+
+  fn commit_init(ck: &Self::CommitmentKey, npoints: usize) -> <E::GE as DlogGroup>::MSMContext
+  {
+    assert!(ck.ck.len() >= npoints);
+    E::GE::msm_init(&ck.ck[..npoints])
+  }
+
+  fn commit_with(context: &<E::GE as DlogGroup>::MSMContext, v: &[E::Scalar]) -> Self::Commitment
+  {
+    Commitment {
+      comm: E::GE::msm_with(v, context),
     }
   }
 }
@@ -241,7 +245,6 @@ where
 pub trait CommitmentKeyExtTrait<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
 {
   /// Splits the commitment key into two pieces at a specified point
   fn split_at(&self, n: usize) -> (Self, Self)
@@ -268,7 +271,6 @@ where
 impl<E> CommitmentKeyExtTrait<E> for CommitmentKey<E>
 where
   E: Engine<CE = CommitmentEngine<E>>,
-  E::GE: DlogGroup,
 {
   fn split_at(&self, n: usize) -> (CommitmentKey<E>, CommitmentKey<E>) {
     (
@@ -299,7 +301,7 @@ where
       .into_par_iter()
       .map(|i| {
         let bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
-        E::GE::vartime_multiscalar_mul(&w, &bases).preprocessed()
+        E::GE::msm(&w, &bases).preprocessed()
       })
       .collect();
 
@@ -312,7 +314,7 @@ where
       .ck
       .clone()
       .into_par_iter()
-      .map(|g| E::GE::vartime_multiscalar_mul(&[*r], &[g]).preprocessed())
+      .map(|g| E::GE::msm(&[*r], &[g]).preprocessed())
       .collect();
 
     CommitmentKey { ck: ck_scaled }

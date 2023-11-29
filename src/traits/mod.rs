@@ -1,5 +1,5 @@
 //! This module defines various traits required by the users of the library to implement.
-use crate::errors::NovaError;
+use crate::{errors::NovaError, provider::traits::DlogGroup};
 use abomonation::Abomonation;
 use bellpepper_core::{boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::fmt::Debug;
@@ -39,7 +39,7 @@ pub trait Engine: Clone + Copy + Debug + Send + Sync + Sized + Eq + PartialEq {
     + for<'de> Deserialize<'de>;
 
   /// A type that represents an element of the group
-  type GE: Group<Base = Self::Base, Scalar = Self::Scalar> + Serialize + for<'de> Deserialize<'de>;
+  type GE: Group<Base = Self::Base, Scalar = Self::Scalar> + DlogGroup + Serialize + for<'de> Deserialize<'de>;
 
   /// A type that represents a circuit-friendly sponge that consumes elements
   /// from the base field and squeezes out elements of the scalar field

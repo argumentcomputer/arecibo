@@ -5,11 +5,11 @@ use crate::{
   constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
   r1cs::{
-    R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
+    R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
   },
   scalar_as_base,
   traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROTrait},
-  Commitment, CommitmentKey, CompressedCommitment,
+  Commitment, CommitmentKey, CompressedCommitment, ResourceBuffer,
 };
 use serde::{Deserialize, Serialize};
 
@@ -93,9 +93,7 @@ impl<E: Engine> NIFS<E> {
     W1: &mut RelaxedR1CSWitness<E>,
     U2: &R1CSInstance<E>,
     W2: &R1CSWitness<E>,
-    T: &mut Vec<E::Scalar>,
-    ABC_Z_1: &mut R1CSResult<E>,
-    ABC_Z_2: &mut R1CSResult<E>,
+    buffer: &mut ResourceBuffer<E>,
   ) -> Result<NIFS<E>, NovaError> {
     // initialize a new RO
     let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
@@ -108,7 +106,7 @@ impl<E: Engine> NIFS<E> {
     U2.absorb_in_ro(&mut ro);
 
     // compute a commitment to the cross-term
-    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, T, ABC_Z_1, ABC_Z_2)?;
+    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, buffer)?;
 
     // append `comm_T` to the transcript and obtain a challenge
     comm_T.absorb_in_ro(&mut ro);
@@ -120,7 +118,7 @@ impl<E: Engine> NIFS<E> {
     U1.fold_mut(U2, &comm_T, &r);
 
     // fold the witness using `r` and `T`
-    W1.fold_mut(W2, T, &r)?;
+    W1.fold_mut(W2, &mut buffer.T, &r)?;
 
     // return the commitment
     Ok(Self {

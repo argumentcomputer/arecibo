@@ -28,6 +28,7 @@ pub mod traits;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
+use provider::traits::DlogGroup;
 
 use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::{
@@ -284,6 +285,9 @@ pub struct ResourceBuffer<E: Engine> {
 
   /// buffer for `commit_T`
   T: Vec<E::Scalar>,
+
+  #[serde(skip)]
+  msm_context: <E::GE as DlogGroup>::MSMContext,
 }
 
 /// A SNARK that proves the correct execution of an incremental computation
@@ -424,12 +428,25 @@ where
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, NovaError>>()
       .expect("Nova error synthesis");
 
+    let msm_context_primary = if E1::CE::has_preallocated_msm() {
+      E1::CE::commit_init(&pp.ck_primary, r1cs_primary.num_cons)
+    } else {
+      <E1::GE as DlogGroup>::MSMContext::default()
+    };
+
     let buffer_primary = ResourceBuffer {
       l_w: None,
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_primary),
       ABC_Z_2: R1CSResult::default(r1cs_primary),
       T: r1cs::default_T(r1cs_primary),
+      msm_context: msm_context_primary,
+    };
+
+    let msm_context_secondary = if E2::CE::has_preallocated_msm() {
+      E2::CE::commit_init(&pp.ck_secondary, r1cs_secondary.num_cons)
+    } else {
+      <E2::GE as DlogGroup>::MSMContext::default()
     };
 
     let buffer_secondary = ResourceBuffer {
@@ -438,6 +455,7 @@ where
       ABC_Z_1: R1CSResult::default(r1cs_secondary),
       ABC_Z_2: R1CSResult::default(r1cs_secondary),
       T: r1cs::default_T(r1cs_secondary),
+      msm_context: msm_context_secondary,
     };
 
     Ok(Self {
@@ -489,9 +507,7 @@ where
       &mut self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
-      &mut self.buffer_secondary.T,
-      &mut self.buffer_secondary.ABC_Z_1,
-      &mut self.buffer_secondary.ABC_Z_2,
+      &mut self.buffer_secondary,
     )
     .expect("Unable to fold secondary");
 
@@ -535,9 +551,7 @@ where
       &mut self.r_W_primary,
       &l_u_primary,
       &l_w_primary,
-      &mut self.buffer_primary.T,
-      &mut self.buffer_primary.ABC_Z_1,
-      &mut self.buffer_primary.ABC_Z_2,
+      &mut self.buffer_primary,
     )
     .expect("Unable to fold primary");
 
@@ -1002,12 +1016,8 @@ mod tests {
     provider::{
       non_hiding_zeromorph::ZMPCS, traits::DlogGroup, Bn256Engine, Bn256EngineZM, GrumpkinEngine,
       PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
-    },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
   };
-  use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-  use core::{fmt::Write, marker::PhantomData};
-  use ff::PrimeField;
   use halo2curves::bn256::Bn256;
   use traits::circuit::TrivialCircuit;
 
@@ -1067,8 +1077,6 @@ mod tests {
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
-    E1::GE: DlogGroup,
-    E2::GE: DlogGroup,
     T1: StepCircuit<E1::Scalar>,
     T2: StepCircuit<E2::Scalar>,
     EE1: EvaluationEngineTrait<E1>,

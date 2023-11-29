@@ -3,7 +3,7 @@ use crate::{
   impl_traits,
   provider::{
     msm::cpu_best_msm,
-    traits::{CompressedGroup, DlogGroup},
+    traits::{CompressedGroup, DlogGroup, EmptyContext},
   },
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };

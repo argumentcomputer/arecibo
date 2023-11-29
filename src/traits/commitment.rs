@@ -2,6 +2,7 @@
 //! We require the commitment engine to provide a commitment to vectors with a single group element
 use crate::{
   errors::NovaError,
+  provider::traits::DlogGroup,
   traits::{AbsorbInROTrait, Engine, TranscriptReprTrait},
 };
 use abomonation::Abomonation;
@@ -83,6 +84,15 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
   /// Samples a new commitment key of a specified size
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey;
 
+  /// Do we have access to preallocated MSMs?
+  fn has_preallocated_msm() -> bool;
+
   /// Commits to the provided vector using the provided generators
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment;
+
+  /// Commits to the provided vector using the provided generators
+  fn commit_init(ck: &Self::CommitmentKey, npoints: usize) -> <E::GE as DlogGroup>::MSMContext;
+
+  /// Commits to the provided vector using the provided generators
+  fn commit_with(context: &<E::GE as DlogGroup>::MSMContext, v: &[E::Scalar]) -> Self::Commitment;
 }
