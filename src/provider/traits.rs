@@ -67,11 +67,19 @@ pub trait DlogGroup:
     + Serialize
     + for<'de> Deserialize<'de>;
 
+  type MSMContext: Default + Debug + Clone + Send + Sync;
+
+  /// Do we have access to preallocated MSMs?
+  fn has_preallocated_msm() -> bool;
+
   /// A method to compute a multiexponentation
-  fn vartime_multiscalar_mul(
-    scalars: &[Self::Scalar],
-    bases: &[Self::PreprocessedGroupElement],
-  ) -> Self;
+  fn msm_init(bases: &[Self::PreprocessedGroupElement]) -> Self::MSMContext;
+
+  /// A method to compute a multiexponentation
+  fn msm(scalars: &[Self::Scalar], bases: &[Self::PreprocessedGroupElement]) -> Self;
+
+  /// A method to compute a multiexponentation
+  fn msm_with(scalars: &[Self::Scalar], context: &Self::MSMContext) -> Self;
 
   /// Produce a vector of group elements using a static label
   fn from_label(label: &'static [u8], n: usize) -> Vec<Self::PreprocessedGroupElement>;
@@ -89,9 +97,12 @@ pub trait DlogGroup:
   fn to_coordinates(&self) -> (<Self as Group>::Base, <Self as Group>::Base, bool);
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct EmptyContext;
+
 /// This implementation behaves in ways specific to the halo2curves suite of curves in:
 // - to_coordinates,
-// - vartime_multiscalar_mul, where it does not call into accelerated implementations.
+// - msm, where it does not call into accelerated implementations.
 // A specific reimplementation exists for the pasta curves in their own module.
 #[macro_export]
 macro_rules! impl_traits {
@@ -120,12 +131,22 @@ macro_rules! impl_traits {
     impl DlogGroup for $name::Point {
       type CompressedGroupElement = $name_compressed;
       type PreprocessedGroupElement = $name::Affine;
+      type MSMContext = EmptyContext;
 
-      fn vartime_multiscalar_mul(
-        scalars: &[Self::Scalar],
-        bases: &[Self::PreprocessedGroupElement],
-      ) -> Self {
+      fn has_preallocated_msm() -> bool {
+        false
+      }
+
+      fn msm_init(_bases: &[Self::PreprocessedGroupElement]) -> Self::MSMContext {
+        unimplemented!("no preallocated msm impl for this group")
+      }
+
+      fn msm(scalars: &[Self::Scalar], bases: &[Self::PreprocessedGroupElement]) -> Self {
         cpu_best_msm(scalars, bases)
+      }
+
+      fn msm_with(_scalars: &[Self::Scalar], _context: &Self::MSMContext) -> Self {
+        unimplemented!("no preallocated msm impl for this group")
       }
 
       fn preprocessed(&self) -> Self::PreprocessedGroupElement {

@@ -28,13 +28,17 @@ pub mod traits;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
+use provider::traits::DlogGroup;
 
-use crate::bellpepper::{
-  r1cs::{NovaShape, NovaWitness},
-  shape_cs::ShapeCS,
-  solver::SatisfyingAssignment,
-};
 use crate::digest::{DigestComputer, SimpleDigestible};
+use crate::{
+  bellpepper::{
+    r1cs::{NovaShape, NovaWitness},
+    shape_cs::ShapeCS,
+    solver::SatisfyingAssignment,
+  },
+  r1cs::R1CSResult,
+};
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use bellpepper_core::ConstraintSystem;
@@ -268,6 +272,24 @@ where
   }
 }
 
+/// A resource buffer for [`RecursiveSNARK`] for storing scratch values that are computed by `prove_step`,
+/// which allows the reuse of memory allocations and avoids unnecessary new allocations in the critical section.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct ResourceBuffer<E: Engine> {
+  l_w: Option<R1CSWitness<E>>,
+  l_u: Option<R1CSInstance<E>>,
+
+  ABC_Z_1: R1CSResult<E>,
+  ABC_Z_2: R1CSResult<E>,
+
+  /// buffer for `commit_T`
+  T: Vec<E::Scalar>,
+
+  #[serde(skip)]
+  msm_context: <E::GE as DlogGroup>::MSMContext,
+}
+
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -286,6 +308,12 @@ where
   r_U_secondary: RelaxedR1CSInstance<E2>,
   l_w_secondary: R1CSWitness<E2>,
   l_u_secondary: R1CSInstance<E2>,
+
+  /// Buffer for memory needed by the primary fold-step
+  buffer_primary: ResourceBuffer<E1>,
+  /// Buffer for memory needed by the secondary fold-step
+  buffer_secondary: ResourceBuffer<E2>,
+
   i: usize,
   zi_primary: Vec<E1::Scalar>,
   zi_secondary: Vec<E2::Scalar>,
@@ -311,6 +339,9 @@ where
       return Err(NovaError::InvalidInitialInputLength);
     }
 
+    let r1cs_primary = &pp.circuit_shape_primary.r1cs_shape;
+    let r1cs_secondary = &pp.circuit_shape_secondary.r1cs_shape;
+
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
     let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
@@ -334,7 +365,7 @@ where
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
     let (u_primary, w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
+      .r1cs_instance_and_witness(r1cs_primary, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -367,8 +398,7 @@ where
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
-    let r_W_primary =
-      RelaxedR1CSWitness::from_r1cs_witness(&pp.circuit_shape_primary.r1cs_shape, l_w_primary);
+    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary);
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
       &pp.ck_primary,
       &pp.circuit_shape_primary.r1cs_shape,
@@ -378,9 +408,8 @@ where
     // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
-    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(&pp.circuit_shape_secondary.r1cs_shape);
-    let r_U_secondary =
-      RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape);
+    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
@@ -399,6 +428,36 @@ where
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, NovaError>>()
       .expect("Nova error synthesis");
 
+    let msm_context_primary = if E1::CE::has_preallocated_msm() {
+      E1::CE::commit_init(&pp.ck_primary, r1cs_primary.num_cons)
+    } else {
+      <E1::GE as DlogGroup>::MSMContext::default()
+    };
+
+    let buffer_primary = ResourceBuffer {
+      l_w: None,
+      l_u: None,
+      ABC_Z_1: R1CSResult::default(r1cs_primary),
+      ABC_Z_2: R1CSResult::default(r1cs_primary),
+      T: r1cs::default_T(r1cs_primary),
+      msm_context: msm_context_primary,
+    };
+
+    let msm_context_secondary = if E2::CE::has_preallocated_msm() {
+      E2::CE::commit_init(&pp.ck_secondary, r1cs_secondary.num_cons)
+    } else {
+      <E2::GE as DlogGroup>::MSMContext::default()
+    };
+
+    let buffer_secondary = ResourceBuffer {
+      l_w: None,
+      l_u: None,
+      ABC_Z_1: R1CSResult::default(r1cs_secondary),
+      ABC_Z_2: R1CSResult::default(r1cs_secondary),
+      T: r1cs::default_T(r1cs_secondary),
+      msm_context: msm_context_secondary,
+    };
+
     Ok(Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
@@ -408,6 +467,9 @@ where
       r_U_secondary,
       l_w_secondary,
       l_u_secondary,
+
+      buffer_primary,
+      buffer_secondary,
       i: 0,
       zi_primary,
       zi_secondary,
@@ -430,16 +492,22 @@ where
       return Ok(());
     }
 
+    // save the inputs before proceeding to the `i+1`th step
+    let r_U_primary_i = self.r_U_primary.clone();
+    let r_U_secondary_i = self.r_U_secondary.clone();
+    let l_u_secondary_i = self.l_u_secondary.clone();
+
     // fold the secondary circuit's instance
-    let (nifs_secondary, (r_U_secondary, r_W_secondary)) = NIFS::prove(
+    let nifs_secondary = NIFS::prove_mut(
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
-      &self.r_U_secondary,
-      &self.r_W_secondary,
+      &mut self.r_U_secondary,
+      &mut self.r_W_secondary,
       &self.l_u_secondary,
       &self.l_w_secondary,
+      &mut self.buffer_secondary,
     )
     .expect("Unable to fold secondary");
 
@@ -452,8 +520,8 @@ where
       E1::Scalar::from(self.i as u64),
       self.z0_primary.to_vec(),
       Some(self.zi_primary.clone()),
-      Some(self.r_U_secondary.clone()),
-      Some(self.l_u_secondary.clone()),
+      Some(r_U_secondary_i),
+      Some(l_u_secondary_i),
       Some(Commitment::<E2>::decompress(&nifs_secondary.comm_T)?),
     );
 
@@ -474,15 +542,16 @@ where
       .expect("Nova error unsat");
 
     // fold the primary circuit's instance
-    let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
+    let nifs_primary = NIFS::prove_mut(
       &pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
       &pp.circuit_shape_primary.r1cs_shape,
-      &self.r_U_primary,
-      &self.r_W_primary,
+      &mut self.r_U_primary,
+      &mut self.r_W_primary,
       &l_u_primary,
       &l_w_primary,
+      &mut self.buffer_primary,
     )
     .expect("Unable to fold primary");
 
@@ -495,7 +564,7 @@ where
       E2::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
-      Some(self.r_U_primary.clone()),
+      Some(r_U_primary_i),
       Some(l_u_primary),
       Some(Commitment::<E1>::decompress(&nifs_primary.comm_T)?),
     );
@@ -527,13 +596,7 @@ where
     self.l_u_secondary = l_u_secondary;
     self.l_w_secondary = l_w_secondary;
 
-    self.r_U_primary = r_U_primary;
-    self.r_W_primary = r_W_primary;
-
     self.i += 1;
-
-    self.r_U_secondary = r_U_secondary;
-    self.r_W_secondary = r_W_secondary;
 
     Ok(())
   }
@@ -951,8 +1014,7 @@ mod tests {
   use super::*;
   use crate::{
     provider::{
-      traits::DlogGroup, Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine,
-      Secq256k1Engine, VestaEngine,
+      Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
   };
@@ -1017,8 +1079,6 @@ mod tests {
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
-    E1::GE: DlogGroup,
-    E2::GE: DlogGroup,
     T1: StepCircuit<E1::Scalar>,
     T2: StepCircuit<E2::Scalar>,
     EE1: EvaluationEngineTrait<E1>,

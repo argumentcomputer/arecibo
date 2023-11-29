@@ -4,10 +4,12 @@
 use crate::{
   constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
-  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  r1cs::{
+    R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  },
   scalar_as_base,
   traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROTrait},
-  Commitment, CommitmentKey, CompressedCommitment,
+  Commitment, CommitmentKey, CompressedCommitment, ResourceBuffer,
 };
 use serde::{Deserialize, Serialize};
 
@@ -73,6 +75,55 @@ impl<E: Engine> NIFS<E> {
       },
       (U, W),
     ))
+  }
+
+  /// Takes as input a Relaxed R1CS instance-witness tuple `(U1, W1)` and
+  /// an R1CS instance-witness tuple `(U2, W2)` with the same structure `shape`
+  /// and defined with respect to the same `ck`, and updates `(U1, W1)` by folding
+  /// `(U2, W2)` into it with the guarantee that the updated witness `W` satisfies
+  /// the updated instance `U` if and only if `W1` satisfies `U1` and `W2` satisfies `U2`.
+  #[allow(clippy::too_many_arguments)]
+  #[tracing::instrument(skip_all, level = "trace", name = "NIFS::prove_mut")]
+  pub fn prove_mut(
+    ck: &CommitmentKey<E>,
+    ro_consts: &ROConstants<E>,
+    pp_digest: &E::Scalar,
+    S: &R1CSShape<E>,
+    U1: &mut RelaxedR1CSInstance<E>,
+    W1: &mut RelaxedR1CSWitness<E>,
+    U2: &R1CSInstance<E>,
+    W2: &R1CSWitness<E>,
+    buffer: &mut ResourceBuffer<E>,
+  ) -> Result<NIFS<E>, NovaError> {
+    // initialize a new RO
+    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+
+    // append the digest of pp to the transcript
+    ro.absorb(scalar_as_base::<E>(*pp_digest));
+
+    // append U1 and U2 to transcript
+    U1.absorb_in_ro(&mut ro);
+    U2.absorb_in_ro(&mut ro);
+
+    // compute a commitment to the cross-term
+    let comm_T = S.commit_T_into(ck, U1, W1, U2, W2, buffer)?;
+
+    // append `comm_T` to the transcript and obtain a challenge
+    comm_T.absorb_in_ro(&mut ro);
+
+    // compute a challenge from the RO
+    let r = ro.squeeze(NUM_CHALLENGE_BITS);
+
+    // fold the instance using `r` and `comm_T`
+    U1.fold_mut(U2, &comm_T, &r);
+
+    // fold the witness using `r` and `T`
+    W1.fold_mut(W2, &mut buffer.T, &r)?;
+
+    // return the commitment
+    Ok(Self {
+      comm_T: comm_T.compress(),
+    })
   }
 
   /// Takes as input a relaxed R1CS instance `U1` and R1CS instance `U2`
