@@ -32,6 +32,7 @@ use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use core::cmp::max;
 use ff::{Field, PrimeField};
+use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -352,7 +353,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
               Ok(
                 inv
                   .par_iter()
-                  .zip(TS.par_iter())
+                  .zip_eq(TS.par_iter())
                   .map(|(e1, e2)| *e1 * *e2)
                   .collect::<Vec<_>>(),
               )
@@ -871,7 +872,7 @@ where
     // compute the joint claim
     let claim = claims
       .iter()
-      .zip(coeffs.iter())
+      .zip_eq(coeffs.iter())
       .map(|(c_1, c_2)| *c_1 * c_2)
       .sum();
 
@@ -1115,8 +1116,8 @@ where
           .S_repr
           .val_A
           .par_iter()
-          .zip(pk.S_repr.val_B.par_iter())
-          .zip(pk.S_repr.val_C.par_iter())
+          .zip_eq(pk.S_repr.val_B.par_iter())
+          .zip_eq(pk.S_repr.val_C.par_iter())
           .map(|((v_a, v_b), v_c)| *v_a + c * *v_b + c * c * *v_c)
           .collect::<Vec<E::Scalar>>();
         let inner_sc_inst = InnerSumcheckInstance {

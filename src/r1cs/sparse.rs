@@ -9,6 +9,7 @@ use std::cmp::Ordering;
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::PrimeField;
+use itertools::Itertools as _;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -90,7 +91,7 @@ impl<F: PrimeField> SparseMatrix<F> {
   pub fn get_row_unchecked(&self, ptrs: &[usize; 2]) -> impl Iterator<Item = (&F, &usize)> {
     self.data[ptrs[0]..ptrs[1]]
       .iter()
-      .zip(&self.indices[ptrs[0]..ptrs[1]])
+      .zip_eq(&self.indices[ptrs[0]..ptrs[1]])
   }
 
   /// Multiply by a dense vector; uses rayon to parallelize.

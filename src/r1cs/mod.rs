@@ -327,9 +327,9 @@ impl<E: Engine> R1CSShape<E> {
     let T = tracing::trace_span!("T").in_scope(|| {
       AZ_1_circ_BZ_2
         .par_iter()
-        .zip(&AZ_2_circ_BZ_1)
-        .zip(&u_1_cdot_CZ_2)
-        .zip(&u_2_cdot_CZ_1)
+        .zip_eq(&AZ_2_circ_BZ_1)
+        .zip_eq(&u_1_cdot_CZ_2)
+        .zip_eq(&u_2_cdot_CZ_1)
         .map(|(((a, b), c), d)| *a + *b - *c - *d)
         .collect::<Vec<E::Scalar>>()
     });
@@ -479,12 +479,12 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
     let W = W1
       .par_iter()
-      .zip(W2)
+      .zip_eq(W2)
       .map(|(a, b)| *a + *r * *b)
       .collect::<Vec<E::Scalar>>();
     let E = E1
       .par_iter()
-      .zip(T)
+      .zip_eq(T)
       .map(|(a, b)| *a + *r * *b)
       .collect::<Vec<E::Scalar>>();
     Ok(RelaxedR1CSWitness { W, E })
@@ -557,7 +557,7 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
     // weighted sum of X, comm_W, comm_E, and u
     let X = X1
       .par_iter()
-      .zip(X2)
+      .zip_eq(X2)
       .map(|(a, b)| *a + *r * *b)
       .collect::<Vec<E::Scalar>>();
     let comm_W = *comm_W_1 + *comm_W_2 * *r;

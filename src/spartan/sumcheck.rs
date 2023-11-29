@@ -158,7 +158,7 @@ impl<E: Engine> SumcheckProof<E> {
     for _ in 0..num_rounds {
       let evals: Vec<(E::Scalar, E::Scalar)> = poly_A_vec
         .par_iter()
-        .zip(poly_B_vec.par_iter())
+        .zip_eq(poly_B_vec.par_iter())
         .map(|(poly_A, poly_B)| Self::compute_eval_points_quad(poly_A, poly_B, &comb_func))
         .collect();
 
@@ -178,7 +178,7 @@ impl<E: Engine> SumcheckProof<E> {
       // bound all tables to the verifier's challenge
       poly_A_vec
         .par_iter_mut()
-        .zip(poly_B_vec.par_iter_mut())
+        .zip_eq(poly_B_vec.par_iter_mut())
         .for_each(|(poly_A, poly_B)| {
           let _ = rayon::join(
             || poly_A.bind_poly_var_top(&r_i),

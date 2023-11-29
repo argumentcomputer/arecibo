@@ -5,6 +5,7 @@
 use std::ops::{Add, Index};
 
 use ff::PrimeField;
+use itertools::Itertools as _;
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
   IntoParallelRefMutIterator, ParallelIterator,
@@ -67,7 +68,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
 
     left
       .par_iter_mut()
-      .zip(right.par_iter())
+      .zip_eq(right.par_iter())
       .for_each(|(a, b)| {
         *a += *r * (*b - *a);
       });
@@ -97,7 +98,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     EqPolynomial::new(r.to_vec())
       .evals()
       .into_par_iter()
-      .zip(Z.into_par_iter())
+      .zip_eq(Z.into_par_iter())
       .map(|(a, b)| a * b)
       .sum()
   }
@@ -170,7 +171,7 @@ impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
     let sum: Vec<Scalar> = self
       .Z
       .iter()
-      .zip(other.Z.iter())
+      .zip_eq(other.Z.iter())
       .map(|(a, b)| *a + *b)
       .collect();
 

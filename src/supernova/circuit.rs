@@ -42,6 +42,7 @@ use bellpepper::gadgets::Assignment;
 
 use abomonation_derive::Abomonation;
 use ff::Field;
+use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -392,7 +393,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     // update AllocatedRelaxedR1CSInstance on index match augmented circuit index
     let U_next: Vec<AllocatedRelaxedR1CSInstance<E>> = U
       .iter()
-      .zip(last_augmented_circuit_selector.iter())
+      .zip_eq(last_augmented_circuit_selector.iter())
       .map(|(U, equal_bit)| {
         conditionally_select_alloc_relaxed_r1cs(
           cs.namespace(|| "select on index namespace"),

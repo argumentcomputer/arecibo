@@ -245,13 +245,13 @@ where
       // fold the left half and the right half
       let a_vec_folded = a_vec[0..n / 2]
         .par_iter()
-        .zip(a_vec[n / 2..n].par_iter())
+        .zip_eq(a_vec[n / 2..n].par_iter())
         .map(|(a_L, a_R)| *a_L * r + r_inverse * *a_R)
         .collect::<Vec<E::Scalar>>();
 
       let b_vec_folded = b_vec[0..n / 2]
         .par_iter()
-        .zip(b_vec[n / 2..n].par_iter())
+        .zip_eq(b_vec[n / 2..n].par_iter())
         .map(|(b_L, b_R)| *b_L * r_inverse + r * *b_R)
         .collect::<Vec<E::Scalar>>();
 

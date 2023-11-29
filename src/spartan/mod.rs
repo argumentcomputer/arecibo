@@ -14,6 +14,7 @@ mod sumcheck;
 
 use crate::{traits::Engine, Commitment};
 use ff::Field;
+use itertools::Itertools as _;
 use polys::multilinear::SparsePolynomial;
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
 
@@ -66,7 +67,7 @@ impl<E: Engine> PolyEvalWitness<E> {
 
     let p = p_vec
       .par_iter()
-      .zip(powers_of_s.par_iter())
+      .zip_eq(powers_of_s.par_iter())
       .map(|(v, &weight)| {
         // compute the weighted sum for each vector
         v.iter().map(|&x| x * weight).collect::<Vec<E::Scalar>>()
@@ -75,7 +76,7 @@ impl<E: Engine> PolyEvalWitness<E> {
         || vec![E::Scalar::ZERO; p_vec[0].len()],
         |acc, v| {
           // perform vector addition to combine the weighted vectors
-          acc.into_iter().zip(v).map(|(x, y)| x + y).collect()
+          acc.into_iter().zip_eq(v).map(|(x, y)| x + y).collect()
         },
       );
 
@@ -115,12 +116,12 @@ impl<E: Engine> PolyEvalInstance<E> {
     let powers_of_s = powers::<E>(s, c_vec.len());
     let e = e_vec
       .par_iter()
-      .zip(powers_of_s.par_iter())
+      .zip_eq(powers_of_s.par_iter())
       .map(|(e, p)| *e * p)
       .sum();
     let c = c_vec
       .par_iter()
-      .zip(powers_of_s.par_iter())
+      .zip_eq(powers_of_s.par_iter())
       .map(|(c, p)| *c * *p)
       .reduce(Commitment::<E>::default, |acc, item| acc + item);
 

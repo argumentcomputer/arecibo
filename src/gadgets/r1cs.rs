@@ -18,6 +18,7 @@ use crate::{
 use bellpepper::gadgets::{boolean::Boolean, num::AllocatedNum, Assignment};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
+use itertools::Itertools as _;
 
 /// An Allocated R1CS Instance
 #[derive(Clone)]
@@ -390,7 +391,7 @@ pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
 ) -> Result<Vec<AllocatedRelaxedR1CSInstance<E>>, SynthesisError> {
   a.iter()
     .enumerate()
-    .zip(b.iter())
+    .zip_eq(b.iter())
     .map(|((i, a), b)| {
       a.conditionally_select(
         cs.namespace(|| format!("cond ? a[{}]: b[{}]", i, i)),

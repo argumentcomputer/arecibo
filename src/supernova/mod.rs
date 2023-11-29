@@ -24,6 +24,7 @@ use crate::{
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField};
+use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -794,7 +795,7 @@ where
     self
       .r_U_primary
       .iter()
-      .zip(self.r_W_primary.iter())
+      .zip_eq(self.r_W_primary.iter())
       .enumerate()
       .try_for_each(|(i, (u, w))| match (u, w) {
         (Some(_), Some(_)) | (None, None) => Ok(()),
@@ -919,7 +920,7 @@ where
         self
           .r_U_primary
           .par_iter()
-          .zip(self.r_W_primary.par_iter())
+          .zip_eq(self.r_W_primary.par_iter())
           .enumerate()
           .try_for_each(|(i, (u, w))| {
             if let (Some(u), Some(w)) = (u, w) {

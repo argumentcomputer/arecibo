@@ -122,6 +122,7 @@ mod tests {
   use digest::{ExtendableOutput, Update};
   use group::{ff::Field, Curve, Group};
   use halo2curves::{CurveAffine, CurveExt};
+  use itertools::Itertools as _;
   use pasta_curves::{pallas, vesta};
   use rand_core::OsRng;
   use sha3::Shake256;
@@ -164,7 +165,7 @@ mod tests {
       .collect::<Vec<_>>();
     let naive = coeffs
       .iter()
-      .zip(bases.iter())
+      .zip_eq(bases.iter())
       .fold(A::CurveExt::identity(), |acc, (coeff, base)| {
         acc + *base * coeff
       });

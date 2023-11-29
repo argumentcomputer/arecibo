@@ -1,2 +1,7 @@
 type-complexity-threshold = 9999
 too-many-arguments-threshold = 20
+disallowed-methods = [
+    # we are strict about size checks in iterators
+    { path = "core::iter::traits::iterator::Iterator::zip", reason = "use itertools::zip_eq instead" },
+    { path = "rayon::iter::IndexedParallelIterator::zip", reason = "use rayon::iter::IndexedParallelIterator::zip_eq instead" },
+]
