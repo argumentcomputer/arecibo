@@ -15,7 +15,7 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, Parall
 ///
 /// For instance, for e = 6 (with a binary representation of 0b110), the vector r would be [1, 1, 0].
 pub struct EqPolynomial<Scalar: PrimeField> {
-  r: Vec<Scalar>,
+  pub(crate) r: Vec<Scalar>,
 }
 
 impl<Scalar: PrimeField> EqPolynomial<Scalar> {
