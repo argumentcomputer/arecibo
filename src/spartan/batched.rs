@@ -150,7 +150,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Pad (W,E) for each instance
     let W = W
       .iter()
-      .zip(S.iter())
+      .zip_eq(S.iter())
       .map(|(w, s)| w.pad(s))
       .collect::<Vec<RelaxedR1CSWitness<E>>>();
 
@@ -166,7 +166,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Append public inputs to W: Z = [W, u, X]
     let polys_Z = polys_W
       .iter()
-      .zip(U.iter())
+      .zip_eq(U.iter())
       .map(|(w, u)| [w.clone(), vec![u.u], u.X.clone()].concat())
       .collect::<Vec<Vec<_>>>();
 
@@ -191,7 +191,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Compute MLEs of Az, Bz, Cz, uCz + E
     let (polys_Az, polys_Bz, polys_Cz): (Vec<_>, Vec<_>, Vec<_>) = S
       .par_iter()
-      .zip(polys_Z.par_iter())
+      .zip_eq(polys_Z.par_iter())
       .map(|(s, poly_Z)| {
         let (poly_Az, poly_Bz, poly_Cz) = s.multiply_vec(poly_Z)?;
         Ok((poly_Az, poly_Bz, poly_Cz))
@@ -202,12 +202,12 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     let polys_uCz_E = U
       .par_iter()
-      .zip(polys_E.par_iter())
-      .zip(polys_Cz.par_iter())
+      .zip_eq(polys_E.par_iter())
+      .zip_eq(polys_Cz.par_iter())
       .map(|((u, poly_E), poly_Cz)| {
         poly_Cz
           .par_iter()
-          .zip(poly_E.par_iter())
+          .zip_eq(poly_E.par_iter())
           .map(|(cz, e)| u.u * cz + e)
           .collect::<Vec<E::Scalar>>()
       })
@@ -254,10 +254,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Extract evaluations of Az, Bz from Sumcheck and Cz, E at r_x
     let (evals_Az_Bz_Cz, evals_E): (Vec<_>, Vec<_>) = claims_outer[1]
       .par_iter()
-      .zip(claims_outer[2].par_iter())
-      .zip(polys_Cz.par_iter())
-      .zip(polys_E.par_iter())
-      .zip(r_x.par_iter())
+      .zip_eq(claims_outer[2].par_iter())
+      .zip_eq(polys_Cz.par_iter())
+      .zip_eq(polys_E.par_iter())
+      .zip_eq(r_x.par_iter())
       .map(|((((&eval_Az, &eval_Bz), poly_Cz), poly_E), r_x)| {
         let (eval_Cz, eval_E) = rayon::join(
           || MultilinearPolynomial::evaluate_with(poly_Cz, r_x),
@@ -267,7 +267,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       })
       .unzip();
 
-    evals_Az_Bz_Cz.iter().zip(evals_E.iter()).for_each(
+    evals_Az_Bz_Cz.iter().zip_eq(evals_E.iter()).for_each(
       |(&(eval_Az, eval_Bz, eval_Cz), &eval_E)| {
         transcript.absorb(
           b"claims_outer",
@@ -293,14 +293,14 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
        -> Vec<E::Scalar> {
         M_evals_As
           .into_par_iter()
-          .zip(M_evals_Bs.into_par_iter())
-          .zip(M_evals_Cs.into_par_iter())
+          .zip_eq(M_evals_Bs.into_par_iter())
+          .zip_eq(M_evals_Cs.into_par_iter())
           .map(|((eval_A, eval_B), eval_C)| eval_A + inner_r * eval_B + inner_r_square * eval_C)
           .collect::<Vec<_>>()
       };
 
       S.par_iter()
-        .zip(r_x.par_iter())
+        .zip_eq(r_x.par_iter())
         .map(|(s, r_x)| {
           let evals_rx = EqPolynomial::new(r_x.clone()).evals();
           let (eval_A, eval_B, eval_C) = compute_eval_table_sparse(s, &evals_rx);
@@ -311,7 +311,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     let polys_Z = polys_Z
       .into_iter()
-      .zip(num_rounds_y.iter())
+      .zip_eq(num_rounds_y.iter())
       .map(|(mut z, &num_rounds_y)| {
         z.resize(1 << num_rounds_y, E::Scalar::ZERO);
         MultilinearPolynomial::new(z)
@@ -343,7 +343,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     let evals_W = polys_W
       .par_iter()
-      .zip(r_y.par_iter())
+      .zip_eq(r_y.par_iter())
       .map(|(poly, r_y)| MultilinearPolynomial::evaluate_with(poly, &r_y[1..]))
       .collect::<Vec<_>>();
 
@@ -355,8 +355,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       u_vec.extend(
         evals_W
           .iter()
-          .zip(U.iter())
-          .zip(r_y)
+          .zip_eq(U.iter())
+          .zip_eq(r_y)
           .map(|((&eval, u), r_y)| PolyEvalInstance {
             c: u.comm_W,
             x: r_y[1..].to_vec(),
@@ -368,8 +368,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       u_vec.extend(
         evals_E
           .iter()
-          .zip(U.iter())
-          .zip(r_x)
+          .zip_eq(U.iter())
+          .zip_eq(r_x)
           .map(|((eval_E, u), r_x)| PolyEvalInstance {
             c: u.comm_E,
             x: r_x,
@@ -457,9 +457,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let ABCE_evals = self
       .evals_E
       .iter()
-      .zip(self.claims_outer.0.iter())
-      .zip(self.claims_outer.1.iter())
-      .zip(self.claims_outer.2.iter())
+      .zip_eq(self.claims_outer.0.iter())
+      .zip_eq(self.claims_outer.1.iter())
+      .zip_eq(self.claims_outer.2.iter())
       .map(|(((&eval_E, &claim_Az), &claim_Bz), &claim_Cz)| (claim_Az, claim_Bz, claim_Cz, eval_E))
       .collect::<Vec<_>>();
 
@@ -477,19 +477,19 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Evaluate τ(rₓ) for each instance
     let evals_tau = polys_tau
       .iter()
-      .zip(r_x.iter())
+      .zip_eq(r_x.iter())
       .map(|(poly_tau, r_x)| poly_tau.evaluate(r_x))
       .collect::<Vec<_>>();
 
     // Compute expected claim τ(rₓ)⋅∑ᵢ rⁱ⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = ABCE_evals
       .iter()
-      .zip(U.iter())
-      .zip(evals_tau)
+      .zip_eq(U.iter())
+      .zip_eq(evals_tau)
       .map(|(((claim_Az, claim_Bz, claim_Cz, eval_E), u), eval_tau)| {
         eval_tau * (*claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
       })
-      .zip(outer_r_powers.iter())
+      .zip_eq(outer_r_powers.iter())
       .map(|(eval, r)| eval * r)
       .sum::<E::Scalar>();
 
@@ -527,8 +527,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let evals_Z = self
       .evals_W
       .iter()
-      .zip(U.iter())
-      .zip(r_y.iter())
+      .zip_eq(U.iter())
+      .zip_eq(r_y.iter())
       .map(|((eval_W, U), r_y)| {
         let eval_X = {
           // constant term
@@ -580,13 +580,13 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let claim_inner_final_expected = vk
       .S
       .iter()
-      .zip(r_x.iter().zip(r_y.iter()))
+      .zip_eq(r_x.iter().zip_eq(r_y.iter()))
       .map(|(S, (r_x, r_y))| {
         let evals = multi_evaluate(&[&S.A, &S.B, &S.C], r_x, r_y);
         evals[0] + inner_r * evals[1] + inner_r_square * evals[2]
       })
-      .zip(evals_Z.iter())
-      .zip(inner_r_powers.iter())
+      .zip_eq(evals_Z.iter())
+      .zip_eq(inner_r_powers.iter())
       .map(|((eval, eval_Z), r_i)| eval * r_i * eval_Z)
       .sum::<E::Scalar>();
 
@@ -597,31 +597,21 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Create evaluation instances for W(r_y[1..]) and E(r_x)
     let u_vec = {
       let mut u_vec = Vec::with_capacity(2 * num_instances);
-      u_vec.extend(
-        self
-          .evals_W
-          .iter()
-          .zip(U.iter())
-          .zip(r_y.iter())
-          .map(|((&eval, u), r_y)| PolyEvalInstance {
-            c: u.comm_W,
-            x: r_y[1..].to_vec(),
-            e: eval,
-          }),
-      );
+      u_vec.extend(self.evals_W.iter().zip_eq(U.iter()).zip_eq(r_y.iter()).map(
+        |((&eval, u), r_y)| PolyEvalInstance {
+          c: u.comm_W,
+          x: r_y[1..].to_vec(),
+          e: eval,
+        },
+      ));
 
-      u_vec.extend(
-        self
-          .evals_E
-          .iter()
-          .zip(U.iter())
-          .zip(r_x.iter())
-          .map(|((&eval, u), r_x)| PolyEvalInstance {
-            c: u.comm_E,
-            x: r_x.to_vec(),
-            e: eval,
-          }),
-      );
+      u_vec.extend(self.evals_E.iter().zip_eq(U.iter()).zip_eq(r_x.iter()).map(
+        |((&eval, u), r_x)| PolyEvalInstance {
+          c: u.comm_E,
+          x: r_x.to_vec(),
+          e: eval,
+        },
+      ));
       u_vec
     };
 

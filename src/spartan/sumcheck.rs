@@ -5,6 +5,7 @@ use crate::spartan::polys::{
 };
 use crate::traits::{Engine, TranscriptEngineTrait};
 use ff::Field;
+use itertools::Itertools as _;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -82,12 +83,12 @@ impl<E: Engine> SumcheckProof<E> {
     // claim = ∑ᵢ coeffᵢ⋅2^{n-nᵢ}⋅cᵢ
     let claim = claims
       .iter()
-      .zip(num_rounds.iter())
+      .zip_eq(num_rounds.iter())
       .map(|(claim, num_rounds)| {
         let scaling_factor = 1 << (num_rounds_max - num_rounds);
         E::Scalar::from(scaling_factor as u64) * claim
       })
-      .zip(coeffs.iter())
+      .zip_eq(coeffs.iter())
       .map(|(scaled_claim, coeff)| scaled_claim * coeff)
       .sum();
 
@@ -215,11 +216,11 @@ impl<E: Engine> SumcheckProof<E> {
     let num_rounds_max = *num_rounds.iter().max().unwrap();
     let mut e = claims
       .iter()
-      .zip(num_rounds)
+      .zip_eq(num_rounds)
       .map(|(claim, num_rounds)| {
         E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
       })
-      .zip(coeffs)
+      .zip_eq(coeffs)
       .map(|(claim, c)| claim * c)
       .sum();
     let mut r: Vec<E::Scalar> = Vec::new();
@@ -229,8 +230,8 @@ impl<E: Engine> SumcheckProof<E> {
       let remaining_rounds = num_rounds_max - current_round;
       let evals: Vec<(E::Scalar, E::Scalar)> = num_rounds
         .par_iter()
-        .zip(claims.par_iter())
-        .zip(poly_A_vec.par_iter().zip(poly_B_vec.par_iter()))
+        .zip_eq(claims.par_iter())
+        .zip_eq(poly_A_vec.par_iter().zip_eq(poly_B_vec.par_iter()))
         .map(|((&num_rounds, claim), (poly_A, poly_B))| {
           if remaining_rounds <= num_rounds {
             Self::compute_eval_points_quad(poly_A, poly_B, &comb_func)
@@ -258,8 +259,8 @@ impl<E: Engine> SumcheckProof<E> {
       // bound all tables to the verifier's challenge
       num_rounds
         .par_iter()
-        .zip(poly_A_vec.par_iter_mut())
-        .zip(poly_B_vec.par_iter_mut())
+        .zip_eq(poly_A_vec.par_iter_mut())
+        .zip_eq(poly_B_vec.par_iter_mut())
         .for_each(|((&num_rounds, poly_A), poly_B)| {
           if remaining_rounds <= num_rounds {
             let _ = rayon::join(
@@ -286,9 +287,9 @@ impl<E: Engine> SumcheckProof<E> {
 
     let eval_expected = poly_A_final
       .iter()
-      .zip(poly_B_final.iter())
+      .zip_eq(poly_B_final.iter())
       .map(|(eA, eB)| comb_func(eA, eB))
-      .zip(coeffs.iter())
+      .zip_eq(coeffs.iter())
       .map(|(e, c)| e * c)
       .sum::<E::Scalar>();
     assert_eq!(e, eval_expected);
@@ -525,11 +526,11 @@ impl<E: Engine> SumcheckProof<E> {
     let mut polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
     let mut claim_per_round = claims
       .iter()
-      .zip(num_rounds)
+      .zip_eq(num_rounds)
       .map(|(claim, num_rounds)| {
         E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim
       })
-      .zip(coeffs.iter())
+      .zip_eq(coeffs.iter())
       .map(|(claim, c)| claim * c)
       .sum();
 
@@ -537,11 +538,11 @@ impl<E: Engine> SumcheckProof<E> {
       let remaining_rounds = num_rounds_max - current_round;
       let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = num_rounds
         .par_iter()
-        .zip(claims.par_iter())
-        .zip(poly_A_vec.par_iter())
-        .zip(poly_B_vec.par_iter())
-        .zip(poly_C_vec.par_iter())
-        .zip(poly_D_vec.par_iter())
+        .zip_eq(claims.par_iter())
+        .zip_eq(poly_A_vec.par_iter())
+        .zip_eq(poly_B_vec.par_iter())
+        .zip_eq(poly_C_vec.par_iter())
+        .zip_eq(poly_D_vec.par_iter())
         .map(
           |(((((&num_rounds, claim), poly_A), poly_B), poly_C), poly_D)| {
             if remaining_rounds <= num_rounds {
@@ -584,10 +585,10 @@ impl<E: Engine> SumcheckProof<E> {
       // bound all the tables to the verifier's challenge
       num_rounds
         .par_iter()
-        .zip(poly_A_vec.par_iter_mut())
-        .zip(poly_B_vec.par_iter_mut())
-        .zip(poly_C_vec.par_iter_mut())
-        .zip(poly_D_vec.par_iter_mut())
+        .zip_eq(poly_A_vec.par_iter_mut())
+        .zip_eq(poly_B_vec.par_iter_mut())
+        .zip_eq(poly_C_vec.par_iter_mut())
+        .zip_eq(poly_D_vec.par_iter_mut())
         .for_each(|((((&num_rounds, poly_A), poly_B), poly_C), poly_D)| {
           if remaining_rounds <= num_rounds {
             let _ = rayon::join(

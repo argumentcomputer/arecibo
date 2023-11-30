@@ -54,7 +54,7 @@ impl<E: Engine> PolyEvalWitness<E> {
     // Scale the input polynomials by the power of s
     let p = W
       .into_par_iter()
-      .zip(powers.par_iter())
+      .zip_eq(powers.par_iter())
       .map(|(mut w, s)| {
         if *s != E::Scalar::ONE {
           w.p.par_iter_mut().for_each(|e| *e *= s);
@@ -71,6 +71,7 @@ impl<E: Engine> PolyEvalWitness<E> {
             (right, left)
           };
 
+          #[allow(clippy::disallowed_methods)]
           big
             .par_iter_mut()
             .zip(small.par_iter())
@@ -135,7 +136,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     // so that we can check its evaluation against x
     let evals_scaled = e_vec
       .iter()
-      .zip(num_vars.iter())
+      .zip_eq(num_vars.iter())
       .map(|(eval, num_rounds)| {
         // x_lo = [ x[0]   , ..., x[n-nᵢ-1] ]
         // x_hi = [ x[n-nᵢ], ..., x[n]      ]
@@ -154,14 +155,14 @@ impl<E: Engine> PolyEvalInstance<E> {
     // C = ∑ᵢ γⁱ⋅Cᵢ
     let comm_joint = c_vec
       .iter()
-      .zip(powers.iter())
+      .zip_eq(powers.iter())
       .map(|(c, g_i)| *c * *g_i)
       .fold(Commitment::<E>::default(), |acc, item| acc + item);
 
     // v = ∑ᵢ γⁱ⋅vᵢ
     let eval_joint = evals_scaled
       .into_iter()
-      .zip(powers.iter())
+      .zip_eq(powers.iter())
       .map(|(e, g_i)| e * g_i)
       .sum();
 
