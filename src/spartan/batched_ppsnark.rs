@@ -93,6 +93,70 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
       .expect("Failure to retrieve digest!")
   }
 }
+pub(super) struct WitnessBoundSumcheck<E: Engine> {
+  poly_W: MultilinearPolynomial<E::Scalar>,
+  poly_eq: MultilinearPolynomial<E::Scalar>,
+}
+
+impl<E: Engine> WitnessBoundSumcheck<E> {
+  pub fn new(tau: E::Scalar, poly_W_padded: Vec<E::Scalar>, num_vars: usize) -> Self {
+    let num_vars_log = num_vars.log_2();
+    // When num_vars = num_rounds, we shouldn't have to prove anything
+    // but we still want this instance to compute the evaluation of W
+    let num_rounds = poly_W_padded.len().log_2();
+    assert!(num_vars_log < num_rounds);
+    let mut tau_coordinate = PowPolynomial::new(&tau, num_rounds).coordinates();
+    tau_coordinate
+      .iter_mut()
+      .take(num_vars_log)
+      .for_each(|c| *c = E::Scalar::ONE);
+    let poly_eq = EqPolynomial::new(tau_coordinate).evals();
+    Self {
+      poly_W: MultilinearPolynomial::new(poly_W_padded),
+      poly_eq: MultilinearPolynomial::new(poly_eq),
+    }
+  }
+}
+impl<E: Engine> SumcheckEngine<E> for WitnessBoundSumcheck<E> {
+  fn initial_claims(&self) -> Vec<E::Scalar> {
+    vec![E::Scalar::ZERO]
+  }
+
+  fn degree(&self) -> usize {
+    3
+  }
+
+  fn size(&self) -> usize {
+    assert_eq!(self.poly_W.len(), self.poly_eq.len());
+    self.poly_W.len()
+  }
+
+  fn evaluation_points(&self) -> Vec<Vec<E::Scalar>> {
+    let comb_func = |poly_A_comp: &E::Scalar,
+                     poly_B_comp: &E::Scalar,
+                     _: &E::Scalar|
+     -> E::Scalar { *poly_A_comp * *poly_B_comp };
+
+    let (eval_point_0, eval_point_2, eval_point_3) = SumcheckProof::<E>::compute_eval_points_cubic(
+      &self.poly_eq,
+      &self.poly_W,
+      &self.poly_W, // unused
+      &comb_func,
+    );
+
+    vec![vec![eval_point_0, eval_point_2, eval_point_3]]
+  }
+
+  fn bound(&mut self, r: &E::Scalar) {
+    [&mut self.poly_W, &mut self.poly_eq]
+      .par_iter_mut()
+      .for_each(|poly| poly.bind_poly_var_top(r));
+  }
+
+  fn final_claims(&self) -> Vec<Vec<E::Scalar>> {
+    vec![vec![self.poly_W[0], self.poly_eq[0]]]
+  }
+}
 
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
 /// The proof is produced using Spartan's combination of the sum-check and
@@ -313,6 +377,7 @@ where
         poly_Z
       })
       .collect::<Vec<_>>();
+
     // Pad both W,E to have the same size. This is inefficient for W since the second half is empty,
     // but it makes it easier to handle the batching at the end.
     let polys_E = polys_E
@@ -323,6 +388,7 @@ where
         poly_E
       })
       .collect::<Vec<_>>();
+
     let polys_W = polys_W
       .into_par_iter()
       .zip_eq(N.par_iter())
@@ -526,13 +592,20 @@ where
       (instances, comms_mem_oracles, polys_mem_oracles)
     };
 
+    let witness_sc_inst = polys_W
+      .par_iter()
+      .zip_eq(S.par_iter())
+      .map(|(poly_W, S)| WitnessBoundSumcheck::new(tau, poly_W.clone(), S.num_vars))
+      .collect::<Vec<_>>();
+
     // Run batched Sumcheck for the 3 claims for all instances.
     // Note that the polynomials for claims relating to instance i have size Ni.
-    let (sc, rand_sc, claims_outer, claims_inner, claims_mem) = Self::prove_helper(
+    let (sc, rand_sc, claims_outer, claims_inner, claims_mem, claims_witness) = Self::prove_helper(
       num_rounds_sc,
       mem_sc_inst,
       outer_sc_inst,
       inner_sc_inst,
+      witness_sc_inst,
       &mut transcript,
     )?;
 
@@ -562,18 +635,21 @@ where
         })
         .unzip();
 
-      let (evals_Cz_W_E, evals_mem_val_row_col): (Vec<_>, Vec<_>) = polys_Az_Bz_Cz
+      let evals_W = claims_witness
+        .into_iter()
+        .map(|claims| claims[0][0])
+        .collect::<Vec<_>>();
+
+      let (evals_Cz_E, evals_mem_val_row_col): (Vec<_>, Vec<_>) = polys_Az_Bz_Cz
         .iter()
-        .zip_eq(polys_W.iter())
         .zip_eq(polys_E.iter())
         .zip_eq(pk.S_repr.iter())
-        .map(|((([_, _, Cz], poly_W), poly_E), s_repr)| {
+        .map(|(([_, _, Cz], poly_E), s_repr)| {
           let log_Ni = s_repr.N.log_2();
           let (_, rand_sc) = rand_sc.split_at(num_rounds_sc - log_Ni);
           let rand_sc_evals = EqPolynomial::new(rand_sc.to_vec()).evals();
           let e = [
             Cz,
-            poly_W,
             poly_E,
             &s_repr.val_A,
             &s_repr.val_B,
@@ -590,14 +666,15 @@ where
               .sum()
           })
           .collect::<Vec<E::Scalar>>();
-          ([e[0], e[1], e[2]], [e[3], e[4], e[5], e[6], e[7]])
+          ([e[0], e[1]], [e[2], e[3], e[4], e[5], e[6]])
         })
         .unzip();
 
       let evals_Az_Bz_Cz_W_E = evals_Az_Bz
         .into_iter()
-        .zip_eq(evals_Cz_W_E)
-        .map(|([Az, Bz], [Cz, W, E])| [Az, Bz, Cz, W, E])
+        .zip_eq(evals_Cz_E)
+        .zip_eq(evals_W)
+        .map(|(([Az, Bz], [Cz, E]), W)| [Az, Bz, Cz, W, E])
         .collect::<Vec<_>>();
 
       // [val_A, val_B, val_C, row, col, ts_row, ts_col]
@@ -822,7 +899,7 @@ where
     });
 
     let num_instances = U.len();
-    let num_claims = num_instances * 9;
+    let num_claims = num_instances * 10;
 
     let rho = transcript.squeeze(b"r")?;
     let s = transcript.squeeze(b"r")?;
@@ -830,7 +907,7 @@ where
 
     // Scale initial claims by 2^{log(N)-log(Ni)}
     let claim = coeffs
-      .chunks_exact(9)
+      .chunks_exact(10)
       .zip_eq(evals_Mz.iter())
       .zip_eq(vk.S_comm.iter())
       .map(|((coeffs, eval_Mz), s_comm)| {
@@ -846,7 +923,7 @@ where
       .num_vars
       .iter()
       .zip_eq(vk.S_comm.iter())
-      .zip_eq(coeffs.chunks_exact(9))
+      .zip_eq(coeffs.chunks_exact(10))
       .zip_eq(U.iter())
       .zip_eq(self.evals_Az_Bz_Cz_W_E.iter().cloned())
       .zip_eq(self.evals_L_row_col.iter().cloned())
@@ -855,12 +932,13 @@ where
       .map(
         |(
           (
-            (((((&num_vars, s_comm), coeffs), U), [Az, Bz, Cz, W, E]), [L_row, L_col]),
+            (((((num_vars, s_comm), coeffs), U), [Az, Bz, Cz, W, E]), [L_row, L_col]),
             [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col],
           ),
           [val_A, val_B, val_C, row, col, ts_row, ts_col],
         )| {
           let num_rounds_i = s_comm.N.log_2();
+          let num_vars_log = num_vars.log_2();
           // Only consider the last log(Ni) rounds of Sumcheck
           let (_, rand_sc) = rand_sc.split_at(num_rounds_sc - num_rounds_i);
 
@@ -869,9 +947,17 @@ where
             EqPolynomial::new(rho_coords).evaluate(rand_sc)
           };
 
-          let eq_tau = {
+          let (eq_tau, eq_tau_W) = {
             let tau_coords = PowPolynomial::new(&tau, num_rounds_i).coordinates();
-            EqPolynomial::new(tau_coords).evaluate(rand_sc)
+            let mut tau_coords_W = tau_coords.clone();
+            tau_coords_W
+              .iter_mut()
+              .take(num_vars_log)
+              .for_each(|c| *c = E::Scalar::ONE);
+
+            let eq_tau = EqPolynomial::new(tau_coords).evaluate(rand_sc);
+            let eq_tau_W = EqPolynomial::new(tau_coords_W).evaluate(rand_sc);
+            (eq_tau, eq_tau_W)
           };
 
           // Evaluate identity polynomial
@@ -880,7 +966,7 @@ where
           let Z = {
             // rand_sc was padded, so we now remove the padding
             let (factor, rand_sc_unpad) = {
-              let l = num_rounds_i - (2 * num_vars).log_2();
+              let l = num_rounds_i - (num_vars_log + 1);
 
               let (rand_sc_lo, rand_sc_hi) = rand_sc.split_at(l);
 
@@ -900,7 +986,7 @@ where
                   .map(|i| (i + 1, U.X[i]))
                   .collect::<Vec<(usize, E::Scalar)>>(),
               );
-              SparsePolynomial::new(num_vars.log_2(), poly_X).evaluate(&rand_sc_unpad[1..])
+              SparsePolynomial::new(num_vars_log, poly_X).evaluate(&rand_sc_unpad[1..])
             };
 
             // W was evaluated as if it was padded to logNi variables,
@@ -949,7 +1035,12 @@ where
           let claim_inner_final_expected =
             coeffs[8] * L_row * L_col * (val_A + c * val_B + c * c * val_C);
 
-          claim_mem_final_expected + claim_outer_final_expected + claim_inner_final_expected
+          let claims_witness_final_expected = coeffs[9] * eq_tau_W * W;
+
+          claim_mem_final_expected
+            + claim_outer_final_expected
+            + claim_inner_final_expected
+            + claims_witness_final_expected
         },
       )
       .sum::<E::Scalar>();
@@ -1074,16 +1165,18 @@ where
   /// The SNARK prover/verifier will need to rescale the evaluation by the first Lagrange polynomial
   ///   u'' = L_0(r_{0},...,r_{n-m-1}) * u'
   /// in order batch all evaluations with a single PCS call.
-  fn prove_helper<T1, T2, T3>(
+  fn prove_helper<T1, T2, T3, T4>(
     num_rounds: usize,
     mut mem: Vec<T1>,
     mut outer: Vec<T2>,
     mut inner: Vec<T3>,
+    mut witness: Vec<T4>,
     transcript: &mut E::TE,
   ) -> Result<
     (
       SumcheckProof<E>,
       Vec<E::Scalar>,
+      Vec<Vec<Vec<E::Scalar>>>,
       Vec<Vec<Vec<E::Scalar>>>,
       Vec<Vec<Vec<E::Scalar>>>,
       Vec<Vec<Vec<E::Scalar>>>,
@@ -1094,11 +1187,13 @@ where
     T1: SumcheckEngine<E>,
     T2: SumcheckEngine<E>,
     T3: SumcheckEngine<E>,
+    T4: SumcheckEngine<E>,
   {
     // sanity checks
     let num_instances = mem.len();
     assert_eq!(outer.len(), num_instances);
     assert_eq!(inner.len(), num_instances);
+    assert_eq!(witness.len(), num_instances);
 
     mem.iter_mut().for_each(|inst| {
       assert!(inst.size().is_power_of_two());
@@ -1109,22 +1204,28 @@ where
     inner.iter().for_each(|inst| {
       assert!(inst.size().is_power_of_two());
     });
+    witness.iter().for_each(|inst| {
+      assert!(inst.size().is_power_of_two());
+    });
 
     let degree = mem[0].degree();
     assert!(mem.iter().all(|inst| inst.degree() == degree));
     assert!(outer.iter().all(|inst| inst.degree() == degree));
     assert!(inner.iter().all(|inst| inst.degree() == degree));
+    assert!(witness.iter().all(|inst| inst.degree() == degree));
 
     // these claims are already added to the transcript, so we do not need to add
     let claims = mem
       .iter()
       .zip_eq(outer.iter())
       .zip_eq(inner.iter())
-      .flat_map(|((mem, outer), inner)| {
+      .zip_eq(witness.iter())
+      .flat_map(|(((mem, outer), inner), witness)| {
         Self::scaled_claims(mem, num_rounds)
           .into_iter()
           .chain(Self::scaled_claims(outer, num_rounds))
           .chain(Self::scaled_claims(inner, num_rounds))
+          .chain(Self::scaled_claims(witness, num_rounds))
       })
       .collect::<Vec<E::Scalar>>();
 
@@ -1149,13 +1250,19 @@ where
         .par_iter()
         .zip_eq(outer.par_iter())
         .zip_eq(inner.par_iter())
-        .flat_map(|((mem, outer), inner)| {
-          let (evals_mem, (evals_outer, evals_inner)) = rayon::join(
-            || Self::get_evals(mem, remaining_variables),
+        .zip_eq(witness.par_iter())
+        .flat_map(|(((mem, outer), inner), witness)| {
+          let ((evals_mem, evals_outer), (evals_inner, evals_witness)) = rayon::join(
             || {
               rayon::join(
+                || Self::get_evals(mem, remaining_variables),
                 || Self::get_evals(outer, remaining_variables),
+              )
+            },
+            || {
+              rayon::join(
                 || Self::get_evals(inner, remaining_variables),
+                || Self::get_evals(witness, remaining_variables),
               )
             },
           );
@@ -1163,6 +1270,7 @@ where
             .into_par_iter()
             .chain(evals_outer.into_par_iter())
             .chain(evals_inner.into_par_iter())
+            .chain(evals_witness.into_par_iter())
         })
         .collect::<Vec<_>>();
 
@@ -1191,13 +1299,19 @@ where
         .par_iter_mut()
         .zip_eq(outer.par_iter_mut())
         .zip_eq(inner.par_iter_mut())
-        .for_each(|((mem, outer), inner)| {
+        .zip_eq(witness.par_iter_mut())
+        .for_each(|(((mem, outer), inner), witness)| {
           rayon::join(
-            || Self::bind(mem, remaining_variables, &r_i),
             || {
               rayon::join(
+                || Self::bind(mem, remaining_variables, &r_i),
                 || Self::bind(outer, remaining_variables, &r_i),
+              )
+            },
+            || {
+              rayon::join(
                 || Self::bind(inner, remaining_variables, &r_i),
+                || Self::bind(witness, remaining_variables, &r_i),
               )
             },
           );
@@ -1210,6 +1324,10 @@ where
     let claims_outer = outer.into_iter().map(|inst| inst.final_claims()).collect();
     let claims_inner = inner.into_iter().map(|inst| inst.final_claims()).collect();
     let claims_mem = mem.into_iter().map(|inst| inst.final_claims()).collect();
+    let claims_witness = witness
+      .into_iter()
+      .map(|inst| inst.final_claims())
+      .collect();
 
     Ok((
       SumcheckProof::new(cubic_polys),
@@ -1217,6 +1335,7 @@ where
       claims_outer,
       claims_inner,
       claims_mem,
+      claims_witness,
     ))
   }
 
