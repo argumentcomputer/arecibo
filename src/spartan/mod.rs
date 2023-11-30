@@ -14,7 +14,7 @@
 /// let v = vec![0, 1, 2];
 /// let w = vec![2, 3, 4];
 /// let y = vec![4, 5, 6];
-/// 
+///
 /// // Using the `zip_with!` macro to zip three iterators together and apply a closure
 /// // that sums the elements of each iterator.
 /// let res = zip_with!((v.iter(), w.iter(), y.iter()), |a, b, c| a + b + c)
