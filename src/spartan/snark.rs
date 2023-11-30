@@ -465,7 +465,7 @@ pub(super) fn batch_eval_prove<E: Engine>(
   // Check polynomials match number of variables, i.e. |Pᵢ| = 2^nᵢ
   w_vec
     .iter()
-    .zip(num_rounds.iter())
+    .zip_eq(num_rounds.iter())
     .for_each(|(w, num_vars)| assert_eq!(w.p.len(), 1 << num_vars));
 
   // generate a challenge, and powers of it for random linear combination
@@ -546,8 +546,8 @@ pub(super) fn batch_eval_verify<E: Engine>(
     });
 
     evals_r
-      .zip(evals_batch.iter())
-      .zip(powers_of_rho.iter())
+      .zip_eq(evals_batch.iter())
+      .zip_eq(powers_of_rho.iter())
       .map(|((e_i, p_i), rho_i)| e_i * *p_i * rho_i)
       .sum()
   };

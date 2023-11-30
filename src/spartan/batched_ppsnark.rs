@@ -35,7 +35,7 @@ use crate::{
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField};
-use itertools::MultiUnzip;
+use itertools::Itertools as _;
 use once_cell::sync::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -201,7 +201,7 @@ where
     // Pad [(Wᵢ,Eᵢ)] to the next power of 2 (not to Ni)
     let W = W
       .par_iter()
-      .zip(S.par_iter())
+      .zip_eq(S.par_iter())
       .map(|(w, s)| w.pad(s))
       .collect::<Vec<RelaxedR1CSWitness<E>>>();
 
@@ -219,8 +219,8 @@ where
     // Append public inputs to Wᵢ: Zᵢ = [Wᵢ, uᵢ, Xᵢ]
     let polys_Z = W
       .par_iter()
-      .zip(U.par_iter())
-      .zip(N.par_iter())
+      .zip_eq(U.par_iter())
+      .zip_eq(N.par_iter())
       .map(|((W, U), &Ni)| {
         // poly_Z will be resized later, so we preallocate the correct capacity
         let mut poly_Z = Vec::with_capacity(Ni);
@@ -236,7 +236,7 @@ where
     // Compute [Az, Bz, Cz]
     let mut polys_Az_Bz_Cz = polys_Z
       .par_iter()
-      .zip(S.par_iter())
+      .zip_eq(S.par_iter())
       .map(|(z, s)| {
         let (Az, Bz, Cz) = s.multiply_vec(z)?;
         Ok([Az, Bz, Cz])
@@ -274,7 +274,7 @@ where
     // Pad [Az, Bz, Cz] to Ni
     polys_Az_Bz_Cz
       .par_iter_mut()
-      .zip(N.par_iter())
+      .zip_eq(N.par_iter())
       .for_each(|(az_bz_cz, &Ni)| {
         az_bz_cz
           .par_iter_mut()
@@ -284,7 +284,7 @@ where
     // Evaluate and commit to [Az(tau), Bz(tau), Cz(tau)]
     let evals_Az_Bz_Cz_at_tau = polys_Az_Bz_Cz
       .par_iter()
-      .zip(coords_tau.par_iter())
+      .zip_eq(coords_tau.par_iter())
       .map(|([Az, Bz, Cz], tau_coords)| {
         let (eval_Az, (eval_Bz, eval_Cz)) = rayon::join(
           || MultilinearPolynomial::evaluate_with(Az, tau_coords),
@@ -307,7 +307,7 @@ where
     // Pad Z, E to Nᵢ
     let polys_Z = polys_Z
       .into_par_iter()
-      .zip(N.par_iter())
+      .zip_eq(N.par_iter())
       .map(|(mut poly_Z, &Ni)| {
         poly_Z.resize(Ni, E::Scalar::ZERO);
         poly_Z
@@ -317,7 +317,7 @@ where
     // but it makes it easier to handle the batching at the end.
     let polys_E = polys_E
       .into_par_iter()
-      .zip(N.par_iter())
+      .zip_eq(N.par_iter())
       .map(|(mut poly_E, &Ni)| {
         poly_E.resize(Ni, E::Scalar::ZERO);
         poly_E
@@ -325,7 +325,7 @@ where
       .collect::<Vec<_>>();
     let polys_W = polys_W
       .into_par_iter()
-      .zip(N.par_iter())
+      .zip_eq(N.par_iter())
       .map(|(mut poly_W, &Ni)| {
         poly_W.resize(Ni, E::Scalar::ZERO);
         poly_W
@@ -337,9 +337,9 @@ where
     // L_col(i) = z(col(i)) for all i in [0..Nᵢ]
     let polys_L_row_col = S
       .par_iter()
-      .zip(N.par_iter())
-      .zip(polys_Z.par_iter())
-      .zip(polys_tau.par_iter())
+      .zip_eq(N.par_iter())
+      .zip_eq(polys_Z.par_iter())
+      .zip_eq(polys_tau.par_iter())
       .map(|(((S, &Ni), poly_Z), poly_tau)| {
         let mut L_row = vec![poly_tau[0]; Ni]; // we place mem_row[0] since resized row is appended with 0s
         let mut L_col = vec![poly_Z[Ni - 1]; Ni]; // we place mem_col[Ni-1] since resized col is appended with Ni-1
@@ -380,15 +380,15 @@ where
     let polys_Mz: Vec<_> = polys_Az_Bz_Cz
       .par_iter()
       .map(|polys_Az_Bz_Cz| {
-        let poly_vec = polys_Az_Bz_Cz.iter().collect::<Vec<_>>();
-        let w = PolyEvalWitness::<E>::batch(&poly_vec, &c);
+        let poly_vec: Vec<&Vec<_>> = polys_Az_Bz_Cz.iter().collect();
+        let w = PolyEvalWitness::<E>::batch(&poly_vec[..], &c);
         w.p
       })
       .collect();
 
     let evals_Mz: Vec<_> = comms_Az_Bz_Cz
       .iter()
-      .zip(evals_Az_Bz_Cz_at_tau.iter())
+      .zip_eq(evals_Az_Bz_Cz_at_tau.iter())
       .map(|(comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau)| {
         let u = PolyEvalInstance::<E>::batch(
           comm_Az_Bz_Cz.as_slice(),
@@ -411,16 +411,16 @@ where
     //   L_col(i) = z(col(i))
     let outer_sc_inst = polys_Az_Bz_Cz
       .par_iter()
-      .zip(polys_E.par_iter())
-      .zip(polys_Mz.into_par_iter())
-      .zip(polys_tau.par_iter())
-      .zip(evals_Mz.par_iter())
-      .zip(us.par_iter())
+      .zip_eq(polys_E.par_iter())
+      .zip_eq(polys_Mz.into_par_iter())
+      .zip_eq(polys_tau.par_iter())
+      .zip_eq(evals_Mz.par_iter())
+      .zip_eq(us.par_iter())
       .map(
         |((((([poly_Az, poly_Bz, poly_Cz], poly_E), poly_Mz), poly_tau), eval_Mz), u)| {
           let poly_uCz_E = poly_Cz
             .par_iter()
-            .zip(poly_E.par_iter())
+            .zip_eq(poly_E.par_iter())
             .map(|(cz, e)| *u * cz + e)
             .collect();
           OuterSumcheckInstance::new(
@@ -438,15 +438,15 @@ where
     let inner_sc_inst = pk
       .S_repr
       .par_iter()
-      .zip(evals_Mz.par_iter())
-      .zip(polys_L_row_col.par_iter())
+      .zip_eq(evals_Mz.par_iter())
+      .zip_eq(polys_L_row_col.par_iter())
       .map(|((s_repr, eval_Mz), [poly_L_row, poly_L_col])| {
         let c_square = c.square();
         let val = s_repr
           .val_A
           .par_iter()
-          .zip(s_repr.val_B.par_iter())
-          .zip(s_repr.val_C.par_iter())
+          .zip_eq(s_repr.val_B.par_iter())
+          .zip_eq(s_repr.val_C.par_iter())
           .map(|((v_a, v_b), v_c)| *v_a + c * *v_b + c_square * *v_c)
           .collect::<Vec<_>>();
         InnerSumcheckInstance::new(
@@ -466,15 +466,16 @@ where
 
       // We start by computing oracles and auxiliary polynomials to help prove the claim
       // oracles correspond to [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col]
-      let (comms_mem_oracles, polys_mem_oracles, mem_aux): (Vec<_>, Vec<_>, Vec<_>) = pk
+      let (comms_mem_oracles, polys_mem_oracles, mem_aux) = pk
         .S_repr
         .iter()
-        .zip(polys_tau.iter())
-        .zip(polys_Z.iter())
-        .zip(polys_L_row_col.iter())
-        .map(|(((s_repr, poly_tau), poly_Z), [L_row, L_col])| {
-          let (comm_mem_oracles, poly_mem_oracles, aux_poly_mem_oracles) =
-            MemorySumcheckInstance::<E>::compute_oracles(
+        .zip_eq(polys_tau.iter())
+        .zip_eq(polys_Z.iter())
+        .zip_eq(polys_L_row_col.iter())
+        .try_fold(
+          (Vec::new(), Vec::new(), Vec::new()),
+          |(mut comms, mut polys, mut aux), (((s_repr, poly_tau), poly_Z), [L_row, L_col])| {
+            let (comm, poly, a) = MemorySumcheckInstance::<E>::compute_oracles(
               ck,
               &r,
               &gamma,
@@ -487,11 +488,14 @@ where
               L_col,
               &s_repr.ts_col,
             )?;
-          Ok((comm_mem_oracles, poly_mem_oracles, aux_poly_mem_oracles))
-        })
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .multiunzip();
+
+            comms.push(comm);
+            polys.push(poly);
+            aux.push(a);
+
+            Ok((comms, polys, aux))
+          },
+        )?;
 
       // Commit to oracles
       comms_mem_oracles.iter().for_each(|comms| {
@@ -506,9 +510,9 @@ where
       let instances = pk
         .S_repr
         .par_iter()
-        .zip(N.par_iter())
-        .zip(polys_mem_oracles.par_iter())
-        .zip(mem_aux.into_par_iter())
+        .zip_eq(N.par_iter())
+        .zip_eq(polys_mem_oracles.par_iter())
+        .zip_eq(mem_aux.into_par_iter())
         .map(|(((s_repr, &Ni), polys_mem_oracles), polys_aux)| {
           MemorySumcheckInstance::<E>::new(
             polys_mem_oracles.clone(),
@@ -560,9 +564,9 @@ where
 
       let (evals_Cz_W_E, evals_mem_val_row_col): (Vec<_>, Vec<_>) = polys_Az_Bz_Cz
         .iter()
-        .zip(polys_W.iter())
-        .zip(polys_E.iter())
-        .zip(pk.S_repr.iter())
+        .zip_eq(polys_W.iter())
+        .zip_eq(polys_E.iter())
+        .zip_eq(pk.S_repr.iter())
         .map(|((([_, _, Cz], poly_W), poly_E), s_repr)| {
           let log_Ni = s_repr.N.log_2();
           let (_, rand_sc) = rand_sc.split_at(num_rounds_sc - log_Ni);
@@ -581,7 +585,7 @@ where
           .map(|p| {
             // Manually compute evaluation to avoid recomputing rand_sc_evals
             p.par_iter()
-              .zip(rand_sc_evals.par_iter())
+              .zip_eq(rand_sc_evals.par_iter())
               .map(|(p, eq)| *p * eq)
               .sum()
           })
@@ -592,14 +596,14 @@ where
 
       let evals_Az_Bz_Cz_W_E = evals_Az_Bz
         .into_iter()
-        .zip(evals_Cz_W_E)
+        .zip_eq(evals_Cz_W_E)
         .map(|([Az, Bz], [Cz, W, E])| [Az, Bz, Cz, W, E])
         .collect::<Vec<_>>();
 
       // [val_A, val_B, val_C, row, col, ts_row, ts_col]
       let evals_mem_preprocessed = evals_mem_val_row_col
         .into_iter()
-        .zip(evals_mem_ts)
+        .zip_eq(evals_mem_ts)
         .map(|([val_A, val_B, val_C, row, col], [ts_row, ts_col])| {
           [val_A, val_B, val_C, row, col, ts_row, ts_col]
         })
@@ -614,9 +618,9 @@ where
 
     let evals_vec = evals_Az_Bz_Cz_W_E
       .iter()
-      .zip(evals_L_row_col.iter())
-      .zip(evals_mem_oracle.iter())
-      .zip(evals_mem_preprocessed.iter())
+      .zip_eq(evals_L_row_col.iter())
+      .zip_eq(evals_mem_oracle.iter())
+      .zip_eq(evals_mem_preprocessed.iter())
       .map(
         |(((Az_Bz_Cz_W_E, L_row_col), mem_oracles), mem_preprocessed)| {
           Az_Bz_Cz_W_E
@@ -632,10 +636,10 @@ where
 
     let comms_vec = comms_Az_Bz_Cz
       .iter()
-      .zip(comms_W_E.iter())
-      .zip(comms_L_row_col.iter())
-      .zip(comms_mem_oracles.iter())
-      .zip(pk.S_comm.iter())
+      .zip_eq(comms_W_E.iter())
+      .zip_eq(comms_L_row_col.iter())
+      .zip_eq(comms_mem_oracles.iter())
+      .zip_eq(pk.S_comm.iter())
       .flat_map(
         |((((Az_Bz_Cz, comms_W_E), L_row_col), mem_oracles), S_comm)| {
           Az_Bz_Cz
@@ -659,11 +663,11 @@ where
 
     let w_vec = polys_Az_Bz_Cz
       .into_iter()
-      .zip(polys_W)
-      .zip(polys_E)
-      .zip(polys_L_row_col)
-      .zip(polys_mem_oracles)
-      .zip(pk.S_repr.iter())
+      .zip_eq(polys_W)
+      .zip_eq(polys_E)
+      .zip_eq(polys_L_row_col)
+      .zip_eq(polys_mem_oracles)
+      .zip_eq(pk.S_repr.iter())
       .flat_map(|(((((Az_Bz_Cz, W), E), L_row_col), mem_oracles), S_repr)| {
         Az_Bz_Cz
           .into_iter()
@@ -798,7 +802,7 @@ where
 
     let evals_Mz: Vec<_> = comms_Az_Bz_Cz
       .iter()
-      .zip(self.evals_Az_Bz_Cz_at_tau.iter())
+      .zip_eq(self.evals_Az_Bz_Cz_at_tau.iter())
       .map(|(comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau)| {
         let u = PolyEvalInstance::<E>::batch(
           comm_Az_Bz_Cz.as_slice(),
@@ -827,8 +831,8 @@ where
     // Scale initial claims by 2^{log(N)-log(Ni)}
     let claim = coeffs
       .chunks_exact(9)
-      .zip(evals_Mz.iter())
-      .zip(vk.S_comm.iter())
+      .zip_eq(evals_Mz.iter())
+      .zip_eq(vk.S_comm.iter())
       .map(|((coeffs, eval_Mz), s_comm)| {
         let scaling = 1 << (num_rounds_sc - s_comm.N.log_2()) as u64;
         E::Scalar::from(scaling) * (coeffs[7] + coeffs[8]) * eval_Mz
@@ -841,13 +845,13 @@ where
     let claim_sc_final_expected = vk
       .num_vars
       .iter()
-      .zip(vk.S_comm.iter())
-      .zip(coeffs.chunks_exact(9))
-      .zip(U.iter())
-      .zip(self.evals_Az_Bz_Cz_W_E.iter().cloned())
-      .zip(self.evals_L_row_col.iter().cloned())
-      .zip(self.evals_mem_oracle.iter().cloned())
-      .zip(self.evals_mem_preprocessed.iter().cloned())
+      .zip_eq(vk.S_comm.iter())
+      .zip_eq(coeffs.chunks_exact(9))
+      .zip_eq(U.iter())
+      .zip_eq(self.evals_Az_Bz_Cz_W_E.iter().cloned())
+      .zip_eq(self.evals_L_row_col.iter().cloned())
+      .zip_eq(self.evals_mem_oracle.iter().cloned())
+      .zip_eq(self.evals_mem_preprocessed.iter().cloned())
       .map(
         |(
           (
@@ -957,9 +961,9 @@ where
     let evals_vec = self
       .evals_Az_Bz_Cz_W_E
       .iter()
-      .zip(self.evals_L_row_col.iter())
-      .zip(self.evals_mem_oracle.iter())
-      .zip(self.evals_mem_preprocessed.iter())
+      .zip_eq(self.evals_L_row_col.iter())
+      .zip_eq(self.evals_mem_oracle.iter())
+      .zip_eq(self.evals_mem_preprocessed.iter())
       .map(
         |(((Az_Bz_Cz_W_E, L_row_col), mem_oracles), mem_preprocessed)| {
           Az_Bz_Cz_W_E
@@ -975,10 +979,10 @@ where
 
     let comms_vec = comms_Az_Bz_Cz
       .iter()
-      .zip(U.iter())
-      .zip(comms_L_row_col.iter())
-      .zip(comms_mem_oracles.iter())
-      .zip(vk.S_comm.iter())
+      .zip_eq(U.iter())
+      .zip_eq(comms_L_row_col.iter())
+      .zip_eq(comms_mem_oracles.iter())
+      .zip_eq(vk.S_comm.iter())
       .flat_map(|((((Az_Bz_Cz, U), L_row_col), mem_oracles), S_comm)| {
         Az_Bz_Cz
           .iter()
@@ -1005,7 +1009,7 @@ where
     // Rescale all evaluations by L_0(rand_sc_lo)
     let evals_vec = evals_vec
       .into_iter()
-      .zip(vk.S_comm.iter())
+      .zip_eq(vk.S_comm.iter())
       .flat_map(|(evals, s_comm)| {
         let Ni = s_comm.N;
         let (rand_sc_lo, _) = rand_sc.split_at(num_rounds_sc - Ni.log_2());
@@ -1114,8 +1118,8 @@ where
     // these claims are already added to the transcript, so we do not need to add
     let claims = mem
       .iter()
-      .zip(outer.iter())
-      .zip(inner.iter())
+      .zip_eq(outer.iter())
+      .zip_eq(inner.iter())
       .flat_map(|((mem, outer), inner)| {
         Self::scaled_claims(mem, num_rounds)
           .into_iter()
@@ -1130,7 +1134,7 @@ where
     // compute the joint claim
     let claim = claims
       .iter()
-      .zip(coeffs.iter())
+      .zip_eq(coeffs.iter())
       .map(|(c_1, c_2)| *c_1 * c_2)
       .sum();
 
@@ -1143,8 +1147,8 @@ where
 
       let evals = mem
         .par_iter()
-        .zip(outer.par_iter())
-        .zip(inner.par_iter())
+        .zip_eq(outer.par_iter())
+        .zip_eq(inner.par_iter())
         .flat_map(|((mem, outer), inner)| {
           let (evals_mem, (evals_outer, evals_inner)) = rayon::join(
             || Self::get_evals(mem, remaining_variables),
@@ -1185,8 +1189,8 @@ where
 
       mem
         .par_iter_mut()
-        .zip(outer.par_iter_mut())
-        .zip(inner.par_iter_mut())
+        .zip_eq(outer.par_iter_mut())
+        .zip_eq(inner.par_iter_mut())
         .for_each(|((mem, outer), inner)| {
           rayon::join(
             || Self::bind(mem, remaining_variables, &r_i),
