@@ -478,8 +478,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let evals_tau = polys_tau
       .iter()
       .zip_eq(r_x.iter())
-      .map(|(poly_tau, r_x)| poly_tau.evaluate(r_x))
-      .collect::<Vec<_>>();
+      .map(|(poly_tau, r_x)| poly_tau.evaluate(r_x));
 
     // Compute expected claim τ(rₓ)⋅∑ᵢ rⁱ⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = ABCE_evals
