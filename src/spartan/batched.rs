@@ -479,10 +479,8 @@ where
       });
 
     // Evaluate τ(rₓ) for each instance
-    let evals_tau = polys_tau
-      .iter()
-      .zip_eq(r_x.iter())
-      .map(|(poly_tau, r_x)| poly_tau.evaluate(r_x));
+    let evals_tau = zip_with!((polys_tau.iter(), r_x.iter()), |poly_tau, r_x| poly_tau
+      .evaluate(r_x));
 
     // Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = zip_with!(
