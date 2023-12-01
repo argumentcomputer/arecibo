@@ -43,12 +43,20 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   ///
   /// Returns a vector of Scalars, each corresponding to the polynomial evaluation at a specific point.
   pub fn evals(&self) -> Vec<Scalar> {
-    let ell = self.r.len();
+    Self::evals_from_points(&self.r)
+  }
+
+  /// Evaluates the `EqPolynomial` from the `2^|r|` points in its domain, without creating an intermediate polynomial
+  /// representation.
+  ///
+  /// Returns a vector of Scalars, each corresponding to the polynomial evaluation at a specific point.
+  pub fn evals_from_points(r: &[Scalar]) -> Vec<Scalar> {
+    let ell = r.len();
     let mut evals: Vec<Scalar> = vec![Scalar::ZERO; (2_usize).pow(ell as u32)];
     let mut size = 1;
     evals[0] = Scalar::ONE;
 
-    for r in self.r.iter().rev() {
+    for r in r.iter().rev() {
       let (evals_left, evals_right) = evals.split_at_mut(size);
       let (evals_right, _) = evals_right.split_at_mut(size);
 
