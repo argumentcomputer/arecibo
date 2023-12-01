@@ -207,11 +207,9 @@ where
     let polys_uCz_E = zip_with!(
       (U.par_iter(), polys_E.par_iter(), polys_Cz.par_iter()),
       |u, poly_E, poly_Cz| {
-        poly_Cz
-          .par_iter()
-          .zip_eq(poly_E.par_iter())
-          .map(|(cz, e)| u.u * cz + e)
-          .collect::<Vec<E::Scalar>>()
+        zip_with!((poly_Cz.par_iter(), poly_E.par_iter()), |cz, e| u.u * cz
+          + e)
+        .collect::<Vec<E::Scalar>>()
       }
     )
     .collect::<Vec<_>>();

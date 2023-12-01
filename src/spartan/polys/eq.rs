@@ -67,6 +67,13 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   }
 }
 
+impl<Scalar: PrimeField> FromIterator<Scalar> for EqPolynomial<Scalar> {
+  fn from_iter<I: IntoIterator<Item = Scalar>>(iter: I) -> Self {
+    let r: Vec<_> = iter.into_iter().collect();
+    EqPolynomial { r }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use crate::provider;
