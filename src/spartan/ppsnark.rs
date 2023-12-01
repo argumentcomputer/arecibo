@@ -931,11 +931,7 @@ where
     let coeffs = powers::<E>(&s, claims.len());
 
     // compute the joint claim
-    let claim = claims
-      .iter()
-      .zip_eq(coeffs.iter())
-      .map(|(c_1, c_2)| *c_1 * c_2)
-      .sum();
+    let claim = zip_with!((claims.iter(), coeffs.iter()), |c_1, c_2| *c_1 * c_2).sum();
 
     let mut e = claim;
     let mut r: Vec<E::Scalar> = Vec::new();

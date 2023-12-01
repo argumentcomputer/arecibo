@@ -214,7 +214,7 @@ impl<E: Engine> SumcheckProof<E> {
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
     let mut e = zip_with!(
-      (claims.iter(), num_rounds, coeffs),
+      (claims.iter(), num_rounds.iter(), coeffs.iter()),
       |claim, num_rounds, coeff| {
         let scaled_claim = E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim;
         scaled_claim * coeff
@@ -528,10 +528,10 @@ impl<E: Engine> SumcheckProof<E> {
     let mut r: Vec<E::Scalar> = Vec::new();
     let mut polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
     let mut claim_per_round = zip_with!(
-      (claims.iter(), num_rounds, coeffs.iter()),
+      (claims.iter(), num_rounds.iter(), coeffs.iter()),
       |claim, num_rounds, coeff| {
         let scaled_claim = E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim;
-        claim * coeff
+        scaled_claim * *coeff
       }
     )
     .sum();
