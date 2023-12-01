@@ -398,7 +398,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
               let inv = batch_invert(&T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>())?;
 
               // compute inv[i] * TS[i] in parallel
-              Ok(zip_with!((inv.par_iter(), TS.par_iter()), |e1, e2| *e1 * *e2).collect::<Vec<_>>())
+              Ok(zip_with!((inv.into_par_iter(), TS.par_iter()), |e1, e2| e1 * *e2).collect::<Vec<_>>())
             },
             || batch_invert(&W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
           )

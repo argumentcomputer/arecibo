@@ -99,7 +99,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     zip_with!(
       (
         EqPolynomial::new(r.to_vec()).evals().into_par_iter(),
-        Z.into_par_iter()
+        Z.par_iter()
       ),
       |a, b| a * b
     )
@@ -171,7 +171,7 @@ impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
       return Err("The two polynomials must have the same number of variables");
     }
 
-    let sum: Vec<Scalar> = zip_with!((self.Z.iter(), other.Z.iter()), |a, b| *a + *b).collect();
+    let sum: Vec<Scalar> = zip_with!((self.Z.into_iter(), other.Z.into_iter()), |a, b| a + b).collect();
 
     Ok(MultilinearPolynomial::new(sum))
   }
