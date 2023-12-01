@@ -37,7 +37,7 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
   /// `t_pow.len() > ell` must be true.
   pub(crate) fn evals_with_powers(powers: &[Scalar], ell: usize) -> Vec<Scalar> {
     let t_pow = powers[..ell].to_vec();
-    EqPolynomial::new(t_pow).evals()
+    EqPolynomial::evals_from_points(&t_pow)
   }
 
   /// Evaluates the `PowPolynomial` at a given point `rx`.

@@ -110,7 +110,7 @@ impl<E: Engine> WitnessBoundSumcheck<E> {
       .iter_mut()
       .take(num_vars_log)
       .for_each(|c| *c = E::Scalar::ONE);
-    let poly_eq = EqPolynomial::new(tau_coordinate).evals();
+    let poly_eq = EqPolynomial::evals_from_points(&tau_coordinate);
     Self {
       poly_W: MultilinearPolynomial::new(poly_W_padded),
       poly_eq: MultilinearPolynomial::new(poly_eq),
@@ -646,7 +646,7 @@ where
           let [_, _, Cz] = ABCzs;
           let log_Ni = s_repr.N.log_2();
           let (_, rand_sc) = rand_sc.split_at(num_rounds_sc - log_Ni);
-          let rand_sc_evals = EqPolynomial::new(rand_sc.to_vec()).evals();
+          let rand_sc_evals = EqPolynomial::evals_from_points(&rand_sc);
           let e = [
             Cz,
             poly_E,
