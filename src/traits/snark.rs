@@ -66,11 +66,15 @@ pub trait BatchedRelaxedR1CSSNARKTrait<E: Engine>:
   Send + Sync + Serialize + for<'de> Deserialize<'de>
 {
   /// A type that represents the prover's key
-  type ProverKey: Send + Sync + Serialize + for<'de> Deserialize<'de>; // + Abomonation; //TODO: Uncomment this
+  type ProverKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + Abomonation;
 
   /// A type that represents the verifier's key
-  type VerifierKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + DigestHelperTrait<E>;
-  //+ Abomonation; // TODO: Uncomment this
+  type VerifierKey: Send
+    + Sync
+    + Serialize
+    + for<'de> Deserialize<'de>
+    + DigestHelperTrait<E>
+    + Abomonation;
 
   /// This associated function (not a method) provides a hint that offers
   /// a minimum sizing cue for the commitment key used by this SNARK
