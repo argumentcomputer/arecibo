@@ -8,8 +8,8 @@
 
 /// A macro to give syntactic sugar for zipWith pattern
 ///
-/// ```rust
-/// use nova_snark::zip_with;
+/// ```ignore
+/// use crate::spartan::zip_with;
 /// use itertools::Itertools as _; // we use zip_eq to zip!
 /// let v = vec![0, 1, 2];
 /// let w = vec![2, 3, 4];
