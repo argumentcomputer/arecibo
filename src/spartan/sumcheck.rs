@@ -229,20 +229,24 @@ impl<E: Engine> SumcheckProof<E> {
 
     for current_round in 0..num_rounds_max {
       let remaining_rounds = num_rounds_max - current_round;
-      let evals: Vec<(E::Scalar, E::Scalar)> = num_rounds
-        .par_iter()
-        .zip_eq(claims.par_iter())
-        .zip_eq(poly_A_vec.par_iter().zip_eq(poly_B_vec.par_iter()))
-        .map(|((&num_rounds, claim), (poly_A, poly_B))| {
-          if remaining_rounds <= num_rounds {
+      let evals: Vec<(E::Scalar, E::Scalar)> = zip_with!(
+        (
+          num_rounds.par_iter(),
+          claims.par_iter(),
+          poly_A_vec.par_iter(),
+          poly_B_vec.par_iter()
+        ),
+        |num_rounds, claim, poly_A, poly_B| {
+          if remaining_rounds <= *num_rounds {
             Self::compute_eval_points_quad(poly_A, poly_B, &comb_func)
           } else {
             let remaining_variables = remaining_rounds - num_rounds - 1;
             let scaled_claim = E::Scalar::from((1 << remaining_variables) as u64) * claim;
             (scaled_claim, scaled_claim)
           }
-        })
-        .collect();
+        }
+      )
+      .collect();
 
       let evals_combined_0 = (0..evals.len()).map(|i| evals[i].0 * coeffs[i]).sum();
       let evals_combined_2 = (0..evals.len()).map(|i| evals[i].1 * coeffs[i]).sum();
@@ -258,18 +262,21 @@ impl<E: Engine> SumcheckProof<E> {
       r.push(r_i);
 
       // bound all tables to the verifier's challenge
-      num_rounds
-        .par_iter()
-        .zip_eq(poly_A_vec.par_iter_mut())
-        .zip_eq(poly_B_vec.par_iter_mut())
-        .for_each(|((&num_rounds, poly_A), poly_B)| {
-          if remaining_rounds <= num_rounds {
+      zip_with_for_each!(
+        (
+          num_rounds.par_iter(),
+          poly_A_vec.par_iter_mut(),
+          poly_B_vec.par_iter_mut()
+        ),
+        |num_rounds, poly_A, poly_B| {
+          if remaining_rounds <= *num_rounds {
             let _ = rayon::join(
               || poly_A.bind_poly_var_top(&r_i),
               || poly_B.bind_poly_var_top(&r_i),
             );
           }
-        });
+        }
+      );
 
       e = poly.evaluate(&r_i);
       quad_polys.push(poly.compress());
