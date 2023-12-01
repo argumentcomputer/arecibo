@@ -81,16 +81,17 @@ impl<E: Engine> SumcheckProof<E> {
     // where each claim is scaled by 2^{n-nᵢ} to account for the padding.
     //
     // claim = ∑ᵢ coeffᵢ⋅2^{n-nᵢ}⋅cᵢ
-    let claim = claims
-      .iter()
-      .zip_eq(num_rounds.iter())
-      .map(|(claim, num_rounds)| {
-        let scaling_factor = 1 << (num_rounds_max - num_rounds);
-        E::Scalar::from(scaling_factor as u64) * claim
-      })
-      .zip_eq(coeffs.iter())
-      .map(|(scaled_claim, coeff)| scaled_claim * coeff)
-      .sum();
+    let claim = zip_with!(
+      (
+        zip_with!((claims.iter(), num_rounds.iter()), |claim, num_rounds| {
+          let scaling_factor = 1 << (num_rounds_max - num_rounds);
+          E::Scalar::from(scaling_factor as u64) * claim
+        }),
+        coeffs.iter()
+      ),
+      |scaled_claim, coeff| scaled_claim * coeff
+    )
+    .sum();
 
     self.verify(claim, num_rounds_max, degree_bound, transcript)
   }
