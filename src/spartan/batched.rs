@@ -45,22 +45,27 @@ use crate::{
 #[serde(bound = "")]
 pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   sc_proof_outer: SumcheckProof<E>,
-  // Claims ([Azᵢ(τᵢ), ])
+  // Claims ([Azᵢ(τᵢ)], [Bzᵢ(τᵢ)], [Czᵢ(τᵢ)])
   claims_outer: (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>),
+  // [Eᵢ(r_x)]
   evals_E: Vec<E::Scalar>,
   sc_proof_inner: SumcheckProof<E>,
+  // [Wᵢ(r_y[1..])]
   evals_W: Vec<E::Scalar>,
   sc_proof_batch: SumcheckProof<E>,
+  // [Wᵢ(r_z), Eᵢ(r_z)]
   evals_batch: Vec<E::Scalar>,
   eval_arg: EE::EvaluationArgument,
 }
 
 /// A type that represents the prover's key
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
+#[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
-  vk_digest: E::Scalar,
+  #[abomonate_with(<E::Scalar as ff::PrimeField>::Repr)]
+  vk_digest: E::Scalar, // digest of the verifier's key
 }
 
 /// A type that represents the verifier's key
@@ -103,6 +108,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   for BatchedRelaxedR1CSSNARK<E, EE>
+where
+  <E::Scalar as ff::PrimeField>::Repr: Abomonation,
 {
   type ProverKey = ProverKey<E, EE>;
 
@@ -440,7 +447,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       &mut transcript,
     )?;
 
-    // Collect evaluation point for each instance
+    // Since each instance has a different number of rounds, the Sumcheck
+    // prover skips the first num_rounds_x_max - num_rounds_x rounds.
+    // The evaluation point for each instance is therefore r_x[num_rounds_x_max - num_rounds_x..]
     let r_x = num_rounds_x
       .iter()
       .map(|num_rounds| r_x[(num_rounds_x_max - num_rounds)..].to_vec())
@@ -475,7 +484,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       .zip_eq(r_x.iter())
       .map(|(poly_tau, r_x)| poly_tau.evaluate(r_x));
 
-    // Compute expected claim τ(rₓ)⋅∑ᵢ rⁱ⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
+    // Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = zip_with!(
       (
         ABCE_evals.iter().copied(),
@@ -499,7 +508,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let inner_r_cube = inner_r_square * inner_r;
     let inner_r_powers = powers::<E>(&inner_r_cube, num_instances);
 
-    // Compute inner claim ∑ᵢ r³ⁱ⋅(Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ)
+    // Compute inner claims Mzᵢ = (Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ),
+    // which are batched by Sumcheck into one claim:  ∑ᵢ r³ⁱ⋅Mzᵢ
     let claims_inner = ABCE_evals
       .into_iter()
       .map(|(claim_Az, claim_Bz, claim_Cz, _)| {

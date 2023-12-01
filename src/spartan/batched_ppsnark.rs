@@ -506,13 +506,16 @@ where
       |s_repr, eval_Mz, poly_L| {
         let [poly_L_row, poly_L_col] = poly_L;
         let c_square = c.square();
-        let val = s_repr
-          .val_A
-          .par_iter()
-          .zip_eq(s_repr.val_B.par_iter())
-          .zip_eq(s_repr.val_C.par_iter())
-          .map(|((v_a, v_b), v_c)| *v_a + c * *v_b + c_square * *v_c)
-          .collect::<Vec<_>>();
+        let val = zip_with!(
+          (
+            s_repr.val_A.par_iter(),
+            s_repr.val_B.par_iter(),
+            s_repr.val_C.par_iter()
+          ),
+          |v_a, v_b, v_c| *v_a + c * *v_b + c_square * *v_c
+        )
+        .collect::<Vec<_>>();
+
         InnerSumcheckInstance::new(
           *eval_Mz,
           MultilinearPolynomial::new(poly_L_row.clone()),
