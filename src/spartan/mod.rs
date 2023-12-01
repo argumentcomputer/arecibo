@@ -31,10 +31,58 @@ macro_rules! zip_with {
     }};
 }
 
+macro_rules! zip_with_iter {
+    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+      zip_with_fn!(iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
+    }};
+}
+
+macro_rules! zip_with_par_iter {
+    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+      zip_with_fn!(par_iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
+    }};
+}
+
+macro_rules! zip_with_into_iter {
+    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+      zip_with_fn!(into_iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
+    }};
+}
+
+macro_rules! zip_with_into_par_iter {
+    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+      zip_with_fn!(into_par_iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
+    }};
+}
+
+macro_rules! zip_with_fn {
+    ($f:ident, ($e:expr $(, $rest:expr)*), [$worker:ident] $($move:ident)?, |$($i:ident),+ $(,)?|  $($work:tt)*) => {{
+      zip_all_with_fn!($f, ($e $(, $rest)*))
+            .$worker($($move)? |nested_idents!($($i),+)| {
+                $($work)*
+            })
+    }};
+    ($f:ident, ($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+      zip_all_with_fn!($f, ($e $(, $rest)*))
+            .map($($move)? |nested_idents!($($i),+)| {
+                $($work)*
+            })
+    }};
+}
+
 macro_rules! zip_with_for_each {
     (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
       zip_all!(($e $(, $rest)*))
             .for_each($($move)? |nested_idents!($($i),+)| {
+                $($work)*
+            })
+    }};
+}
+
+macro_rules! zip_with_flat_map {
+    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+      zip_all!(($e $(, $rest)*))
+            .flat_map($($move)? |nested_idents!($($i),+)| {
                 $($work)*
             })
     }};
@@ -72,6 +120,15 @@ macro_rules! zip_all {
     };
     (($first:expr, $second:expr $(, $rest:expr)*)) => {
         ($first.zip_eq(zip_all!(($second, $( $rest),*))))
+    };
+}
+
+macro_rules! zip_all_with_fn {
+    ($f:ident, ($e:expr,)) => {
+        $e.$f()
+    };
+    ($f:ident, ($first:expr, $second:expr $(, $rest:expr)*)) => {
+        ($first.$f().zip_eq(zip_all_with_fn!($f, ($second, $( $rest),*))))
     };
 }
 

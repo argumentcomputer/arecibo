@@ -82,12 +82,14 @@ impl<E: Engine> SumcheckProof<E> {
     //
     // claim = ∑ᵢ coeffᵢ⋅2^{n-nᵢ}⋅cᵢ
     let claim = zip_with!(
-      (claims.iter(), num_rounds.iter(), coeffs.iter()),
-      |claim, num_rounds, coeff| {
-        let scaling_factor = 1 << (num_rounds_max - num_rounds);
-        let scaled_claim = E::Scalar::from(scaling_factor as u64) * claim;
-        scaled_claim * coeff
-      }
+      (
+        zip_with_fn!(iter, (claims, num_rounds), |claim, num_rounds| {
+          let scaling_factor = 1 << (num_rounds_max - num_rounds);
+          E::Scalar::from(scaling_factor as u64) * claim
+        }),
+        coeffs.iter()
+      ),
+      |scaled_claim, coeff| scaled_claim * coeff
     )
     .sum();
 
