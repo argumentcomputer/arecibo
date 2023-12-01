@@ -50,25 +50,25 @@ fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar>
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkRepr<E: Engine> {
-  pub(super) N: usize, // size of the vectors
+  pub(in crate::spartan) N: usize, // size of the vectors
 
   // dense representation
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  pub(super) row: Vec<E::Scalar>,
+  pub(in crate::spartan) row: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  pub(super) col: Vec<E::Scalar>,
+  pub(in crate::spartan) col: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  pub(super) val_A: Vec<E::Scalar>,
+  pub(in crate::spartan) val_A: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  pub(super) val_B: Vec<E::Scalar>,
+  pub(in crate::spartan) val_B: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  pub(super) val_C: Vec<E::Scalar>,
+  pub(in crate::spartan) val_C: Vec<E::Scalar>,
 
   // timestamp polynomials
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  pub(super) ts_row: Vec<E::Scalar>,
+  pub(in crate::spartan) ts_row: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  pub(super) ts_col: Vec<E::Scalar>,
+  pub(in crate::spartan) ts_col: Vec<E::Scalar>,
 }
 
 /// A type that holds a commitment to a sparse polynomial
@@ -76,18 +76,18 @@ pub struct R1CSShapeSparkRepr<E: Engine> {
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkCommitment<E: Engine> {
-  pub(super) N: usize, // size of each vector
+  pub(in crate::spartan) N: usize, // size of each vector
 
   // commitments to the dense representation
-  pub(super) comm_row: Commitment<E>,
-  pub(super) comm_col: Commitment<E>,
-  pub(super) comm_val_A: Commitment<E>,
-  pub(super) comm_val_B: Commitment<E>,
-  pub(super) comm_val_C: Commitment<E>,
+  pub(in crate::spartan) comm_row: Commitment<E>,
+  pub(in crate::spartan) comm_col: Commitment<E>,
+  pub(in crate::spartan) comm_val_A: Commitment<E>,
+  pub(in crate::spartan) comm_val_B: Commitment<E>,
+  pub(in crate::spartan) comm_val_C: Commitment<E>,
 
   // commitments to the timestamp polynomials
-  pub(super) comm_ts_row: Commitment<E>,
-  pub(super) comm_ts_col: Commitment<E>,
+  pub(in crate::spartan) comm_ts_row: Commitment<E>,
+  pub(in crate::spartan) comm_ts_col: Commitment<E>,
 }
 
 impl<E: Engine> TranscriptReprTrait<E::GE> for R1CSShapeSparkCommitment<E> {
@@ -183,7 +183,7 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
     }
   }
 
-  pub(super) fn commit(&self, ck: &CommitmentKey<E>) -> R1CSShapeSparkCommitment<E> {
+  pub(in crate::spartan) fn commit(&self, ck: &CommitmentKey<E>) -> R1CSShapeSparkCommitment<E> {
     let comm_vec: Vec<Commitment<E>> = [
       &self.row,
       &self.col,
@@ -210,7 +210,7 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
   }
 
   // computes evaluation oracles
-  pub(super) fn evaluation_oracles(
+  pub(in crate::spartan) fn evaluation_oracles(
     &self,
     S: &R1CSShape<E>,
     r_x: &E::Scalar,
@@ -267,7 +267,7 @@ pub trait SumcheckEngine<E: Engine>: Send + Sync {
   fn final_claims(&self) -> Vec<Vec<E::Scalar>>;
 }
 
-pub(super) struct MemorySumcheckInstance<E: Engine> {
+pub(in crate::spartan) struct MemorySumcheckInstance<E: Engine> {
   // row
   w_plus_r_row: MultilinearPolynomial<E::Scalar>,
   t_plus_r_row: MultilinearPolynomial<E::Scalar>,
@@ -398,7 +398,10 @@ impl<E: Engine> MemorySumcheckInstance<E> {
               let inv = batch_invert(&T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>())?;
 
               // compute inv[i] * TS[i] in parallel
-              Ok(zip_with!((inv.into_par_iter(), TS.par_iter()), |e1, e2| e1 * *e2).collect::<Vec<_>>())
+              Ok(
+                zip_with!((inv.into_par_iter(), TS.par_iter()), |e1, e2| e1 * *e2)
+                  .collect::<Vec<_>>(),
+              )
             },
             || batch_invert(&W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
           )
@@ -632,7 +635,7 @@ impl<E: Engine> SumcheckEngine<E> for MemorySumcheckInstance<E> {
   }
 }
 
-pub(super) struct OuterSumcheckInstance<E: Engine> {
+pub(in crate::spartan) struct OuterSumcheckInstance<E: Engine> {
   poly_tau: MultilinearPolynomial<E::Scalar>,
   poly_Az: MultilinearPolynomial<E::Scalar>,
   poly_Bz: MultilinearPolynomial<E::Scalar>,
@@ -736,7 +739,7 @@ impl<E: Engine> SumcheckEngine<E> for OuterSumcheckInstance<E> {
   }
 }
 
-pub(super) struct InnerSumcheckInstance<E: Engine> {
+pub(in crate::spartan) struct InnerSumcheckInstance<E: Engine> {
   claim: E::Scalar,
   poly_L_row: MultilinearPolynomial<E::Scalar>,
   poly_L_col: MultilinearPolynomial<E::Scalar>,

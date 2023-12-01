@@ -45,7 +45,7 @@ use ff::Field;
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 
-use super::{
+use crate::supernova::{
   num_ro_inputs,
   utils::{get_from_vec_alloc_relaxed_r1cs, get_selector_vec_from_index},
 };
