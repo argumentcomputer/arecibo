@@ -87,21 +87,23 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     assert_eq!(r.len(), self.get_num_vars());
     let chis = EqPolynomial::new(r.to_vec()).evals();
 
-    chis
-      .into_par_iter()
-      .zip_eq(self.Z.par_iter())
-      .map(|(chi_i, Z_i)| chi_i * Z_i)
-      .sum()
+    zip_with!(
+      (chis.into_par_iter(), self.Z.par_iter()),
+      |chi_i, Z_i| chi_i * Z_i
+    )
+    .sum()
   }
 
   /// Evaluates the polynomial with the given evaluations and point.
   pub fn evaluate_with(Z: &[Scalar], r: &[Scalar]) -> Scalar {
-    EqPolynomial::new(r.to_vec())
-      .evals()
-      .into_par_iter()
-      .zip_eq(Z.into_par_iter())
-      .map(|(a, b)| a * b)
-      .sum()
+    zip_with!(
+      (
+        EqPolynomial::new(r.to_vec()).evals().into_par_iter(),
+        Z.into_par_iter()
+      ),
+      |a, b| a * b
+    )
+    .sum()
   }
 }
 
@@ -169,12 +171,7 @@ impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
       return Err("The two polynomials must have the same number of variables");
     }
 
-    let sum: Vec<Scalar> = self
-      .Z
-      .iter()
-      .zip_eq(other.Z.iter())
-      .map(|(a, b)| *a + *b)
-      .collect();
+    let sum: Vec<Scalar> = zip_with!((self.Z.iter(), other.Z.iter()), |a, b| *a + *b).collect();
 
     Ok(MultilinearPolynomial::new(sum))
   }
