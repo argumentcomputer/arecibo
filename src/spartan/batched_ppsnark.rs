@@ -93,7 +93,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
       .expect("Failure to retrieve digest!")
   }
 }
-pub(super) struct WitnessBoundSumcheck<E: Engine> {
+pub(in crate::spartan) struct WitnessBoundSumcheck<E: Engine> {
   poly_W: MultilinearPolynomial<E::Scalar>,
   poly_eq: MultilinearPolynomial<E::Scalar>,
 }
