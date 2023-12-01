@@ -584,14 +584,17 @@ impl<E: Engine> SumcheckProof<E> {
       claim_per_round = poly.evaluate(&r_i);
 
       // bound all the tables to the verifier's challenge
-      num_rounds
-        .par_iter()
-        .zip_eq(poly_A_vec.par_iter_mut())
-        .zip_eq(poly_B_vec.par_iter_mut())
-        .zip_eq(poly_C_vec.par_iter_mut())
-        .zip_eq(poly_D_vec.par_iter_mut())
-        .for_each(|((((&num_rounds, poly_A), poly_B), poly_C), poly_D)| {
-          if remaining_rounds <= num_rounds {
+
+      zip_with_for_each!(
+        (
+          num_rounds.par_iter(),
+          poly_A_vec.par_iter_mut(),
+          poly_B_vec.par_iter_mut(),
+          poly_C_vec.par_iter_mut(),
+          poly_D_vec.par_iter_mut()
+        ),
+        |num_rounds, poly_A, poly_B, poly_C, poly_D| {
+          if remaining_rounds <= *num_rounds {
             let _ = rayon::join(
               || {
                 rayon::join(
@@ -607,7 +610,8 @@ impl<E: Engine> SumcheckProof<E> {
               },
             );
           }
-        });
+        }
+      );
     }
 
     let poly_A_final = poly_A_vec.into_iter().map(|poly| poly[0]).collect();
