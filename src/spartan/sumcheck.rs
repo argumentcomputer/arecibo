@@ -536,27 +536,28 @@ impl<E: Engine> SumcheckProof<E> {
 
     for current_round in 0..num_rounds_max {
       let remaining_rounds = num_rounds_max - current_round;
-      let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = num_rounds
-        .par_iter()
-        .zip_eq(claims.par_iter())
-        .zip_eq(poly_A_vec.par_iter())
-        .zip_eq(poly_B_vec.par_iter())
-        .zip_eq(poly_C_vec.par_iter())
-        .zip_eq(poly_D_vec.par_iter())
-        .map(
-          |(((((&num_rounds, claim), poly_A), poly_B), poly_C), poly_D)| {
-            if remaining_rounds <= num_rounds {
-              Self::compute_eval_points_cubic_with_additive_term(
-                poly_A, poly_B, poly_C, poly_D, &comb_func,
-              )
-            } else {
-              let remaining_variables = remaining_rounds - num_rounds - 1;
-              let scaled_claim = E::Scalar::from((1 << remaining_variables) as u64) * claim;
-              (scaled_claim, scaled_claim, scaled_claim)
-            }
-          },
-        )
-        .collect();
+      let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = zip_with!(
+        (
+          num_rounds.par_iter(),
+          claims.par_iter(),
+          poly_A_vec.par_iter(),
+          poly_B_vec.par_iter(),
+          poly_C_vec.par_iter(),
+          poly_D_vec.par_iter()
+        ),
+        |num_rounds, claim, poly_A, poly_B, poly_C, poly_D| {
+          if remaining_rounds <= *num_rounds {
+            Self::compute_eval_points_cubic_with_additive_term(
+              poly_A, poly_B, poly_C, poly_D, &comb_func,
+            )
+          } else {
+            let remaining_variables = remaining_rounds - num_rounds - 1;
+            let scaled_claim = E::Scalar::from((1 << remaining_variables) as u64) * claim;
+            (scaled_claim, scaled_claim, scaled_claim)
+          }
+        }
+      )
+      .collect();
 
       let evals_combined_0 = (0..num_instances).map(|i| evals[i].0 * coeffs[i]).sum();
       let evals_combined_2 = (0..num_instances).map(|i| evals[i].1 * coeffs[i]).sum();
