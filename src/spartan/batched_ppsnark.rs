@@ -480,11 +480,8 @@ where
       ),
       |poly_ABC, poly_E, poly_Mz, poly_tau, eval_Mz, u| {
         let [poly_Az, poly_Bz, poly_Cz] = poly_ABC;
-        let poly_uCz_E = poly_Cz
-          .par_iter()
-          .zip_eq(poly_E.par_iter())
-          .map(|(cz, e)| *u * cz + e)
-          .collect();
+        let poly_uCz_E =
+          zip_with!((poly_Cz.par_iter(), poly_E.par_iter()), |cz, e| *u * cz + e).collect();
         OuterSumcheckInstance::new(
           poly_tau.clone(),
           poly_Az.clone(),
