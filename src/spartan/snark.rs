@@ -153,9 +153,9 @@ where
     // outer sum-check
     let tau = (0..num_rounds_x)
       .map(|_i| transcript.squeeze(b"t"))
-      .collect::<Result<Vec<E::Scalar>, NovaError>>()?;
+      .collect::<Result<EqPolynomial<_>, NovaError>>()?;
 
-    let mut poly_tau = MultilinearPolynomial::new(EqPolynomial::new(tau).evals());
+    let mut poly_tau = MultilinearPolynomial::new(tau.evals());
     let (mut poly_Az, mut poly_Bz, poly_Cz, mut poly_uCz_E) = {
       let (poly_Az, poly_Bz, poly_Cz) = S.multiply_vec(&z)?;
       let poly_uCz_E = (0..S.num_cons)
@@ -304,7 +304,7 @@ where
     // outer sum-check
     let tau = (0..num_rounds_x)
       .map(|_i| transcript.squeeze(b"t"))
-      .collect::<Result<Vec<E::Scalar>, NovaError>>()?;
+      .collect::<Result<EqPolynomial<_>, NovaError>>()?;
 
     let (claim_outer_final, r_x) =
       self
@@ -313,7 +313,7 @@ where
 
     // verify claim_outer_final
     let (claim_Az, claim_Bz, claim_Cz) = self.claims_outer;
-    let taus_bound_rx = EqPolynomial::new(tau).evaluate(&r_x);
+    let taus_bound_rx = tau.evaluate(&r_x);
     let claim_outer_final_expected =
       taus_bound_rx * (claim_Az * claim_Bz - U.u * claim_Cz - self.eval_E);
     if claim_outer_final != claim_outer_final_expected {
