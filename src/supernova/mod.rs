@@ -1,4 +1,4 @@
-//! This library implements `SuperNova`, a Non-Uniform IVC based on Nova.
+#![doc = include_str!("../../notes/supernova.md")]
 
 use std::marker::PhantomData;
 use std::ops::Index;
