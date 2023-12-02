@@ -287,7 +287,7 @@ where
       };
 
       zip_with_par_iter!((S, r_x), |s, r_x| {
-        let evals_rx = EqPolynomial::evals_from_points(&r_x);
+        let evals_rx = EqPolynomial::evals_from_points(r_x);
         let (eval_A, eval_B, eval_C) = compute_eval_table_sparse(s, &evals_rx);
         MultilinearPolynomial::new(inner(eval_A, eval_B, eval_C))
       })
