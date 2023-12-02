@@ -16,6 +16,10 @@ use crate::{
   },
   Commitment, CommitmentKey, ResourceBuffer, CE,
 };
+
+#[cfg(feature = "cuda")]
+use crate::DlogGroup;
+
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use core::cmp::max;
@@ -231,15 +235,26 @@ impl<E: Engine> R1CSShape<E> {
 
     let R1CSResult { AZ, BZ, CZ } = ABC_Z;
 
-    rayon::join(
-      || self.A.multiply_witness_into(W, u, X, AZ),
-      || {
+    cfg_if::cfg_if! {
+      if #[cfg(feature = "cuda")] {
+        AZ.fill(E::Scalar::ZERO);
+        BZ.fill(E::Scalar::ZERO);
+        CZ.fill(E::Scalar::ZERO);
+        <E::GE as DlogGroup>::multiply_witness_into(&self.A, W, u, X, AZ);
+        <E::GE as DlogGroup>::multiply_witness_into(&self.B, W, u, X, BZ);
+        <E::GE as DlogGroup>::multiply_witness_into(&self.C, W, u, X, CZ);
+      } else {
         rayon::join(
-          || self.B.multiply_witness_into(W, u, X, BZ),
-          || self.C.multiply_witness_into(W, u, X, CZ),
-        )
-      },
-    );
+          || self.A.multiply_witness_into(W, u, X, AZ),
+          || {
+            rayon::join(
+              || self.B.multiply_witness_into(W, u, X, BZ),
+              || self.C.multiply_witness_into(W, u, X, CZ),
+            )
+          },
+        );
+      }
+    }
 
     Ok(())
   }

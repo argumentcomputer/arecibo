@@ -1,3 +1,4 @@
+use crate::r1cs::SparseMatrix;
 use crate::traits::{commitment::ScalarMul, Group, TranscriptReprTrait};
 use core::{
   fmt::Debug,
@@ -95,6 +96,16 @@ pub trait DlogGroup:
 
   /// Returns the affine coordinates (x, y, infinty) for the point
   fn to_coordinates(&self) -> (<Self as Group>::Base, <Self as Group>::Base, bool);
+
+  /// Multiply by a witness representing a dense vector; uses rayon to parallelize.
+  /// This does not check that the shape of the matrix/vector are compatible.
+  fn multiply_witness_into(
+    spm: &SparseMatrix<Self::Scalar>,
+    W: &[Self::Scalar],
+    u: &Self::Scalar,
+    X: &[Self::Scalar],
+    buffer: &mut Vec<Self::Scalar>,
+  );
 }
 
 #[derive(Default, Debug, Clone)]
@@ -216,6 +227,16 @@ macro_rules! impl_traits {
         } else {
           (Self::Base::zero(), Self::Base::zero(), true)
         }
+      }
+
+      fn multiply_witness_into(
+        _spm: &SparseMatrix<Self::Scalar>,
+        _W: &[Self::Scalar],
+        _u: &Self::Scalar,
+        _X: &[Self::Scalar],
+        _buffer: &mut Vec<Self::Scalar>,
+      ) {
+        unimplemented!("no gpu spmvm supported")
       }
     }
 

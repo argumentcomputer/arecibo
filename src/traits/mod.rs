@@ -39,7 +39,10 @@ pub trait Engine: Clone + Copy + Debug + Send + Sync + Sized + Eq + PartialEq {
     + for<'de> Deserialize<'de>;
 
   /// A type that represents an element of the group
-  type GE: Group<Base = Self::Base, Scalar = Self::Scalar> + DlogGroup + Serialize + for<'de> Deserialize<'de>;
+  type GE: Group<Base = Self::Base, Scalar = Self::Scalar>
+    + DlogGroup
+    + Serialize
+    + for<'de> Deserialize<'de>;
 
   /// A type that represents a circuit-friendly sponge that consumes elements
   /// from the base field and squeezes out elements of the scalar field

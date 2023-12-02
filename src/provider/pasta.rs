@@ -4,6 +4,7 @@ use crate::{
     msm::cpu_best_msm,
     traits::{CompressedGroup, DlogGroup},
   },
+  r1cs::SparseMatrix,
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use digest::{ExtendableOutput, Update};
@@ -53,6 +54,7 @@ macro_rules! impl_traits {
     $name_init:ident,
     $name_with:ident,
     $msm_context:ident,
+    $spmvm:ident,
     $name_compressed:ident,
     $name_curve:ident,
     $name_curve_affine:ident,
@@ -168,6 +170,22 @@ macro_rules! impl_traits {
           (Self::Base::zero(), Self::Base::zero(), true)
         }
       }
+
+      fn multiply_witness_into(
+        spm: &SparseMatrix<Self::Scalar>,
+        W: &[Self::Scalar],
+        u: &Self::Scalar,
+        X: &[Self::Scalar],
+        buffer: &mut Vec<Self::Scalar>,
+      ) {
+        use pasta_msm::spmvm::{CudaSparseMatrix, CudaWitness};
+
+        let num_rows = spm.indptr.len() - 1;
+        let csr = CudaSparseMatrix::new(&spm.data, &spm.indices, &spm.indptr, num_rows, spm.cols);
+        let witness = CudaWitness::new(W, u, X);
+
+        pasta_msm::spmvm::$spmvm(&csr, &witness, buffer, 128);
+      }
     }
 
     impl PrimeFieldExt for $name::Scalar {
@@ -204,6 +222,7 @@ impl_traits!(
   pallas_init,
   pallas_with,
   MSMContextPallas,
+  sparse_matrix_witness_pallas,
   PallasCompressedElementWrapper,
   Ep,
   EpAffine,
@@ -216,6 +235,7 @@ impl_traits!(
   vesta_init,
   vesta_with,
   MSMContextVesta,
+  sparse_matrix_witness_vesta,
   VestaCompressedElementWrapper,
   Eq,
   EqAffine,

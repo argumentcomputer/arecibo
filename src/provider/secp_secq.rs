@@ -5,6 +5,7 @@ use crate::{
     msm::cpu_best_msm,
     traits::{CompressedGroup, DlogGroup, EmptyContext},
   },
+  r1cs::SparseMatrix,
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use digest::{ExtendableOutput, Update};

@@ -4,9 +4,7 @@
 use crate::{
   constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
-  r1cs::{
-    R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
-  },
+  r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
   scalar_as_base,
   traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROTrait},
   Commitment, CommitmentKey, CompressedCommitment, ResourceBuffer,
