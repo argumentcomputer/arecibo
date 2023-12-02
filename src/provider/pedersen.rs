@@ -227,14 +227,12 @@ where
     }
   }
 
-  fn commit_init(ck: &Self::CommitmentKey, npoints: usize) -> <E::GE as DlogGroup>::MSMContext
-  {
+  fn commit_init(ck: &Self::CommitmentKey, npoints: usize) -> <E::GE as DlogGroup>::MSMContext {
     assert!(ck.ck.len() >= npoints);
     E::GE::msm_init(&ck.ck[..npoints])
   }
 
-  fn commit_with(context: &<E::GE as DlogGroup>::MSMContext, v: &[E::Scalar]) -> Self::Commitment
-  {
+  fn commit_with(context: &<E::GE as DlogGroup>::MSMContext, v: &[E::Scalar]) -> Self::Commitment {
     Commitment {
       comm: E::GE::msm_with(v, context),
     }
