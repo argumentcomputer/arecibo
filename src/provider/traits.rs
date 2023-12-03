@@ -69,9 +69,10 @@ pub trait DlogGroup:
     + for<'de> Deserialize<'de>;
 
   type MSMContext: Default + Debug + Clone + Send + Sync;
+  type SpMVMContext: Default + Debug + Clone + Send + Sync;
 
-  /// Do we have access to preallocated MSMs?
-  fn has_preallocated_msm() -> bool;
+  /// Do we have access to preallocated MSMs and spmvm operations?
+  fn has_preallocated() -> bool;
 
   /// A method to compute a multiexponentation
   fn msm_init(bases: &[Self::PreprocessedGroupElement]) -> Self::MSMContext;
@@ -99,8 +100,22 @@ pub trait DlogGroup:
 
   /// Multiply by a witness representing a dense vector; uses rayon to parallelize.
   /// This does not check that the shape of the matrix/vector are compatible.
+  fn multiply_witness_into_init(spm: &SparseMatrix<Self::Scalar>) -> Self::SpMVMContext;
+
+  /// Multiply by a witness representing a dense vector; uses rayon to parallelize.
+  /// This does not check that the shape of the matrix/vector are compatible.
   fn multiply_witness_into(
     spm: &SparseMatrix<Self::Scalar>,
+    W: &[Self::Scalar],
+    u: &Self::Scalar,
+    X: &[Self::Scalar],
+    buffer: &mut Vec<Self::Scalar>,
+  );
+
+  /// Multiply by a witness representing a dense vector; uses rayon to parallelize.
+  /// This does not check that the shape of the matrix/vector are compatible.
+  fn multiply_witness_into_with(
+    context: &Self::SpMVMContext,
     W: &[Self::Scalar],
     u: &Self::Scalar,
     X: &[Self::Scalar],
@@ -143,8 +158,9 @@ macro_rules! impl_traits {
       type CompressedGroupElement = $name_compressed;
       type PreprocessedGroupElement = $name::Affine;
       type MSMContext = EmptyContext;
+      type SpMVMContext = EmptyContext;
 
-      fn has_preallocated_msm() -> bool {
+      fn has_preallocated() -> bool {
         false
       }
 
@@ -229,8 +245,22 @@ macro_rules! impl_traits {
         }
       }
 
+      fn multiply_witness_into_init(_spm: &SparseMatrix<Self::Scalar>) -> Self::SpMVMContext {
+        unimplemented!("no preallocated spmvm impl for this group")
+      }
+
       fn multiply_witness_into(
         _spm: &SparseMatrix<Self::Scalar>,
+        _W: &[Self::Scalar],
+        _u: &Self::Scalar,
+        _X: &[Self::Scalar],
+        _buffer: &mut Vec<Self::Scalar>,
+      ) {
+        unimplemented!("no gpu spmvm supported")
+      }
+
+      fn multiply_witness_into_with(
+        _context: &Self::SpMVMContext,
         _W: &[Self::Scalar],
         _u: &Self::Scalar,
         _X: &[Self::Scalar],

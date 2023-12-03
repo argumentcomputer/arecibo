@@ -194,6 +194,31 @@ impl<F: PrimeField> SparseMatrix<F> {
       nnz: *self.indptr.last().unwrap(),
     }
   }
+
+  pub fn trace_statistics(&self) {
+    let row_count = self.indptr.len() - 1;
+    let mut elements_per_row = Vec::new();
+
+    // Calculate the number of elements in each row
+    for i in 0..row_count {
+        elements_per_row.push(self.indptr[i + 1] - self.indptr[i]);
+    }
+
+    // Compute the average
+    let sum: usize = elements_per_row.iter().sum();
+    let average = sum as f64 / row_count as f64;
+
+    // Compute the standard deviation
+    let variance = elements_per_row.iter()
+        .map(|&x| {
+            let diff = x as f64 - average;
+            diff * diff
+        })
+        .sum::<f64>() / row_count as f64;
+    let standard_deviation = variance.sqrt();
+
+    tracing::info!("  avg, std: {}, {}", average, standard_deviation);
+  }
 }
 
 /// Iterator for sparse matrix

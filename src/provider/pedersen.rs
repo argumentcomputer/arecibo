@@ -217,7 +217,7 @@ where
 
   /// Do we have access to preallocated MSMs?
   fn has_preallocated_msm() -> bool {
-    E::GE::has_preallocated_msm()
+    E::GE::has_preallocated()
   }
 
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment {

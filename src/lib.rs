@@ -288,6 +288,12 @@ pub struct ResourceBuffer<E: Engine> {
 
   #[serde(skip)]
   msm_context: <E::GE as DlogGroup>::MSMContext,
+  #[serde(skip)]
+  spmvm_context_A: <E::GE as DlogGroup>::SpMVMContext,
+  #[serde(skip)]
+  spmvm_context_B: <E::GE as DlogGroup>::SpMVMContext,
+  #[serde(skip)]
+  spmvm_context_C: <E::GE as DlogGroup>::SpMVMContext,
 }
 
 /// A SNARK that proves the correct execution of an incremental computation
@@ -342,6 +348,24 @@ where
     let r1cs_primary = &pp.circuit_shape_primary.r1cs_shape;
     let r1cs_secondary = &pp.circuit_shape_secondary.r1cs_shape;
 
+    tracing::info!("r1cs_primary statistics:");
+    r1cs_primary.trace_statistics();
+
+    tracing::info!("r1cs_secondary statistics:");
+    r1cs_secondary.trace_statistics();
+
+    let msm_context_primary = if E1::CE::has_preallocated_msm() {
+      E1::CE::commit_init(&pp.ck_primary, r1cs_primary.num_cons)
+    } else {
+      <E1::GE as DlogGroup>::MSMContext::default()
+    };
+
+    let msm_context_secondary = if E2::CE::has_preallocated_msm() {
+      E2::CE::commit_init(&pp.ck_secondary, r1cs_secondary.num_cons)
+    } else {
+      <E2::GE as DlogGroup>::MSMContext::default()
+    };
+
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
     let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
@@ -365,7 +389,7 @@ where
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
     let (u_primary, w_primary) = cs_primary
-      .r1cs_instance_and_witness(r1cs_primary, &pp.ck_primary)
+      .r1cs_instance_and_witness_with(r1cs_primary, &msm_context_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -391,7 +415,10 @@ where
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
     let (u_secondary, w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
+      .r1cs_instance_and_witness_with(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &msm_context_secondary,
+      )
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -428,35 +455,51 @@ where
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, NovaError>>()
       .expect("Nova error synthesis");
 
-    let msm_context_primary = if E1::CE::has_preallocated_msm() {
-      E1::CE::commit_init(&pp.ck_primary, r1cs_primary.num_cons)
-    } else {
-      <E1::GE as DlogGroup>::MSMContext::default()
-    };
+    let spmvm_context_A_primary = E1::GE::multiply_witness_into_init(&r1cs_primary.A);
+    let spmvm_context_B_primary = E1::GE::multiply_witness_into_init(&r1cs_primary.B);
+    let spmvm_context_C_primary = E1::GE::multiply_witness_into_init(&r1cs_primary.C);
 
-    let buffer_primary = ResourceBuffer {
+    let mut buffer_primary = ResourceBuffer {
       l_w: None,
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_primary),
       ABC_Z_2: R1CSResult::default(r1cs_primary),
       T: r1cs::default_T(r1cs_primary),
       msm_context: msm_context_primary,
+      spmvm_context_A: spmvm_context_A_primary,
+      spmvm_context_B: spmvm_context_B_primary,
+      spmvm_context_C: spmvm_context_C_primary,
     };
 
-    let msm_context_secondary = if E2::CE::has_preallocated_msm() {
-      E2::CE::commit_init(&pp.ck_secondary, r1cs_secondary.num_cons)
-    } else {
-      <E2::GE as DlogGroup>::MSMContext::default()
-    };
+    r1cs_primary.multiply_witness_into(
+      &r_W_primary.W,
+      &r_U_primary.u,
+      &r_U_primary.X,
+      &mut buffer_primary.ABC_Z_1,
+    )?;
 
-    let buffer_secondary = ResourceBuffer {
+    let spmvm_context_A_secondary = E2::GE::multiply_witness_into_init(&r1cs_secondary.A);
+    let spmvm_context_B_secondary = E2::GE::multiply_witness_into_init(&r1cs_secondary.B);
+    let spmvm_context_C_secondary = E2::GE::multiply_witness_into_init(&r1cs_secondary.C);
+
+    let mut buffer_secondary = ResourceBuffer {
       l_w: None,
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_secondary),
       ABC_Z_2: R1CSResult::default(r1cs_secondary),
       T: r1cs::default_T(r1cs_secondary),
       msm_context: msm_context_secondary,
+      spmvm_context_A: spmvm_context_A_secondary,
+      spmvm_context_B: spmvm_context_B_secondary,
+      spmvm_context_C: spmvm_context_C_secondary,
     };
+
+    r1cs_secondary.multiply_witness_into(
+      &r_W_secondary.W,
+      &r_U_secondary.u,
+      &r_U_secondary.X,
+      &mut buffer_secondary.ABC_Z_1,
+    )?;
 
     Ok(Self {
       z0_primary: z0_primary.to_vec(),
@@ -537,7 +580,10 @@ where
       .map_err(|_| NovaError::SynthesisError)?;
 
     let (l_u_primary, l_w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
+      .r1cs_instance_and_witness_with(
+        &pp.circuit_shape_primary.r1cs_shape,
+        &self.buffer_primary.msm_context,
+      )
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -580,7 +626,10 @@ where
       .map_err(|_| NovaError::SynthesisError)?;
 
     let (l_u_secondary, l_w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
+      .r1cs_instance_and_witness_with(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &self.buffer_secondary.msm_context,
+      )
       .map_err(|_e| NovaError::UnSat)?;
 
     // update the running instances and witnesses
@@ -708,6 +757,107 @@ where
     res_l_secondary?;
 
     Ok((self.zi_primary.clone(), self.zi_secondary.clone()))
+  }
+
+  /// Writes the R1CS matrices and commitment key to
+  /// `$HOME/.arecibo/*`
+  pub fn write_abomonated(&self, pp: &PublicParams<E1, E2, C1, C2>) -> std::io::Result<()>
+  where
+    // this is due to the reliance on Abomonation
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+    <E2::Scalar as PrimeField>::Repr: Abomonation,
+  {
+    use std::fs::OpenOptions;
+    use std::io::BufWriter;
+
+    let arecibo = home::home_dir().unwrap().join(".arecibo");
+
+    let r1cs_primary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("r1cs_primary"))?;
+    let mut writer = BufWriter::new(r1cs_primary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.circuit_shape_primary.r1cs_shape,
+        &mut writer,
+      )?
+    };
+
+    let r1cs_secondary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("r1cs_secondary"))?;
+    let mut writer = BufWriter::new(r1cs_secondary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &mut writer,
+      )?
+    };
+
+    let witness_primary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("witness_primary"))?;
+    let mut writer = BufWriter::new(witness_primary);
+
+    unsafe {
+      abomonation::encode(
+        std::mem::transmute::<&Vec<E1::Scalar>, &Vec<<E1::Scalar as PrimeField>::Repr>>(&self.r_W_primary.W),
+        &mut writer,
+      )?
+    };
+
+    let witness_secondary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("witness_secondary"))?;
+    let mut writer = BufWriter::new(witness_secondary);
+
+    unsafe {
+      abomonation::encode(
+        std::mem::transmute::<&Vec<E2::Scalar>, &Vec<<E2::Scalar as PrimeField>::Repr>>(&self.r_W_secondary.W),
+        &mut writer,
+      )?
+    };
+
+    let ck_primary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("ck_primary"))?;
+    let mut writer = BufWriter::new(ck_primary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.ck_primary,
+        &mut writer,
+      )?
+    };
+
+
+    let ck_secondary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("ck_secondary"))?;
+    let mut writer = BufWriter::new(ck_secondary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.ck_secondary,
+        &mut writer,
+      )?
+    };
+
+    Ok(())
   }
 }
 

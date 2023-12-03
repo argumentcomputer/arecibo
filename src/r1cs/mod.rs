@@ -55,11 +55,10 @@ pub struct R1CSResult<E: Engine> {
   pub(crate) BZ: Vec<E::Scalar>,
   pub(crate) CZ: Vec<E::Scalar>,
 }
-
 /// A type that holds a witness for a given R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct R1CSWitness<E: Engine> {
-  W: Vec<E::Scalar>,
+  pub(crate) W: Vec<E::Scalar>,
 }
 
 /// A type that holds an R1CS instance
@@ -222,6 +221,7 @@ impl<E: Engine> R1CSShape<E> {
     Ok((Az, Bz, Cz))
   }
 
+  #[allow(unused)]
   pub(crate) fn multiply_witness_into(
     &self,
     W: &[E::Scalar],
@@ -235,26 +235,15 @@ impl<E: Engine> R1CSShape<E> {
 
     let R1CSResult { AZ, BZ, CZ } = ABC_Z;
 
-    cfg_if::cfg_if! {
-      if #[cfg(feature = "cuda")] {
-        AZ.fill(E::Scalar::ZERO);
-        BZ.fill(E::Scalar::ZERO);
-        CZ.fill(E::Scalar::ZERO);
-        <E::GE as DlogGroup>::multiply_witness_into(&self.A, W, u, X, AZ);
-        <E::GE as DlogGroup>::multiply_witness_into(&self.B, W, u, X, BZ);
-        <E::GE as DlogGroup>::multiply_witness_into(&self.C, W, u, X, CZ);
-      } else {
+    rayon::join(
+      || self.A.multiply_witness_into(W, u, X, AZ),
+      || {
         rayon::join(
-          || self.A.multiply_witness_into(W, u, X, AZ),
-          || {
-            rayon::join(
-              || self.B.multiply_witness_into(W, u, X, BZ),
-              || self.C.multiply_witness_into(W, u, X, CZ),
-            )
-          },
-        );
-      }
-    }
+          || self.B.multiply_witness_into(W, u, X, BZ),
+          || self.C.multiply_witness_into(W, u, X, CZ),
+        )
+      },
+    );
 
     Ok(())
   }
@@ -396,13 +385,35 @@ impl<E: Engine> R1CSShape<E> {
     &self,
     ck: &CommitmentKey<E>,
     U1: &RelaxedR1CSInstance<E>,
-    W1: &RelaxedR1CSWitness<E>,
+    _W1: &RelaxedR1CSWitness<E>,
     U2: &R1CSInstance<E>,
     W2: &R1CSWitness<E>,
     buffer: &mut ResourceBuffer<E>,
   ) -> Result<Commitment<E>, NovaError> {
-    tracing::info_span!("AZ_1, BZ_1, CZ_1")
-      .in_scope(|| self.multiply_witness_into(&W1.W, &U1.u, &U1.X, &mut buffer.ABC_Z_1))?;
+    // tracing::info_span!("ABC_Z_1 gpu").in_scope(|| {
+    //   let R1CSResult { AZ, BZ, CZ } = &mut buffer.ABC_Z_1;
+    //   <E::GE as DlogGroup>::multiply_witness_into_with(
+    //     &buffer.spmvm_context_A,
+    //     &W1.W,
+    //     &U1.u,
+    //     &U1.X,
+    //     AZ,
+    //   );
+    //   <E::GE as DlogGroup>::multiply_witness_into_with(
+    //     &buffer.spmvm_context_B,
+    //     &W1.W,
+    //     &U1.u,
+    //     &U1.X,
+    //     BZ,
+    //   );
+    //   <E::GE as DlogGroup>::multiply_witness_into_with(
+    //     &buffer.spmvm_context_C,
+    //     &W1.W,
+    //     &U1.u,
+    //     &U1.X,
+    //     CZ,
+    //   );
+    // });
 
     let R1CSResult {
       AZ: AZ_1,
@@ -410,9 +421,30 @@ impl<E: Engine> R1CSShape<E> {
       CZ: CZ_1,
     } = &mut buffer.ABC_Z_1;
 
-    tracing::info_span!("AZ_2, BZ_2, CZ_2").in_scope(|| {
-      self.multiply_witness_into(&W2.W, &E::Scalar::ONE, &U2.X, &mut buffer.ABC_Z_2)
-    })?;
+    tracing::info_span!("ABC_Z_2 gpu").in_scope(|| {
+      let R1CSResult { AZ, BZ, CZ } = &mut buffer.ABC_Z_2;
+      <E::GE as DlogGroup>::multiply_witness_into_with(
+        &buffer.spmvm_context_A,
+        &W2.W,
+        &E::Scalar::ONE,
+        &U2.X,
+        AZ,
+      );
+      <E::GE as DlogGroup>::multiply_witness_into_with(
+        &buffer.spmvm_context_B,
+        &W2.W,
+        &E::Scalar::ONE,
+        &U2.X,
+        BZ,
+      );
+      <E::GE as DlogGroup>::multiply_witness_into_with(
+        &buffer.spmvm_context_C,
+        &W2.W,
+        &E::Scalar::ONE,
+        &U2.X,
+        CZ,
+      );
+    });
 
     let R1CSResult {
       AZ: AZ_2,
@@ -503,6 +535,16 @@ impl<E: Engine> R1CSShape<E> {
       digest: OnceCell::new(),
     }
   }
+
+  /// Trace stats
+  pub fn trace_statistics(&self) {
+    tracing::info!("A:");
+    self.A.trace_statistics();
+    tracing::info!("B:");
+    self.A.trace_statistics();
+    tracing::info!("C:");
+    self.A.trace_statistics();
+  }
 }
 
 impl<E: Engine> R1CSResult<E> {
@@ -513,6 +555,24 @@ impl<E: Engine> R1CSResult<E> {
       BZ: vec![E::Scalar::ZERO; S.num_cons],
       CZ: vec![E::Scalar::ZERO; S.num_cons],
     }
+  }
+  /// Folds two `R1CSResult`s into one
+  pub fn fold_mut(&mut self, other: &Self, r: &E::Scalar) {
+    self
+      .AZ
+      .par_iter_mut()
+      .zip(&other.AZ)
+      .for_each(|(a, b)| *a += *r * *b);
+    self
+      .BZ
+      .par_iter_mut()
+      .zip(&other.BZ)
+      .for_each(|(a, b)| *a += *r * *b);
+    self
+      .CZ
+      .par_iter_mut()
+      .zip(&other.CZ)
+      .for_each(|(a, b)| *a += *r * *b);
   }
 }
 

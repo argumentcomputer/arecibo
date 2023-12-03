@@ -7,8 +7,9 @@ use crate::{
   errors::NovaError,
   r1cs::{commitment_key, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, SparseMatrix},
   traits::Engine,
-  CommitmentKey,
+  CommitmentKey, provider::traits::DlogGroup,
 };
+use crate::traits::commitment::CommitmentEngineTrait;
 use bellpepper_core::{Index, LinearCombination};
 use ff::PrimeField;
 
@@ -19,6 +20,13 @@ pub trait NovaWitness<E: Engine> {
     self,
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
+  ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError>;
+
+  /// Return an instance and witness, given a shape and ck.
+  fn r1cs_instance_and_witness_with(
+    self,
+    shape: &R1CSShape<E>,
+    context: &<E::GE as DlogGroup>::MSMContext,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError>;
 }
 
@@ -48,6 +56,23 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     let X = input_assignment[1..].to_owned();
 
     let comm_W = W.commit(ck);
+
+    let instance = R1CSInstance::<E>::new(shape, comm_W, X)?;
+
+    Ok((instance, W))
+  }
+
+  /// Return an instance and witness, given a shape and ck.
+  fn r1cs_instance_and_witness_with(
+    self,
+    shape: &R1CSShape<E>,
+    context: &<E::GE as DlogGroup>::MSMContext,
+  ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
+    let (input_assignment, aux_assignment) = self.to_assignments();
+    let W = R1CSWitness::<E>::new(shape, aux_assignment)?;
+    let X = input_assignment[1..].to_owned();
+
+    let comm_W = E::CE::commit_with(context, &W.W);
 
     let instance = R1CSInstance::<E>::new(shape, comm_W, X)?;
 

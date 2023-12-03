@@ -118,6 +118,8 @@ impl<E: Engine> NIFS<E> {
     // fold the witness using `r` and `T`
     W1.fold_mut(W2, &mut buffer.T, &r)?;
 
+    buffer.ABC_Z_1.fold_mut(&buffer.ABC_Z_2, &r);
+
     // return the commitment
     Ok(Self {
       comm_T: comm_T.compress(),

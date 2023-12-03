@@ -55,6 +55,9 @@ macro_rules! impl_traits {
     $name_with:ident,
     $msm_context:ident,
     $spmvm:ident,
+    $spmvm_init:ident,
+    $spmvm_with:ident,
+    $spmvm_context:ident,
     $name_compressed:ident,
     $name_curve:ident,
     $name_curve_affine:ident,
@@ -79,8 +82,9 @@ macro_rules! impl_traits {
       type CompressedGroupElement = $name_compressed;
       type PreprocessedGroupElement = $name::Affine;
       type MSMContext = pasta_msm::$msm_context;
+      type SpMVMContext = pasta_msm::spmvm::$name::$spmvm_context;
 
-      fn has_preallocated_msm() -> bool {
+      fn has_preallocated() -> bool {
         true
       }
 
@@ -88,7 +92,7 @@ macro_rules! impl_traits {
         pasta_msm::$name_init(bases, bases.len())
       }
 
-      #[tracing::instrument(skip_all, level = "trace", name = "<_ as Group>::msm")]
+      #[tracing::instrument(skip_all, name = "msm")]
       fn msm(scalars: &[Self::Scalar], bases: &[Self::PreprocessedGroupElement]) -> Self {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         if scalars.len() >= 128 {
@@ -100,7 +104,9 @@ macro_rules! impl_traits {
         cpu_best_msm(scalars, bases)
       }
 
+      #[tracing::instrument(skip_all, name = "msm_with")]
       fn msm_with(scalars: &[Self::Scalar], context: &Self::MSMContext) -> Self {
+        tracing::info!("msm_with: len = {}", scalars.len());
         pasta_msm::$name_with(context, scalars.len(), scalars)
       }
 
@@ -171,6 +177,15 @@ macro_rules! impl_traits {
         }
       }
 
+      fn multiply_witness_into_init(spm: &SparseMatrix<Self::Scalar>) -> Self::SpMVMContext {
+        use pasta_msm::spmvm::CudaSparseMatrix;
+
+        let num_rows = spm.indptr.len() - 1;
+        let csr = CudaSparseMatrix::new(&spm.data, &spm.indices, &spm.indptr, num_rows, spm.cols);
+
+        pasta_msm::spmvm::$name::$spmvm_init(&csr)
+      }
+
       fn multiply_witness_into(
         spm: &SparseMatrix<Self::Scalar>,
         W: &[Self::Scalar],
@@ -184,7 +199,18 @@ macro_rules! impl_traits {
         let csr = CudaSparseMatrix::new(&spm.data, &spm.indices, &spm.indptr, num_rows, spm.cols);
         let witness = CudaWitness::new(W, u, X);
 
-        pasta_msm::spmvm::$spmvm(&csr, &witness, buffer, 128);
+        pasta_msm::spmvm::$name::$spmvm(&csr, &witness, buffer, 512);
+      }
+
+      fn multiply_witness_into_with(
+        context: &Self::SpMVMContext,
+        W: &[Self::Scalar],
+        u: &Self::Scalar,
+        X: &[Self::Scalar],
+        buffer: &mut Vec<Self::Scalar>,
+      ) {
+        let witness = pasta_msm::spmvm::CudaWitness::new(W, u, X);
+        pasta_msm::spmvm::$name::$spmvm_with(&context, &witness, buffer, 512);
       }
     }
 
@@ -223,6 +249,9 @@ impl_traits!(
   pallas_with,
   MSMContextPallas,
   sparse_matrix_witness_pallas,
+  sparse_matrix_witness_init_pallas,
+  sparse_matrix_witness_with_pallas,
+  SpMVMContextPallas,
   PallasCompressedElementWrapper,
   Ep,
   EpAffine,
@@ -236,6 +265,9 @@ impl_traits!(
   vesta_with,
   MSMContextVesta,
   sparse_matrix_witness_vesta,
+  sparse_matrix_witness_init_vesta,
+  sparse_matrix_witness_with_vesta,
+  SpMVMContextVesta,
   VestaCompressedElementWrapper,
   Eq,
   EqAffine,
