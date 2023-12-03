@@ -646,7 +646,7 @@ where
           let [_, _, Cz] = ABCzs;
           let log_Ni = s_repr.N.log_2();
           let (_, rand_sc) = rand_sc.split_at(num_rounds_sc - log_Ni);
-          let rand_sc_evals = EqPolynomial::evals_from_points(&rand_sc);
+          let rand_sc_evals = EqPolynomial::evals_from_points(rand_sc);
           let e = [
             Cz,
             poly_E,

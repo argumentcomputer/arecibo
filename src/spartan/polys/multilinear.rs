@@ -98,7 +98,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   pub fn evaluate(&self, r: &[Scalar]) -> Scalar {
     // r must have a value for each variable
     assert_eq!(r.len(), self.get_num_vars());
-    let chis = EqPolynomial::new(r.to_vec()).evals();
+    let chis = EqPolynomial::evals_from_points(r);
 
     zip_with!(
       (chis.into_par_iter(), self.Z.par_iter()),
@@ -111,7 +111,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   pub fn evaluate_with(Z: &[Scalar], r: &[Scalar]) -> Scalar {
     zip_with!(
       (
-        EqPolynomial::new(r.to_vec()).evals().into_par_iter(),
+        EqPolynomial::evals_from_points(r).into_par_iter(),
         Z.par_iter()
       ),
       |a, b| a * b
