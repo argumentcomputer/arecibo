@@ -307,7 +307,7 @@ where
       };
 
       zip_with!((S.par_iter(), r_x.par_iter()), |s, r_x| {
-        let evals_rx = EqPolynomial::evals_from_points(&r_x);
+        let evals_rx = EqPolynomial::evals_from_points(r_x);
         let (eval_A, eval_B, eval_C) = compute_eval_table_sparse(s, &evals_rx);
         MultilinearPolynomial::new(inner(eval_A, eval_B, eval_C))
       })
@@ -568,8 +568,8 @@ where
         };
 
       let (T_x, T_y) = rayon::join(
-        || EqPolynomial::evals_from_points(&r_x),
-        || EqPolynomial::evals_from_points(&r_y),
+        || EqPolynomial::evals_from_points(r_x),
+        || EqPolynomial::evals_from_points(r_y),
       );
 
       M_vec
