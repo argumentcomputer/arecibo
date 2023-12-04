@@ -111,7 +111,7 @@ pub struct PolyEvalWitness<E: Engine> {
 }
 
 impl<E: Engine> PolyEvalWitness<E> {
-  /// Given [Pᵢ] and [sᵢ], compute P = ∑ᵢ sᵢ⋅Pᵢ
+  /// Given [Pᵢ] and s, compute P = ∑ᵢ sⁱ⋅Pᵢ
   ///
   /// # Details
   ///
