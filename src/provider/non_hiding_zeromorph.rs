@@ -23,8 +23,9 @@ use ff::{BatchInvert, Field, PrimeField, PrimeFieldBits};
 use group::{Curve, Group as _};
 use itertools::Itertools as _;
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
-use rayon::prelude::{
-  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
+use rayon::{
+  iter::IntoParallelRefIterator,
+  prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator},
 };
 use ref_cast::RefCast;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -211,7 +212,7 @@ where
 
     // Compute and absorb commitments C_{q_k} = [q_k], k = 0,...,d-1
     let q_comms = quotients_polys
-      .iter()
+      .par_iter()
       .map(|q| UVKZGPCS::commit(&pp.commit_pp, q))
       .collect::<Result<Vec<_>, _>>()?;
     q_comms.iter().for_each(|c| transcript.absorb(b"quo", c));
