@@ -154,7 +154,13 @@ impl<E: Engine> PolyEvalWitness<E> {
     PolyEvalWitness { p }
   }
 
-  // This method panics unless all vectors in p_vec are of the same length
+  /// Given a set of polynomials \[Pᵢ\] and a scalar `s`, this method computes the weighted sum
+  /// of the polynomials, where each polynomial Pᵢ is scaled by sⁱ. The method handles polynomials
+  /// of different sizes by padding smaller ones with zeroes up to the size of the largest polynomial.
+  ///
+  /// # Panics
+  ///
+  /// This method panics if the polynomials in `p_vec` are not all of the same length.
   fn batch(p_vec: &[&Vec<E::Scalar>], s: &E::Scalar) -> PolyEvalWitness<E> {
     p_vec
       .iter()
