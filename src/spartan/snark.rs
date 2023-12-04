@@ -201,7 +201,7 @@ where
 
     let poly_ABC = {
       // compute the initial evaluation table for R(\tau, x)
-      let evals_rx = EqPolynomial::new(r_x.clone()).evals();
+      let evals_rx = EqPolynomial::evals_from_points(&r_x.clone());
 
       let (evals_A, evals_B, evals_C) = compute_eval_table_sparse(&S, &evals_rx);
 
@@ -377,8 +377,8 @@ where
         };
 
       let (T_x, T_y) = rayon::join(
-        || EqPolynomial::new(r_x.to_vec()).evals(),
-        || EqPolynomial::new(r_y.to_vec()).evals(),
+        || EqPolynomial::evals_from_points(r_x),
+        || EqPolynomial::evals_from_points(r_y),
       );
 
       (0..M_vec.len())
@@ -484,7 +484,7 @@ pub(in crate::spartan) fn batch_eval_prove<E: Engine>(
   // eq(xᵢ, X)
   let polys_eq: Vec<MultilinearPolynomial<E::Scalar>> = u_xs
     .into_iter()
-    .map(|ux| MultilinearPolynomial::new(EqPolynomial::new(ux).evals()))
+    .map(|ux| MultilinearPolynomial::new(EqPolynomial::evals_from_points(&ux)))
     .collect();
 
   // For each i, check eᵢ = ∑ₓ Pᵢ(x)eq(xᵢ,x), where x ∈ {0,1}^nᵢ
