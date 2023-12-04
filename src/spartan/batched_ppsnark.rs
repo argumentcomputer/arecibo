@@ -570,7 +570,7 @@ where
       // Sample new random variable for eq polynomial
       let rho = transcript.squeeze(b"r")?;
       let N_max = N.iter().max().unwrap();
-      let all_rhos = PowPolynomial::powers(&rho, N_max.log_2());
+      let all_rhos = PowPolynomial::squares(&rho, N_max.log_2());
 
       let instances = zip_with!(
         (
