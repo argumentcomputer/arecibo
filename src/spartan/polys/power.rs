@@ -18,7 +18,7 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
   /// Creates a new `PowPolynomial` from a Scalars `t`.
   pub fn new(t: &Scalar, ell: usize) -> Self {
     // t_pow = [t^{2^0}, t^{2^1}, ..., t^{2^{ell-1}}]
-    let t_pow = Self::powers(t, ell);
+    let t_pow = Self::squares(t, ell);
 
     PowPolynomial {
       eq: EqPolynomial::new(t_pow),
@@ -27,7 +27,7 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
 
   /// Create powers the following powers of `t`:
   /// [t^{2^0}, t^{2^1}, ..., t^{2^{ell-1}}]
-  pub(crate) fn powers(t: &Scalar, ell: usize) -> Vec<Scalar> {
+  pub(in crate::spartan) fn squares(t: &Scalar, ell: usize) -> Vec<Scalar> {
     successors(Some(*t), |p: &Scalar| Some(p.square()))
       .take(ell)
       .collect::<Vec<_>>()
