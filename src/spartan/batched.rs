@@ -186,7 +186,7 @@ where
     // Generate tau polynomial corresponding to eq(τ, τ², τ⁴ , …)
     // for a random challenge τ
     let tau = transcript.squeeze(b"t")?;
-    let all_taus = PowPolynomial::powers(&tau, num_rounds_x_max);
+    let all_taus = PowPolynomial::squares(&tau, num_rounds_x_max);
 
     let polys_tau = num_rounds_x
       .iter()
