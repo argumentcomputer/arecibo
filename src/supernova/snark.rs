@@ -12,10 +12,25 @@ use crate::{
 };
 use crate::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
 
+use abomonation::Abomonation;
+use abomonation_derive::Abomonation;
 use ff::PrimeField;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// A type that holds the prover key for `CompressedSNARK`
+#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[serde(bound = "")]
+#[abomonation_bounds(
+  where
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    C1: StepCircuit<E1::Scalar>,
+    C2: StepCircuit<E2::Scalar>,
+    S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+    S2: RelaxedR1CSSNARKTrait<E2>,
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+  )]
 pub struct ProverKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -31,6 +46,18 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
+#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[serde(bound = "")]
+#[abomonation_bounds(
+  where
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    C1: StepCircuit<E1::Scalar>,
+    C2: StepCircuit<E2::Scalar>,
+    S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+    S2: RelaxedR1CSSNARKTrait<E2>,
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+  )]
 pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -46,7 +73,8 @@ where
 }
 
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -204,8 +232,8 @@ where
     &self,
     pp: &PublicParams<E1, E2, C1, C2>,
     vk: &VerifierKey<E1, E2, C1, C2, S1, S2>,
-    z0_primary: Vec<E1::Scalar>,
-    z0_secondary: Vec<E2::Scalar>,
+    z0_primary: &[E1::Scalar],
+    z0_secondary: &[E2::Scalar],
   ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), SuperNovaError> {
     let last_circuit_idx = field_as_usize(self.program_counter);
 
@@ -229,7 +257,7 @@ where
       hasher.absorb(self.program_counter);
 
       for e in z0_primary {
-        hasher.absorb(e);
+        hasher.absorb(*e);
       }
 
       for e in &self.zn_primary {
@@ -245,7 +273,7 @@ where
       hasher2.absorb(E2::Scalar::from(self.num_steps as u64));
 
       for e in z0_secondary {
-        hasher2.absorb(e);
+        hasher2.absorb(*e);
       }
 
       for e in &self.zn_secondary {
@@ -534,7 +562,7 @@ mod test {
     let compressed_snark = compressed_prove_res.unwrap();
 
     let compressed_verify_res =
-      compressed_snark.verify(&pp, &verifier_key, z0_primary, z0_secondary);
+      compressed_snark.verify(&pp, &verifier_key, &z0_primary, &z0_secondary);
 
     assert!(compressed_verify_res.is_ok());
   }
@@ -724,7 +752,7 @@ mod test {
     let compressed_snark = compressed_prove_res.unwrap();
 
     let compressed_verify_res =
-      compressed_snark.verify(&pp, &verifier_key, z0_primary, z0_secondary);
+      compressed_snark.verify(&pp, &verifier_key, &z0_primary, &z0_secondary);
 
     assert!(compressed_verify_res.is_ok());
   }
