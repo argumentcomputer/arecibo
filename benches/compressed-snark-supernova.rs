@@ -173,7 +173,7 @@ fn bench_one_augmented_circuit_compressed_snark(c: &mut Criterion) {
     // Benchmark the verification time
     group.bench_function("Verify", |b| {
       b.iter(|| {
-        assert!(black_box(&compressed_snark)
+        assert!(black_box(compressed_snark.clone())
           .verify(
             black_box(&pp),
             black_box(&verifier_key),
@@ -281,7 +281,7 @@ fn bench_two_augmented_circuit_compressed_snark(c: &mut Criterion) {
     // Benchmark the verification time
     group.bench_function("Verify", |b| {
       b.iter(|| {
-        assert!(black_box(&compressed_snark)
+        assert!(black_box(compressed_snark.clone())
           .verify(
             black_box(&pp),
             black_box(&verifier_key),
@@ -389,7 +389,7 @@ fn bench_two_augmented_circuit_compressed_snark_with_computational_commitments(c
     // Benchmark the verification time
     group.bench_function("Verify", |b| {
       b.iter(|| {
-        assert!(black_box(&compressed_snark)
+        assert!(black_box(compressed_snark.clone())
           .verify(
             black_box(&pp),
             black_box(&verifier_key),

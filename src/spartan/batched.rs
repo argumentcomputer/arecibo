@@ -136,9 +136,9 @@ where
   fn prove(
     ck: &CommitmentKey<E>,
     pk: &Self::ProverKey,
-    S: &[R1CSShape<E>],
-    U: &[RelaxedR1CSInstance<E>],
-    W: &[RelaxedR1CSWitness<E>],
+    S: Vec<R1CSShape<E>>,
+    U: Vec<RelaxedR1CSInstance<E>>,
+    W: Vec<RelaxedR1CSWitness<E>>,
   ) -> Result<Self, NovaError> {
     let num_instances = U.len();
     // Pad shapes and ensure their sizes are correct
@@ -405,7 +405,7 @@ where
     })
   }
 
-  fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<E>]) -> Result<(), NovaError> {
+  fn verify(self, vk: &Self::VerifierKey, U: Vec<RelaxedR1CSInstance<E>>) -> Result<(), NovaError> {
     let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
     transcript.absorb(b"vk", &vk.digest());

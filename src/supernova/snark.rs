@@ -154,9 +154,9 @@ where
     let r_W_snark_primary = S1::prove(
       &pp.ck_primary,
       &pk.pk_primary,
-      &pp.primary_r1cs_shapes(),
-      &r_U_primary,
-      &r_W_primary,
+      pp.primary_r1cs_shapes(),
+      r_U_primary,
+      r_W_primary,
     )?;
 
     let f_W_snark_secondary = S2::prove(
@@ -201,7 +201,7 @@ where
 
   /// Verify the correctness of the `CompressedSNARK`
   pub fn verify(
-    &self,
+    self,
     pp: &PublicParams<E1, E2, C1, C2>,
     vk: &VerifierKey<E1, E2, C1, C2, S1, S2>,
     z0_primary: Vec<E1::Scalar>,
@@ -272,7 +272,7 @@ where
 
     let res_primary = self
       .r_W_snark_primary
-      .verify(&vk.vk_primary, &self.r_U_primary);
+      .verify(&vk.vk_primary, self.r_U_primary);
 
     let f_U_secondary = self.nifs_secondary.verify(
       &pp.ro_consts_secondary,
