@@ -278,6 +278,8 @@ where
     let N = pk.S_repr.iter().map(|s| s.N).collect::<Vec<_>>();
     assert!(N.iter().all(|&Ni| Ni.is_power_of_two()));
 
+    let num_instances = U.len();
+
     // Pad [(Wᵢ,Eᵢ)] to the next power of 2 (not to Ni)
     let W = zip_with_par_iter!((W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
 
@@ -288,6 +290,10 @@ where
     // NOTE: We should prepend with the number of instances
     let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
     transcript.absorb(b"vk", &pk.vk_digest);
+    if num_instances > 1 {
+      let num_instances_field = E::Scalar::from(num_instances as u64);
+      transcript.absorb(b"n", &num_instances_field);
+    }
     U.iter().for_each(|u| {
       transcript.absorb(b"U", u);
     });
@@ -821,9 +827,14 @@ where
   }
 
   fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<E>]) -> Result<(), NovaError> {
+    let num_instances = U.len();
     let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
     transcript.absorb(b"vk", &vk.digest());
+    if num_instances > 1 {
+      let num_instances_field = E::Scalar::from(num_instances as u64);
+      transcript.absorb(b"n", &num_instances_field);
+    }
     U.iter().for_each(|u| {
       transcript.absorb(b"U", u);
     });
@@ -904,7 +915,6 @@ where
       transcript.absorb(b"l", &comms.as_slice());
     });
 
-    let num_instances = U.len();
     let num_claims = num_instances * 10;
 
     let rho = transcript.squeeze(b"r")?;
