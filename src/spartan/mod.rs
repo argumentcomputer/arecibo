@@ -31,15 +31,6 @@ macro_rules! zip_with {
     }};
 }
 
-macro_rules! zip_with_for_each {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-      zip_all!(($e $(, $rest)*))
-            .for_each($($move)? |nested_idents!($($i),+)| {
-                $($work)*
-            })
-    }};
-}
-
 // Fold-right like nesting pattern for expressions a, b, c, d => (a, (b, (c, d)))
 #[doc(hidden)]
 #[allow(unused_macros)]

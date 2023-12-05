@@ -259,7 +259,7 @@ impl<E: Engine> SumcheckProof<E> {
       r.push(r_i);
 
       // bound all tables to the verifier's challenge
-      zip_with_for_each!(
+      let _ = zip_with!(
         (
           num_rounds.par_iter(),
           poly_A_vec.par_iter_mut(),
@@ -587,7 +587,7 @@ impl<E: Engine> SumcheckProof<E> {
 
       // bound all the tables to the verifier's challenge
 
-      zip_with_for_each!(
+      let _ = zip_with!(
         (
           num_rounds.par_iter(),
           poly_A_vec.par_iter_mut(),
