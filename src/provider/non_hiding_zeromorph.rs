@@ -166,19 +166,6 @@ where
     UVKZGPCS::commit(&pp.commit_pp, UVKZGPoly::ref_cast(&poly.Z)).map(|c| c.into())
   }
 
-  /// Generate a commitment for a list of polynomials
-  pub fn batch_commit(
-    prover_param: impl Borrow<ZMProverKey<E>>,
-    polys: &[MultilinearPolynomial<E::Fr>],
-  ) -> Result<Vec<ZMCommitment<E>>, NovaError> {
-    let prover_param = prover_param.borrow();
-
-    polys
-      .into_par_iter()
-      .map(|poly| Self::commit(prover_param, poly))
-      .collect::<Result<Vec<ZMCommitment<E>>, NovaError>>()
-  }
-
   /// On input a polynomial `poly` and a point `point`, outputs a proof for the
   /// same.
   pub fn open(
@@ -203,7 +190,6 @@ where
     debug_assert_eq!(quotients.len(), poly.get_num_vars());
     debug_assert_eq!(remainder, eval.0);
 
-    // TODO: this should be a Cow
     // Compute the multilinear quotients q_k = q_k(X_0, ..., X_{k-1})
     let quotients_polys = quotients
       .into_iter()
