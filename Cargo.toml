@@ -81,6 +81,10 @@ harness = false
 name = "recursive-snark-supernova"
 harness = false
 
+[[bench]]
+name = "compressed-snark-supernova"
+harness = false
+
 [features]
 default = []
 abomonate = []

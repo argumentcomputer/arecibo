@@ -177,8 +177,8 @@ fn bench_one_augmented_circuit_compressed_snark(c: &mut Criterion) {
           .verify(
             black_box(&pp),
             black_box(&verifier_key),
-            black_box(z0_primary.clone()),
-            black_box(z0_secondary.clone()),
+            black_box(&z0_primary),
+            black_box(&z0_secondary),
           )
           .is_ok());
       })
@@ -285,8 +285,8 @@ fn bench_two_augmented_circuit_compressed_snark(c: &mut Criterion) {
           .verify(
             black_box(&pp),
             black_box(&verifier_key),
-            black_box(z0_primary.clone()),
-            black_box(z0_secondary.clone()),
+            black_box(&z0_primary),
+            black_box(&z0_secondary),
           )
           .is_ok());
       })
@@ -393,8 +393,8 @@ fn bench_two_augmented_circuit_compressed_snark_with_computational_commitments(c
           .verify(
             black_box(&pp),
             black_box(&verifier_key),
-            black_box(z0_primary.clone()),
-            black_box(z0_secondary.clone()),
+            black_box(&z0_primary),
+            black_box(&z0_secondary),
           )
           .is_ok());
       })
