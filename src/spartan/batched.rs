@@ -271,13 +271,15 @@ where
     )
     .unzip();
 
-    evals_Az_Bz_Cz.iter().zip_eq(evals_E.iter()).for_each(
-      |(&(eval_Az, eval_Bz, eval_Cz), &eval_E)| {
+    let _ = zip_with!(
+      (evals_Az_Bz_Cz.iter(), evals_E.iter()),
+      |eval_ABCz, eval_E| {
+        let (eval_Az, eval_Bz, eval_Cz) = eval_ABCz;
         transcript.absorb(
           b"claims_outer",
-          &[eval_Az, eval_Bz, eval_Cz, eval_E].as_slice(),
+          &[*eval_Az, *eval_Bz, *eval_Cz, *eval_E].as_slice(),
         )
-      },
+      }
     );
 
     let inner_r = transcript.squeeze(b"in_r")?;

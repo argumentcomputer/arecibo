@@ -326,14 +326,14 @@ where
       .unzip();
 
     // Pad [Az, Bz, Cz] to Ni
-    polys_Az_Bz_Cz
-      .par_iter_mut()
-      .zip_eq(N.par_iter())
-      .for_each(|(az_bz_cz, &Ni)| {
+    let _ = zip_with!(
+      (polys_Az_Bz_Cz.par_iter_mut(), N.par_iter()),
+      |az_bz_cz, Ni| {
         az_bz_cz
           .par_iter_mut()
-          .for_each(|mz| mz.resize(Ni, E::Scalar::ZERO))
-      });
+          .for_each(|mz| mz.resize(*Ni, E::Scalar::ZERO))
+      }
+    );
 
     // Evaluate and commit to [Az(tau), Bz(tau), Cz(tau)]
     let evals_Az_Bz_Cz_at_tau = zip_with!(
@@ -714,41 +714,45 @@ where
     )
     .collect::<Vec<_>>();
 
-    let comms_vec = comms_Az_Bz_Cz
-      .iter()
-      .zip_eq(comms_W_E.iter())
-      .zip_eq(comms_L_row_col.iter())
-      .zip_eq(comms_mem_oracles.iter())
-      .zip_eq(pk.S_comm.iter())
-      .flat_map(
-        |((((Az_Bz_Cz, comms_W_E), L_row_col), mem_oracles), S_comm)| {
-          Az_Bz_Cz
-            .iter()
-            .chain(comms_W_E)
-            .chain(L_row_col)
-            .chain(mem_oracles)
-            .chain([
-              &S_comm.comm_val_A,
-              &S_comm.comm_val_B,
-              &S_comm.comm_val_C,
-              &S_comm.comm_row,
-              &S_comm.comm_col,
-              &S_comm.comm_ts_row,
-              &S_comm.comm_ts_col,
-            ])
-        },
-      )
-      .cloned()
-      .collect::<Vec<_>>();
+    let comms_vec = zip_with!(
+      (
+        comms_Az_Bz_Cz.iter(),
+        comms_W_E.iter(),
+        comms_L_row_col.iter(),
+        comms_mem_oracles.iter(),
+        pk.S_comm.iter()
+      ),
+      |Az_Bz_Cz, comms_W_E, L_row_col, mem_oracles, S_comm| {
+        Az_Bz_Cz
+          .iter()
+          .chain(comms_W_E)
+          .chain(L_row_col)
+          .chain(mem_oracles)
+          .chain([
+            &S_comm.comm_val_A,
+            &S_comm.comm_val_B,
+            &S_comm.comm_val_C,
+            &S_comm.comm_row,
+            &S_comm.comm_col,
+            &S_comm.comm_ts_row,
+            &S_comm.comm_ts_col,
+          ])
+      }
+    )
+    .flatten()
+    .cloned()
+    .collect::<Vec<_>>();
 
-    let w_vec = polys_Az_Bz_Cz
-      .into_iter()
-      .zip_eq(polys_W)
-      .zip_eq(polys_E)
-      .zip_eq(polys_L_row_col)
-      .zip_eq(polys_mem_oracles)
-      .zip_eq(pk.S_repr.iter())
-      .flat_map(|(((((Az_Bz_Cz, W), E), L_row_col), mem_oracles), S_repr)| {
+    let w_vec = zip_with!(
+      (
+        polys_Az_Bz_Cz.into_iter(),
+        polys_W.into_iter(),
+        polys_E.into_iter(),
+        polys_L_row_col.into_iter(),
+        polys_mem_oracles.into_iter(),
+        pk.S_repr.iter()
+      ),
+      |Az_Bz_Cz, W, E, L_row_col, mem_oracles, S_repr| {
         Az_Bz_Cz
           .into_iter()
           .chain([W, E])
@@ -763,9 +767,11 @@ where
             S_repr.ts_row.clone(),
             S_repr.ts_col.clone(),
           ])
-      })
-      .map(|p| PolyEvalWitness::<E> { p })
-      .collect::<Vec<_>>();
+      }
+    )
+    .flatten()
+    .map(|p| PolyEvalWitness::<E> { p })
+    .collect::<Vec<_>>();
 
     evals_vec.iter().for_each(|evals| {
       transcript.absorb(b"e", &evals.as_slice()); // comm_vec is already in the transcript
@@ -1076,13 +1082,15 @@ where
     )
     .collect::<Vec<_>>();
 
-    let comms_vec = comms_Az_Bz_Cz
-      .iter()
-      .zip_eq(U.iter())
-      .zip_eq(comms_L_row_col.iter())
-      .zip_eq(comms_mem_oracles.iter())
-      .zip_eq(vk.S_comm.iter())
-      .flat_map(|((((Az_Bz_Cz, U), L_row_col), mem_oracles), S_comm)| {
+    let comms_vec = zip_with!(
+      (
+        comms_Az_Bz_Cz.iter(),
+        U.iter(),
+        comms_L_row_col.iter(),
+        comms_mem_oracles.iter(),
+        vk.S_comm.iter()
+      ),
+      |Az_Bz_Cz, U, L_row_col, mem_oracles, S_comm| {
         Az_Bz_Cz
           .iter()
           .chain([&U.comm_W, &U.comm_E])
@@ -1097,27 +1105,30 @@ where
             &S_comm.comm_ts_row,
             &S_comm.comm_ts_col,
           ])
-      })
-      .cloned()
-      .collect::<Vec<_>>();
+      }
+    )
+    .flatten()
+    .cloned()
+    .collect::<Vec<_>>();
 
     evals_vec.iter().for_each(|evals| {
       transcript.absorb(b"e", &evals.as_slice()); // comm_vec is already in the transcript
     });
 
     // Rescale all evaluations by L_0(rand_sc_lo)
-    let evals_vec = evals_vec
-      .into_iter()
-      .zip_eq(vk.S_comm.iter())
-      .flat_map(|(evals, s_comm)| {
+    let evals_vec = zip_with!(
+      (evals_vec.into_iter(), vk.S_comm.iter()),
+      |evals, s_comm| {
         let Ni = s_comm.N;
         let (rand_sc_lo, _) = rand_sc.split_at(num_rounds_sc - Ni.log_2());
         let scaling = rand_sc_lo
           .iter()
           .fold(E::Scalar::ONE, |acc, r| acc * (E::Scalar::ONE - r));
         evals.into_iter().map(move |eval| scaling * eval)
-      })
-      .collect::<Vec<_>>();
+      }
+    )
+    .flatten()
+    .collect::<Vec<_>>();
 
     let c = transcript.squeeze(b"c")?;
     let u: PolyEvalInstance<E> = PolyEvalInstance::batch(&comms_vec, &rand_sc, &evals_vec, &c);
@@ -1223,19 +1234,18 @@ where
     assert!(witness.iter().all(|inst| inst.degree() == degree));
 
     // these claims are already added to the transcript, so we do not need to add
-    let claims = mem
-      .iter()
-      .zip_eq(outer.iter())
-      .zip_eq(inner.iter())
-      .zip_eq(witness.iter())
-      .flat_map(|(((mem, outer), inner), witness)| {
+    let claims = zip_with!(
+      (mem.iter(), outer.iter(), inner.iter(), witness.iter()),
+      |mem, outer, inner, witness| {
         Self::scaled_claims(mem, num_rounds)
           .into_iter()
           .chain(Self::scaled_claims(outer, num_rounds))
           .chain(Self::scaled_claims(inner, num_rounds))
           .chain(Self::scaled_claims(witness, num_rounds))
-      })
-      .collect::<Vec<E::Scalar>>();
+      }
+    )
+    .flatten()
+    .collect::<Vec<E::Scalar>>();
 
     let s = transcript.squeeze(b"r")?;
     let coeffs = powers::<E>(&s, claims.len());
@@ -1250,12 +1260,14 @@ where
     for i in 0..num_rounds {
       let remaining_variables = num_rounds - i;
 
-      let evals = mem
-        .par_iter()
-        .zip_eq(outer.par_iter())
-        .zip_eq(inner.par_iter())
-        .zip_eq(witness.par_iter())
-        .flat_map(|(((mem, outer), inner), witness)| {
+      let evals = zip_with!(
+        (
+          mem.par_iter(),
+          outer.par_iter(),
+          inner.par_iter(),
+          witness.par_iter()
+        ),
+        |mem, outer, inner, witness| {
           let ((evals_mem, evals_outer), (evals_inner, evals_witness)) = rayon::join(
             || {
               rayon::join(
@@ -1275,8 +1287,10 @@ where
             .chain(evals_outer.into_par_iter())
             .chain(evals_inner.into_par_iter())
             .chain(evals_witness.into_par_iter())
-        })
-        .collect::<Vec<_>>();
+        }
+      )
+      .flatten()
+      .collect::<Vec<_>>();
 
       assert_eq!(evals.len(), claims.len());
 
@@ -1299,12 +1313,14 @@ where
       let r_i = transcript.squeeze(b"c")?;
       r.push(r_i);
 
-      mem
-        .par_iter_mut()
-        .zip_eq(outer.par_iter_mut())
-        .zip_eq(inner.par_iter_mut())
-        .zip_eq(witness.par_iter_mut())
-        .for_each(|(((mem, outer), inner), witness)| {
+      let _ = zip_with!(
+        (
+          mem.par_iter_mut(),
+          outer.par_iter_mut(),
+          inner.par_iter_mut(),
+          witness.par_iter_mut()
+        ),
+        |mem, outer, inner, witness| {
           rayon::join(
             || {
               rayon::join(
@@ -1319,7 +1335,8 @@ where
               )
             },
           );
-        });
+        }
+      );
 
       e = poly.evaluate(&r_i);
       cubic_polys.push(poly.compress());
