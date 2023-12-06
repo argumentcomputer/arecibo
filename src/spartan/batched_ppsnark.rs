@@ -30,8 +30,8 @@ use crate::{
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
     Engine, TranscriptEngineTrait,
   },
-  zip_with, zip_with_flat_map, zip_with_fn, zip_with_iter, zip_with_par_iter, Commitment,
-  CommitmentKey, CompressedCommitment,
+  zip_with, zip_with_flat_map, zip_with_iter, zip_with_par_iter, zip_with_par_iter_mut_for_each,
+  Commitment, CommitmentKey, CompressedCommitment,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -696,8 +696,7 @@ where
     )
     .collect::<Vec<_>>();
 
-    let comms_vec = zip_with_fn!(
-      iter,
+    let comms_vec = zip_with_iter!(
       (
         comms_Az_Bz_Cz,
         comms_W_E,
@@ -705,7 +704,6 @@ where
         comms_mem_oracles,
         pk.S_comm
       ),
-      [flat_map],
       |Az_Bz_Cz, comms_W_E, L_row_col, mem_oracles, S_comm| {
         Az_Bz_Cz
           .iter()
@@ -723,6 +721,7 @@ where
           ])
       }
     )
+    .flatten()
     .cloned()
     .collect::<Vec<_>>();
 
@@ -1064,8 +1063,7 @@ where
     )
     .collect::<Vec<_>>();
 
-    let comms_vec = zip_with_fn!(
-      iter,
+    let comms_vec = zip_with_iter!(
       (
         comms_Az_Bz_Cz,
         U,
@@ -1073,7 +1071,6 @@ where
         comms_mem_oracles,
         vk.S_comm
       ),
-      [flat_map],
       |Az_Bz_Cz, U, L_row_col, mem_oracles, S_comm| {
         Az_Bz_Cz
           .iter()
@@ -1091,6 +1088,7 @@ where
           ])
       }
     )
+    .flatten()
     .cloned()
     .collect::<Vec<_>>();
 
@@ -1216,10 +1214,8 @@ where
     assert!(witness.iter().all(|inst| inst.degree() == degree));
 
     // these claims are already added to the transcript, so we do not need to add
-    let claims = zip_with_fn!(
-      iter,
+    let claims = zip_with_iter!(
       (mem, outer, inner, witness),
-      [flat_map],
       |mem, outer, inner, witness| {
         Self::scaled_claims(mem, num_rounds)
           .into_iter()
@@ -1228,6 +1224,7 @@ where
           .chain(Self::scaled_claims(witness, num_rounds))
       }
     )
+    .flatten()
     .collect::<Vec<E::Scalar>>();
 
     let s = transcript.squeeze(b"r")?;
@@ -1243,10 +1240,8 @@ where
     for i in 0..num_rounds {
       let remaining_variables = num_rounds - i;
 
-      let evals = zip_with_fn!(
-        par_iter,
+      let evals = zip_with_par_iter!(
         (mem, outer, inner, witness),
-        [flat_map],
         |mem, outer, inner, witness| {
           let ((evals_mem, evals_outer), (evals_inner, evals_witness)) = rayon::join(
             || {
@@ -1269,6 +1264,7 @@ where
             .chain(evals_witness.into_par_iter())
         }
       )
+      .flatten()
       .collect::<Vec<_>>();
 
       assert_eq!(evals.len(), claims.len());
@@ -1292,10 +1288,8 @@ where
       let r_i = transcript.squeeze(b"c")?;
       r.push(r_i);
 
-      zip_with_fn!(
-        par_iter_mut,
+      zip_with_par_iter_mut_for_each!(
         (mem, outer, inner, witness),
-        [for_each],
         |mem, outer, inner, witness| {
           rayon::join(
             || {

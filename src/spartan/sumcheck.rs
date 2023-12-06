@@ -4,7 +4,6 @@ use crate::spartan::polys::{
   univariate::{CompressedUniPoly, UniPoly},
 };
 use crate::traits::{Engine, TranscriptEngineTrait};
-use crate::zip_with;
 use ff::Field;
 use itertools::Itertools as _;
 use rayon::prelude::*;
@@ -84,7 +83,7 @@ impl<E: Engine> SumcheckProof<E> {
     // claim = ∑ᵢ coeffᵢ⋅2^{n-nᵢ}⋅cᵢ
     let claim = zip_with!(
       (
-        zip_with_fn!(iter, (claims, num_rounds), |claim, num_rounds| {
+        zip_with_iter!((claims, num_rounds), |claim, num_rounds| {
           let scaling_factor = 1 << (num_rounds_max - num_rounds);
           E::Scalar::from(scaling_factor as u64) * claim
         }),
