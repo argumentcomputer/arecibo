@@ -123,7 +123,8 @@ impl<E: Engine> WitnessBoundSumcheck<E> {
     assert!(num_vars_log < num_rounds);
 
     let tau_coords = PowPolynomial::new(&tau, num_rounds).coordinates();
-    let poly_masked_eq_evals = MaskedEqPolynomial::new(&EqPolynomial::new(tau_coords), num_vars_log).evals();
+    let poly_masked_eq_evals =
+      MaskedEqPolynomial::new(&EqPolynomial::new(tau_coords), num_vars_log).evals();
 
     Self {
       poly_W: MultilinearPolynomial::new(poly_W_padded),
