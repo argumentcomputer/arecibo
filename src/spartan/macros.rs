@@ -83,26 +83,6 @@ macro_rules! zip_with_fn {
     }};
 }
 
-/// Like `zip_with` but use `flat_map` instead of `map`.
-#[macro_export]
-macro_rules! zip_with_flat_map {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_all!(($e $(, $rest)*))
-            .flat_map($($move)? |$crate::nested_idents!($($i),+)| {
-                $($work)*
-            })
-    }};
-}
-
-/// Like `zip_with` but call `iter()` on each input to produce the iterators, and apply `flat_map` instead of `map` after
-/// zipping.
-#[macro_export]
-macro_rules! zip_with_iter_flat_map {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_with_fn!(iter, ($e $(, $rest)*), [flat_map], $($move)?  |$($i),+| $($work)*)
-    }};
-}
-
 // Fold-right like nesting pattern for expressions a, b, c, d => (a, (b, (c, d)))
 #[doc(hidden)]
 #[allow(unused_macros)]

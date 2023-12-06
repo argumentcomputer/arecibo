@@ -30,8 +30,8 @@ use crate::{
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
     Engine, TranscriptEngineTrait,
   },
-  zip_with, zip_with_flat_map, zip_with_iter, zip_with_par_iter, zip_with_par_iter_mut, Commitment,
-  CommitmentKey, CompressedCommitment,
+  zip_with, zip_with_iter, zip_with_par_iter, zip_with_par_iter_mut, Commitment, CommitmentKey,
+  CompressedCommitment,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -725,7 +725,7 @@ where
     .cloned()
     .collect::<Vec<_>>();
 
-    let w_vec = zip_with_flat_map!(
+    let w_vec = zip_with!(
       (
         polys_Az_Bz_Cz.into_iter(),
         polys_W.into_iter(),
@@ -751,6 +751,7 @@ where
           ])
       }
     )
+    .flatten()
     .map(|p| PolyEvalWitness::<E> { p })
     .collect::<Vec<_>>();
 
