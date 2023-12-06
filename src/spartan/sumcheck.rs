@@ -82,12 +82,14 @@ impl<E: Engine> SumcheckProof<E> {
     //
     // claim = ∑ᵢ coeffᵢ⋅2^{n-nᵢ}⋅cᵢ
     let claim = zip_with!(
-      (claims.iter(), num_rounds.iter(), coeffs.iter()),
-      |claim, num_rounds, coeff| {
-        let scaling_factor = 1 << (num_rounds_max - num_rounds);
-        let scaled_claim = E::Scalar::from(scaling_factor as u64) * claim;
-        scaled_claim * coeff
-      }
+      (
+        zip_with_iter!((claims, num_rounds), |claim, num_rounds| {
+          let scaling_factor = 1 << (num_rounds_max - num_rounds);
+          E::Scalar::from(scaling_factor as u64) * claim
+        }),
+        coeffs.iter()
+      ),
+      |scaled_claim, coeff| scaled_claim * coeff
     )
     .sum();
 
@@ -213,26 +215,18 @@ impl<E: Engine> SumcheckProof<E> {
     }
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
-    let mut e = zip_with!(
-      (claims.iter(), num_rounds.iter(), coeffs.iter()),
-      |claim, num_rounds, coeff| {
-        let scaled_claim = E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim;
-        scaled_claim * coeff
-      }
-    )
+    let mut e = zip_with_iter!((claims, num_rounds, coeffs), |claim, num_rounds, coeff| {
+      let scaled_claim = E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim;
+      scaled_claim * coeff
+    })
     .sum();
     let mut r: Vec<E::Scalar> = Vec::new();
     let mut quad_polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
 
     for current_round in 0..num_rounds_max {
       let remaining_rounds = num_rounds_max - current_round;
-      let evals: Vec<(E::Scalar, E::Scalar)> = zip_with!(
-        (
-          num_rounds.par_iter(),
-          claims.par_iter(),
-          poly_A_vec.par_iter(),
-          poly_B_vec.par_iter()
-        ),
+      let evals: Vec<(E::Scalar, E::Scalar)> = zip_with_par_iter!(
+        (num_rounds, claims, poly_A_vec, poly_B_vec),
         |num_rounds, claim, poly_A, poly_B| {
           if remaining_rounds <= *num_rounds {
             Self::compute_eval_points_quad(poly_A, poly_B, &comb_func)
@@ -259,7 +253,7 @@ impl<E: Engine> SumcheckProof<E> {
       r.push(r_i);
 
       // bound all tables to the verifier's challenge
-      zip_with_for_each!(
+      let _ = zip_with!(
         (
           num_rounds.par_iter(),
           poly_A_vec.par_iter_mut(),
@@ -273,7 +267,7 @@ impl<E: Engine> SumcheckProof<E> {
             );
           }
         }
-      );
+      ).count();
 
       e = poly.evaluate(&r_i);
       quad_polys.push(poly.compress());
@@ -290,11 +284,12 @@ impl<E: Engine> SumcheckProof<E> {
       .map(|poly| poly[0])
       .collect::<Vec<_>>();
 
-    let eval_expected = zip_with!(
-      (poly_A_final.iter(), poly_B_final.iter(), coeffs.iter()),
-      |eA, eB, coeff| comb_func(eA, eB) * coeff
-    )
-    .sum::<E::Scalar>();
+    let eval_expected =
+      zip_with_iter!(
+        (poly_A_final, poly_B_final, coeffs),
+        |eA, eB, coeff| comb_func(eA, eB) * coeff
+      )
+      .sum::<E::Scalar>();
     assert_eq!(e, eval_expected);
 
     let claims_prod = (poly_A_final, poly_B_final);
@@ -527,26 +522,17 @@ impl<E: Engine> SumcheckProof<E> {
 
     let mut r: Vec<E::Scalar> = Vec::new();
     let mut polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
-    let mut claim_per_round = zip_with!(
-      (claims.iter(), num_rounds.iter(), coeffs.iter()),
-      |claim, num_rounds, coeff| {
+    let mut claim_per_round =
+      zip_with_iter!((claims, num_rounds, coeffs), |claim, num_rounds, coeff| {
         let scaled_claim = E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim;
         scaled_claim * *coeff
-      }
-    )
-    .sum();
+      })
+      .sum();
 
     for current_round in 0..num_rounds_max {
       let remaining_rounds = num_rounds_max - current_round;
-      let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = zip_with!(
-        (
-          num_rounds.par_iter(),
-          claims.par_iter(),
-          poly_A_vec.par_iter(),
-          poly_B_vec.par_iter(),
-          poly_C_vec.par_iter(),
-          poly_D_vec.par_iter()
-        ),
+      let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = zip_with_par_iter!(
+        (num_rounds, claims, poly_A_vec, poly_B_vec, poly_C_vec, poly_D_vec),
         |num_rounds, claim, poly_A, poly_B, poly_C, poly_D| {
           if remaining_rounds <= *num_rounds {
             Self::compute_eval_points_cubic_with_additive_term(
@@ -587,7 +573,7 @@ impl<E: Engine> SumcheckProof<E> {
 
       // bound all the tables to the verifier's challenge
 
-      zip_with_for_each!(
+      let _ = zip_with!(
         (
           num_rounds.par_iter(),
           poly_A_vec.par_iter_mut(),
@@ -613,7 +599,7 @@ impl<E: Engine> SumcheckProof<E> {
             );
           }
         }
-      );
+      ).count();
     }
 
     let poly_A_final = poly_A_vec.into_iter().map(|poly| poly[0]).collect();
