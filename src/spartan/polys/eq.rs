@@ -14,6 +14,7 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, Parall
 /// This polynomial evaluates to 1 if every component $x_i$ equals its corresponding $e_i$, and 0 otherwise.
 ///
 /// For instance, for e = 6 (with a binary representation of 0b110), the vector r would be [1, 1, 0].
+#[derive(Debug)]
 pub struct EqPolynomial<Scalar: PrimeField> {
   pub(crate) r: Vec<Scalar>,
 }
