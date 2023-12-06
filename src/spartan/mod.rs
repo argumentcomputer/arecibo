@@ -6,78 +6,11 @@
 //!
 //! In polynomial.rs we also provide foundational types and functions for manipulating multilinear polynomials.
 
-/// A macro to give syntactic sugar for zipWith pattern
-///
-/// ```ignore
-/// use crate::spartan::zip_with;
-/// use itertools::Itertools as _; // we use zip_eq to zip!
-/// let v = vec![0, 1, 2];
-/// let w = vec![2, 3, 4];
-/// let y = vec![4, 5, 6];
-///
-/// // Using the `zip_with!` macro to zip three iterators together and apply a closure
-/// // that sums the elements of each iterator.
-/// let res = zip_with!((v.iter(), w.iter(), y.iter()), |a, b, c| a + b + c)
-///     .collect::<Vec<_>>();
-///
-/// println!("{:?}", res); // Output: [6, 9, 12]
-/// ```
-macro_rules! zip_with {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-      zip_all!(($e $(, $rest)*))
-            .map($($move)? |nested_idents!($($i),+)| {
-                $($work)*
-            })
-    }};
-}
-
-macro_rules! zip_with_for_each {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-      zip_all!(($e $(, $rest)*))
-            .for_each($($move)? |nested_idents!($($i),+)| {
-                $($work)*
-            })
-    }};
-}
-
-// Fold-right like nesting pattern for expressions a, b, c, d => (a, (b, (c, d)))
-#[doc(hidden)]
-#[allow(unused_macros)]
-macro_rules! nested_tuple {
-    ($a:expr, $b:expr) => {
-        ($a, $b)
-    };
-    ($first:expr, $($rest:expr),+) => {
-        ($first, nested_tuple!($($rest),+))
-    };
-}
-
-// Same as the above for idents
-#[doc(hidden)]
-#[allow(unused_macro_rules)]
-macro_rules! nested_idents {
-    ($a:ident, $b:ident) => {
-        ($a, $b)
-    };
-    ($first:ident, $($rest:ident),+) => {
-        ($first, nested_idents!($($rest),+))
-    };
-}
-
-// Fold-right like zipping
-#[doc(hidden)]
-macro_rules! zip_all {
-    (($e:expr,)) => {
-        $e
-    };
-    (($first:expr, $second:expr $(, $rest:expr)*)) => {
-        ($first.zip_eq(zip_all!(($second, $( $rest),*))))
-    };
-}
-
 pub mod batched;
 pub mod batched_ppsnark;
 pub mod direct;
+#[macro_use]
+mod macros;
 pub(crate) mod math;
 pub mod polys;
 pub mod ppsnark;
@@ -168,7 +101,7 @@ impl<E: Engine> PolyEvalWitness<E> {
 
     let powers_of_s = powers::<E>(s, p_vec.len());
 
-    let p = zip_with!((p_vec.par_iter(), powers_of_s.par_iter()), |v, weight| {
+    let p = zip_with_par_iter!((p_vec, powers_of_s), |v, weight| {
       // compute the weighted sum for each vector
       v.iter().map(|&x| x * *weight).collect::<Vec<E::Scalar>>()
     })
@@ -207,7 +140,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     let powers: Vec<E::Scalar> = powers::<E>(&s, num_instances);
     // Rescale evaluations by the first Lagrange polynomial,
     // so that we can check its evaluation against x
-    let evals_scaled = zip_with!((e_vec.iter(), num_vars.iter()), |eval, num_rounds| {
+    let evals_scaled = zip_with_iter!((e_vec, num_vars), |eval, num_rounds| {
       // x_lo = [ x[0]   , ..., x[n-nᵢ-1] ]
       // x_hi = [ x[n-nᵢ], ..., x[n]      ]
       let (r_lo, _r_hi) = x.split_at(num_vars_max - num_rounds);
@@ -223,7 +156,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     .collect::<Vec<_>>();
 
     // C = ∑ᵢ γⁱ⋅Cᵢ
-    let comm_joint = zip_with!((c_vec.iter(), powers.iter()), |c, g_i| *c * *g_i)
+    let comm_joint = zip_with_iter!((c_vec, powers), |c, g_i| *c * *g_i)
       .fold(Commitment::<E>::default(), |acc, item| acc + item);
 
     // v = ∑ᵢ γⁱ⋅vᵢ
@@ -247,9 +180,9 @@ impl<E: Engine> PolyEvalInstance<E> {
 
     let powers_of_s = powers::<E>(s, num_instances);
     // Weighted sum of evaluations
-    let e = zip_with!((e_vec.par_iter(), powers_of_s.par_iter()), |e, p| *e * p).sum();
+    let e = zip_with_par_iter!((e_vec, powers_of_s), |e, p| *e * p).sum();
     // Weighted sum of commitments
-    let c = zip_with!((c_vec.par_iter(), powers_of_s.par_iter()), |c, p| *c * *p)
+    let c = zip_with_par_iter!((c_vec, powers_of_s), |c, p| *c * *p)
       .reduce(Commitment::<E>::default, |acc, item| acc + item);
 
     PolyEvalInstance {

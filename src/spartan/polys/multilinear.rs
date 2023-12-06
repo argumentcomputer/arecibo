@@ -6,6 +6,7 @@ use std::ops::{Add, Index};
 
 use ff::PrimeField;
 use itertools::Itertools as _;
+
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
   IntoParallelRefMutIterator, ParallelIterator,
@@ -171,8 +172,7 @@ impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
       return Err("The two polynomials must have the same number of variables");
     }
 
-    let sum: Vec<Scalar> =
-      zip_with!((self.Z.into_iter(), other.Z.into_iter()), |a, b| a + b).collect();
+    let sum: Vec<Scalar> = zip_with_into_iter!((self.Z, other.Z), |a, b| a + b).collect();
 
     Ok(MultilinearPolynomial::new(sum))
   }
