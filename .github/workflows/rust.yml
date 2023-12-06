@@ -4,7 +4,7 @@ on:
   merge_group:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [ dev, zeromorph ]
+    branches: [ dev, zeromorph, batched_spartan ]
 
 env:
   CARGO_TERM_COLOR: always
