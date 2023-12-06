@@ -9,17 +9,17 @@ use itertools::zip_eq;
 ///
 /// The polynomial is defined by the formula:
 /// eqₘ(x,r) = eq(x,r) - ( ∏_{0 ≤ i < n-m} (1−rᵢ)(1−xᵢ) )⋅( ∏_{n-m ≤ i < n} (1−rᵢ)(1−xᵢ) + rᵢ⋅xᵢ )
-pub struct MaskedEqPolynomial<Scalar: PrimeField> {
-  eq: EqPolynomial<Scalar>,
+pub struct MaskedEqPolynomial<'a, Scalar: PrimeField> {
+  eq: &'a EqPolynomial<Scalar>,
   num_masked_vars: usize,
 }
 
-impl<Scalar: PrimeField> MaskedEqPolynomial<Scalar> {
+impl<'a, Scalar: PrimeField> MaskedEqPolynomial<'a, Scalar> {
   /// Creates a new `MaskedEqPolynomial` from a vector of Scalars `r` of size n, with the number of
   /// masked variables m = `num_masked_vars`.
-  pub const fn new(r: Vec<Scalar>, num_masked_vars: usize) -> Self {
+  pub const fn new(eq: &'a EqPolynomial<Scalar>, num_masked_vars: usize) -> Self {
     MaskedEqPolynomial {
-      eq: EqPolynomial::new(r),
+      eq,
       num_masked_vars,
     }
   }
@@ -100,10 +100,10 @@ mod tests {
       .take(num_vars)
       .collect::<Vec<_>>();
 
-    let poly_eq = EqPolynomial::new(r.clone());
+    let poly_eq = EqPolynomial::new(r);
     let poly_eq_evals = poly_eq.evals();
 
-    let masked_eq_poly = MaskedEqPolynomial::new(r, num_masked_vars);
+    let masked_eq_poly = MaskedEqPolynomial::new(&poly_eq, num_masked_vars);
     let masked_eq_poly_evals = masked_eq_poly.evals();
 
     // ensure the first 2^m entries are 0

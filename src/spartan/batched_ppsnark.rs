@@ -123,7 +123,7 @@ impl<E: Engine> WitnessBoundSumcheck<E> {
     assert!(num_vars_log < num_rounds);
 
     let tau_coords = PowPolynomial::new(&tau, num_rounds).coordinates();
-    let poly_masked_eq_evals = MaskedEqPolynomial::new(tau_coords, num_vars_log).evals();
+    let poly_masked_eq_evals = MaskedEqPolynomial::new(&EqPolynomial::new(tau_coords), num_vars_log).evals();
 
     Self {
       poly_W: MultilinearPolynomial::new(poly_W_padded),
@@ -972,11 +972,12 @@ where
 
         let (eq_tau, eq_masked_tau) = {
           let tau_coords = PowPolynomial::new(&tau, num_rounds_i).coordinates();
+          let eq_tau = EqPolynomial::new(tau_coords);
 
-          let eq_tau = EqPolynomial::new(tau_coords.clone()).evaluate(&rand_sc);
-          let eq_masked_tau = MaskedEqPolynomial::new(tau_coords, num_vars_log).evaluate(&rand_sc);
+          let eq_tau_at_rand = eq_tau.evaluate(rand_sc);
+          let eq_masked_tau = MaskedEqPolynomial::new(&eq_tau, num_vars_log).evaluate(rand_sc);
 
-          (eq_tau, eq_masked_tau)
+          (eq_tau_at_rand, eq_masked_tau)
         };
 
         // Evaluate identity polynomial
