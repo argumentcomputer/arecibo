@@ -1000,14 +1000,15 @@ mod tests {
   use super::*;
   use crate::{
     provider::{
-      traits::DlogGroup, Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine,
-      Secq256k1Engine, VestaEngine,
+      non_hiding_zeromorph::ZMPCS, traits::DlogGroup, Bn256Engine, Bn256EngineZM, GrumpkinEngine,
+      PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::{fmt::Write, marker::PhantomData};
   use ff::PrimeField;
+  use halo2curves::bn256::Bn256;
   use traits::circuit::TrivialCircuit;
 
   type EE<E> = provider::ipa_pc::EvaluationEngine<E>;
@@ -1141,6 +1142,18 @@ mod tests {
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "5aec6defcb0f6b2bb14aec70362419388916d7a5bc528c0b3fabb197ae57cb03",
+    );
+    #[cfg(not(feature = "asm"))]
+    test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
+      &trivial_circuit1_grumpkin,
+      &trivial_circuit2_grumpkin,
+      "e20ab87e395e787e272330a4c9c79916b83bf95632d9604511ad6a1448625402",
+    );
+    #[cfg(not(feature = "asm"))]
+    test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
+      &cubic_circuit1_grumpkin,
+      &trivial_circuit2_grumpkin,
+      "ce304ffff7f6dfc143322bb621e9025ba9d77f1b8d0e199e6bc432aa66c98101",
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
@@ -1384,6 +1397,12 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<
+      Bn256EngineZM,
+      GrumpkinEngine,
+      ZMPCS<Bn256, _>,
+      EE<_>,
+    >();
   }
 
   fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()
@@ -1484,6 +1503,12 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>(
     );
+    test_ivc_nontrivial_with_spark_compression_with::<
+      Bn256EngineZM,
+      GrumpkinEngine,
+      ZMPCS<Bn256, _>,
+      EE<_>,
+    >();
   }
 
   fn test_ivc_nondet_with_compression_with<E1, E2, EE1, EE2>()
@@ -1626,6 +1651,8 @@ mod tests {
     test_ivc_nondet_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<Bn256EngineZM, GrumpkinEngine, ZMPCS<Bn256, _>, EE<_>>(
+    );
   }
 
   fn test_ivc_base_with<E1, E2>()

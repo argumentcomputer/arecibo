@@ -6,10 +6,8 @@ use std::ops::{Add, Index};
 
 use ff::PrimeField;
 use itertools::Itertools as _;
-use rayon::prelude::{
-  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-  IntoParallelRefMutIterator, ParallelIterator,
-};
+use rand_core::{CryptoRng, RngCore};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::spartan::{math::Math, polys::eq::EqPolynomial};
@@ -48,6 +46,11 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     }
   }
 
+  /// evaluations of the polynomial in all the 2^num_vars Boolean inputs
+  pub fn evaluations(&self) -> &[Scalar] {
+    &self.Z[..]
+  }
+
   /// Returns the number of variables in the multilinear polynomial
   pub const fn get_num_vars(&self) -> usize {
     self.num_vars
@@ -56,6 +59,16 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   /// Returns the total number of evaluations.
   pub fn len(&self) -> usize {
     self.Z.len()
+  }
+
+  /// Returns a random polynomial
+  ///
+  pub fn random<R: RngCore + CryptoRng>(num_vars: usize, mut rng: &mut R) -> Self {
+    MultilinearPolynomial::new(
+      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
+        .take(1 << num_vars)
+        .collect(),
+    )
   }
 
   /// Bounds the polynomial's top variable using the given scalar.
@@ -186,7 +199,7 @@ mod tests {
   use super::*;
   use pasta_curves::Fp;
   use rand_chacha::ChaCha20Rng;
-  use rand_core::{CryptoRng, RngCore, SeedableRng};
+  use rand_core::SeedableRng;
 
   fn make_mlp<F: PrimeField>(len: usize, value: F) -> MultilinearPolynomial<F> {
     MultilinearPolynomial {
@@ -266,7 +279,7 @@ mod tests {
     let num_evals = 4;
     let mut evals: Vec<F> = Vec::with_capacity(num_evals);
     for _ in 0..num_evals {
-      evals.push(F::from_u128(8));
+      evals.push(F::from(8));
     }
     let dense_poly: MultilinearPolynomial<F> = MultilinearPolynomial::new(evals.clone());
 
@@ -293,18 +306,6 @@ mod tests {
     test_evaluation_with::<Fp>();
     test_evaluation_with::<provider::bn256_grumpkin::bn256::Scalar>();
     test_evaluation_with::<provider::secp_secq::secp256k1::Scalar>();
-  }
-
-  /// Returns a random ML polynomial
-  fn random<R: RngCore + CryptoRng, Scalar: PrimeField>(
-    num_vars: usize,
-    mut rng: &mut R,
-  ) -> MultilinearPolynomial<Scalar> {
-    MultilinearPolynomial::new(
-      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
-        .take(1 << num_vars)
-        .collect(),
-    )
   }
 
   /// This evaluates a multilinear polynomial at a partial point in the evaluation domain,
@@ -351,7 +352,7 @@ mod tests {
     // Initialize a random polynomial
     let n = 5;
     let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
-    let poly = random(n, &mut rng);
+    let poly = MultilinearPolynomial::random(n, &mut rng);
 
     // Define a random multivariate evaluation point u = (u_0, u_1, u_2, u_3, u_4)
     let u_0 = F::random(&mut rng);
@@ -391,7 +392,7 @@ mod tests {
       // Initialize a random polynomial
       let n = 7;
       let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
-      let poly = random(n, &mut rng);
+      let poly = MultilinearPolynomial::random(n, &mut rng);
 
       // draw a random point
       let pt: Vec<_> = std::iter::from_fn(|| Some(F::random(&mut rng)))
