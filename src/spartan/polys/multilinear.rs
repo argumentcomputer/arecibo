@@ -6,6 +6,7 @@ use std::ops::{Add, Index};
 
 use ff::PrimeField;
 use itertools::Itertools as _;
+
 use rayon::prelude::{
   IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
   IntoParallelRefMutIterator, ParallelIterator,

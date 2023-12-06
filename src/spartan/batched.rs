@@ -35,7 +35,7 @@ use crate::{
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
     Engine, TranscriptEngineTrait,
   },
-  CommitmentKey,
+  zip_with, zip_with_into_par_iter, zip_with_iter, zip_with_par_iter, CommitmentKey,
 };
 
 /// A succinct proof of knowledge of a witness to a batch of relaxed R1CS instances

@@ -30,7 +30,8 @@ use crate::{
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
     Engine, TranscriptEngineTrait,
   },
-  Commitment, CommitmentKey, CompressedCommitment,
+  zip_with, zip_with_flat_map, zip_with_fn, zip_with_iter, zip_with_par_iter, Commitment,
+  CommitmentKey, CompressedCommitment,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;

@@ -4,6 +4,7 @@ use crate::spartan::polys::{
   univariate::{CompressedUniPoly, UniPoly},
 };
 use crate::traits::{Engine, TranscriptEngineTrait};
+use crate::zip_with;
 use ff::Field;
 use itertools::Itertools as _;
 use rayon::prelude::*;
