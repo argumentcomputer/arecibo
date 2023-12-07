@@ -31,8 +31,8 @@ use crate::{
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
     Engine, TranscriptEngineTrait,
   },
-  zip_with, zip_with_iter, zip_with_par_iter, zip_with_par_iter_mut, Commitment, CommitmentKey,
-  CompressedCommitment,
+  zip_with, zip_with_iter, zip_with_par_iter, zip_with_par_iter_mut_for_each, Commitment,
+  CommitmentKey, CompressedCommitment,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -1301,7 +1301,7 @@ where
       let r_i = transcript.squeeze(b"c")?;
       r.push(r_i);
 
-      let _ = zip_with_par_iter_mut!(
+      zip_with_par_iter_mut_for_each!(
         (mem, outer, inner, witness),
         |mem, outer, inner, witness| {
           rayon::join(
