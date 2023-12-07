@@ -446,7 +446,7 @@ mod tests {
   fn test_layout_with<F: PrimeField>(s: usize) {
     let rng = &mut rand::rngs::OsRng;
     let n = 1 << s;
-    let evals = (0..n).map(|_| F::random(rng.clone())).collect::<Vec<_>>();
+    let evals = (0..n).map(|_| F::random(rng)).collect::<Vec<_>>();
 
     let p = MultilinearPolynomial::new(evals.clone());
 
