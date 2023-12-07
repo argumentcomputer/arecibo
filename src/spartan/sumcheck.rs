@@ -97,6 +97,11 @@ impl<E: Engine> SumcheckProof<E> {
   }
 
   #[inline]
+  // Returns evaluations specifying a univariate polynomial representing `comb_func(poly_A, poly_B)`. These evaluations
+  // at points 0 and 2 are obtained by combining the evaluations of each multivariate polynomial at 0 and 2 with
+  // `comb_func`. A quadratic polynomial is fully defined by evaluation at three points, but in the context of the
+  // sumcheck protocol, the evaluation at 1 can be cheaply derived and does not need to be computed here. This explains
+  // the choice of evaluation points returned.
   pub(in crate::spartan) fn compute_eval_points_quad<F>(
     poly_A: &MultilinearPolynomial<E::Scalar>,
     poly_B: &MultilinearPolynomial<E::Scalar>,
@@ -106,29 +111,23 @@ impl<E: Engine> SumcheckProof<E> {
     F: Fn(&E::Scalar, &E::Scalar) -> E::Scalar + Sync,
   {
     let len = poly_A.len() / 2;
+    // The following calculates the evaluations obtained by summing over all but the top var, while the top var is bound
+    // to the desired point (0 or 2).
+    //
+    // Those evaluations are calculated by inlining the formula from `MultilinearPolynomial::bind_poly_var_top`. In this
+    // context, that formula can be written as: A(low) + t*(A(high) - A(low)), t = 2
     (0..len)
             .into_par_iter()
             .map(|i| {
-                // This `map` function computes point-wise combinations (via `comb_func`) of the evals of each
-                // polynomial -- as though the 'top var' (next to be bound in sumcheck) have been bound to the target.
-                //
-                // The target is the evaluation that will be used to create a univariate-polynomial whose evaluation at
-                // the target is the sum of the combined non-top evaluations.
-                //
-                // The following `reduce` operation effects the sum.
-                //
-                // The required targets are the evaluation points 0 and 2.
-                //
+
                 // Evaluation at 0 is unaffected by the top var (to be bound).
-                // eval 0: bound_func is A(low)
+                //
+                // eval 0: bound_func is A(low) + t*(A(high) - A(low)), t = 2
+                // A(low) + 0*A(high) - 0*A(low) = A(low)
                 let eval_point_0 = comb_func(&poly_A[i], &poly_B[i]);
 
-                // eval 2: bound_func is -A(low) + 2*A(high) = A(low) + t*(A(high) - A(low)), t = 2
-                // See comments in `bind_poly_var_top()` for more detail on this expression.
-                // Here, we want t=2 because we are looking for the evaluation at the point 2.
-                //
-                // What we are actually doing is binding the top var to 2 (as per `bind_poly_var_top`) and performing
-                // pointwise-combining the evaluations of the lower vars, for reasons described above.
+                // eval 2: bound_func is A(low) + t*(A(high) - A(low)), t = 2
+                // A(low) + 2*A(high) - 2*A(low) = -A(low) + 2*A(high)
                 let poly_A_bound_to_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
                 let poly_B_bound_to_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
                 let eval_point_2 = comb_func(&poly_A_bound_to_point, &poly_B_bound_to_point);
