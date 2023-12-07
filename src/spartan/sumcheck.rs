@@ -181,10 +181,7 @@ impl<E: Engine> SumcheckProof<E> {
       claim_per_round = poly.evaluate(&r_i);
 
       // bind all evaluation tables to the verifier's challenge
-      rayon::join(
-        || poly_A.bind_poly_var_top(&r_i),
-        || poly_B.bind_poly_var_top(&r_i),
-      );
+      rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i));
     }
 
     Ok((
@@ -283,10 +280,7 @@ impl<E: Engine> SumcheckProof<E> {
         ),
         |num_rounds, poly_A, poly_B| {
           if remaining_rounds <= *num_rounds {
-            let _ = rayon::join(
-              || poly_A.bind_poly_var_top(&r_i),
-              || poly_B.bind_poly_var_top(&r_i),
-            );
+            let _ = rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i));
           }
         }
       );
@@ -459,18 +453,8 @@ impl<E: Engine> SumcheckProof<E> {
 
       // bind all tables to the verifier's challenge
       rayon::join(
-        || {
-          rayon::join(
-            || poly_A.bind_poly_var_top(&r_i),
-            || poly_B.bind_poly_var_top(&r_i),
-          )
-        },
-        || {
-          rayon::join(
-            || poly_C.bind_poly_var_top(&r_i),
-            || poly_D.bind_poly_var_top(&r_i),
-          )
-        },
+        || rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i)),
+        || rayon::join(|| poly_C.bind_top_var(&r_i), || poly_D.bind_top_var(&r_i)),
       );
     }
 
@@ -606,18 +590,8 @@ impl<E: Engine> SumcheckProof<E> {
         |num_rounds, poly_A, poly_B, poly_C, poly_D| {
           if remaining_rounds <= *num_rounds {
             let _ = rayon::join(
-              || {
-                rayon::join(
-                  || poly_A.bind_poly_var_top(&r_i),
-                  || poly_B.bind_poly_var_top(&r_i),
-                )
-              },
-              || {
-                rayon::join(
-                  || poly_C.bind_poly_var_top(&r_i),
-                  || poly_D.bind_poly_var_top(&r_i),
-                )
-              },
+              || rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i)),
+              || rayon::join(|| poly_C.bind_top_var(&r_i), || poly_D.bind_top_var(&r_i)),
             );
           }
         }

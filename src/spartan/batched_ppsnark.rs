@@ -166,7 +166,7 @@ impl<E: Engine> SumcheckEngine<E> for WitnessBoundSumcheck<E> {
   fn bound(&mut self, r: &E::Scalar) {
     [&mut self.poly_W, &mut self.poly_masked_eq]
       .par_iter_mut()
-      .for_each(|poly| poly.bind_poly_var_top(r));
+      .for_each(|poly| poly.bind_top_var(r));
   }
 
   fn final_claims(&self) -> Vec<Vec<E::Scalar>> {

@@ -77,7 +77,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   /// these 'one' evaluations has a corresponding 'zero' evaluation, in the same relative position of the first half. We
   /// adjust these remaining evaluations so the remaining, diminished evaluation table is increased by the appropriate
   /// value.
-  pub fn bind_poly_var_top(&mut self, r: &Scalar) {
+  pub fn bind_top_var(&mut self, r: &Scalar) {
     let n = self.len() / 2;
 
     let (left, right) = self.Z.split_at_mut(n);
