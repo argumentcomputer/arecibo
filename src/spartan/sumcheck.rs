@@ -114,7 +114,7 @@ impl<E: Engine> SumcheckProof<E> {
     // The following calculates the evaluations obtained by summing over all but the top var, while the top var is bound
     // to the desired point (0 or 2).
     //
-    // Those evaluations are calculated by inlining the formula from `MultilinearPolynomial::bind_poly_var_top`. In this
+    // Those evaluations are calculated by inlining the formula from `MultilinearPolynomial::bind_top_var`. In this
     // context, that formula can be written as: A(low) + t*(A(high) - A(low)), t = 2
     (0..len)
             .into_par_iter()
@@ -180,10 +180,7 @@ impl<E: Engine> SumcheckProof<E> {
       claim_per_round = poly.evaluate(&r_i);
 
       // bind all evaluation tables to the verifier's challenge
-      rayon::join(
-        || poly_A.bind_poly_var_top(&r_i),
-        || poly_B.bind_poly_var_top(&r_i),
-      );
+      rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i));
     }
 
     Ok((
@@ -282,10 +279,7 @@ impl<E: Engine> SumcheckProof<E> {
         ),
         |num_rounds, poly_A, poly_B| {
           if remaining_rounds <= *num_rounds {
-            let _ = rayon::join(
-              || poly_A.bind_poly_var_top(&r_i),
-              || poly_B.bind_poly_var_top(&r_i),
-            );
+            let _ = rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i));
           }
         }
       );
@@ -458,18 +452,8 @@ impl<E: Engine> SumcheckProof<E> {
 
       // bind all tables to the verifier's challenge
       rayon::join(
-        || {
-          rayon::join(
-            || poly_A.bind_poly_var_top(&r_i),
-            || poly_B.bind_poly_var_top(&r_i),
-          )
-        },
-        || {
-          rayon::join(
-            || poly_C.bind_poly_var_top(&r_i),
-            || poly_D.bind_poly_var_top(&r_i),
-          )
-        },
+        || rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i)),
+        || rayon::join(|| poly_C.bind_top_var(&r_i), || poly_D.bind_top_var(&r_i)),
       );
     }
 
@@ -605,18 +589,8 @@ impl<E: Engine> SumcheckProof<E> {
         |num_rounds, poly_A, poly_B, poly_C, poly_D| {
           if remaining_rounds <= *num_rounds {
             let _ = rayon::join(
-              || {
-                rayon::join(
-                  || poly_A.bind_poly_var_top(&r_i),
-                  || poly_B.bind_poly_var_top(&r_i),
-                )
-              },
-              || {
-                rayon::join(
-                  || poly_C.bind_poly_var_top(&r_i),
-                  || poly_D.bind_poly_var_top(&r_i),
-                )
-              },
+              || rayon::join(|| poly_A.bind_top_var(&r_i), || poly_B.bind_top_var(&r_i)),
+              || rayon::join(|| poly_C.bind_top_var(&r_i), || poly_D.bind_top_var(&r_i)),
             );
           }
         }
