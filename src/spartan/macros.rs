@@ -41,14 +41,6 @@ macro_rules! zip_with_par_iter {
     }};
 }
 
-/// Like `zip_with` but call `par_iter_mut()` on each input to produce the iterators.
-#[macro_export]
-macro_rules! zip_with_par_iter_mut {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_with_fn!(par_iter_mut, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
-    }};
-}
-
 /// Like `zip_with` but call `into_iter()` on each input to produce the iterators.
 #[macro_export]
 macro_rules! zip_with_into_iter {
@@ -80,6 +72,26 @@ macro_rules! zip_with_fn {
             .map($($move)? |$crate::nested_idents!($($i),+)| {
                 $($work)*
             })
+    }};
+}
+
+/// Like `zip_with` but use `for_each` instead of `map`.
+#[macro_export]
+macro_rules! zip_with_for_each {
+    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+        $crate::zip_all!(($e $(, $rest)*))
+            .for_each($($move)? |$crate::nested_idents!($($i),+)| {
+                $($work)*
+            })
+    }};
+}
+
+/// Like `zip_with` but call `par_iter_mut()` on each input to produce the iterators, and apply `for_each` instead of
+/// `map` after zipping.
+#[macro_export]
+macro_rules! zip_with_par_iter_mut_for_each {
+    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
+        $crate::zip_with_fn!(par_iter_mut, ($e $(, $rest)*), [for_each], $($move)? |$($i),+| $($work)*)
     }};
 }
 

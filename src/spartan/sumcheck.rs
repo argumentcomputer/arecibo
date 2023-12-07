@@ -253,7 +253,7 @@ impl<E: Engine> SumcheckProof<E> {
       r.push(r_i);
 
       // bound all tables to the verifier's challenge
-      let _ = zip_with!(
+      zip_with_for_each!(
         (
           num_rounds.par_iter(),
           poly_A_vec.par_iter_mut(),
@@ -267,7 +267,7 @@ impl<E: Engine> SumcheckProof<E> {
             );
           }
         }
-      ).count();
+      );
 
       e = poly.evaluate(&r_i);
       quad_polys.push(poly.compress());
@@ -573,7 +573,7 @@ impl<E: Engine> SumcheckProof<E> {
 
       // bound all the tables to the verifier's challenge
 
-      let _ = zip_with!(
+      zip_with_for_each!(
         (
           num_rounds.par_iter(),
           poly_A_vec.par_iter_mut(),
@@ -599,7 +599,7 @@ impl<E: Engine> SumcheckProof<E> {
             );
           }
         }
-      ).count();
+      );
     }
 
     let poly_A_final = poly_A_vec.into_iter().map(|poly| poly[0]).collect();
