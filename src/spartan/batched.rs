@@ -160,6 +160,10 @@ where
     let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
     transcript.absorb(b"vk", &pk.vk_digest);
+    if num_instances > 1 {
+      let num_instances_field = E::Scalar::from(num_instances as u64);
+      transcript.absorb(b"n", &num_instances_field);
+    }
     U.iter().for_each(|u| {
       transcript.absorb(b"U", u);
     });
@@ -385,9 +389,14 @@ where
   }
 
   fn verify(&self, vk: &Self::VerifierKey, U: &[RelaxedR1CSInstance<E>]) -> Result<(), NovaError> {
+    let num_instances = U.len();
     let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
     transcript.absorb(b"vk", &vk.digest());
+    if num_instances > 1 {
+      let num_instances_field = E::Scalar::from(num_instances as u64);
+      transcript.absorb(b"n", &num_instances_field);
+    }
     U.iter().for_each(|u| {
       transcript.absorb(b"U", u);
     });
