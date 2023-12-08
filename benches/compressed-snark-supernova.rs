@@ -244,7 +244,7 @@ fn bench_two_augmented_circuit_compressed_snark(c: &mut Criterion) {
           println!("res failed {:?}", e);
         }
         assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, 1, &z0_primary, &z0_secondary);
+        let res = recursive_snark.verify(&pp, 0, &z0_primary, &z0_secondary);
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -352,7 +352,7 @@ fn bench_two_augmented_circuit_compressed_snark_with_computational_commitments(c
           println!("res failed {:?}", e);
         }
         assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, 1, &z0_primary, &z0_secondary);
+        let res = recursive_snark.verify(&pp, 0, &z0_primary, &z0_secondary);
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
