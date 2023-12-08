@@ -1077,7 +1077,7 @@ where
       }
     )
     .flatten()
-    .zip_eq(s_powers.into_iter())
+    .zip_eq(s_powers)
     .fold(E::Scalar::ZERO, |acc, (claim, s)| acc + s * claim);
 
     if claim_sc_final_expected != claim_sc_final {
