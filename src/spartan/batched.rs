@@ -117,7 +117,7 @@ where
 
   fn setup(
     ck: &CommitmentKey<E>,
-    S: &[R1CSShape<E>],
+    S: Vec<&R1CSShape<E>>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     let (pk_ee, vk_ee) = EE::setup(ck);
 
@@ -136,7 +136,7 @@ where
   fn prove(
     ck: &CommitmentKey<E>,
     pk: &Self::ProverKey,
-    S: &[R1CSShape<E>],
+    S: Vec<&R1CSShape<E>>,
     U: &[RelaxedR1CSInstance<E>],
     W: &[RelaxedR1CSWitness<E>],
   ) -> Result<Self, NovaError> {

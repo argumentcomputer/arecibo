@@ -200,18 +200,13 @@ impl<E: Engine> SumcheckProof<E> {
       let a = &poly_A_vec[i];
       let b = &poly_B_vec[i];
 
-      assert_eq!(
-        a.len(),
-        expected_size,
-        "Mismatch in size for poly_A_vec at index {}",
-        i
-      );
-      assert_eq!(
-        b.len(),
-        expected_size,
-        "Mismatch in size for poly_B_vec at index {}",
-        i
-      );
+      for (l, polyname) in [(a.len(), "poly_A_vec"), (b.len(), "poly_B_vec")].iter() {
+        assert_eq!(
+          *l, expected_size,
+          "Mismatch in size for {} at index {}",
+          polyname, i
+        );
+      }
     }
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
@@ -497,30 +492,20 @@ impl<E: Engine> SumcheckProof<E> {
       let c = &poly_C_vec[i];
       let d = &poly_D_vec[i];
 
-      assert_eq!(
-        a.len(),
-        expected_size,
-        "Mismatch in size for poly_A_vec at index {}",
-        i
-      );
-      assert_eq!(
-        b.len(),
-        expected_size,
-        "Mismatch in size for poly_B_vec at index {}",
-        i
-      );
-      assert_eq!(
-        c.len(),
-        expected_size,
-        "Mismatch in size for poly_C_vec at index {}",
-        i
-      );
-      assert_eq!(
-        d.len(),
-        expected_size,
-        "Mismatch in size for poly_D_vec at index {}",
-        i
-      );
+      for (l, polyname) in [
+        (a.len(), "poly_A"),
+        (b.len(), "poly_B"),
+        (c.len(), "poly_C"),
+        (d.len(), "poly_D"),
+      ]
+      .iter()
+      {
+        assert_eq!(
+          *l, expected_size,
+          "Mismatch in size for {} at index {}",
+          polyname, i
+        );
+      }
     }
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
