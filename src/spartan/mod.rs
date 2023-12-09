@@ -101,7 +101,7 @@ impl<E: Engine> PolyEvalWitness<E> {
 
     let powers_of_s = powers::<E>(s, p_vec.len());
 
-    let p = zip_with_fn!(par_iter, (p_vec, powers_of_s), |v, weight| {
+    let p = zip_with!(par_iter, (p_vec, powers_of_s), |v, weight| {
       // compute the weighted sum for each vector
       v.iter().map(|&x| x * *weight).collect::<Vec<E::Scalar>>()
     })
@@ -140,7 +140,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     let powers: Vec<E::Scalar> = powers::<E>(&s, num_instances);
     // Rescale evaluations by the first Lagrange polynomial,
     // so that we can check its evaluation against x
-    let evals_scaled = zip_with_fn!(iter, (e_vec, num_vars), |eval, num_rounds| {
+    let evals_scaled = zip_with!(iter, (e_vec, num_vars), |eval, num_rounds| {
       // x_lo = [ x[0]   , ..., x[n-nᵢ-1] ]
       // x_hi = [ x[n-nᵢ], ..., x[n]      ]
       let (r_lo, _r_hi) = x.split_at(num_vars_max - num_rounds);
@@ -156,7 +156,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     .collect::<Vec<_>>();
 
     // C = ∑ᵢ γⁱ⋅Cᵢ
-    let comm_joint = zip_with_fn!(iter, (c_vec, powers), |c, g_i| *c * *g_i)
+    let comm_joint = zip_with!(iter, (c_vec, powers), |c, g_i| *c * *g_i)
       .fold(Commitment::<E>::default(), |acc, item| acc + item);
 
     // v = ∑ᵢ γⁱ⋅vᵢ
@@ -180,9 +180,9 @@ impl<E: Engine> PolyEvalInstance<E> {
 
     let powers_of_s = powers::<E>(s, num_instances);
     // Weighted sum of evaluations
-    let e = zip_with_fn!(par_iter, (e_vec, powers_of_s), |e, p| *e * p).sum();
+    let e = zip_with!(par_iter, (e_vec, powers_of_s), |e, p| *e * p).sum();
     // Weighted sum of commitments
-    let c = zip_with_fn!(par_iter, (c_vec, powers_of_s), |c, p| *c * *p)
+    let c = zip_with!(par_iter, (c_vec, powers_of_s), |c, p| *c * *p)
       .reduce(Commitment::<E>::default, |acc, item| acc + item);
 
     PolyEvalInstance {

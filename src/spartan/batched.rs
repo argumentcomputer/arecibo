@@ -35,7 +35,7 @@ use crate::{
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
     Engine, TranscriptEngineTrait,
   },
-  zip_with, zip_with_fn, CommitmentKey,
+  zip_with, CommitmentKey,
 };
 
 /// A succinct proof of knowledge of a witness to a batch of relaxed R1CS instances
@@ -155,7 +155,7 @@ where
       .collect::<Result<Vec<_>, _>>()?;
 
     // Pad (W,E) for each instance
-    let W = zip_with_fn!(iter, (W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
+    let W = zip_with!(iter, (W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
 
     let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
 
@@ -171,7 +171,7 @@ where
     let (polys_W, polys_E): (Vec<_>, Vec<_>) = W.into_iter().map(|w| (w.W, w.E)).unzip();
 
     // Append public inputs to W: Z = [W, u, X]
-    let polys_Z = zip_with_fn!(iter, (polys_W, U), |w, u| [
+    let polys_Z = zip_with!(iter, (polys_W, U), |w, u| [
       w.clone(),
       vec![u.u],
       u.X.clone()
@@ -199,7 +199,7 @@ where
 
     // Compute MLEs of Az, Bz, Cz, uCz + E
     let (polys_Az, polys_Bz, polys_Cz): (Vec<_>, Vec<_>, Vec<_>) =
-      zip_with_fn!(par_iter, (S, polys_Z), |s, poly_Z| {
+      zip_with!(par_iter, (S, polys_Z), |s, poly_Z| {
         let (poly_Az, poly_Bz, poly_Cz) = s.multiply_vec(poly_Z)?;
         Ok((poly_Az, poly_Bz, poly_Cz))
       })
@@ -207,8 +207,8 @@ where
       .into_iter()
       .multiunzip();
 
-    let polys_uCz_E = zip_with_fn!(par_iter, (U, polys_E, polys_Cz), |u, poly_E, poly_Cz| {
-      zip_with_fn!(par_iter, (poly_Cz, poly_E), |cz, e| u.u * cz + e).collect::<Vec<E::Scalar>>()
+    let polys_uCz_E = zip_with!(par_iter, (U, polys_E, polys_Cz), |u, poly_E, poly_Cz| {
+      zip_with!(par_iter, (poly_Cz, poly_E), |cz, e| u.u * cz + e).collect::<Vec<E::Scalar>>()
     })
     .collect::<Vec<_>>();
 
@@ -251,7 +251,7 @@ where
       .collect::<Vec<_>>();
 
     // Extract evaluations of Az, Bz from Sumcheck and Cz, E at r_x
-    let (evals_Az_Bz_Cz, evals_E): (Vec<_>, Vec<_>) = zip_with_fn!(
+    let (evals_Az_Bz_Cz, evals_E): (Vec<_>, Vec<_>) = zip_with!(
       par_iter,
       (claims_outer[1], claims_outer[2], polys_Cz, polys_E, r_x),
       |eval_Az, eval_Bz, poly_Cz, poly_E, r_x| {
@@ -288,7 +288,7 @@ where
                    M_evals_Bs: Vec<E::Scalar>,
                    M_evals_Cs: Vec<E::Scalar>|
        -> Vec<E::Scalar> {
-        zip_with_fn!(
+        zip_with!(
           into_par_iter,
           (M_evals_As, M_evals_Bs, M_evals_Cs),
           |eval_A, eval_B, eval_C| eval_A + inner_r * eval_B + inner_r_square * eval_C
@@ -296,7 +296,7 @@ where
         .collect::<Vec<_>>()
       };
 
-      zip_with_fn!(par_iter, (S, r_x), |s, r_x| {
+      zip_with!(par_iter, (S, r_x), |s, r_x| {
         let evals_rx = EqPolynomial::evals_from_points(r_x);
         let (eval_A, eval_B, eval_C) = compute_eval_table_sparse(s, &evals_rx);
         MultilinearPolynomial::new(inner(eval_A, eval_B, eval_C))
@@ -336,7 +336,7 @@ where
       })
       .collect::<Vec<_>>();
 
-    let evals_W = zip_with_fn!(par_iter, (polys_W, r_y), |poly, r_y| {
+    let evals_W = zip_with!(par_iter, (polys_W, r_y), |poly, r_y| {
       MultilinearPolynomial::evaluate_with(poly, &r_y[1..])
     })
     .collect::<Vec<_>>();
@@ -346,7 +346,7 @@ where
       let mut w_vec = Vec::with_capacity(2 * num_instances);
       let mut u_vec = Vec::with_capacity(2 * num_instances);
       w_vec.extend(polys_W.into_iter().map(|poly| PolyEvalWitness { p: poly }));
-      u_vec.extend(zip_with_fn!(iter, (evals_W, U, r_y), |eval, u, r_y| {
+      u_vec.extend(zip_with!(iter, (evals_W, U, r_y), |eval, u, r_y| {
         PolyEvalInstance {
           c: u.comm_W,
           x: r_y[1..].to_vec(),
@@ -449,7 +449,7 @@ where
 
     // Extract evaluations into a vector [(Azᵢ, Bzᵢ, Czᵢ, Eᵢ)]
     // TODO: This is a multizip, simplify
-    let ABCE_evals = zip_with_fn!(
+    let ABCE_evals = zip_with!(
       iter,
       (
         self.evals_E,
@@ -472,7 +472,7 @@ where
       });
 
     // Evaluate τ(rₓ) for each instance
-    let evals_tau = zip_with_fn!(iter, (polys_tau, r_x), |poly_tau, r_x| poly_tau
+    let evals_tau = zip_with!(iter, (polys_tau, r_x), |poly_tau, r_x| poly_tau
       .evaluate(r_x));
 
     // Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
@@ -522,7 +522,7 @@ where
 
     // Compute evaluations of Zᵢ = [Wᵢ, uᵢ, Xᵢ] at r_y
     // Zᵢ(r_y) = (1−r_y[0])⋅W(r_y[1..]) + r_y[0]⋅MLE([uᵢ, Xᵢ])(r_y[1..])
-    let evals_Z = zip_with_fn!(iter, (self.evals_W, U, r_y), |eval_W, U, r_y| {
+    let evals_Z = zip_with!(iter, (self.evals_W, U, r_y), |eval_W, U, r_y| {
       let eval_X = {
         // constant term
         let mut poly_X = vec![(0, U.u)];
@@ -571,7 +571,7 @@ where
     };
 
     // Compute inner claim ∑ᵢ r³ⁱ⋅(Aᵢ(r_x, r_y) + r⋅Bᵢ(r_x, r_y) + r²⋅Cᵢ(r_x, r_y))⋅Zᵢ(r_y)
-    let claim_inner_final_expected = zip_with_fn!(
+    let claim_inner_final_expected = zip_with!(
       iter,
       (vk.S, r_x, r_y, evals_Z, inner_r_powers),
       |S, r_x, r_y, eval_Z, r_i| {
@@ -589,29 +589,21 @@ where
     // Create evaluation instances for W(r_y[1..]) and E(r_x)
     let u_vec = {
       let mut u_vec = Vec::with_capacity(2 * num_instances);
-      u_vec.extend(zip_with_fn!(
-        iter,
-        (self.evals_W, U, r_y),
-        |eval, u, r_y| {
-          PolyEvalInstance {
-            c: u.comm_W,
-            x: r_y[1..].to_vec(),
-            e: *eval,
-          }
+      u_vec.extend(zip_with!(iter, (self.evals_W, U, r_y), |eval, u, r_y| {
+        PolyEvalInstance {
+          c: u.comm_W,
+          x: r_y[1..].to_vec(),
+          e: *eval,
         }
-      ));
+      }));
 
-      u_vec.extend(zip_with_fn!(
-        iter,
-        (self.evals_E, U, r_x),
-        |eval, u, r_x| {
-          PolyEvalInstance {
-            c: u.comm_E,
-            x: r_x.to_vec(),
-            e: *eval,
-          }
+      u_vec.extend(zip_with!(iter, (self.evals_E, U, r_x), |eval, u, r_x| {
+        PolyEvalInstance {
+          c: u.comm_E,
+          x: r_x.to_vec(),
+          e: *eval,
         }
-      ));
+      }));
       u_vec
     };
 

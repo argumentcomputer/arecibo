@@ -83,7 +83,7 @@ impl<E: Engine> SumcheckProof<E> {
     // claim = ∑ᵢ coeffᵢ⋅2^{n-nᵢ}⋅cᵢ
     let claim = zip_with!(
       (
-        zip_with_fn!(iter, (claims, num_rounds), |claim, num_rounds| {
+        zip_with!(iter, (claims, num_rounds), |claim, num_rounds| {
           let scaling_factor = 1 << (num_rounds_max - num_rounds);
           E::Scalar::from(scaling_factor as u64) * claim
         }),
@@ -215,7 +215,7 @@ impl<E: Engine> SumcheckProof<E> {
     }
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
-    let mut e = zip_with_fn!(
+    let mut e = zip_with!(
       iter,
       (claims, num_rounds, coeffs),
       |claim, num_rounds, coeff| {
@@ -229,7 +229,7 @@ impl<E: Engine> SumcheckProof<E> {
 
     for current_round in 0..num_rounds_max {
       let remaining_rounds = num_rounds_max - current_round;
-      let evals: Vec<(E::Scalar, E::Scalar)> = zip_with_fn!(
+      let evals: Vec<(E::Scalar, E::Scalar)> = zip_with!(
         par_iter,
         (num_rounds, claims, poly_A_vec, poly_B_vec),
         |num_rounds, claim, poly_A, poly_B| {
@@ -289,7 +289,7 @@ impl<E: Engine> SumcheckProof<E> {
       .map(|poly| poly[0])
       .collect::<Vec<_>>();
 
-    let eval_expected = zip_with_fn!(
+    let eval_expected = zip_with!(
       iter,
       (poly_A_final, poly_B_final, coeffs),
       |eA, eB, coeff| comb_func(eA, eB) * coeff
@@ -527,7 +527,7 @@ impl<E: Engine> SumcheckProof<E> {
 
     let mut r: Vec<E::Scalar> = Vec::new();
     let mut polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
-    let mut claim_per_round = zip_with_fn!(
+    let mut claim_per_round = zip_with!(
       iter,
       (claims, num_rounds, coeffs),
       |claim, num_rounds, coeff| {
@@ -539,7 +539,7 @@ impl<E: Engine> SumcheckProof<E> {
 
     for current_round in 0..num_rounds_max {
       let remaining_rounds = num_rounds_max - current_round;
-      let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = zip_with_fn!(
+      let evals: Vec<(E::Scalar, E::Scalar, E::Scalar)> = zip_with!(
         par_iter,
         (num_rounds, claims, poly_A_vec, poly_B_vec, poly_C_vec, poly_D_vec),
         |num_rounds, claim, poly_A, poly_B, poly_C, poly_D| {
