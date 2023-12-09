@@ -31,8 +31,8 @@ use crate::{
     snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
     Engine, TranscriptEngineTrait,
   },
-  zip_with, zip_with_iter, zip_with_par_iter, zip_with_par_iter_mut_for_each, Commitment,
-  CommitmentKey, CompressedCommitment,
+  zip_with, zip_with_fn, zip_with_par_iter_mut_for_each, Commitment, CommitmentKey,
+  CompressedCommitment,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -281,7 +281,7 @@ where
     let num_instances = U.len();
 
     // Pad [(Wᵢ,Eᵢ)] to the next power of 2 (not to Ni)
-    let W = zip_with_par_iter!((W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
+    let W = zip_with_fn!(par_iter, (W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
 
     // number of rounds of sum-check
     let num_rounds_sc = N.iter().max().unwrap().log_2();
@@ -298,7 +298,7 @@ where
     });
 
     // Append public inputs to Wᵢ: Zᵢ = [Wᵢ, uᵢ, Xᵢ]
-    let polys_Z = zip_with_par_iter!((W, U, N), |W, U, Ni| {
+    let polys_Z = zip_with_fn!(par_iter, (W, U, N), |W, U, Ni| {
       // poly_Z will be resized later, so we preallocate the correct capacity
       let mut poly_Z = Vec::with_capacity(*Ni);
       poly_Z.extend(W.W.iter().chain([&U.u]).chain(U.X.iter()));
@@ -311,7 +311,7 @@ where
     let (polys_W, polys_E): (Vec<_>, Vec<_>) = W.into_iter().map(|w| (w.W, w.E)).unzip();
 
     // Compute [Az, Bz, Cz]
-    let mut polys_Az_Bz_Cz = zip_with_par_iter!((polys_Z, S), |z, s| {
+    let mut polys_Az_Bz_Cz = zip_with_fn!(par_iter, (polys_Z, S), |z, s| {
       let (Az, Bz, Cz) = s.multiply_vec(z)?;
       Ok([Az, Bz, Cz])
     })
@@ -356,8 +356,10 @@ where
       });
 
     // Evaluate and commit to [Az(tau), Bz(tau), Cz(tau)]
-    let evals_Az_Bz_Cz_at_tau =
-      zip_with_par_iter!((polys_Az_Bz_Cz, coords_tau), |ABCs, tau_coords| {
+    let evals_Az_Bz_Cz_at_tau = zip_with_fn!(
+      par_iter,
+      (polys_Az_Bz_Cz, coords_tau),
+      |ABCs, tau_coords| {
         let [Az, Bz, Cz] = ABCs;
         let (eval_Az, (eval_Bz, eval_Cz)) = rayon::join(
           || MultilinearPolynomial::evaluate_with(Az, tau_coords),
@@ -369,8 +371,9 @@ where
           },
         );
         [eval_Az, eval_Bz, eval_Cz]
-      })
-      .collect::<Vec<_>>();
+      }
+    )
+    .collect::<Vec<_>>();
 
     // absorb the claimed evaluations into the transcript
     evals_Az_Bz_Cz_at_tau.iter().for_each(|evals| {
@@ -410,8 +413,10 @@ where
     // (2) send commitments to the following two oracles
     // L_row(i) = eq(tau, row(i)) for all i in [0..Nᵢ]
     // L_col(i) = z(col(i)) for all i in [0..Nᵢ]
-    let polys_L_row_col =
-      zip_with_par_iter!((S, N, polys_Z, polys_tau), |S, Ni, poly_Z, poly_tau| {
+    let polys_L_row_col = zip_with_fn!(
+      par_iter,
+      (S, N, polys_Z, polys_tau),
+      |S, Ni, poly_Z, poly_tau| {
         let mut L_row = vec![poly_tau[0]; *Ni]; // we place mem_row[0] since resized row is appended with 0s
         let mut L_col = vec![poly_Z[Ni - 1]; *Ni]; // we place mem_col[Ni-1] since resized col is appended with Ni-1
 
@@ -428,8 +433,9 @@ where
         }
 
         [L_row, L_col]
-      })
-      .collect::<Vec<_>>();
+      }
+    )
+    .collect::<Vec<_>>();
 
     let comms_L_row_col = polys_L_row_col
       .par_iter()
@@ -457,7 +463,8 @@ where
       })
       .collect();
 
-    let evals_Mz: Vec<_> = zip_with_iter!(
+    let evals_Mz: Vec<_> = zip_with_fn!(
+      iter,
       (comms_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau),
       |comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau| {
         let u = PolyEvalInstance::<E>::batch(
@@ -491,7 +498,7 @@ where
       ),
       |poly_ABC, poly_E, poly_Mz, poly_tau, eval_Mz, u| {
         let [poly_Az, poly_Bz, poly_Cz] = poly_ABC;
-        let poly_uCz_E = zip_with_par_iter!((poly_Cz, poly_E), |cz, e| *u * cz + e).collect();
+        let poly_uCz_E = zip_with_fn!(par_iter, (poly_Cz, poly_E), |cz, e| *u * cz + e).collect();
         OuterSumcheckInstance::new(
           poly_tau.clone(),
           poly_Az.clone(),
@@ -504,12 +511,14 @@ where
     )
     .collect::<Vec<_>>();
 
-    let inner_sc_inst = zip_with_par_iter!(
+    let inner_sc_inst = zip_with_fn!(
+      par_iter,
       (pk.S_repr, evals_Mz, polys_L_row_col),
       |s_repr, eval_Mz, poly_L| {
         let [poly_L_row, poly_L_col] = poly_L;
         let c_square = c.square();
-        let val = zip_with_par_iter!(
+        let val = zip_with_fn!(
+          par_iter,
           (s_repr.val_A, s_repr.val_B, s_repr.val_C),
           |v_a, v_b, v_c| *v_a + c * *v_b + c_square * *v_c
         )
@@ -595,7 +604,7 @@ where
       (instances, comms_mem_oracles, polys_mem_oracles)
     };
 
-    let witness_sc_inst = zip_with_par_iter!((polys_W, S), |poly_W, S| {
+    let witness_sc_inst = zip_with_fn!(par_iter, (polys_W, S), |poly_W, S| {
       WitnessBoundSumcheck::new(tau, poly_W.clone(), S.num_vars)
     })
     .collect::<Vec<_>>();
@@ -642,7 +651,8 @@ where
         .map(|claims| claims[0][0])
         .collect::<Vec<_>>();
 
-      let (evals_Cz_E, evals_mem_val_row_col): (Vec<_>, Vec<_>) = zip_with_iter!(
+      let (evals_Cz_E, evals_mem_val_row_col): (Vec<_>, Vec<_>) = zip_with_fn!(
+        iter,
         (polys_Az_Bz_Cz, polys_E, pk.S_repr),
         |ABCzs, poly_E, s_repr| {
           let [_, _, Cz] = ABCzs;
@@ -661,7 +671,7 @@ where
           .into_iter()
           .map(|p| {
             // Manually compute evaluation to avoid recomputing rand_sc_evals
-            zip_with_par_iter!((p, rand_sc_evals), |p, eq| *p * eq).sum()
+            zip_with_fn!(par_iter, (p, rand_sc_evals), |p, eq| *p * eq).sum()
           })
           .collect::<Vec<E::Scalar>>();
           ([e[0], e[1]], [e[2], e[3], e[4], e[5], e[6]])
@@ -697,7 +707,8 @@ where
       )
     };
 
-    let evals_vec = zip_with_iter!(
+    let evals_vec = zip_with_fn!(
+      iter,
       (
         evals_Az_Bz_Cz_W_E,
         evals_L_row_col,
@@ -712,7 +723,8 @@ where
     )
     .collect::<Vec<_>>();
 
-    let comms_vec = zip_with_iter!(
+    let comms_vec = zip_with_fn!(
+      iter,
       (
         comms_Az_Bz_Cz,
         comms_W_E,
@@ -898,7 +910,8 @@ where
     let c = transcript.squeeze(b"c")?;
 
     // Compute eval_Mz = eval_Az_at_tau + c * eval_Bz_at_tau + c^2 * eval_Cz_at_tau
-    let evals_Mz: Vec<_> = zip_with_iter!(
+    let evals_Mz: Vec<_> = zip_with_fn!(
+      iter,
       (comms_Az_Bz_Cz, self.evals_Az_Bz_Cz_at_tau),
       |comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau| {
         let u = PolyEvalInstance::<E>::batch(
@@ -1084,7 +1097,8 @@ where
       return Err(NovaError::InvalidSumcheckProof);
     }
 
-    let evals_vec = zip_with_iter!(
+    let evals_vec = zip_with_fn!(
+      iter,
       (
         self.evals_Az_Bz_Cz_W_E,
         self.evals_L_row_col,
@@ -1246,7 +1260,8 @@ where
     // Collect all claims from the instances. If the instances is defined over `m` variables,
     // which is less that the total number of rounds `n`,
     // the individual claims σ are scaled by 2^{n-m}.
-    let claims = zip_with_iter!(
+    let claims = zip_with_fn!(
+      iter,
       (mem, outer, inner, witness),
       |mem, outer, inner, witness| {
         Self::scaled_claims(mem, num_rounds)
@@ -1266,7 +1281,7 @@ where
     // At the start of each round, the running claim is equal to the random linear combination
     // of the Sumcheck claims, evaluated over the bound polynomials.
     // Initially, it is equal to the random linear combination of the scaled input claims.
-    let mut running_claim = zip_with_iter!((claims, coeffs), |c_1, c_2| *c_1 * c_2).sum();
+    let mut running_claim = zip_with_fn!(iter, (claims, coeffs), |c_1, c_2| *c_1 * c_2).sum();
 
     // Keep track of the verifier challenges r, and the univariate polynomials sent by the prover
     // in each round
@@ -1281,7 +1296,8 @@ where
       // at X = 0, 2, 3. The polynomial is such that S_{j-1}(r_{j-1}) = S_j(0) + S_j(1).
       // If the number of variable m of the claim is m < n-i, then the polynomial is
       // constants and equal to the initial claim σ_j scaled by 2^{n-m-i-1}.
-      let evals = zip_with_par_iter!(
+      let evals = zip_with_fn!(
+        par_iter,
         (mem, outer, inner, witness),
         |mem, outer, inner, witness| {
           let ((evals_mem, evals_outer), (evals_inner, evals_witness)) = rayon::join(

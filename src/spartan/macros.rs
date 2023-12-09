@@ -25,38 +25,6 @@ macro_rules! zip_with {
     }};
 }
 
-/// Like `zip_with` but call `iter()` on each input to produce the iterators.
-#[macro_export]
-macro_rules! zip_with_iter {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_with_fn!(iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
-    }};
-}
-
-/// Like `zip_with` but call `par_iter()` on each input to produce the iterators.
-#[macro_export]
-macro_rules! zip_with_par_iter {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_with_fn!(par_iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
-    }};
-}
-
-/// Like `zip_with` but call `into_iter()` on each input to produce the iterators.
-#[macro_export]
-macro_rules! zip_with_into_iter {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_with_fn!(into_iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
-    }};
-}
-
-/// Like `zip_with` but call `into_par_iter()` on each input to produce the iterators.
-#[macro_export]
-macro_rules! zip_with_into_par_iter {
-    (($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-     $crate::zip_with_fn!(into_par_iter, ($e $(, $rest)*), $($move)? |$($i),+| $($work)*)
-    }};
-}
-
 /// General utility macro for `zip_with` variants where iterator-producer and optional post-zip function can be
 /// specified.
 #[macro_export]
