@@ -225,7 +225,7 @@ where
 
   fn setup(
     ck: &CommitmentKey<E>,
-    S: &[R1CSShape<E>],
+    S: Vec<&R1CSShape<E>>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     for s in S.iter() {
       // check the provided commitment key meets minimal requirements
@@ -256,7 +256,7 @@ where
   fn prove(
     ck: &CommitmentKey<E>,
     pk: &Self::ProverKey,
-    S: &[R1CSShape<E>],
+    S: Vec<&R1CSShape<E>>,
     U: &[RelaxedR1CSInstance<E>],
     W: &[RelaxedR1CSWitness<E>],
   ) -> Result<Self, NovaError> {
