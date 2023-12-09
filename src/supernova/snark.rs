@@ -119,7 +119,7 @@ where
     ),
     SuperNovaError,
   > {
-    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp.primary_r1cs_shapes())?;
+    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, pp.primary_r1cs_shapes())?;
 
     let (pk_secondary, vk_secondary) =
       S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
@@ -182,7 +182,7 @@ where
     let r_W_snark_primary = S1::prove(
       &pp.ck_primary,
       &pk.pk_primary,
-      &pp.primary_r1cs_shapes(),
+      pp.primary_r1cs_shapes(),
       &r_U_primary,
       &r_W_primary,
     )?;

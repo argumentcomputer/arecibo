@@ -385,12 +385,11 @@ where
   }
 
   /// Returns all the primary R1CS Shapes
-  pub fn primary_r1cs_shapes(&self) -> Vec<R1CSShape<E1>> {
+  pub fn primary_r1cs_shapes(&self) -> Vec<&R1CSShape<E1>> {
     self
       .circuit_shapes
-      .clone()
-      .into_iter()
-      .map(|cs| cs.r1cs_shape)
+      .iter()
+      .map(|cs| &cs.r1cs_shape)
       .collect::<Vec<_>>()
   }
 }
