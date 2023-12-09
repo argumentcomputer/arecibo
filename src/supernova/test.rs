@@ -878,18 +878,7 @@ where
     &z0_secondary,
   )
   .map_err(|err| {
-    print_constraints_name_on_error_index(
-      &err,
-      &pp,
-      circuit_primary,
-      &circuit_secondary,
-      <RootCheckingCircuit<E1::Scalar> as NonUniformCircuit<
-        E1,
-        E2,
-        RootCheckingCircuit<E1::Scalar>,
-        TrivialSecondaryCircuit<E1::Base>,
-      >>::num_circuits(circuit_primary),
-    )
+    print_constraints_name_on_error_index(&err, &pp, circuit_primary, &circuit_secondary, 2)
   })
   .unwrap();
 
@@ -897,18 +886,7 @@ where
     let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
     assert!(res
       .map_err(|err| {
-        print_constraints_name_on_error_index(
-          &err,
-          &pp,
-          circuit_primary,
-          &circuit_secondary,
-          <RootCheckingCircuit<E1::Scalar> as NonUniformCircuit<
-            E1,
-            E2,
-            RootCheckingCircuit<E1::Scalar>,
-            TrivialSecondaryCircuit<E1::Base>,
-          >>::num_circuits(circuit_primary),
-        )
+        print_constraints_name_on_error_index(&err, &pp, circuit_primary, &circuit_secondary, 2)
       })
       .is_ok());
 
@@ -916,18 +894,7 @@ where
     let res = recursive_snark
       .verify(&pp, 0, &z0_primary, &z0_secondary)
       .map_err(|err| {
-        print_constraints_name_on_error_index(
-          &err,
-          &pp,
-          circuit_primary,
-          &circuit_secondary,
-          <RootCheckingCircuit<E1::Scalar> as NonUniformCircuit<
-            E1,
-            E2,
-            RootCheckingCircuit<E1::Scalar>,
-            TrivialSecondaryCircuit<E1::Base>,
-          >>::num_circuits(circuit_primary),
-        )
+        print_constraints_name_on_error_index(&err, &pp, circuit_primary, &circuit_secondary, 2)
       });
     assert!(res.is_ok());
   }
