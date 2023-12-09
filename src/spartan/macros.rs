@@ -72,20 +72,7 @@ macro_rules! zip_with_for_each {
     }};
 }
 
-// Fold-right like nesting pattern for expressions a, b, c, d => (a, (b, (c, d)))
-#[doc(hidden)]
-#[allow(unused_macros)]
-#[macro_export]
-macro_rules! nested_tuple {
-    ($a:expr, $b:expr) => {
-        ($a, $b)
-    };
-    ($first:expr, $($rest:expr),+) => {
-        ($first, $crate::nested_tuple!($($rest),+))
-    };
-}
-
-// Same as the above for idents
+// Foldright-like nesting for idents (a, b, c) -> (a, (b, c))
 #[doc(hidden)]
 #[allow(unused_macro_rules)]
 #[macro_export]
