@@ -29,12 +29,12 @@ macro_rules! zip_with {
     //   vec1.par_iter().zip_eq(vec2.par_iter().zip_eq(vec3.par_iter())).map(|(a, (b, c))| a + b + c)
     // ````
     ($($f:ident,)? ($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_with!($($f,)? ($e $(, $rest)*), [map], $($move)? |$($i),+| $($work)*)
+        $crate::zip_with!($($f,)? ($e $(, $rest)*), map, $($move)? |$($i),+| $($work)*)
     }};
     // no iterator projection specified: the macro assumes the arguments *are* iterators
     // optional zipping function specified as well: use it instead of map
     // ```ignore
-    // zip_with!((iter1, iter2, iter3), [for_each], |a, b, c| a + b + c) ->
+    // zip_with!((iter1, iter2, iter3), for_each, |a, b, c| a + b + c) ->
     //   iter1.zip_eq(iter2.zip_eq(iter3)).for_each(|(a, (b, c))| a + b + c)
     // ```
     //
@@ -42,10 +42,10 @@ macro_rules! zip_with {
     // iterator projection specified: use it on each argument
     // optional zipping function specified as well: use it instead of map
     // ```ignore
-    // zip_with!(par_iter, (vec1, vec2, vec3), [for_each], |a, b, c| a + b + c) ->
+    // zip_with!(par_iter, (vec1, vec2, vec3), for_each, |a, b, c| a + b + c) ->
     //   vec1.part_iter().zip_eq(vec2.par_iter().zip_eq(vec3.par_iter())).for_each(|(a, (b, c))| a + b + c)
     // ```
-    ($($f:ident,)? ($e:expr $(, $rest:expr)*), [$worker:ident], $($move:ident,)? |$($i:ident),+ $(,)?|  $($work:tt)*) => {{
+    ($($f:ident,)? ($e:expr $(, $rest:expr)*), $worker:ident, $($move:ident,)? |$($i:ident),+ $(,)?|  $($work:tt)*) => {{
         $crate::zip_all!($($f,)? ($e $(, $rest)*))
             .$worker($($move)? |$crate::nested_idents!($($i),+)| {
                 $($work)*
@@ -68,7 +68,7 @@ macro_rules! zip_with_for_each {
     //   vec1.par_iter().zip_eq(vec2.par_iter().zip_eq(vec3.par_iter())).for_each(|(a, (b, c))| a + b + c)
     // ````
     ($($f:ident,)? ($e:expr $(, $rest:expr)*), $($move:ident)? |$($i:ident),+ $(,)?| $($work:tt)*) => {{
-        $crate::zip_with!($($f,)? ($e $(, $rest)*), [for_each], $($move)? |$($i),+| $($work)*)
+        $crate::zip_with!($($f,)? ($e $(, $rest)*), for_each, $($move)? |$($i),+| $($work)*)
     }};
 }
 
