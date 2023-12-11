@@ -73,7 +73,7 @@ where
     point: &[E::Scalar],
     eval: &E::Scalar,
   ) -> Result<Self::EvaluationArgument, NovaError> {
-    let u = InnerProductInstance::new(comm, &EqPolynomial::new(point.to_vec()).evals(), eval);
+    let u = InnerProductInstance::new(comm, &EqPolynomial::evals_from_points(point), eval);
     let w = InnerProductWitness::new(poly);
 
     InnerProductArgument::prove(ck, &pk.ck_s, &u, &w, transcript)
@@ -88,7 +88,7 @@ where
     eval: &E::Scalar,
     arg: &Self::EvaluationArgument,
   ) -> Result<(), NovaError> {
-    let u = InnerProductInstance::new(comm, &EqPolynomial::new(point.to_vec()).evals(), eval);
+    let u = InnerProductInstance::new(comm, &EqPolynomial::evals_from_points(point), eval);
 
     arg.verify(
       &vk.ck_v,

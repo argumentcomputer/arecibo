@@ -26,7 +26,7 @@ use crate::{
     snark::{DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Engine, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, CompressedCommitment,
+  zip_with, Commitment, CommitmentKey, CompressedCommitment,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -50,25 +50,25 @@ fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar>
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkRepr<E: Engine> {
-  N: usize, // size of the vectors
+  pub(in crate::spartan) N: usize, // size of the vectors
 
   // dense representation
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  row: Vec<E::Scalar>,
+  pub(in crate::spartan) row: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  col: Vec<E::Scalar>,
+  pub(in crate::spartan) col: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  val_A: Vec<E::Scalar>,
+  pub(in crate::spartan) val_A: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  val_B: Vec<E::Scalar>,
+  pub(in crate::spartan) val_B: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  val_C: Vec<E::Scalar>,
+  pub(in crate::spartan) val_C: Vec<E::Scalar>,
 
   // timestamp polynomials
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  ts_row: Vec<E::Scalar>,
+  pub(in crate::spartan) ts_row: Vec<E::Scalar>,
   #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
-  ts_col: Vec<E::Scalar>,
+  pub(in crate::spartan) ts_col: Vec<E::Scalar>,
 }
 
 /// A type that holds a commitment to a sparse polynomial
@@ -76,18 +76,18 @@ pub struct R1CSShapeSparkRepr<E: Engine> {
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkCommitment<E: Engine> {
-  N: usize, // size of each vector
+  pub(in crate::spartan) N: usize, // size of each vector
 
   // commitments to the dense representation
-  comm_row: Commitment<E>,
-  comm_col: Commitment<E>,
-  comm_val_A: Commitment<E>,
-  comm_val_B: Commitment<E>,
-  comm_val_C: Commitment<E>,
+  pub(in crate::spartan) comm_row: Commitment<E>,
+  pub(in crate::spartan) comm_col: Commitment<E>,
+  pub(in crate::spartan) comm_val_A: Commitment<E>,
+  pub(in crate::spartan) comm_val_B: Commitment<E>,
+  pub(in crate::spartan) comm_val_C: Commitment<E>,
 
   // commitments to the timestamp polynomials
-  comm_ts_row: Commitment<E>,
-  comm_ts_col: Commitment<E>,
+  pub(in crate::spartan) comm_ts_row: Commitment<E>,
+  pub(in crate::spartan) comm_ts_col: Commitment<E>,
 }
 
 impl<E: Engine> TranscriptReprTrait<E::GE> for R1CSShapeSparkCommitment<E> {
@@ -183,7 +183,7 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
     }
   }
 
-  fn commit(&self, ck: &CommitmentKey<E>) -> R1CSShapeSparkCommitment<E> {
+  pub(in crate::spartan) fn commit(&self, ck: &CommitmentKey<E>) -> R1CSShapeSparkCommitment<E> {
     let comm_vec: Vec<Commitment<E>> = [
       &self.row,
       &self.col,
@@ -210,7 +210,7 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
   }
 
   // computes evaluation oracles
-  fn evaluation_oracles(
+  pub(in crate::spartan) fn evaluation_oracles(
     &self,
     S: &R1CSShape<E>,
     r_x: &E::Scalar,
@@ -267,7 +267,7 @@ pub trait SumcheckEngine<E: Engine>: Send + Sync {
   fn final_claims(&self) -> Vec<Vec<E::Scalar>>;
 }
 
-struct MemorySumcheckInstance<E: Engine> {
+pub(in crate::spartan) struct MemorySumcheckInstance<E: Engine> {
   // row
   w_plus_r_row: MultilinearPolynomial<E::Scalar>,
   t_plus_r_row: MultilinearPolynomial<E::Scalar>,
@@ -290,17 +290,65 @@ struct MemorySumcheckInstance<E: Engine> {
 }
 
 impl<E: Engine> MemorySumcheckInstance<E> {
-  pub fn new(
+  /// Computes witnesses for MemoryInstanceSumcheck
+  ///
+  /// # Description
+  /// We use the logUp protocol to prove that
+  /// ∑ TS[i]/(T[i] + r) - 1/(W[i] + r) = 0
+  /// where
+  ///   T_row[i] = mem_row[i]      * gamma + i
+  ///            = eq(tau)[i]      * gamma + i
+  ///   W_row[i] = L_row[i]        * gamma + addr_row[i]
+  ///            = eq(tau)[row[i]] * gamma + addr_row[i]
+  ///   T_col[i] = mem_col[i]      * gamma + i
+  ///            = z[i]            * gamma + i
+  ///   W_col[i] = addr_col[i]     * gamma + addr_col[i]
+  ///            = z[col[i]]       * gamma + addr_col[i]
+  /// and
+  ///   TS_row, TS_col are integer-valued vectors representing the number of reads
+  ///   to each memory cell of L_row, L_col
+  ///
+  /// The function returns oracles for the polynomials TS[i]/(T[i] + r), 1/(W[i] + r),
+  /// as well as auxiliary polynomials T[i] + r, W[i] + r
+  pub fn compute_oracles(
     ck: &CommitmentKey<E>,
     r: &E::Scalar,
-    T_row: &[E::Scalar],
-    W_row: &[E::Scalar],
-    ts_row: Vec<E::Scalar>,
-    T_col: &[E::Scalar],
-    W_col: &[E::Scalar],
-    ts_col: Vec<E::Scalar>,
-    transcript: &mut E::TE,
-  ) -> Result<(Self, [Commitment<E>; 4], [Vec<E::Scalar>; 4]), NovaError> {
+    gamma: &E::Scalar,
+    mem_row: &[E::Scalar],
+    addr_row: &[E::Scalar],
+    L_row: &[E::Scalar],
+    ts_row: &[E::Scalar],
+    mem_col: &[E::Scalar],
+    addr_col: &[E::Scalar],
+    L_col: &[E::Scalar],
+    ts_col: &[E::Scalar],
+  ) -> Result<([Commitment<E>; 4], [Vec<E::Scalar>; 4], [Vec<E::Scalar>; 4]), NovaError> {
+    // hash the tuples of (addr,val) memory contents and read responses into a single field element using `hash_func`
+    let hash_func_vec = |mem: &[E::Scalar],
+                         addr: &[E::Scalar],
+                         lookups: &[E::Scalar]|
+     -> (Vec<E::Scalar>, Vec<E::Scalar>) {
+      let hash_func = |addr: &E::Scalar, val: &E::Scalar| -> E::Scalar { *val * gamma + *addr };
+      assert_eq!(addr.len(), lookups.len());
+      rayon::join(
+        || {
+          (0..mem.len())
+            .map(|i| hash_func(&E::Scalar::from(i as u64), &mem[i]))
+            .collect::<Vec<E::Scalar>>()
+        },
+        || {
+          (0..addr.len())
+            .map(|i| hash_func(&addr[i], &lookups[i]))
+            .collect::<Vec<E::Scalar>>()
+        },
+      )
+    };
+
+    let ((T_row, W_row), (T_col, W_col)) = rayon::join(
+      || hash_func_vec(mem_row, addr_row, L_row),
+      || hash_func_vec(mem_col, addr_col, L_col),
+    );
+
     let batch_invert = |v: &[E::Scalar]| -> Result<Vec<E::Scalar>, NovaError> {
       let mut products = vec![E::Scalar::ZERO; v.len()];
       let mut acc = E::Scalar::ONE;
@@ -351,10 +399,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
 
               // compute inv[i] * TS[i] in parallel
               Ok(
-                inv
-                  .par_iter()
-                  .zip_eq(TS.par_iter())
-                  .map(|(e1, e2)| *e1 * *e2)
+                zip_with!((inv.into_par_iter(), TS.par_iter()), |e1, e2| e1 * *e2)
                   .collect::<Vec<_>>(),
               )
             },
@@ -374,8 +419,8 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       ((t_plus_r_inv_row, w_plus_r_inv_row), (t_plus_r_row, w_plus_r_row)),
       ((t_plus_r_inv_col, w_plus_r_inv_col), (t_plus_r_col, w_plus_r_col)),
     ) = rayon::join(
-      || helper(T_row, W_row, &ts_row, r),
-      || helper(T_col, W_col, &ts_col, r),
+      || helper(&T_row, &W_row, ts_row, r),
+      || helper(&T_col, &W_col, ts_col, r),
     );
 
     let t_plus_r_inv_row = t_plus_r_inv_row?;
@@ -401,21 +446,6 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       },
     );
 
-    // absorb the commitments
-    transcript.absorb(
-      b"l",
-      &[
-        comm_t_plus_r_inv_row,
-        comm_w_plus_r_inv_row,
-        comm_t_plus_r_inv_col,
-        comm_w_plus_r_inv_col,
-      ]
-      .as_slice(),
-    );
-
-    let rho = transcript.squeeze(b"r")?;
-    let poly_eq = MultilinearPolynomial::new(PowPolynomial::new(&rho, T_row.len().log_2()).evals());
-
     let comm_vec = [
       comm_t_plus_r_inv_row,
       comm_w_plus_r_inv_row,
@@ -424,32 +454,43 @@ impl<E: Engine> MemorySumcheckInstance<E> {
     ];
 
     let poly_vec = [
-      t_plus_r_inv_row.clone(),
-      w_plus_r_inv_row.clone(),
-      t_plus_r_inv_col.clone(),
-      w_plus_r_inv_col.clone(),
+      t_plus_r_inv_row,
+      w_plus_r_inv_row,
+      t_plus_r_inv_col,
+      w_plus_r_inv_col,
     ];
 
-    let zero = vec![E::Scalar::ZERO; t_plus_r_inv_row.len()];
+    let aux_poly_vec = [t_plus_r_row?, w_plus_r_row?, t_plus_r_col?, w_plus_r_col?];
 
-    Ok((
-      Self {
-        w_plus_r_row: MultilinearPolynomial::new(w_plus_r_row?),
-        t_plus_r_row: MultilinearPolynomial::new(t_plus_r_row?),
-        t_plus_r_inv_row: MultilinearPolynomial::new(t_plus_r_inv_row),
-        w_plus_r_inv_row: MultilinearPolynomial::new(w_plus_r_inv_row),
-        ts_row: MultilinearPolynomial::new(ts_row),
-        w_plus_r_col: MultilinearPolynomial::new(w_plus_r_col?),
-        t_plus_r_col: MultilinearPolynomial::new(t_plus_r_col?),
-        t_plus_r_inv_col: MultilinearPolynomial::new(t_plus_r_inv_col),
-        w_plus_r_inv_col: MultilinearPolynomial::new(w_plus_r_inv_col),
-        ts_col: MultilinearPolynomial::new(ts_col),
-        poly_eq,
-        poly_zero: MultilinearPolynomial::new(zero),
-      },
-      comm_vec,
-      poly_vec,
-    ))
+    Ok((comm_vec, poly_vec, aux_poly_vec))
+  }
+
+  pub fn new(
+    polys_oracle: [Vec<E::Scalar>; 4],
+    polys_aux: [Vec<E::Scalar>; 4],
+    poly_eq: Vec<E::Scalar>,
+    ts_row: Vec<E::Scalar>,
+    ts_col: Vec<E::Scalar>,
+  ) -> Self {
+    let [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col] = polys_oracle;
+    let [t_plus_r_row, w_plus_r_row, t_plus_r_col, w_plus_r_col] = polys_aux;
+
+    let zero = vec![E::Scalar::ZERO; poly_eq.len()];
+
+    Self {
+      w_plus_r_row: MultilinearPolynomial::new(w_plus_r_row),
+      t_plus_r_row: MultilinearPolynomial::new(t_plus_r_row),
+      t_plus_r_inv_row: MultilinearPolynomial::new(t_plus_r_inv_row),
+      w_plus_r_inv_row: MultilinearPolynomial::new(w_plus_r_inv_row),
+      ts_row: MultilinearPolynomial::new(ts_row),
+      w_plus_r_col: MultilinearPolynomial::new(w_plus_r_col),
+      t_plus_r_col: MultilinearPolynomial::new(t_plus_r_col),
+      t_plus_r_inv_col: MultilinearPolynomial::new(t_plus_r_inv_col),
+      w_plus_r_inv_col: MultilinearPolynomial::new(w_plus_r_inv_col),
+      ts_col: MultilinearPolynomial::new(ts_col),
+      poly_eq: MultilinearPolynomial::new(poly_eq),
+      poly_zero: MultilinearPolynomial::new(zero),
+    }
   }
 }
 
@@ -494,6 +535,7 @@ impl<E: Engine> SumcheckEngine<E> for MemorySumcheckInstance<E> {
        -> E::Scalar { *poly_A_comp * (*poly_B_comp * *poly_C_comp - *poly_D_comp) };
 
     // inv related evaluation points
+    // 0 = ∑ TS[i]/(T[i] + r) - 1/(W[i] + r)
     let (eval_inv_0_row, eval_inv_2_row, eval_inv_3_row) =
       SumcheckProof::<E>::compute_eval_points_cubic(
         &self.t_plus_r_inv_row,
@@ -511,6 +553,7 @@ impl<E: Engine> SumcheckEngine<E> for MemorySumcheckInstance<E> {
       );
 
     // row related evaluation points
+    // 0 = ∑ eq[i] * (inv_T[i] * (T[i] + r) - TS[i]))
     let (eval_T_0_row, eval_T_2_row, eval_T_3_row) =
       SumcheckProof::<E>::compute_eval_points_cubic_with_additive_term(
         &self.poly_eq,
@@ -519,6 +562,7 @@ impl<E: Engine> SumcheckEngine<E> for MemorySumcheckInstance<E> {
         &self.ts_row,
         &comb_func3,
       );
+    // 0 = ∑ eq[i] * (inv_W[i] * (T[i] + r) - 1))
     let (eval_W_0_row, eval_W_2_row, eval_W_3_row) =
       SumcheckProof::<E>::compute_eval_points_cubic_with_additive_term(
         &self.poly_eq,
@@ -591,7 +635,7 @@ impl<E: Engine> SumcheckEngine<E> for MemorySumcheckInstance<E> {
   }
 }
 
-struct OuterSumcheckInstance<E: Engine> {
+pub(in crate::spartan) struct OuterSumcheckInstance<E: Engine> {
   poly_tau: MultilinearPolynomial<E::Scalar>,
   poly_Az: MultilinearPolynomial<E::Scalar>,
   poly_Bz: MultilinearPolynomial<E::Scalar>,
@@ -695,13 +739,27 @@ impl<E: Engine> SumcheckEngine<E> for OuterSumcheckInstance<E> {
   }
 }
 
-struct InnerSumcheckInstance<E: Engine> {
+pub(in crate::spartan) struct InnerSumcheckInstance<E: Engine> {
   claim: E::Scalar,
   poly_L_row: MultilinearPolynomial<E::Scalar>,
   poly_L_col: MultilinearPolynomial<E::Scalar>,
   poly_val: MultilinearPolynomial<E::Scalar>,
 }
-
+impl<E: Engine> InnerSumcheckInstance<E> {
+  pub fn new(
+    claim: E::Scalar,
+    poly_L_row: MultilinearPolynomial<E::Scalar>,
+    poly_L_col: MultilinearPolynomial<E::Scalar>,
+    poly_val: MultilinearPolynomial<E::Scalar>,
+  ) -> Self {
+    Self {
+      claim,
+      poly_L_row,
+      poly_L_col,
+      poly_val,
+    }
+  }
+}
 impl<E: Engine> SumcheckEngine<E> for InnerSumcheckInstance<E> {
   fn initial_claims(&self) -> Vec<E::Scalar> {
     vec![self.claim]
@@ -870,11 +928,7 @@ where
     let coeffs = powers::<E>(&s, claims.len());
 
     // compute the joint claim
-    let claim = claims
-      .iter()
-      .zip_eq(coeffs.iter())
-      .map(|(c_1, c_2)| *c_1 * c_2)
-      .sum();
+    let claim = zip_with!((claims.iter(), coeffs.iter()), |c_1, c_2| *c_1 * c_2).sum();
 
     let mut e = claim;
     let mut r: Vec<E::Scalar> = Vec::new();
@@ -1134,42 +1188,38 @@ where
         // we now need to prove that L_row and L_col are well-formed
 
         // hash the tuples of (addr,val) memory contents and read responses into a single field element using `hash_func`
-        let hash_func_vec = |mem: &[E::Scalar],
-                             addr: &[E::Scalar],
-                             lookups: &[E::Scalar]|
-         -> (Vec<E::Scalar>, Vec<E::Scalar>) {
-          let hash_func = |addr: &E::Scalar, val: &E::Scalar| -> E::Scalar { *val * gamma + *addr };
-          assert_eq!(addr.len(), lookups.len());
-          rayon::join(
-            || {
-              (0..mem.len())
-                .map(|i| hash_func(&E::Scalar::from(i as u64), &mem[i]))
-                .collect::<Vec<E::Scalar>>()
-            },
-            || {
-              (0..addr.len())
-                .map(|i| hash_func(&addr[i], &lookups[i]))
-                .collect::<Vec<E::Scalar>>()
-            },
-          )
-        };
 
-        let ((T_row, W_row), (T_col, W_col)) = rayon::join(
-          || hash_func_vec(&mem_row, &pk.S_repr.row, &L_row),
-          || hash_func_vec(&mem_col, &pk.S_repr.col, &L_col),
-        );
+        let (comm_mem_oracles, mem_oracles, mem_aux) =
+          MemorySumcheckInstance::<E>::compute_oracles(
+            ck,
+            &r,
+            &gamma,
+            &mem_row,
+            &pk.S_repr.row,
+            &L_row,
+            &pk.S_repr.ts_row,
+            &mem_col,
+            &pk.S_repr.col,
+            &L_col,
+            &pk.S_repr.ts_col,
+          )?;
+        // absorb the commitments
+        transcript.absorb(b"l", &comm_mem_oracles.as_slice());
 
-        MemorySumcheckInstance::new(
-          ck,
-          &r,
-          &T_row,
-          &W_row,
-          pk.S_repr.ts_row.clone(),
-          &T_col,
-          &W_col,
-          pk.S_repr.ts_col.clone(),
-          &mut transcript,
-        )
+        let rho = transcript.squeeze(b"r")?;
+        let poly_eq = MultilinearPolynomial::new(PowPolynomial::new(&rho, num_rounds_sc).evals());
+
+        Ok::<_, NovaError>((
+          MemorySumcheckInstance::new(
+            mem_oracles.clone(),
+            mem_aux,
+            poly_eq.Z,
+            pk.S_repr.ts_row.clone(),
+            pk.S_repr.ts_col.clone(),
+          ),
+          comm_mem_oracles,
+          mem_oracles,
+        ))
       },
     );
 
@@ -1441,10 +1491,7 @@ where
               factor *= E::Scalar::ONE - r_p
             }
 
-            let rand_sc_unpad = {
-              let l = vk.S_comm.N.log_2() - (2 * vk.num_vars).log_2();
-              rand_sc[l..].to_vec()
-            };
+            let rand_sc_unpad = rand_sc[l..].to_vec();
 
             (factor, rand_sc_unpad)
           };
