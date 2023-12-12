@@ -455,13 +455,22 @@ where
     let num_augmented_circuits = non_uniform_circuit.num_circuits();
     let circuit_index = non_uniform_circuit.initial_circuit_index();
 
-    if z0_primary.len() != pp[circuit_index].F_arity
-      || z0_secondary.len() != pp.circuit_shape_secondary.F_arity
-    {
+    // check the length of the secondary initial input
+    if z0_secondary.len() != pp.circuit_shape_secondary.F_arity {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidStepOutputLength,
       ));
     }
+
+    // check the arity of all the primary circuits match the initial input length
+    pp.circuit_shapes.iter().try_for_each(|circuit| {
+      if circuit.F_arity != z0_primary.len() {
+        return Err(SuperNovaError::NovaError(
+          NovaError::InvalidStepOutputLength,
+        ));
+      }
+      Ok(())
+    })?;
 
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
