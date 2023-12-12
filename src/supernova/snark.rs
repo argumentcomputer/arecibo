@@ -528,9 +528,6 @@ mod test {
 
     let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
 
-    let initial_pc = E1::Scalar::ZERO;
-    let augmented_circuit_index = field_as_usize(initial_pc);
-
     let z0_primary = vec![E1::Scalar::from(17u64)];
     let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
 
@@ -547,8 +544,7 @@ mod test {
     for circuit in test_circuits.iter().take(NUM_STEPS) {
       let prove_res = recursive_snark.prove_step(&pp, circuit, &secondary_circuit);
 
-      let verify_res =
-        recursive_snark.verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary);
+      let verify_res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
 
       assert!(prove_res.is_ok());
       assert!(verify_res.is_ok());
@@ -718,9 +714,6 @@ mod test {
 
     let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
 
-    let initial_pc = E1::Scalar::ZERO;
-    let augmented_circuit_index = field_as_usize(initial_pc);
-
     let z0_primary = vec![E1::Scalar::from(17u64)];
     let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
 
@@ -737,8 +730,7 @@ mod test {
     for circuit in test_circuits.iter().take(NUM_STEPS) {
       let prove_res = recursive_snark.prove_step(&pp, circuit, &secondary_circuit);
 
-      let verify_res =
-        recursive_snark.verify(&pp, augmented_circuit_index, &z0_primary, &z0_secondary);
+      let verify_res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
 
       assert!(prove_res.is_ok());
       assert!(verify_res.is_ok());

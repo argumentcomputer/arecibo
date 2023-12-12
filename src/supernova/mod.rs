@@ -412,6 +412,9 @@ where
   // Inputs and outputs of the primary circuits
   z0_primary: Vec<E1::Scalar>,
   zi_primary: Vec<E1::Scalar>,
+
+  // Proven circuit index, and current program counter
+  proven_circuit_index: usize,
   program_counter: E1::Scalar,
 
   // Relaxed instances for the primary circuits
@@ -582,6 +585,8 @@ where
       i: 0_usize, // after base case, next iteration start from 1
       z0_primary: z0_primary.to_vec(),
       zi_primary,
+
+      proven_circuit_index: circuit_index,
       program_counter: zi_primary_pc_next,
 
       r_W_primary: r_W_primary_initial_list,
@@ -774,6 +779,7 @@ where
     self.i += 1;
     self.zi_primary = zi_primary;
     self.zi_secondary = zi_secondary;
+    self.proven_circuit_index = circuit_index;
     self.program_counter = zi_primary_pc_next;
     Ok(())
   }
@@ -782,7 +788,6 @@ where
   pub fn verify<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<E2::Scalar>>(
     &self,
     pp: &PublicParams<E1, E2, C1, C2>,
-    circuit_index: usize,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
   ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), SuperNovaError> {
@@ -813,6 +818,8 @@ where
           Err(SuperNovaError::NovaError(NovaError::ProofVerifyError))
         }
       })?;
+
+    let circuit_index = self.proven_circuit_index;
 
     // check we have an instance/witness pair for the circuit_index
     if self.r_U_primary[circuit_index].is_none() {
