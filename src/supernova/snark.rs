@@ -144,6 +144,7 @@ where
     pk: &ProverKey<E1, E2, C1, C2, S1, S2>,
     recursive_snark: &RecursiveSNARK<E1, E2>,
   ) -> Result<Self, SuperNovaError> {
+    // fold the secondary circuit's instance
     let res_secondary = NIFS::prove(
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
@@ -157,6 +158,8 @@ where
 
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = res_secondary?;
 
+    // Prepare the list of primary Relaxed R1CS instances (a default instance is provided for
+    // uninitialized circuits)
     let r_U_primary = recursive_snark
       .r_U_primary
       .iter()
@@ -168,6 +171,8 @@ where
       })
       .collect::<Vec<_>>();
 
+    // Prepare the list of primary relaxed R1CS witnesses (a default witness is provided for
+    // uninitialized circuits)
     let r_W_primary: Vec<RelaxedR1CSWitness<E1>> = recursive_snark
       .r_W_primary
       .iter()
@@ -179,6 +184,7 @@ where
       })
       .collect::<Vec<_>>();
 
+    // Generate a primary SNARK proof for the list of primary circuits
     let r_W_snark_primary = S1::prove(
       &pp.ck_primary,
       &pk.pk_primary,
@@ -187,6 +193,7 @@ where
       &r_W_primary,
     )?;
 
+    // Generate a secondary SNARK proof for the secondary circuit
     let f_W_snark_secondary = S2::prove(
       &pp.ck_secondary,
       &pk.pk_secondary,
@@ -194,17 +201,6 @@ where
       &f_U_secondary,
       &f_W_secondary,
     )?;
-
-    let r_U_primary = recursive_snark
-      .r_U_primary
-      .iter()
-      .enumerate()
-      .map(|(idx, r_U)| {
-        r_U
-          .clone()
-          .unwrap_or_else(|| RelaxedR1CSInstance::default(&pp.ck_primary, &pp[idx].r1cs_shape))
-      })
-      .collect::<Vec<_>>();
 
     let compressed_snark = CompressedSNARK {
       r_U_primary,
@@ -242,12 +238,14 @@ where
     + (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // # 1 * (7 + [X0, X1]*#num_limb)
 
     // secondary circuit
-    // NOTE: This count ensure the number of witnesses sent by the prover must bd equal to the number
-    // of NIVC circuits
+    // NOTE: This count ensure the number of witnesses sent by the prover must equal the number of
+    // NIVC circuits
     let num_field_secondary_ro = 2 // params_next, i_new
     + 2 * pp.circuit_shape_secondary.F_arity // zo, z1
     + pp.circuit_shapes.len() * (7 + 2 * pp.augmented_circuit_params_primary.get_n_limbs()); // #num_augment
 
+    // Compute the primary and secondary hashes given the digest, program counter, instances, and
+    // witnesses provided by the prover
     let (hash_primary, hash_secondary) = {
       let mut hasher =
         <E2 as Engine>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
@@ -290,6 +288,7 @@ where
       )
     };
 
+    // Compare the computed hashes with the public IO of the last invocation of `prove_step`
     if hash_primary != self.l_u_secondary.X[0] {
       return Err(NovaError::ProofVerifyError.into());
     }
@@ -298,10 +297,12 @@ where
       return Err(NovaError::ProofVerifyError.into());
     }
 
+    // Verify the primary SNARK
     let res_primary = self
       .r_W_snark_primary
       .verify(&vk.vk_primary, &self.r_U_primary);
 
+    // Fold the secondary circuit's instance
     let f_U_secondary = self.nifs_secondary.verify(
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
@@ -309,6 +310,7 @@ where
       &self.l_u_secondary,
     )?;
 
+    // Verify the secondary SNARK
     let res_secondary = self
       .f_W_snark_secondary
       .verify(&vk.vk_secondary, &f_U_secondary);
@@ -321,7 +323,6 @@ where
   }
 }
 
-// TODO: change tests so they don't use this (though I think it's needed in `verify`)
 fn field_as_usize<F: PrimeField>(x: F) -> usize {
   u32::from_le_bytes(x.to_repr().as_ref()[0..4].try_into().unwrap()) as usize
 }
