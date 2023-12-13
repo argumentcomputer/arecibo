@@ -7,6 +7,7 @@ on:
     branches:
       - dev
       - 'feat/**'
+      - release-candidate
 
 env:
   CARGO_TERM_COLOR: always
