@@ -38,8 +38,9 @@ cfg_if::cfg_if! {
 
 criterion_main!(recursive_snark_supernova);
 
-// This should be accurate, but how?
-const NUM_CONS_VERIFIER_CIRCUIT_PRIMARY: usize = 9819;
+// This should match the value in test_supernova_recursive_circuit_pasta
+// TODO: This should also be a table matching the num_augmented_circuits in the below
+const NUM_CONS_VERIFIER_CIRCUIT_PRIMARY: usize = 9844;
 const NUM_SAMPLES: usize = 10;
 
 struct NonUniformBench<E1, E2, S>
