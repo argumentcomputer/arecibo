@@ -1,10 +1,6 @@
 #![allow(non_snake_case)]
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use core::marker::PhantomData;
-use criterion::*;
-use ff::PrimeField;
-use nova_snark::{
+use arecibo::{
   provider::{PallasEngine, VestaEngine},
   supernova::NonUniformCircuit,
   supernova::{PublicParams, RecursiveSNARK},
@@ -14,6 +10,10 @@ use nova_snark::{
     Engine,
   },
 };
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use core::marker::PhantomData;
+use criterion::*;
+use ff::PrimeField;
 use std::time::Duration;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
