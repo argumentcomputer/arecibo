@@ -20,6 +20,9 @@ use std::io::Read;
 use halo2curves::secp256k1::{Secp256k1, Secp256k1Affine, Secp256k1Compressed};
 use halo2curves::secq256k1::{Secq256k1, Secq256k1Affine, Secq256k1Compressed};
 
+#[cfg(feature = "cuda")]
+use crate::r1cs::SparseMatrix;
+
 /// Re-exports that give access to the standard aliases used in the code base, for secp
 pub mod secp256k1 {
   pub use halo2curves::secp256k1::{

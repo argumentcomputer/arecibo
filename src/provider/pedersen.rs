@@ -232,7 +232,7 @@ where
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment {
     assert!(ck.ck.len() >= v.len());
     Commitment {
-      comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[..v.len()]),
+      comm: E::GE::msm(v, &ck.ck[..v.len()]),
     }
   }
 }
@@ -299,7 +299,7 @@ where
       .into_par_iter()
       .map(|i| {
         let bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
-        E::GE::vartime_multiscalar_mul(&w, &bases).preprocessed()
+        E::GE::msm(&w, &bases).preprocessed()
       })
       .collect();
 
@@ -312,7 +312,7 @@ where
       .ck
       .clone()
       .into_par_iter()
-      .map(|g| E::GE::vartime_multiscalar_mul(&[*r], &[g]).preprocessed())
+      .map(|g| E::GE::msm(&[*r], &[g]).preprocessed())
       .collect();
 
     CommitmentKey { ck: ck_scaled }

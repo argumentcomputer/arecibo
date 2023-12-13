@@ -247,7 +247,7 @@ where
     if poly.degree() > prover_param.powers_of_g.len() {
       return Err(NovaError::PCSError(PCSError::LengthError));
     }
-    let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
+    let C = <E::G1 as DlogGroup>::msm(
       poly.coeffs.as_slice(),
       &prover_param.powers_of_g.as_slice()[..poly.coeffs.len()],
     );
@@ -269,7 +269,7 @@ where
       .divide_with_q_and_r(&divisor)
       .map(|(q, _r)| q)
       .ok_or(NovaError::PCSError(PCSError::ZMError))?;
-    let proof = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
+    let proof = <E::G1 as DlogGroup>::msm(
       witness_polynomial.coeffs.as_slice(),
       &prover_param.powers_of_g.as_slice()[..witness_polynomial.coeffs.len()],
     );

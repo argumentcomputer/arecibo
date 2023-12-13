@@ -290,7 +290,7 @@ where
       proof.ck.iter().map(|c| c.0).collect(),
     ]
     .concat();
-    let c = <E::G1 as DlogGroup>::vartime_multiscalar_mul(&scalars, &bases).to_affine();
+    let c = <E::G1 as DlogGroup>::msm(&scalars, &bases).to_affine();
 
     let pi = proof.pi;
 

@@ -5,6 +5,9 @@ use core::{
 };
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "cuda")]
+use crate::r1cs::SparseMatrix;
+
 /// Represents a compressed version of a group element
 pub trait CompressedGroup:
   Clone
@@ -68,10 +71,16 @@ pub trait DlogGroup:
     + for<'de> Deserialize<'de>;
 
   /// A method to compute a multiexponentation
-  fn vartime_multiscalar_mul(
-    scalars: &[Self::Scalar],
-    bases: &[Self::PreprocessedGroupElement],
-  ) -> Self;
+  fn msm(scalars: &[Self::Scalar], bases: &[Self::PreprocessedGroupElement]) -> Self;
+
+  #[cfg(feature = "cuda")]
+  fn spmvm(
+    spm: &SparseMatrix<Self::Scalar>,
+    W: &[Self::Scalar],
+    u: &Self::Scalar,
+    X: &[Self::Scalar],
+    buffer: &mut Vec<Self::Scalar>,
+  );
 
   /// Produce a vector of group elements using a static label
   fn from_label(label: &'static [u8], n: usize) -> Vec<Self::PreprocessedGroupElement>;
@@ -91,7 +100,7 @@ pub trait DlogGroup:
 
 /// This implementation behaves in ways specific to the halo2curves suite of curves in:
 // - to_coordinates,
-// - vartime_multiscalar_mul, where it does not call into accelerated implementations.
+// - msm, where it does not call into accelerated implementations.
 // A specific reimplementation exists for the pasta curves in their own module.
 #[macro_export]
 macro_rules! impl_traits {
@@ -121,11 +130,20 @@ macro_rules! impl_traits {
       type CompressedGroupElement = $name_compressed;
       type PreprocessedGroupElement = $name::Affine;
 
-      fn vartime_multiscalar_mul(
-        scalars: &[Self::Scalar],
-        bases: &[Self::PreprocessedGroupElement],
-      ) -> Self {
+      fn msm(scalars: &[Self::Scalar], bases: &[Self::PreprocessedGroupElement]) -> Self {
         cpu_best_msm(scalars, bases)
+      }
+
+      #[cfg(feature = "cuda")]
+      /// A method to compute a sparse-matrix vector multiplication
+      fn spmvm(
+        _spm: &SparseMatrix<Self::Scalar>,
+        _W: &[Self::Scalar],
+        _u: &Self::Scalar,
+        _X: &[Self::Scalar],
+        _buffer: &mut Vec<Self::Scalar>,
+      ) {
+        unimplemented!()
       }
 
       fn preprocessed(&self) -> Self::PreprocessedGroupElement {

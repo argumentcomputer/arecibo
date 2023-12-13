@@ -50,7 +50,7 @@ where
   fn commit(ck: &Self::CommitmentKey, v: &[<E::G1 as Group>::Scalar]) -> Self::Commitment {
     assert!(ck.length() >= v.len());
     Commitment {
-      comm: E::G1::vartime_multiscalar_mul(v, &ck.powers_of_g[..v.len()]),
+      comm: E::G1::msm(v, &ck.powers_of_g[..v.len()]),
     }
   }
 }

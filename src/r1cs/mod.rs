@@ -218,6 +218,7 @@ impl<E: Engine> R1CSShape<E> {
     Ok((Az, Bz, Cz))
   }
 
+  #[cfg(not(feature = "cuda"))]
   pub(crate) fn multiply_witness_into(
     &self,
     W: &[E::Scalar],
@@ -240,6 +241,29 @@ impl<E: Engine> R1CSShape<E> {
         )
       },
     );
+
+    Ok(())
+  }
+
+  #[cfg(feature = "cuda")]
+  pub(crate) fn multiply_witness_into(
+    &self,
+    W: &[E::Scalar],
+    u: &E::Scalar,
+    X: &[E::Scalar],
+    ABC_Z: &mut R1CSResult<E>,
+  ) -> Result<(), NovaError> {
+    use crate::provider::traits::DlogGroup;
+
+    if X.len() != self.num_io || W.len() != self.num_vars {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    let R1CSResult { AZ, BZ, CZ } = ABC_Z;
+
+    <E::GE as DlogGroup>::spmvm(&self.A, W, u, X, AZ);
+    <E::GE as DlogGroup>::spmvm(&self.B, W, u, X, BZ);
+    <E::GE as DlogGroup>::spmvm(&self.C, W, u, X, CZ);
 
     Ok(())
   }

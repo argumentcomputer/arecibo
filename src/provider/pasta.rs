@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize};
 use sha3::Shake256;
 use std::io::Read;
 
+#[cfg(feature = "cuda")]
+use crate::r1cs::SparseMatrix;
+
 /// A wrapper for compressed group elements of pallas
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PallasCompressedElementWrapper {
@@ -50,6 +53,7 @@ impl VestaCompressedElementWrapper {
 macro_rules! impl_traits {
   (
     $name:ident,
+    $spmvm:ident,
     $name_compressed:ident,
     $name_curve:ident,
     $name_curve_affine:ident,
@@ -74,15 +78,8 @@ macro_rules! impl_traits {
       type CompressedGroupElement = $name_compressed;
       type PreprocessedGroupElement = $name::Affine;
 
-      #[tracing::instrument(
-        skip_all,
-        level = "trace",
-        name = "<_ as Group>::vartime_multiscalar_mul"
-      )]
-      fn vartime_multiscalar_mul(
-        scalars: &[Self::Scalar],
-        bases: &[Self::PreprocessedGroupElement],
-      ) -> Self {
+      #[tracing::instrument(skip_all, level = "trace", name = "<_ as Group>::msm")]
+      fn msm(scalars: &[Self::Scalar], bases: &[Self::PreprocessedGroupElement]) -> Self {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         if scalars.len() >= 128 {
           pasta_msm::$name(bases, scalars)
@@ -91,6 +88,23 @@ macro_rules! impl_traits {
         }
         #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
         cpu_best_msm(scalars, bases)
+      }
+
+      #[cfg(feature = "cuda")]
+      fn spmvm(
+        spm: &SparseMatrix<Self::Scalar>,
+        W: &[Self::Scalar],
+        u: &Self::Scalar,
+        X: &[Self::Scalar],
+        buffer: &mut Vec<Self::Scalar>,
+      ) {
+        use pasta_msm::spmvm::{CudaSparseMatrix, CudaWitness};
+
+        let num_rows = spm.indptr.len() - 1;
+        let csr = CudaSparseMatrix::new(&spm.data, &spm.indices, &spm.indptr, num_rows, spm.cols);
+        let witness = CudaWitness::new(W, u, X);
+
+        pasta_msm::spmvm::$name::$spmvm(&csr, &witness, buffer, 512);
       }
 
       fn preprocessed(&self) -> Self::PreprocessedGroupElement {
@@ -192,6 +206,7 @@ macro_rules! impl_traits {
 
 impl_traits!(
   pallas,
+  sparse_matrix_witness_pallas,
   PallasCompressedElementWrapper,
   Ep,
   EpAffine,
@@ -201,6 +216,7 @@ impl_traits!(
 
 impl_traits!(
   vesta,
+  sparse_matrix_witness_vesta,
   VestaCompressedElementWrapper,
   Eq,
   EqAffine,

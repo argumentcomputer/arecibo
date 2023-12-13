@@ -25,6 +25,9 @@ use halo2curves::grumpkin::{
   G1Affine as GrumpkinAffine, G1Compressed as GrumpkinCompressed, G1 as GrumpkinPoint,
 };
 
+#[cfg(feature = "cuda")]
+use crate::r1cs::SparseMatrix;
+
 /// Re-exports that give access to the standard aliases used in the code base, for bn256
 pub mod bn256 {
   pub use halo2curves::bn256::{Fq as Base, Fr as Scalar, G1Affine as Affine, G1 as Point};
