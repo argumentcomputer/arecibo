@@ -1,10 +1,7 @@
 //! Demonstrates how to use Nova to produce a recursive proof of the correct execution of
 //! iterations of the `MinRoot` function, thereby realizing a Nova-based verifiable delay function (VDF).
 //! We execute a configurable number of iterations of the `MinRoot` function per step of Nova's recursion.
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use ff::PrimeField;
-use flate2::{write::ZlibEncoder, Compression};
-use nova_snark::{
+use arecibo::{
   provider::{PallasEngine, VestaEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
@@ -13,6 +10,9 @@ use nova_snark::{
   },
   CompressedSNARK, PublicParams, RecursiveSNARK,
 };
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use ff::PrimeField;
+use flate2::{write::ZlibEncoder, Compression};
 use num_bigint::BigUint;
 use std::time::Instant;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
@@ -346,10 +346,10 @@ fn main() {
     let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
-    type EE1 = nova_snark::provider::ipa_pc::EvaluationEngine<E1>;
-    type EE2 = nova_snark::provider::ipa_pc::EvaluationEngine<E2>;
-    type S1 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
-    type S2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
+    type EE1 = arecibo::provider::ipa_pc::EvaluationEngine<E1>;
+    type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
+    type S1 = arecibo::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
+    type S2 = arecibo::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
 
     let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(

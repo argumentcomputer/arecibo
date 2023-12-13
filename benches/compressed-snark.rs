@@ -1,10 +1,6 @@
 #![allow(non_snake_case)]
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use core::marker::PhantomData;
-use criterion::*;
-use ff::PrimeField;
-use nova_snark::{
+use arecibo::{
   provider::{PallasEngine, VestaEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
@@ -13,18 +9,22 @@ use nova_snark::{
   },
   CompressedSNARK, PublicParams, RecursiveSNARK,
 };
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use core::marker::PhantomData;
+use criterion::*;
+use ff::PrimeField;
 use std::time::Duration;
 
 type E1 = PallasEngine;
 type E2 = VestaEngine;
-type EE1 = nova_snark::provider::ipa_pc::EvaluationEngine<E1>;
-type EE2 = nova_snark::provider::ipa_pc::EvaluationEngine<E2>;
+type EE1 = arecibo::provider::ipa_pc::EvaluationEngine<E1>;
+type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
 // SNARKs without computational commitments
-type S1 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
-type S2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
+type S1 = arecibo::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
+type S2 = arecibo::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
 // SNARKs with computational commitments
-type SS1 = nova_snark::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>;
-type SS2 = nova_snark::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
+type SS1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>;
+type SS2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
 type C1 = NonTrivialCircuit<<E1 as Engine>::Scalar>;
 type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
 

@@ -1,9 +1,6 @@
 use std::{marker::PhantomData, time::Duration};
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ff::PrimeField;
-use nova_snark::{
+use arecibo::{
   provider::{PallasEngine, VestaEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
@@ -12,6 +9,9 @@ use nova_snark::{
   },
   PublicParams,
 };
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use ff::PrimeField;
 
 type E1 = PallasEngine;
 type E2 = VestaEngine;

@@ -149,7 +149,7 @@ where
   /// larger sizes for these parameters. These SNARKs provide a hint for these values by
   /// implementing `RelaxedR1CSSNARKTrait::ck_floor()`, which can be passed to this function.
   ///
-  /// If you're not using such a SNARK, pass `nova_snark::traits::snark::default_ck_hint()` instead.
+  /// If you're not using such a SNARK, pass `arecibo::traits::snark::default_ck_hint()` instead.
   ///
   /// # Arguments
   ///
@@ -162,11 +162,11 @@ where
   /// # Example
   ///
   /// ```rust
-  /// # use nova_snark::spartan::ppsnark::RelaxedR1CSSNARK;
-  /// # use nova_snark::provider::ipa_pc::EvaluationEngine;
-  /// # use nova_snark::provider::{PallasEngine, VestaEngine};
-  /// # use nova_snark::traits::{circuit::TrivialCircuit, Engine, snark::RelaxedR1CSSNARKTrait};
-  /// use nova_snark::PublicParams;
+  /// # use arecibo::spartan::ppsnark::RelaxedR1CSSNARK;
+  /// # use arecibo::provider::ipa_pc::EvaluationEngine;
+  /// # use arecibo::provider::{PallasEngine, VestaEngine};
+  /// # use arecibo::traits::{circuit::TrivialCircuit, Engine, snark::RelaxedR1CSSNARKTrait};
+  /// use arecibo::PublicParams;
   ///
   /// type E1 = PallasEngine;
   /// type E2 = VestaEngine;
