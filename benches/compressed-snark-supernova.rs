@@ -34,7 +34,7 @@ type SS2 = nova_snark::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
 cfg_if::cfg_if! {
   if #[cfg(feature = "flamegraph")] {
     criterion_group! {
-      name = compressed_snark_suipernova;
+      name = compressed_snark_supernova;
       config = Criterion::default().warm_up_time(Duration::from_millis(3000)).with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)));
       targets = bench_one_augmented_circuit_compressed_snark, bench_two_augmented_circuit_compressed_snark, bench_two_augmented_circuit_compressed_snark_with_computational_commitments
     }
