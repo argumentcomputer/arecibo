@@ -136,7 +136,7 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         println!("res failed {:?}", e);
       }
       assert!(res.is_ok());
-      let res = recursive_snark.verify(&pp, 0, &z0_primary, &z0_secondary);
+      let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
       if let Err(e) = &res {
         println!("res failed {:?}", e);
       }
@@ -167,7 +167,6 @@ fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
         assert!(black_box(&mut recursive_snark.clone())
           .verify(
             black_box(&pp),
-            black_box(0),
             black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
             black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
           )
@@ -229,7 +228,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
           println!("res failed {:?}", e);
         }
         assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, 0, &z0_primary, &z0_secondary);
+        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -241,7 +240,7 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
           println!("res failed {:?}", e);
         }
         assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, 0, &z0_primary, &z0_secondary);
+        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
         if let Err(e) = &res {
           println!("res failed {:?}", e);
         }
@@ -276,7 +275,6 @@ fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
         assert!(black_box(&mut recursive_snark.clone())
           .verify(
             black_box(&pp),
-            black_box(0),
             black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
             black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
           )

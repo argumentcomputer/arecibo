@@ -425,7 +425,7 @@ where
       .prove_step(&pp, &circuit_primary, &circuit_secondary)
       .unwrap();
     recursive_snark
-      .verify(&pp, op_code, &z0_primary, &z0_secondary)
+      .verify(&pp, &z0_primary, &z0_secondary)
       .map_err(|err| {
         print_constraints_name_on_error_index(
           &err,
@@ -892,7 +892,7 @@ where
 
     // verify the recursive SNARK
     let res = recursive_snark
-      .verify(&pp, 0, &z0_primary, &z0_secondary)
+      .verify(&pp, &z0_primary, &z0_secondary)
       .map_err(|err| {
         print_constraints_name_on_error_index(&err, &pp, circuit_primary, &circuit_secondary, 2)
       });
