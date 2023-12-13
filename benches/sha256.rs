@@ -3,6 +3,15 @@
 //! This code invokes a hand-written SHA-256 gadget from bellman/bellperson.
 //! It also uses code from bellman/bellperson to compare circuit-generated digest with sha2 crate's output
 #![allow(non_snake_case)]
+use arecibo::{
+  provider::{PallasEngine, VestaEngine},
+  traits::{
+    circuit::{StepCircuit, TrivialCircuit},
+    snark::default_ck_hint,
+    Engine,
+  },
+  PublicParams, RecursiveSNARK,
+};
 use bellpepper::gadgets::{sha256::sha256, Assignment};
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
@@ -13,15 +22,6 @@ use core::marker::PhantomData;
 use core::time::Duration;
 use criterion::*;
 use ff::{PrimeField, PrimeFieldBits};
-use nova_snark::{
-  provider::{PallasEngine, VestaEngine},
-  traits::{
-    circuit::{StepCircuit, TrivialCircuit},
-    snark::default_ck_hint,
-    Engine,
-  },
-  PublicParams, RecursiveSNARK,
-};
 use sha2::{Digest, Sha256};
 
 type E1 = PallasEngine;
