@@ -89,6 +89,8 @@ jobs:
           args: --all -- --check
       - name: Check clippy warnings
         run: cargo xclippy -D warnings
+      - name: Check benches compile under the flamegraph feature
+        run: cargo check --profile dev-ci --features "flamegraph" --benches
       - name: Doctests
         run: cargo test --doc --workspace
 
