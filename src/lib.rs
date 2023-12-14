@@ -695,6 +695,107 @@ where
 
     Ok((self.zi_primary.clone(), self.zi_secondary.clone()))
   }
+
+  /// Writes the R1CS matrices and commitment key to
+  /// `$HOME/.arecibo/*`
+  pub fn write_abomonated(&self, pp: &PublicParams<E1, E2, C1, C2>) -> std::io::Result<()>
+  where
+    // this is due to the reliance on Abomonation
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+    <E2::Scalar as PrimeField>::Repr: Abomonation,
+  {
+    use std::fs::OpenOptions;
+    use std::io::BufWriter;
+
+    let arecibo = home::home_dir().unwrap().join(".arecibo");
+
+    let r1cs_primary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("r1cs_primary"))?;
+    let mut writer = BufWriter::new(r1cs_primary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.circuit_shape_primary.r1cs_shape,
+        &mut writer,
+      )?
+    };
+
+    let r1cs_secondary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("r1cs_secondary"))?;
+    let mut writer = BufWriter::new(r1cs_secondary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &mut writer,
+      )?
+    };
+
+    let witness_primary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("witness_primary"))?;
+    let mut writer = BufWriter::new(witness_primary);
+
+    unsafe {
+      abomonation::encode(
+        std::mem::transmute::<&Vec<E1::Scalar>, &Vec<<E1::Scalar as PrimeField>::Repr>>(&self.r_W_primary.W),
+        &mut writer,
+      )?
+    };
+
+    let witness_secondary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("witness_secondary"))?;
+    let mut writer = BufWriter::new(witness_secondary);
+
+    unsafe {
+      abomonation::encode(
+        std::mem::transmute::<&Vec<E2::Scalar>, &Vec<<E2::Scalar as PrimeField>::Repr>>(&self.r_W_secondary.W),
+        &mut writer,
+      )?
+    };
+
+    let ck_primary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("ck_primary"))?;
+    let mut writer = BufWriter::new(ck_primary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.ck_primary,
+        &mut writer,
+      )?
+    };
+
+
+    let ck_secondary = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .create(true)
+      .open(arecibo.join("ck_secondary"))?;
+    let mut writer = BufWriter::new(ck_secondary);
+
+    unsafe {
+      abomonation::encode(
+        &pp.ck_secondary,
+        &mut writer,
+      )?
+    };
+
+    Ok(())
+  }
 }
 
 /// A type that holds the prover key for `CompressedSNARK`
