@@ -20,7 +20,7 @@ use crate::{
     powers,
     ppsnark::{
       InnerSumcheckInstance, MemorySumcheckInstance, OuterSumcheckInstance,
-      R1CSShapeSparkCommitment, R1CSShapeSparkRepr, SumcheckEngine,
+      R1CSShapeSparkCommitment, R1CSShapeSparkRepr, SumcheckEngine, WitnessBoundSumcheck,
     },
     sumcheck::SumcheckProof,
     PolyEvalInstance, PolyEvalWitness,
@@ -92,84 +92,6 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
       })
       .cloned()
       .expect("Failure to retrieve digest!")
-  }
-}
-
-/// The [WitnessBoundSumcheck] ensures that the witness polynomial W defined over n = log(N) variables,
-/// is zero outside of the first `num_vars = 2^m` entries.
-///
-/// # Details
-///
-/// The `W` polynomial is padded with zeros to size N = 2^n.
-/// The `masked_eq` polynomials is defined as with regards to a random challenge `tau` as
-/// the eq(tau) polynomial, where the first 2^m evaluations to 0.
-///
-/// The instance is given by
-///  `0 = ∑_{0≤i<2^n} masked_eq[i] * W[i]`.
-/// It is equivalent to the expression
-///  `0 = ∑_{2^m≤i<2^n} eq[i] * W[i]`
-/// Since `eq` is random, the instance is only satisfied if `W[2^{m}..] = 0`.
-pub(in crate::spartan) struct WitnessBoundSumcheck<E: Engine> {
-  poly_W: MultilinearPolynomial<E::Scalar>,
-  poly_masked_eq: MultilinearPolynomial<E::Scalar>,
-}
-
-impl<E: Engine> WitnessBoundSumcheck<E> {
-  pub fn new(tau: E::Scalar, poly_W_padded: Vec<E::Scalar>, num_vars: usize) -> Self {
-    let num_vars_log = num_vars.log_2();
-    // When num_vars = num_rounds, we shouldn't have to prove anything
-    // but we still want this instance to compute the evaluation of W
-    let num_rounds = poly_W_padded.len().log_2();
-    assert!(num_vars_log < num_rounds);
-
-    let tau_coords = PowPolynomial::new(&tau, num_rounds).coordinates();
-    let poly_masked_eq_evals =
-      MaskedEqPolynomial::new(&EqPolynomial::new(tau_coords), num_vars_log).evals();
-
-    Self {
-      poly_W: MultilinearPolynomial::new(poly_W_padded),
-      poly_masked_eq: MultilinearPolynomial::new(poly_masked_eq_evals),
-    }
-  }
-}
-impl<E: Engine> SumcheckEngine<E> for WitnessBoundSumcheck<E> {
-  fn initial_claims(&self) -> Vec<E::Scalar> {
-    vec![E::Scalar::ZERO]
-  }
-
-  fn degree(&self) -> usize {
-    3
-  }
-
-  fn size(&self) -> usize {
-    assert_eq!(self.poly_W.len(), self.poly_masked_eq.len());
-    self.poly_W.len()
-  }
-
-  fn evaluation_points(&self) -> Vec<Vec<E::Scalar>> {
-    let comb_func = |poly_A_comp: &E::Scalar,
-                     poly_B_comp: &E::Scalar,
-                     _: &E::Scalar|
-     -> E::Scalar { *poly_A_comp * *poly_B_comp };
-
-    let (eval_point_0, eval_point_2, eval_point_3) = SumcheckProof::<E>::compute_eval_points_cubic(
-      &self.poly_masked_eq,
-      &self.poly_W,
-      &self.poly_W, // unused
-      &comb_func,
-    );
-
-    vec![vec![eval_point_0, eval_point_2, eval_point_3]]
-  }
-
-  fn bound(&mut self, r: &E::Scalar) {
-    [&mut self.poly_W, &mut self.poly_masked_eq]
-      .par_iter_mut()
-      .for_each(|poly| poly.bind_poly_var_top(r));
-  }
-
-  fn final_claims(&self) -> Vec<Vec<E::Scalar>> {
-    vec![vec![self.poly_W[0], self.poly_masked_eq[0]]]
   }
 }
 
