@@ -1,18 +1,17 @@
 #![allow(non_snake_case)]
-
 use arecibo::{
   supernova::NonUniformCircuit,
   supernova::{snark::CompressedSNARK, PublicParams, RecursiveSNARK},
   traits::{
     circuit_supernova::{StepCircuit, TrivialTestCircuit},
+    snark::BatchedRelaxedR1CSSNARKTrait,
     snark::RelaxedR1CSSNARKTrait,
-    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait},
     Engine,
   },
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
-use criterion::*;
+use criterion::{measurement::WallTime, *};
 use ff::PrimeField;
 use std::time::Duration;
 
@@ -34,7 +33,7 @@ type SS2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
 cfg_if::cfg_if! {
   if #[cfg(feature = "flamegraph")] {
     criterion_group! {
-      name = compressed_snark_suipernova;
+      name = compressed_snark_supernova;
       config = Criterion::default().warm_up_time(Duration::from_millis(3000)).with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)));
       targets = bench_one_augmented_circuit_compressed_snark, bench_two_augmented_circuit_compressed_snark, bench_two_augmented_circuit_compressed_snark_with_computational_commitments
     }
@@ -48,6 +47,11 @@ cfg_if::cfg_if! {
 }
 
 criterion_main!(compressed_snark_supernova);
+
+// This should match the value in test_supernova_recursive_circuit_pasta
+// TODO: This should also be a table matching the num_augmented_circuits in the below
+const NUM_CONS_VERIFIER_CIRCUIT_PRIMARY: usize = 9844;
+const NUM_SAMPLES: usize = 10;
 
 struct NonUniformBench<E1, E2, S>
 where
@@ -88,7 +92,11 @@ where
   }
 
   fn primary_circuit(&self, circuit_index: usize) -> NonTrivialTestCircuit<E1::Scalar> {
-    assert!(circuit_index < self.num_circuits);
+    assert!(
+      circuit_index < self.num_circuits,
+      "Circuit index out of bounds: asked for {circuit_index}, but there are only {} circuits.",
+      self.num_circuits
+    );
 
     NonTrivialTestCircuit::new(self.num_cons)
   }
@@ -98,307 +106,177 @@ where
   }
 }
 
+/// Benchmarks the compressed SNARK at a provided number of constraints
+///
+/// Parameters
+/// - `num_augmented_circuits`: the number of augmented circuits in this configuration
+/// - `group`: the criterion benchmark group
+/// - `num_cons`: the number of constraints in the step circuit
+fn bench_compressed_snark_internal_with_arity<
+  S1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
+>(
+  group: &mut BenchmarkGroup<'_, WallTime>,
+  num_augmented_circuits: usize,
+  num_cons: usize,
+) {
+  let bench: NonUniformBench<E1, E2, TrivialTestCircuit<<E2 as Engine>::Scalar>> =
+    NonUniformBench::new(num_augmented_circuits, num_cons);
+  let pp = PublicParams::setup(&bench, &*S1::ck_floor(), &*S2::ck_floor());
+
+  let num_steps = 3;
+  let z0_primary = vec![<E1 as Engine>::Scalar::from(2u64)];
+  let z0_secondary = vec![<E2 as Engine>::Scalar::from(2u64)];
+  let mut recursive_snark_option: Option<RecursiveSNARK<E1, E2>> = None;
+  let mut selected_augmented_circuit = 0;
+
+  for _ in 0..num_steps {
+    let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
+      RecursiveSNARK::new(
+        &pp,
+        &bench,
+        &bench.primary_circuit(0),
+        &bench.secondary_circuit(),
+        &z0_primary,
+        &z0_secondary,
+      )
+      .unwrap()
+    });
+
+    if selected_augmented_circuit == 0 || selected_augmented_circuit == 1 {
+      let res = recursive_snark.prove_step(
+        &pp,
+        &bench.primary_circuit(selected_augmented_circuit),
+        &bench.secondary_circuit(),
+      );
+      res.expect("Prove step failed");
+
+      let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
+      res.expect("Verify failed");
+    } else {
+      unimplemented!()
+    }
+
+    selected_augmented_circuit = (selected_augmented_circuit + 1) % num_augmented_circuits;
+    recursive_snark_option = Some(recursive_snark)
+  }
+
+  assert!(recursive_snark_option.is_some());
+  let recursive_snark = recursive_snark_option.unwrap();
+
+  let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+
+  // Benchmark the prove time
+  group.bench_function("Prove", |b| {
+    b.iter(|| {
+      assert!(CompressedSNARK::<_, _, _, _, S1, S2>::prove(
+        black_box(&pp),
+        black_box(&prover_key),
+        black_box(&recursive_snark)
+      )
+      .is_ok());
+    })
+  });
+
+  let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &prover_key, &recursive_snark);
+
+  assert!(res.is_ok());
+  let compressed_snark = res.unwrap();
+
+  // Benchmark the verification time
+  group.bench_function("Verify", |b| {
+    b.iter(|| {
+      assert!(black_box(&compressed_snark)
+        .verify(
+          black_box(&pp),
+          black_box(&verifier_key),
+          black_box(&z0_primary),
+          black_box(&z0_secondary),
+        )
+        .is_ok());
+    })
+  });
+}
+
 fn bench_one_augmented_circuit_compressed_snark(c: &mut Criterion) {
-  let num_cons_verifier_circuit_primary = 9819;
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
-    let num_cons = num_cons_in_augmented_circuit - num_cons_verifier_circuit_primary;
+    let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
 
     let mut group = c.benchmark_group(format!(
       "CompressedSNARKSuperNova-1circuit-StepCircuitSize-{num_cons}"
     ));
-    group.sample_size(10);
+    group.sample_size(NUM_SAMPLES);
 
-    let bench: NonUniformBench<E1, E2, TrivialTestCircuit<<E2 as Engine>::Scalar>> =
-      NonUniformBench::new(1, num_cons);
-    let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
-
-    let num_steps = 3;
-    let z0_primary = vec![<E1 as Engine>::Scalar::from(2u64)];
-    let z0_secondary = vec![<E2 as Engine>::Scalar::from(2u64)];
-    let mut recursive_snark_option: Option<RecursiveSNARK<E1, E2>> = None;
-
-    for _ in 0..num_steps {
-      let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(
-          &pp,
-          &bench,
-          &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
-        )
-        .unwrap()
-      });
-
-      let res =
-        recursive_snark.prove_step(&pp, &bench.primary_circuit(0), &bench.secondary_circuit());
-      if let Err(e) = &res {
-        println!("res failed {:?}", e);
-      }
-      assert!(res.is_ok());
-      let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-      if let Err(e) = &res {
-        println!("res failed {:?}", e);
-      }
-      assert!(res.is_ok());
-      recursive_snark_option = Some(recursive_snark)
-    }
-
-    assert!(recursive_snark_option.is_some());
-    let recursive_snark = recursive_snark_option.unwrap();
-
-    let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
-
-    // Benchmark the prove time
-    group.bench_function("Prove", |b| {
-      b.iter(|| {
-        assert!(CompressedSNARK::<_, _, _, _, S1, S2>::prove(
-          black_box(&pp),
-          black_box(&prover_key),
-          black_box(&recursive_snark)
-        )
-        .is_ok());
-      })
-    });
-
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &prover_key, &recursive_snark);
-
-    assert!(res.is_ok());
-    let compressed_snark = res.unwrap();
-
-    // Benchmark the verification time
-    group.bench_function("Verify", |b| {
-      b.iter(|| {
-        assert!(black_box(&compressed_snark)
-          .verify(
-            black_box(&pp),
-            black_box(&verifier_key),
-            black_box(&z0_primary),
-            black_box(&z0_secondary),
-          )
-          .is_ok());
-      })
-    });
+    bench_compressed_snark_internal_with_arity::<S1, S2>(&mut group, 1, num_cons);
 
     group.finish();
   }
 }
 
 fn bench_two_augmented_circuit_compressed_snark(c: &mut Criterion) {
-  let num_cons_verifier_circuit_primary = 9819;
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
-    let num_cons = num_cons_in_augmented_circuit - num_cons_verifier_circuit_primary;
+    let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
 
     let mut group = c.benchmark_group(format!(
       "CompressedSNARKSuperNova-2circuit-StepCircuitSize-{num_cons}"
     ));
-    group.sample_size(10);
+    group.sample_size(NUM_SAMPLES);
 
-    let bench: NonUniformBench<E1, E2, TrivialTestCircuit<<E2 as Engine>::Scalar>> =
-      NonUniformBench::new(2, num_cons);
-    let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
-
-    let num_steps = 3;
-    let z0_primary = vec![<E1 as Engine>::Scalar::from(2u64)];
-    let z0_secondary = vec![<E2 as Engine>::Scalar::from(2u64)];
-    let mut recursive_snark_option: Option<RecursiveSNARK<E1, E2>> = None;
-    let mut selected_augmented_circuit = 0;
-
-    for _ in 0..num_steps {
-      let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(
-          &pp,
-          &bench,
-          &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
-        )
-        .unwrap()
-      });
-
-      if selected_augmented_circuit == 0 {
-        let res =
-          recursive_snark.prove_step(&pp, &bench.primary_circuit(0), &bench.secondary_circuit());
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-      } else if selected_augmented_circuit == 1 {
-        let res =
-          recursive_snark.prove_step(&pp, &bench.primary_circuit(1), &bench.secondary_circuit());
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-      } else {
-        unimplemented!()
-      }
-      selected_augmented_circuit = (selected_augmented_circuit + 1) % 2;
-      recursive_snark_option = Some(recursive_snark)
-    }
-
-    assert!(recursive_snark_option.is_some());
-    let recursive_snark = recursive_snark_option.unwrap();
-
-    let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
-
-    // Benchmark the prove time
-    group.bench_function("Prove", |b| {
-      b.iter(|| {
-        assert!(CompressedSNARK::<_, _, _, _, S1, S2>::prove(
-          black_box(&pp),
-          black_box(&prover_key),
-          black_box(&recursive_snark)
-        )
-        .is_ok());
-      })
-    });
-
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &prover_key, &recursive_snark);
-
-    assert!(res.is_ok());
-    let compressed_snark = res.unwrap();
-
-    // Benchmark the verification time
-    group.bench_function("Verify", |b| {
-      b.iter(|| {
-        assert!(black_box(&compressed_snark)
-          .verify(
-            black_box(&pp),
-            black_box(&verifier_key),
-            black_box(&z0_primary),
-            black_box(&z0_secondary),
-          )
-          .is_ok());
-      })
-    });
+    bench_compressed_snark_internal_with_arity::<S1, S2>(&mut group, 2, num_cons);
 
     group.finish();
   }
 }
 
 fn bench_two_augmented_circuit_compressed_snark_with_computational_commitments(c: &mut Criterion) {
-  let num_cons_verifier_circuit_primary = 9819;
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
-    let num_cons = num_cons_in_augmented_circuit - num_cons_verifier_circuit_primary;
+    let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
 
     let mut group = c.benchmark_group(format!(
-      "pp-CompressedSNARKSuperNova-2circuit-StepCircuitSize-{num_cons}"
+      "CompressedSNARKSuperNova-Commitments-2circuit-StepCircuitSize-{num_cons}"
     ));
-    group.sample_size(10);
+    group.sample_size(NUM_SAMPLES);
 
-    let bench: NonUniformBench<E1, E2, TrivialTestCircuit<<E2 as Engine>::Scalar>> =
-      NonUniformBench::new(2, num_cons);
-    let pp = PublicParams::setup(&bench, &*SS1::ck_floor(), &*SS2::ck_floor());
-
-    let num_steps = 3;
-    let z0_primary = vec![<E1 as Engine>::Scalar::from(2u64)];
-    let z0_secondary = vec![<E2 as Engine>::Scalar::from(2u64)];
-    let mut recursive_snark_option: Option<RecursiveSNARK<E1, E2>> = None;
-    let mut selected_augmented_circuit = 0;
-
-    for _ in 0..num_steps {
-      let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(
-          &pp,
-          &bench,
-          &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
-        )
-        .unwrap()
-      });
-
-      if selected_augmented_circuit == 0 {
-        let res =
-          recursive_snark.prove_step(&pp, &bench.primary_circuit(0), &bench.secondary_circuit());
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-      } else if selected_augmented_circuit == 1 {
-        let res =
-          recursive_snark.prove_step(&pp, &bench.primary_circuit(1), &bench.secondary_circuit());
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-      } else {
-        unimplemented!()
-      }
-      selected_augmented_circuit = (selected_augmented_circuit + 1) % 2;
-      recursive_snark_option = Some(recursive_snark)
-    }
-
-    assert!(recursive_snark_option.is_some());
-    let recursive_snark = recursive_snark_option.unwrap();
-
-    let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, SS1, SS2>::setup(&pp).unwrap();
-
-    // Benchmark the prove time
-    group.bench_function("Prove", |b| {
-      b.iter(|| {
-        assert!(CompressedSNARK::<_, _, _, _, SS1, SS2>::prove(
-          black_box(&pp),
-          black_box(&prover_key),
-          black_box(&recursive_snark)
-        )
-        .is_ok());
-      })
-    });
-
-    let res = CompressedSNARK::<_, _, _, _, SS1, SS2>::prove(&pp, &prover_key, &recursive_snark);
-
-    assert!(res.is_ok());
-    let compressed_snark = res.unwrap();
-
-    // Benchmark the verification time
-    group.bench_function("Verify", |b| {
-      b.iter(|| {
-        assert!(black_box(&compressed_snark)
-          .verify(
-            black_box(&pp),
-            black_box(&verifier_key),
-            black_box(&z0_primary),
-            black_box(&z0_secondary),
-          )
-          .is_ok());
-      })
-    });
+    bench_compressed_snark_internal_with_arity::<SS1, SS2>(&mut group, 2, num_cons);
 
     group.finish();
   }

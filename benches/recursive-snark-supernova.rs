@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-
 use arecibo::{
   provider::{PallasEngine, VestaEngine},
   supernova::NonUniformCircuit,
@@ -12,7 +11,7 @@ use arecibo::{
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
-use criterion::*;
+use criterion::{measurement::WallTime, *};
 use ff::PrimeField;
 use std::time::Duration;
 
@@ -37,6 +36,11 @@ cfg_if::cfg_if! {
 }
 
 criterion_main!(recursive_snark_supernova);
+
+// This should match the value in test_supernova_recursive_circuit_pasta
+// TODO: This should also be a table matching the num_augmented_circuits in the below
+const NUM_CONS_VERIFIER_CIRCUIT_PRIMARY: usize = 9844;
+const NUM_SAMPLES: usize = 10;
 
 struct NonUniformBench<E1, E2, S>
 where
@@ -87,200 +91,148 @@ where
   }
 }
 
+/// Benchmarks the compressed SNARK at a provided number of constraints
+///
+/// Parameters
+/// - `num_augmented_circuits`: the number of augmented circuits in this configuration
+/// - `group`: the criterion benchmark group
+/// - `num_cons`: the number of constraints in the step circuit
+fn bench_recursive_snark_internal_with_arity(
+  group: &mut BenchmarkGroup<'_, WallTime>,
+  num_augmented_circuits: usize,
+  num_cons: usize,
+) {
+  let bench: NonUniformBench<
+    PallasEngine,
+    VestaEngine,
+    TrivialTestCircuit<<VestaEngine as Engine>::Scalar>,
+  > = NonUniformBench::new(2, num_cons);
+  let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
+
+  // Bench time to produce a recursive SNARK;
+  // we execute a certain number of warm-up steps since executing
+  // the first step is cheaper than other steps owing to the presence of
+  // a lot of zeros in the satisfying assignment
+  let num_warmup_steps = 10;
+  let z0_primary = vec![<PallasEngine as Engine>::Scalar::from(2u64)];
+  let z0_secondary = vec![<VestaEngine as Engine>::Scalar::from(2u64)];
+  let mut recursive_snark_option: Option<RecursiveSNARK<PallasEngine, VestaEngine>> = None;
+  let mut selected_augmented_circuit = 0;
+
+  for _ in 0..num_warmup_steps {
+    let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
+      RecursiveSNARK::new(
+        &pp,
+        &bench,
+        &bench.primary_circuit(0),
+        &bench.secondary_circuit(),
+        &z0_primary,
+        &z0_secondary,
+      )
+      .unwrap()
+    });
+
+    if selected_augmented_circuit == 0 || selected_augmented_circuit == 1 {
+      recursive_snark
+        .prove_step(
+          &pp,
+          &bench.primary_circuit(selected_augmented_circuit),
+          &bench.secondary_circuit(),
+        )
+        .expect("Prove step failed");
+
+      recursive_snark
+        .verify(&pp, &z0_primary, &z0_secondary)
+        .expect("Verify failed");
+    } else {
+      unimplemented!()
+    }
+
+    selected_augmented_circuit = (selected_augmented_circuit + 1) % num_augmented_circuits;
+    recursive_snark_option = Some(recursive_snark)
+  }
+
+  assert!(recursive_snark_option.is_some());
+  let recursive_snark = recursive_snark_option.unwrap();
+
+  // Benchmark the prove time
+  group.bench_function("Prove", |b| {
+    b.iter(|| {
+      // produce a recursive SNARK for a step of the recursion
+      assert!(black_box(&mut recursive_snark.clone())
+        .prove_step(
+          black_box(&pp),
+          &bench.primary_circuit(0),
+          &bench.secondary_circuit(),
+        )
+        .is_ok());
+    })
+  });
+
+  // Benchmark the verification time
+  group.bench_function("Verify", |b| {
+    b.iter(|| {
+      assert!(black_box(&mut recursive_snark.clone())
+        .verify(
+          black_box(&pp),
+          black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
+          black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
+        )
+        .is_ok());
+    });
+  });
+}
+
 fn bench_one_augmented_circuit_recursive_snark(c: &mut Criterion) {
-  let num_cons_verifier_circuit_primary = 9819;
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
-    let num_cons = num_cons_in_augmented_circuit - num_cons_verifier_circuit_primary;
+    let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
 
     let mut group = c.benchmark_group(format!(
       "RecursiveSNARKSuperNova-1circuit-StepCircuitSize-{num_cons}"
     ));
-    group.sample_size(10);
+    group.sample_size(NUM_SAMPLES);
 
-    let bench = NonUniformBench::<
-      PallasEngine,
-      VestaEngine,
-      TrivialTestCircuit<<VestaEngine as Engine>::Scalar>,
-    >::new(1, num_cons);
-    let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
-
-    // Bench time to produce a recursive SNARK;
-    // we execute a certain number of warm-up steps since executing
-    // the first step is cheaper than other steps owing to the presence of
-    // a lot of zeros in the satisfying assignment
-    let num_warmup_steps = 10;
-    let z0_primary = vec![<PallasEngine as Engine>::Scalar::from(2u64)];
-    let z0_secondary = vec![<VestaEngine as Engine>::Scalar::from(2u64)];
-    let mut recursive_snark_option: Option<RecursiveSNARK<PallasEngine, VestaEngine>> = None;
-
-    for _ in 0..num_warmup_steps {
-      let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(
-          &pp,
-          &bench,
-          &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
-        )
-        .unwrap()
-      });
-
-      let res =
-        recursive_snark.prove_step(&pp, &bench.primary_circuit(0), &bench.secondary_circuit());
-      if let Err(e) = &res {
-        println!("res failed {:?}", e);
-      }
-      assert!(res.is_ok());
-      let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-      if let Err(e) = &res {
-        println!("res failed {:?}", e);
-      }
-      assert!(res.is_ok());
-      recursive_snark_option = Some(recursive_snark)
-    }
-
-    assert!(recursive_snark_option.is_some());
-    let recursive_snark = recursive_snark_option.unwrap();
-
-    // Benchmark the prove time
-    group.bench_function("Prove", |b| {
-      b.iter(|| {
-        // produce a recursive SNARK for a step of the recursion
-        assert!(black_box(&mut recursive_snark.clone())
-          .prove_step(
-            black_box(&pp),
-            &bench.primary_circuit(0),
-            &bench.secondary_circuit(),
-          )
-          .is_ok());
-      })
-    });
-
-    // Benchmark the verification time
-    group.bench_function("Verify", |b| {
-      b.iter(|| {
-        assert!(black_box(&mut recursive_snark.clone())
-          .verify(
-            black_box(&pp),
-            black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
-            black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
-          )
-          .is_ok());
-      });
-    });
+    bench_recursive_snark_internal_with_arity(&mut group, 1, num_cons);
     group.finish();
   }
 }
 
 fn bench_two_augmented_circuit_recursive_snark(c: &mut Criterion) {
-  let num_cons_verifier_circuit_primary = 9819;
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
-    let num_cons = num_cons_in_augmented_circuit - num_cons_verifier_circuit_primary;
+    let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
 
     let mut group = c.benchmark_group(format!(
       "RecursiveSNARKSuperNova-2circuit-StepCircuitSize-{num_cons}"
     ));
-    group.sample_size(10);
+    group.sample_size(NUM_SAMPLES);
 
-    let bench: NonUniformBench<
-      PallasEngine,
-      VestaEngine,
-      TrivialTestCircuit<<VestaEngine as Engine>::Scalar>,
-    > = NonUniformBench::new(2, num_cons);
-    let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
-
-    // Bench time to produce a recursive SNARK;
-    // we execute a certain number of warm-up steps since executing
-    // the first step is cheaper than other steps owing to the presence of
-    // a lot of zeros in the satisfying assignment
-    let num_warmup_steps = 10;
-    let z0_primary = vec![<PallasEngine as Engine>::Scalar::from(2u64)];
-    let z0_secondary = vec![<VestaEngine as Engine>::Scalar::from(2u64)];
-    let mut recursive_snark_option: Option<RecursiveSNARK<PallasEngine, VestaEngine>> = None;
-    let mut selected_augmented_circuit = 0;
-
-    for _ in 0..num_warmup_steps {
-      let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(
-          &pp,
-          &bench,
-          &bench.primary_circuit(0),
-          &bench.secondary_circuit(),
-          &z0_primary,
-          &z0_secondary,
-        )
-        .unwrap()
-      });
-
-      if selected_augmented_circuit == 0 {
-        let res =
-          recursive_snark.prove_step(&pp, &bench.primary_circuit(0), &bench.secondary_circuit());
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-      } else if selected_augmented_circuit == 1 {
-        let res =
-          recursive_snark.prove_step(&pp, &bench.primary_circuit(1), &bench.secondary_circuit());
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-        let res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-        if let Err(e) = &res {
-          println!("res failed {:?}", e);
-        }
-        assert!(res.is_ok());
-      } else {
-        unimplemented!()
-      }
-      selected_augmented_circuit = (selected_augmented_circuit + 1) % 2;
-      recursive_snark_option = Some(recursive_snark)
-    }
-
-    assert!(recursive_snark_option.is_some());
-    let recursive_snark = recursive_snark_option.unwrap();
-
-    // Benchmark the prove time
-    group.bench_function("Prove", |b| {
-      b.iter(|| {
-        // produce a recursive SNARK for a step of the recursion
-        assert!(black_box(&mut recursive_snark.clone())
-          .prove_step(
-            black_box(&pp),
-            &bench.primary_circuit(0),
-            &bench.secondary_circuit(),
-          )
-          .is_ok());
-      })
-    });
-
-    // Benchmark the verification time
-    group.bench_function("Verify", |b| {
-      b.iter(|| {
-        assert!(black_box(&mut recursive_snark.clone())
-          .verify(
-            black_box(&pp),
-            black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
-            black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
-          )
-          .is_ok());
-      });
-    });
+    bench_recursive_snark_internal_with_arity(&mut group, 2, num_cons);
     group.finish();
   }
 }
