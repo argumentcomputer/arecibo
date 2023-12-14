@@ -201,8 +201,17 @@ fn bench_compressed_snark_internal_with_arity<
 
 fn bench_one_augmented_circuit_compressed_snark(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
     let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
@@ -220,8 +229,17 @@ fn bench_one_augmented_circuit_compressed_snark(c: &mut Criterion) {
 
 fn bench_two_augmented_circuit_compressed_snark(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
     let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
@@ -239,8 +257,17 @@ fn bench_two_augmented_circuit_compressed_snark(c: &mut Criterion) {
 
 fn bench_two_augmented_circuit_compressed_snark_with_computational_commitments(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
-  for &num_cons_in_augmented_circuit in
-    [9819, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].iter()
+  for &num_cons_in_augmented_circuit in [
+    NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
+  ]
+  .iter()
   {
     // number of constraints in the step circuit
     let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
