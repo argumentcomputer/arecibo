@@ -1,10 +1,5 @@
 #![allow(non_snake_case)]
-
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use core::marker::PhantomData;
-use criterion::*;
-use ff::PrimeField;
-use nova_snark::{
+use arecibo::{
   provider::{PallasEngine, VestaEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
@@ -13,6 +8,10 @@ use nova_snark::{
   },
   PublicParams, RecursiveSNARK,
 };
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use core::marker::PhantomData;
+use criterion::*;
+use ff::PrimeField;
 use std::time::Duration;
 
 type E1 = PallasEngine;
