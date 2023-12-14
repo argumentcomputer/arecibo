@@ -9,8 +9,8 @@ use nova_snark::{
   supernova::{snark::CompressedSNARK, PublicParams, RecursiveSNARK},
   traits::{
     circuit_supernova::{StepCircuit, TrivialTestCircuit},
+    snark::BatchedRelaxedR1CSSNARKTrait,
     snark::RelaxedR1CSSNARKTrait,
-    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait},
     Engine,
   },
 };
@@ -123,7 +123,7 @@ fn bench_compressed_snark_internal_with_arity<
 ) {
   let bench: NonUniformBench<E1, E2, TrivialTestCircuit<<E2 as Engine>::Scalar>> =
     NonUniformBench::new(num_augmented_circuits, num_cons);
-  let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
+  let pp = PublicParams::setup(&bench, &*S1::ck_floor(), &*S2::ck_floor());
 
   let num_steps = 3;
   let z0_primary = vec![<E1 as Engine>::Scalar::from(2u64)];
