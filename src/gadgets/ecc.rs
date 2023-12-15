@@ -1013,17 +1013,17 @@ mod tests {
 
   #[test]
   fn test_ecc_circuit_ops() {
-    test_ecc_circuit_ops_with::<PallasEngine, VestaEngine>();
-    test_ecc_circuit_ops_with::<VestaEngine, PallasEngine>();
+    test_ecc_circuit_ops_with::<PallasEngine, VestaEngine>(2704, 2692);
+    test_ecc_circuit_ops_with::<VestaEngine, PallasEngine>(2704, 2692);
 
-    test_ecc_circuit_ops_with::<Bn256Engine, GrumpkinEngine>();
-    test_ecc_circuit_ops_with::<GrumpkinEngine, Bn256Engine>();
+    test_ecc_circuit_ops_with::<Bn256Engine, GrumpkinEngine>(2738, 2724);
+    test_ecc_circuit_ops_with::<GrumpkinEngine, Bn256Engine>(2738, 2724);
 
-    test_ecc_circuit_ops_with::<Secp256k1Engine, Secq256k1Engine>();
-    test_ecc_circuit_ops_with::<Secq256k1Engine, Secp256k1Engine>();
+    test_ecc_circuit_ops_with::<Secp256k1Engine, Secq256k1Engine>(2670, 2660);
+    test_ecc_circuit_ops_with::<Secq256k1Engine, Secp256k1Engine>(2670, 2660);
   }
 
-  fn test_ecc_circuit_ops_with<E1, E2>()
+  fn test_ecc_circuit_ops_with<E1, E2>(expected_constraints: usize, expected_variables: usize)
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -1031,7 +1031,8 @@ mod tests {
     // First create the shape
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_smul::<E1, _>(cs.namespace(|| "synthesize"));
-    println!("Number of constraints: {}", cs.num_constraints());
+    assert_eq!(cs.num_constraints(), expected_constraints);
+    assert_eq!(cs.num_aux(), expected_variables);
     let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
@@ -1129,25 +1130,28 @@ mod tests {
 
   #[test]
   fn test_ecc_circuit_add_negation() {
-    test_ecc_circuit_add_negation_with::<PallasEngine, VestaEngine>();
-    test_ecc_circuit_add_negation_with::<VestaEngine, PallasEngine>();
+    test_ecc_circuit_add_negation_with::<PallasEngine, VestaEngine>(39, 34);
+    test_ecc_circuit_add_negation_with::<VestaEngine, PallasEngine>(39, 34);
 
-    test_ecc_circuit_add_negation_with::<Bn256Engine, GrumpkinEngine>();
-    test_ecc_circuit_add_negation_with::<GrumpkinEngine, Bn256Engine>();
+    test_ecc_circuit_add_negation_with::<Bn256Engine, GrumpkinEngine>(39, 34);
+    test_ecc_circuit_add_negation_with::<GrumpkinEngine, Bn256Engine>(39, 34);
 
-    test_ecc_circuit_add_negation_with::<Secp256k1Engine, Secq256k1Engine>();
-    test_ecc_circuit_add_negation_with::<Secq256k1Engine, Secp256k1Engine>();
+    test_ecc_circuit_add_negation_with::<Secp256k1Engine, Secq256k1Engine>(39, 34);
+    test_ecc_circuit_add_negation_with::<Secq256k1Engine, Secp256k1Engine>(39, 34);
   }
 
-  fn test_ecc_circuit_add_negation_with<E1, E2>()
-  where
+  fn test_ecc_circuit_add_negation_with<E1, E2>(
+    expected_constraints: usize,
+    expected_variables: usize,
+  ) where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
     // First create the shape
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_add_negation::<E1, _>(cs.namespace(|| "synthesize add equal"));
-    println!("Number of constraints: {}", cs.num_constraints());
+    assert_eq!(cs.num_constraints(), expected_constraints);
+    assert_eq!(cs.num_aux(), expected_variables);
     let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
