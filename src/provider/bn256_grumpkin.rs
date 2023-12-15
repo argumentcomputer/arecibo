@@ -79,7 +79,6 @@ macro_rules! impl_traits {
         #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
         cpu_best_msm(scalars, bases)
       }
-
       fn preprocessed(&self) -> Self::PreprocessedGroupElement {
         self.to_affine()
       }
@@ -98,7 +97,7 @@ macro_rules! impl_traits {
           reader.read_exact(&mut uniform_bytes).unwrap();
           uniform_bytes_vec.push(uniform_bytes);
         }
-        let ck_proj: Vec<$name_curve> = (0..n)
+        let gens_proj: Vec<$name_curve> = (0..n)
           .into_par_iter()
           .map(|i| {
             let hash = $name_curve::hash_to_curve("from_uniform_bytes");
@@ -107,30 +106,30 @@ macro_rules! impl_traits {
           .collect();
 
         let num_threads = rayon::current_num_threads();
-        if ck_proj.len() > num_threads {
-          let chunk = (ck_proj.len() as f64 / num_threads as f64).ceil() as usize;
+        if gens_proj.len() > num_threads {
+          let chunk = (gens_proj.len() as f64 / num_threads as f64).ceil() as usize;
           (0..num_threads)
             .into_par_iter()
             .flat_map(|i| {
               let start = i * chunk;
               let end = if i == num_threads - 1 {
-                ck_proj.len()
+                gens_proj.len()
               } else {
-                core::cmp::min((i + 1) * chunk, ck_proj.len())
+                core::cmp::min((i + 1) * chunk, gens_proj.len())
               };
               if end > start {
-                let mut ck = vec![$name_curve_affine::identity(); end - start];
-                <Self as Curve>::batch_normalize(&ck_proj[start..end], &mut ck);
-                ck
+                let mut gens = vec![$name_curve_affine::identity(); end - start];
+                <Self as Curve>::batch_normalize(&gens_proj[start..end], &mut gens);
+                gens
               } else {
                 vec![]
               }
             })
             .collect()
         } else {
-          let mut ck = vec![$name_curve_affine::identity(); n];
-          <Self as Curve>::batch_normalize(&ck_proj, &mut ck);
-          ck
+          let mut gens = vec![$name_curve_affine::identity(); n];
+          <Self as Curve>::batch_normalize(&gens_proj, &mut gens);
+          gens
         }
       }
 
@@ -140,7 +139,9 @@ macro_rules! impl_traits {
 
       fn to_coordinates(&self) -> (Self::Base, Self::Base, bool) {
         let coordinates = self.to_affine().coordinates();
-        if coordinates.is_some().unwrap_u8() == 1 {
+        if coordinates.is_some().unwrap_u8() == 1
+          && ($name_curve_affine::identity() != self.to_affine())
+        {
           (*coordinates.unwrap().x(), *coordinates.unwrap().y(), false)
         } else {
           (Self::Base::zero(), Self::Base::zero(), true)
@@ -155,17 +156,17 @@ macro_rules! impl_traits {
       }
     }
 
+    impl<G: DlogGroup> TranscriptReprTrait<G> for $name_compressed {
+      fn to_transcript_bytes(&self) -> Vec<u8> {
+        self.as_ref().to_vec()
+      }
+    }
+
     impl CompressedGroup for $name_compressed {
       type GroupElement = $name::Point;
 
       fn decompress(&self) -> Option<$name::Point> {
         Some($name_curve::from_bytes(&self).unwrap())
-      }
-    }
-
-    impl<G: DlogGroup> TranscriptReprTrait<G> for $name_compressed {
-      fn to_transcript_bytes(&self) -> Vec<u8> {
-        self.as_ref().to_vec()
       }
     }
 
