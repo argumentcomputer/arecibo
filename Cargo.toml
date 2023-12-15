@@ -1,6 +1,6 @@
 [package]
 name = "arecibo"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Srinath Setty <srinath@microsoft.com>", "Lurk Engineering <engineering@lurk-lab.com>"]
 edition = "2021"
 description = "Recursive zkSNARKs without trusted setup"
