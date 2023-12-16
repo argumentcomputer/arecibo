@@ -120,7 +120,7 @@ mod tests {
       test_shape_cs::TestShapeCS,
     },
     provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
-    r1cs::{SparseMatrix, R1CS},
+    r1cs::{commitment_key, SparseMatrix},
     traits::{snark::default_ck_hint, Engine},
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
@@ -164,7 +164,7 @@ mod tests {
     // First create the shape
     let mut cs: TestShapeCS<E> = TestShapeCS::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, None);
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 
@@ -323,7 +323,7 @@ mod tests {
     };
 
     // generate generators and ro constants
-    let ck = R1CS::<E>::commitment_key(&S, &*default_ck_hint());
+    let ck = commitment_key(&S, &*default_ck_hint());
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 

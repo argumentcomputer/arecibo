@@ -2,6 +2,7 @@
 
 use crate::spartan::polys::eq::EqPolynomial;
 use ff::PrimeField;
+use std::iter::successors;
 
 /// Represents the multilinear extension polynomial (MLE) of the equality polynomial $pow(x,t)$, denoted as $\tilde{pow}(x, t)$.
 ///
@@ -10,7 +11,6 @@ use ff::PrimeField;
 /// \tilde{power}(x, t) = \prod_{i=1}^m(1 + (t^{2^i} - 1) * x_i)
 /// $$
 pub struct PowPolynomial<Scalar: PrimeField> {
-  t_pow: Vec<Scalar>,
   eq: EqPolynomial<Scalar>,
 }
 
@@ -18,16 +18,26 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
   /// Creates a new `PowPolynomial` from a Scalars `t`.
   pub fn new(t: &Scalar, ell: usize) -> Self {
     // t_pow = [t^{2^0}, t^{2^1}, ..., t^{2^{ell-1}}]
-    let mut t_pow = vec![Scalar::ONE; ell];
-    t_pow[0] = *t;
-    for i in 1..ell {
-      t_pow[i] = t_pow[i - 1].square();
-    }
+    let t_pow = Self::squares(t, ell);
 
     PowPolynomial {
-      t_pow: t_pow.clone(),
       eq: EqPolynomial::new(t_pow),
     }
+  }
+
+  /// Create powers the following powers of `t`:
+  /// [t^{2^0}, t^{2^1}, ..., t^{2^{ell-1}}]
+  pub(in crate::spartan) fn squares(t: &Scalar, ell: usize) -> Vec<Scalar> {
+    successors(Some(*t), |p: &Scalar| Some(p.square()))
+      .take(ell)
+      .collect::<Vec<_>>()
+  }
+
+  /// Creates the evals corresponding to a `PowPolynomial` from an already-existing vector of powers.
+  /// `t_pow.len() > ell` must be true.
+  pub(crate) fn evals_with_powers(powers: &[Scalar], ell: usize) -> Vec<Scalar> {
+    let t_pow = powers[..ell].to_vec();
+    EqPolynomial::evals_from_points(&t_pow)
   }
 
   /// Evaluates the `PowPolynomial` at a given point `rx`.
@@ -40,8 +50,8 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
     self.eq.evaluate(rx)
   }
 
-  pub fn coordinates(&self) -> Vec<Scalar> {
-    self.t_pow.clone()
+  pub fn coordinates(self) -> Vec<Scalar> {
+    self.eq.r
   }
 
   /// Evaluates the `PowPolynomial` at all the `2^|t_pow|` points in its domain.

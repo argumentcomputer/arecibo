@@ -12,27 +12,28 @@
 
 // private modules
 mod bellpepper;
-mod circuit;
 mod constants;
+mod circuit;
 mod digest;
 mod nifs;
 mod r1cs;
-
 // public modules
 pub mod errors;
 pub mod gadgets;
 pub mod provider;
 pub mod spartan;
+pub mod supernova;
 pub mod traits;
 
 use once_cell::sync::OnceCell;
 
-use crate::bellpepper::{
-  r1cs::{NovaShape, NovaWitness},
-  shape_cs::ShapeCS,
-  solver::SatisfyingAssignment,
-};
 use crate::digest::{DigestComputer, SimpleDigestible};
+use crate::
+  bellpepper::{
+    r1cs::{NovaShape, NovaWitness},
+    shape_cs::ShapeCS,
+    solver::SatisfyingAssignment,
+  };
 use bellpepper_core::ConstraintSystem;
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
@@ -52,6 +53,32 @@ use traits::{
   AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
 };
 
+/// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct CircuitShape<E: Engine> {
+  F_arity: usize,
+  r1cs_shape: R1CSShape<E>,
+}
+
+impl<E: Engine> SimpleDigestible for CircuitShape<E> {}
+
+impl<E: Engine> CircuitShape<E> {
+  /// Create a new `CircuitShape`
+  pub fn new(r1cs_shape: R1CSShape<E>, F_arity: usize) -> Self {
+    Self {
+      F_arity,
+      r1cs_shape,
+    }
+  }
+
+  /// Return the [CircuitShape]' digest.
+  pub fn digest(&self) -> E::Scalar {
+    let dc: DigestComputer<'_, <E as Engine>::Scalar, CircuitShape<E>> = DigestComputer::new(self);
+    dc.digest().expect("Failure in computing digest")
+  }
+}
+
 /// A type that holds public parameters of Nova
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -67,11 +94,11 @@ where
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
   ck_primary: CommitmentKey<E1>,
-  r1cs_shape_primary: R1CSShape<E1>,
+  circuit_shape_primary: CircuitShape<E1>,
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
   ck_secondary: CommitmentKey<E2>,
-  r1cs_shape_secondary: R1CSShape<E2>,
+  circuit_shape_secondary: CircuitShape<E2>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
   #[serde(skip, default = "OnceCell::new")]
@@ -168,7 +195,8 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1);
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
+    let circuit_shape_primary = CircuitShape::new(r1cs_shape_primary, F_arity_primary);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -179,7 +207,8 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
+    let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
     PublicParams {
       F_arity_primary,
@@ -187,11 +216,11 @@ where
       ro_consts_primary,
       ro_consts_circuit_primary,
       ck_primary,
-      r1cs_shape_primary,
+      circuit_shape_primary,
       ro_consts_secondary,
       ro_consts_circuit_secondary,
       ck_secondary,
-      r1cs_shape_secondary,
+      circuit_shape_secondary,
       augmented_circuit_params_primary,
       augmented_circuit_params_secondary,
       digest: OnceCell::new(),
@@ -211,16 +240,16 @@ where
   /// Returns the number of constraints in the primary and secondary circuits
   pub const fn num_constraints(&self) -> (usize, usize) {
     (
-      self.r1cs_shape_primary.num_cons,
-      self.r1cs_shape_secondary.num_cons,
+      self.circuit_shape_primary.r1cs_shape.num_cons,
+      self.circuit_shape_secondary.r1cs_shape.num_cons,
     )
   }
 
   /// Returns the number of variables in the primary and secondary circuits
   pub const fn num_variables(&self) -> (usize, usize) {
     (
-      self.r1cs_shape_primary.num_vars,
-      self.r1cs_shape_secondary.num_vars,
+      self.circuit_shape_primary.r1cs_shape.num_vars,
+      self.circuit_shape_secondary.r1cs_shape.num_vars,
     )
   }
 }
@@ -268,6 +297,9 @@ where
       return Err(NovaError::InvalidInitialInputLength);
     }
 
+    let r1cs_primary = &pp.circuit_shape_primary.r1cs_shape;
+    let r1cs_secondary = &pp.circuit_shape_secondary.r1cs_shape;
+
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
     let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
@@ -291,7 +323,7 @@ where
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
     let (u_primary, w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)
+      .r1cs_instance_and_witness(r1cs_primary, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -317,23 +349,25 @@ where
       .map_err(|_| NovaError::SynthesisError)
       .expect("Nova error synthesis");
     let (u_secondary, w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)
+      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
     let l_u_primary = u_primary;
-    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(&pp.r1cs_shape_primary, &l_w_primary);
-    let r_U_primary =
-      RelaxedR1CSInstance::from_r1cs_instance(&pp.ck_primary, &pp.r1cs_shape_primary, &l_u_primary);
+    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, &l_w_primary);
+    let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
+      &pp.ck_primary,
+      &pp.circuit_shape_primary.r1cs_shape,
+      &l_u_primary,
+    );
 
     // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
-    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(&pp.r1cs_shape_secondary);
-    let r_U_secondary =
-      RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, &pp.r1cs_shape_secondary);
+    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
@@ -387,7 +421,7 @@ where
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
-      &pp.r1cs_shape_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
       &self.r_U_secondary,
       &self.r_W_secondary,
       &self.l_u_secondary,
@@ -417,7 +451,7 @@ where
       .map_err(|_| NovaError::SynthesisError)?;
 
     let (l_u_primary, l_w_primary) = cs_primary
-      .r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)
+      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
       .map_err(|_e| NovaError::UnSat)
       .expect("Nova error unsat");
 
@@ -426,7 +460,7 @@ where
       &pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
-      &pp.r1cs_shape_primary,
+      &pp.circuit_shape_primary.r1cs_shape,
       &self.r_U_primary,
       &self.r_W_primary,
       &l_u_primary,
@@ -456,7 +490,7 @@ where
       .map_err(|_| NovaError::SynthesisError)?;
 
     let (l_u_secondary, l_w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)
+      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
       .map_err(|_e| NovaError::UnSat)?;
 
     // update the running instances and witnesses
@@ -558,20 +592,23 @@ where
     // check the satisfiability of the provided instances
     let (res_r_primary, (res_r_secondary, res_l_secondary)) = rayon::join(
       || {
-        pp.r1cs_shape_primary
-          .is_sat_relaxed(&pp.ck_primary, &self.r_U_primary, &self.r_W_primary)
+        pp.circuit_shape_primary.r1cs_shape.is_sat_relaxed(
+          &pp.ck_primary,
+          &self.r_U_primary,
+          &self.r_W_primary,
+        )
       },
       || {
         rayon::join(
           || {
-            pp.r1cs_shape_secondary.is_sat_relaxed(
+            pp.circuit_shape_secondary.r1cs_shape.is_sat_relaxed(
               &pp.ck_secondary,
               &self.r_U_secondary,
               &self.r_W_secondary,
             )
           },
           || {
-            pp.r1cs_shape_secondary.is_sat(
+            pp.circuit_shape_secondary.r1cs_shape.is_sat(
               &pp.ck_secondary,
               &self.l_u_secondary,
               &self.l_w_secondary,
@@ -674,8 +711,9 @@ where
     ),
     NovaError,
   > {
-    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp.r1cs_shape_primary)?;
-    let (pk_secondary, vk_secondary) = S2::setup(&pp.ck_secondary, &pp.r1cs_shape_secondary)?;
+    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp.circuit_shape_primary.r1cs_shape)?;
+    let (pk_secondary, vk_secondary) =
+      S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
 
     let pk = ProverKey {
       pk_primary,
@@ -708,7 +746,7 @@ where
       &pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
-      &pp.r1cs_shape_secondary,
+      &pp.circuit_shape_secondary.r1cs_shape,
       &recursive_snark.r_U_secondary,
       &recursive_snark.r_W_secondary,
       &recursive_snark.l_u_secondary,
@@ -721,7 +759,7 @@ where
         S1::prove(
           &pp.ck_primary,
           &pk.pk_primary,
-          &pp.r1cs_shape_primary,
+          &pp.circuit_shape_primary.r1cs_shape,
           &recursive_snark.r_U_primary,
           &recursive_snark.r_W_primary,
         )
@@ -730,7 +768,7 @@ where
         S2::prove(
           &pp.ck_secondary,
           &pk.pk_secondary,
-          &pp.r1cs_shape_secondary,
+          &pp.circuit_shape_secondary.r1cs_shape,
           &f_U_secondary,
           &f_W_secondary,
         )
@@ -956,13 +994,13 @@ mod tests {
     test_pp_digest_with::<PallasEngine, VestaEngine, _, _>(
       &trivial_circuit1,
       &trivial_circuit2,
-      "cb581e2d5c4b2ef2ddbe2d6849e0da810352f59bcdaca51476dcf9e16072f100",
+      "f4a04841515b4721519e2671b7ee11e58e2d4a30bb183ded963b71ad2ec80d00",
     );
 
     test_pp_digest_with::<PallasEngine, VestaEngine, _, _>(
       &cubic_circuit1,
       &trivial_circuit2,
-      "3cc29bb864910463e0501bac84cdefc1d4327e9c2ef5b0fd6d45ad1741f1a401",
+      "dc1b7c40ab50c5c6877ad027769452870cc28f1d13f140de7ca3a00138c58502",
     );
 
     let trivial_circuit1_grumpkin = TrivialCircuit::<<Bn256Engine as Engine>::Scalar>::default();
@@ -973,25 +1011,25 @@ mod tests {
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "c4ecd363a6c1473de7e0d24fc1dbb660f563556e2e13fb4614acdff04cab7701",
+      "df834cb2bb401251473de2f3bbe6f6c28f1c6848f74dd8281faef91b73e7f400",
     );
     #[cfg(feature = "asm")]
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "4853a6463b6309f6ae76442934d0a423f51f1e10abaddd0d39bf5644ed589100",
+      "97c009974d5b12b318045d623fff145006fab5f4234cb50e867d66377e191300",
     );
     #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "c26cc841d42c19bf98bc2482e66cd30903922f2a923927b85d66f375a821f101",
+      "c565748bea3336f07c8ff997c542ed62385ff5662f29402c4f9747153f699e01",
     );
     #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "4c484cab71e93dda69b420beb7276af969c2034a7ffb0ea8e6964e96a7e5a901",
+      "5aec6defcb0f6b2bb14aec70362419388916d7a5bc528c0b3fabb197ae57cb03",
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
@@ -1001,12 +1039,12 @@ mod tests {
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "b794d655fb39891eaf530ca3be1ec2a5ac97f72a0d07c45dbb84529d8a611502",
+      "66c6d3618bb824bcb9253b7731247b89432853bf2014ffae45a8f6b00befe303",
     );
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "50e6acf363c31c2ac1c9c646b4494cb21aae6cb648c7b0d4c95015c811fba302",
+      "cc22c270460e11d190235fbd691bdeec51e8200219e5e65112e48bb80b610803",
     );
   }
 
@@ -1030,7 +1068,6 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
-
     let num_steps = 1;
 
     // produce a recursive SNARK

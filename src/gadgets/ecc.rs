@@ -1032,7 +1032,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_smul::<E1, _>(cs.namespace(|| "synthesize"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1088,7 +1088,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_add_equal::<E1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1146,9 +1146,9 @@ mod tests {
   {
     // First create the shape
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
-    let _ = synthesize_add_negation::<E1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint());
+    let _ = synthesize_add_negation::<E1, _>(cs.namespace(|| "synthesize add equal"));
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();

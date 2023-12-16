@@ -34,7 +34,12 @@ byteorder = "1.4.3"
 thiserror = "1.0"
 halo2curves = { version = "0.4.0", features = ["derive_serde"] }
 group = "0.13.0"
+pairing = "0.23.0"
+tap = "1.0.1"
+cfg-if = "1.0.0"
 once_cell = "1.18.0"
+itertools = "0.12.0"
+log = "0.4.20"
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
 pasta-msm = { version = "0.1.4" }
@@ -48,10 +53,10 @@ criterion = { version = "0.4", features = ["html_reports"] }
 flate2 = "1.0"
 hex = "0.4.3"
 pprof = { version = "0.11" }
-cfg-if = "1.0.0"
-sha2 = "0.10.7"
-proptest = "1.2.0"
 rand = "0.8.5"
+sha2 = "0.10.7"
+tracing-test = "0.2.4"
+proptest = "1.2.0"
 
 [[bench]]
 name = "recursive-snark"
@@ -67,6 +72,14 @@ harness = false
 
 [[bench]]
 name = "sha256"
+harness = false
+
+[[bench]]
+name = "recursive-snark-supernova"
+harness = false
+
+[[bench]]
+name = "compressed-snark-supernova"
 harness = false
 
 [features]

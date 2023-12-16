@@ -14,8 +14,9 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, Parall
 /// This polynomial evaluates to 1 if every component $x_i$ equals its corresponding $e_i$, and 0 otherwise.
 ///
 /// For instance, for e = 6 (with a binary representation of 0b110), the vector r would be [1, 1, 0].
+#[derive(Debug)]
 pub struct EqPolynomial<Scalar: PrimeField> {
-  r: Vec<Scalar>,
+  pub(in crate::spartan::polys) r: Vec<Scalar>,
 }
 
 impl<Scalar: PrimeField> EqPolynomial<Scalar> {
@@ -35,7 +36,7 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   pub fn evaluate(&self, rx: &[Scalar]) -> Scalar {
     assert_eq!(self.r.len(), rx.len());
     (0..rx.len())
-      .map(|i| rx[i] * self.r[i] + (Scalar::ONE - rx[i]) * (Scalar::ONE - self.r[i]))
+      .map(|i| self.r[i] * rx[i] + (Scalar::ONE - self.r[i]) * (Scalar::ONE - rx[i]))
       .fold(Scalar::ONE, |acc, item| acc * item)
   }
 
@@ -43,18 +44,26 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   ///
   /// Returns a vector of Scalars, each corresponding to the polynomial evaluation at a specific point.
   pub fn evals(&self) -> Vec<Scalar> {
-    let ell = self.r.len();
+    Self::evals_from_points(&self.r)
+  }
+
+  /// Evaluates the `EqPolynomial` from the `2^|r|` points in its domain, without creating an intermediate polynomial
+  /// representation.
+  ///
+  /// Returns a vector of Scalars, each corresponding to the polynomial evaluation at a specific point.
+  pub fn evals_from_points(r: &[Scalar]) -> Vec<Scalar> {
+    let ell = r.len();
     let mut evals: Vec<Scalar> = vec![Scalar::ZERO; (2_usize).pow(ell as u32)];
     let mut size = 1;
     evals[0] = Scalar::ONE;
 
-    for r in self.r.iter().rev() {
+    for r in r.iter().rev() {
       let (evals_left, evals_right) = evals.split_at_mut(size);
       let (evals_right, _) = evals_right.split_at_mut(size);
 
       evals_left
         .par_iter_mut()
-        .zip(evals_right.par_iter_mut())
+        .zip_eq(evals_right.par_iter_mut())
         .for_each(|(x, y)| {
           *y = *x * r;
           *x -= &*y;
@@ -64,6 +73,13 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
     }
 
     evals
+  }
+}
+
+impl<Scalar: PrimeField> FromIterator<Scalar> for EqPolynomial<Scalar> {
+  fn from_iter<I: IntoIterator<Item = Scalar>>(iter: I) -> Self {
+    let r: Vec<_> = iter.into_iter().collect();
+    EqPolynomial { r }
   }
 }
 
