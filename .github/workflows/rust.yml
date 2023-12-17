@@ -62,7 +62,7 @@ jobs:
       working-directory: ${{ github.workspace }}/lurk
       run: |
         echo "[patch.'https://github.com/lurk-lab/arecibo']" >> Cargo.toml
-        echo "nova = { path='../arecibo', package='nova-snark' }" >> Cargo.toml
+        echo "nova = { path='../arecibo', package='arecibo' }" >> Cargo.toml
     - name: Check Lurk-rs types don't break spectacularly
       working-directory: ${{ github.workspace }}/lurk
       run: cargo check --all --tests --benches --examples
