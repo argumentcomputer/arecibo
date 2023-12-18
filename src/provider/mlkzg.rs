@@ -4,7 +4,7 @@ use crate::{
   errors::NovaError,
   provider::{
     kzg_commitment::KZGCommitmentEngine,
-    non_hiding_kzg::{UVKZGProverKey, UVKZGVerifierKey, UVUniversalKZGParam},
+    non_hiding_kzg::{KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
   },
@@ -120,15 +120,15 @@ where
   E::G1Affine: TranscriptReprTrait<E::G1>,
 {
   type EvaluationArgument = EvaluationArgument<E>;
-  type ProverKey = UVKZGProverKey<E>;
-  type VerifierKey = UVKZGVerifierKey<E>;
+  type ProverKey = KZGProverKey<E>;
+  type VerifierKey = KZGVerifierKey<E>;
 
-  fn setup(ck: &UVUniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
+  fn setup(ck: &UniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
     ck.trim(ck.length() - 1)
   }
 
   fn prove(
-    ck: &UVUniversalKZGParam<E>,
+    ck: &UniversalKZGParam<E>,
     _pk: &Self::ProverKey,
     transcript: &mut <NE as NovaEngine>::TE,
     C: &Commitment<NE>,
@@ -314,7 +314,7 @@ where
 
     // vk is hashed in transcript already, so we do not add it here
 
-    let kzg_verify_batch = |vk: &UVKZGVerifierKey<E>,
+    let kzg_verify_batch = |vk: &KZGVerifierKey<E>,
                             C: &Vec<E::G1Affine>,
                             W: &Vec<E::G1Affine>,
                             u: &Vec<E::Fr>,
@@ -456,7 +456,7 @@ mod tests {
     let n = 4;
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-    let (pk, _vk): (UVKZGProverKey<E>, UVKZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+    let (pk, _vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
 
     // poly is in eval. representation; evaluated at [(0,0), (0,1), (1,0), (1,1)]
     let poly = vec![Fr::from(1), Fr::from(2), Fr::from(2), Fr::from(4)];
@@ -511,7 +511,7 @@ mod tests {
 
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-    let (pk, vk): (UVKZGProverKey<E>, UVKZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
 
     // make a commitment
     let C = KZGCommitmentEngine::commit(&ck, &poly);
@@ -579,8 +579,7 @@ mod tests {
 
       let ck: CommitmentKey<NE> =
         <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-      let (pk, vk): (UVKZGProverKey<E>, UVKZGVerifierKey<E>) =
-        EvaluationEngine::<E, NE>::setup(&ck);
+      let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
 
       // make a commitment
       let C = <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::commit(&ck, &poly);
