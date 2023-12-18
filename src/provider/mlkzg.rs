@@ -8,11 +8,13 @@ use crate::{
     pedersen::Commitment,
     traits::DlogGroup,
   },
+  spartan::polys::univariate::UniPoly,
   traits::{
     commitment::{CommitmentEngineTrait, Len},
     evaluation::EvaluationEngineTrait,
     Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait,
   },
+  zip_with,
 };
 use core::marker::PhantomData;
 use ff::{Field, PrimeFieldBits};
@@ -20,6 +22,7 @@ use group::{Curve, Group as _};
 use itertools::Itertools as _;
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::*;
+use ref_cast::RefCast as _;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Provides an implementation of a polynomial evaluation argument
@@ -29,9 +32,9 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
   deserialize = "E::G1Affine: Deserialize<'de>, E::Fr: Deserialize<'de>"
 ))]
 pub struct EvaluationArgument<E: Engine> {
-  com: Vec<E::G1Affine>,
-  w: Vec<E::G1Affine>,
-  v: Vec<Vec<E::Fr>>,
+  evals_r: Vec<E::G1Affine>,
+  evals_neg_r: Vec<E::G1Affine>,
+  evals_r_squared: Vec<Vec<E::Fr>>,
 }
 
 /// Provides an implementation of a polynomial evaluation engine using KZG
@@ -40,6 +43,8 @@ pub struct EvaluationEngine<E, NE> {
   _p: PhantomData<(E, NE)>,
 }
 
+// This impl block defines helper functions that are not a part of
+// EvaluationEngineTrait, but that we will use to implement the trait methods.
 impl<E, NE> EvaluationEngine<E, NE>
 where
   E: Engine,
@@ -48,8 +53,6 @@ where
   E::Fr: TranscriptReprTrait<E::G1>,
   E::G1Affine: TranscriptReprTrait<E::G1>, // TODO: this bound on DlogGroup is really unusable!
 {
-  // This impl block defines helper functions that are not a part of
-  // EvaluationEngineTrait, but that we will use to implement the trait methods.
   fn compute_challenge(
     C: &E::G1Affine,
     y: &E::Fr,
@@ -87,11 +90,9 @@ where
 
   fn batch_challenge_powers(q: E::Fr, k: usize) -> Vec<E::Fr> {
     // Compute powers of q : (1, q, q^2, ..., q^(k-1))
-    let mut q_powers = vec![E::Fr::ONE; k];
-    for i in 1..k {
-      q_powers[i] = q_powers[i - 1] * q;
-    }
-    q_powers
+    std::iter::successors(Some(E::Fr::ONE), |&x| Some(x * q))
+      .take(k)
+      .collect()
   }
 
   fn verifier_second_challenge(
@@ -178,23 +179,12 @@ where
                           u: &[E::Fr],
                           transcript: &mut <NE as NovaEngine>::TE|
      -> (Vec<E::G1Affine>, Vec<Vec<E::Fr>>) {
-      let poly_eval = |f: &[E::Fr], u: E::Fr| -> E::Fr {
-        let mut v = f[0];
-        let mut u_power = E::Fr::ONE;
-
-        for fi in f.iter().skip(1) {
-          u_power *= u;
-          v += u_power * fi;
-        }
-
-        v
-      };
-
       let scalar_vector_muladd = |a: &mut Vec<E::Fr>, v: &Vec<E::Fr>, s: E::Fr| {
         assert!(a.len() >= v.len());
-        for i in 0..v.len() {
-          a[i] += s * v[i];
-        }
+        #[allow(clippy::disallowed_methods)]
+        a.par_iter_mut()
+          .zip(v.par_iter())
+          .for_each(|(c, v)| *c += s * v);
       };
 
       let kzg_compute_batch_polynomial = |f: &[Vec<E::Fr>], q: E::Fr| -> Vec<E::Fr> {
@@ -219,23 +209,19 @@ where
       // The verifier needs f_i(u_j), so we compute them here
       // (V will compute B(u_j) itself)
       let mut v = vec![vec!(E::Fr::ZERO; k); t];
-      for i in 0..t {
+      v.par_iter_mut().enumerate().for_each(|(i, v_i)| {
         // for each point u
-        for (j, f_j) in f.iter().enumerate().take(k) {
+        v_i.par_iter_mut().zip_eq(f).for_each(|(v_ij, f)| {
           // for each poly f
-          v[i][j] = poly_eval(f_j, u[i]); // = f_j(u_i)
-        }
-      }
+          *v_ij = UniPoly::ref_cast(f).evaluate(&u[i]);
+        });
+      });
 
       let q = Self::get_batch_challenge(C, u, &v, transcript);
       let B = kzg_compute_batch_polynomial(f, q);
 
       // Now open B at u0, ..., u_{t-1}
-      let mut w = Vec::with_capacity(t);
-      for ui in u {
-        let wi = kzg_open(&B, *ui);
-        w.push(wi);
-      }
+      let w = u.par_iter().map(|ui| kzg_open(&B, *ui)).collect::<Vec<_>>();
 
       // Compute the commitment to the batched polynomial B(X)
       let q_powers = Self::batch_challenge_powers(q, k);
@@ -297,7 +283,11 @@ where
     com_all.insert(0, C.comm.preprocessed());
     let (w, v) = kzg_open_batch(&com_all, &polys, &u, transcript);
 
-    Ok(EvaluationArgument { com, w, v })
+    Ok(EvaluationArgument {
+      evals_r: com,
+      evals_neg_r: w,
+      evals_r_squared: v,
+    })
   }
 
   /// A method to verify purported evaluations of a batch of polynomials
@@ -333,15 +323,9 @@ where
 
       // Compute the batched openings
       // compute B(u_i) = v[i][0] + q*v[i][1] + ... + q^(t-1) * v[i][t-1]
-      let B_u = (0..t)
-        .map(|i| {
-          assert_eq!(q_powers.len(), v[i].len());
-          q_powers
-            .iter()
-            .zip_eq(v[i].iter())
-            .map(|(a, b)| *a * *b)
-            .sum()
-        })
+      let B_u = v
+        .iter()
+        .map(|v_i| zip_with!(iter, (q_powers, v_i), |a, b| *a * *b).sum())
         .collect::<Vec<E::Fr>>();
 
       let d_0 = Self::verifier_second_challenge(&C_B, W, transcript);
@@ -374,7 +358,7 @@ where
 
       // Check that e(L, vk.H) == e(R, vk.tau_H)
       let pairing_inputs = [
-        (&L.to_affine(), &E::G2Prepared::from(-vk.h)),
+        (&(-L).to_affine(), &E::G2Prepared::from(vk.h)),
         (&R.to_affine(), &E::G2Prepared::from(vk.beta_h)),
       ];
 
@@ -385,7 +369,7 @@ where
 
     let ell = x.len();
 
-    let mut com = pi.com.clone();
+    let mut com = pi.evals_r.clone();
 
     // we do not need to add x to the transcript, because in our context x was
     // obtained from the transcript
@@ -399,7 +383,7 @@ where
     let u = vec![r, -r, r * r];
 
     // Setup vectors (Y, ypos, yneg) from pi.v
-    let v = &pi.v;
+    let v = &pi.evals_r_squared;
     if v.len() != 3 {
       return Err(NovaError::ProofVerifyError);
     }
@@ -428,7 +412,14 @@ where
     }
 
     // Check commitments to (Y, ypos, yneg) are valid
-    if !kzg_verify_batch(vk, &com, &pi.w, &u, &pi.v, transcript) {
+    if !kzg_verify_batch(
+      vk,
+      &com,
+      &pi.evals_neg_r,
+      &u,
+      &pi.evals_r_squared,
+      transcript,
+    ) {
       return Err(NovaError::ProofVerifyError);
     }
 
@@ -552,7 +543,7 @@ mod tests {
 
     // Change the proof and expect verification to fail
     let mut bad_proof = proof.clone();
-    bad_proof.com[0] = (bad_proof.com[0] + bad_proof.com[1]).to_affine();
+    bad_proof.evals_r[0] = (bad_proof.evals_r[0] + bad_proof.evals_r[1]).to_affine();
     let mut verifier_transcript2 = Keccak256Transcript::<NE>::new(b"TestEval");
     assert!(EvaluationEngine::<E, NE>::verify(
       &vk,
@@ -605,7 +596,7 @@ mod tests {
 
       // Change the proof and expect verification to fail
       let mut bad_proof = proof.clone();
-      bad_proof.com[0] = (bad_proof.com[0] + bad_proof.com[1]).to_affine();
+      bad_proof.evals_r[0] = (bad_proof.evals_r[0] + bad_proof.evals_r[1]).to_affine();
       let mut verifier_tr2 = Keccak256Transcript::<NE>::new(b"TestEval");
       assert!(EvaluationEngine::<E, NE>::verify(
         &vk,
