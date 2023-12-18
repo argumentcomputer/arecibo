@@ -635,7 +635,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, _>(
     &test_rom_grumpkin,
-    "6f72db6927b6a12e95e1d5237298e1e20f0215b63ef8d76a361930eb76f71003",
+    "5caf6efbdb5a928b44a6eb4ff597e2b5f6764450ceb86b7065aac6cf965c0203",
   );
 
   let rom = vec![
@@ -650,7 +650,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, _>(
     &test_rom_secp,
-    "0c2f7c68efcc5f4c42a25670ea896bc082c9753d04fc2e5b3a41531ed4e91602",
+    "326db6480944b0869a524ff22e71e9cff0f900728845679da5d9615cf78a2903",
   );
 }
 
