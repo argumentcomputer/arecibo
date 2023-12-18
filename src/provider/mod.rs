@@ -19,7 +19,6 @@ mod util;
 
 // crate-private modules
 mod keccak;
-mod msm;
 
 use crate::{
   provider::{
@@ -151,9 +150,9 @@ impl Engine for VestaEngine {
 mod tests {
   use crate::provider::{
     bn256_grumpkin::{bn256, grumpkin},
-    msm::cpu_best_msm,
     secp_secq::{secp256k1, secq256k1},
     traits::DlogGroup,
+    util::msm::cpu_best_msm,
   };
   use digest::{ExtendableOutput, Update};
   use group::{ff::Field, Curve, Group};

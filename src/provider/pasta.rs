@@ -1,8 +1,8 @@
 //! This module implements the Nova traits for `pallas::Point`, `pallas::Scalar`, `vesta::Point`, `vesta::Scalar`.
 use crate::{
   provider::{
-    msm::cpu_best_msm,
     traits::{CompressedGroup, DlogGroup},
+    util::msm::cpu_best_msm,
   },
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
