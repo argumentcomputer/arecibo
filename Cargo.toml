@@ -9,7 +9,7 @@ readme = "README.md"
 repository = "https://github.com/lurk-lab/arecibo"
 license-file = "LICENSE"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
-rust-version="1.67.1"
+rust-version="1.70.0"
 
 [dependencies]
 bellpepper-core = { git="https://github.com/lurk-lab/bellpepper", branch="dev", default-features = false }
