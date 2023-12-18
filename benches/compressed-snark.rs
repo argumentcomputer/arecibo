@@ -19,10 +19,10 @@ type E1 = PallasEngine;
 type E2 = VestaEngine;
 type EE1 = nova_snark::provider::ipa_pc::EvaluationEngine<E1>;
 type EE2 = nova_snark::provider::ipa_pc::EvaluationEngine<E2>;
-// SNARKs without computational commitments
+// SNARKs without computation commitmnets
 type S1 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
 type S2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
-// SNARKs with computational commitments
+// SNARKs with computation commitmnets
 type SS1 = nova_snark::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>;
 type SS2 = nova_snark::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
 type C1 = NonTrivialCircuit<<E1 as Engine>::Scalar>;
