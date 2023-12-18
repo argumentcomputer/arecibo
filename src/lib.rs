@@ -175,7 +175,7 @@ where
   ///
   /// let circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
   /// let circuit2 = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
-  /// // Only relevant for a SNARK using computational commitments, pass &(|_| 0)
+  /// // Only relevant for a SNARK using computation commitmnets, pass &(|_| 0)
   /// // or &*nova_snark::traits::snark::default_ck_hint() otherwise.
   /// let ck_hint1 = &*SPrime::<E1>::ck_floor();
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
