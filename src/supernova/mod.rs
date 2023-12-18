@@ -1,4 +1,4 @@
-#![doc = include_str!("../../notes/supernova.md")]
+#![doc = include_str!("./Readme.md")]
 
 use std::marker::PhantomData;
 use std::ops::Index;

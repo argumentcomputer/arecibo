@@ -74,7 +74,6 @@ macro_rules! zip_with_for_each {
 
 // Foldright-like nesting for idents (a, b, c) -> (a, (b, c))
 #[doc(hidden)]
-#[allow(unused_macro_rules)]
 #[macro_export]
 macro_rules! nested_idents {
     ($a:ident, $b:ident) => {
