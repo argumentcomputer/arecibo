@@ -97,10 +97,6 @@ macro_rules! impl_traits {
         self.to_affine()
       }
 
-      fn group(p: &Self::PreprocessedGroupElement) -> Self {
-        $name::Point::from(*p)
-      }
-
       fn compress(&self) -> Self::CompressedGroupElement {
         $name_compressed::new(self.to_bytes())
       }
@@ -153,10 +149,6 @@ macro_rules! impl_traits {
 
       fn zero() -> Self {
         $name::Point::identity()
-      }
-
-      fn gen() -> Self {
-        $name::Point::generator()
       }
 
       fn to_coordinates(&self) -> (Self::Base, Self::Base, bool) {

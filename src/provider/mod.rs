@@ -77,6 +77,19 @@ impl Engine for Bn256EngineZM {
   type TE = Keccak256Transcript<Self>;
   type CE = KZGCommitmentEngine<Bn256>;
 }
+/// An implementation of Nova traits with multilinear KZG over the BN256 curve
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Bn256EngineKZG;
+
+impl Engine for Bn256EngineKZG {
+  type Base = bn256::Base;
+  type Scalar = bn256::Scalar;
+  type GE = bn256::Point;
+  type RO = PoseidonRO<Self::Base, Self::Scalar>;
+  type ROCircuit = PoseidonROCircuit<Self::Base>;
+  type TE = Keccak256Transcript<Self>;
+  type CE = KZGCommitmentEngine<Bn256>;
+}
 
 /// An implementation of the Nova `Engine` trait with Secp256k1 curve and Pedersen commitment scheme
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -1000,8 +1000,8 @@ mod tests {
   use super::*;
   use crate::{
     provider::{
-      mlkzg::Bn256EngineKZG, non_hiding_zeromorph::ZMPCS, traits::DlogGroup, Bn256Engine,
-      Bn256EngineZM, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
+      non_hiding_zeromorph::ZMPCS, traits::DlogGroup, Bn256Engine, Bn256EngineKZG, Bn256EngineZM,
+      GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
   };
@@ -1391,7 +1391,7 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<
       Bn256EngineKZG,
       GrumpkinEngine,
-      provider::mlkzg::EvaluationEngine<_>,
+      provider::mlkzg::EvaluationEngine<Bn256, _>,
       EE<_>,
     >();
   }
