@@ -175,7 +175,7 @@ where
   ///
   /// let circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
   /// let circuit2 = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
-  /// // Only relevant for a SNARK using computational commitments, pass &(|_| 0)
+  /// // Only relevant for a SNARK using computation commitmnets, pass &(|_| 0)
   /// // or &*nova_snark::traits::snark::default_ck_hint() otherwise.
   /// let ck_hint1 = &*SPrime::<E1>::ck_floor();
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
@@ -1119,41 +1119,25 @@ mod tests {
     // These tests should not need be different on the "asm" feature for bn256.
     // See https://github.com/privacy-scaling-explorations/halo2curves/issues/100 for why they are - closing the issue there
     // should eliminate the discrepancy here.
-    #[cfg(feature = "asm")]
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "df834cb2bb401251473de2f3bbe6f6c28f1c6848f74dd8281faef91b73e7f400",
+      "2af2a80ea8a0c21cfc4096e9b2d4822344a29174d88cd86239a99a363efe8702",
     );
-    #[cfg(feature = "asm")]
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "97c009974d5b12b318045d623fff145006fab5f4234cb50e867d66377e191300",
+      "9273fd39ed6220ea28e60abca8bdb3180f90e37e6aaf3031e6d670d073e8a002",
     );
-    #[cfg(not(feature = "asm"))]
-    test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
-      &trivial_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
-      "c565748bea3336f07c8ff997c542ed62385ff5662f29402c4f9747153f699e01",
-    );
-    #[cfg(not(feature = "asm"))]
-    test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
-      &cubic_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
-      "5aec6defcb0f6b2bb14aec70362419388916d7a5bc528c0b3fabb197ae57cb03",
-    );
-    #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "e20ab87e395e787e272330a4c9c79916b83bf95632d9604511ad6a1448625402",
+      "eac63861dcbaa924a1bd9721f01528271385dd6ff182c77bc62e03448adc1902",
     );
-    #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "ce304ffff7f6dfc143322bb621e9025ba9d77f1b8d0e199e6bc432aa66c98101",
+      "21bd7e07175b23e3bd2bbc6a0c3b9efd8603815609dbe93f8df9c174e132de03",
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
@@ -1163,12 +1147,12 @@ mod tests {
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "66c6d3618bb824bcb9253b7731247b89432853bf2014ffae45a8f6b00befe303",
+      "7652ef8326b01e784eaac7b44bd0bc2f27af3904c96ef2bf7ab1b923b8aae701",
     );
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "cc22c270460e11d190235fbd691bdeec51e8200219e5e65112e48bb80b610803",
+      "da51e6bac881c054c4ed08320ce42d8a0e61a22fbd70bbbbf05384ec4adeb201",
     );
   }
 
