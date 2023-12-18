@@ -1119,37 +1119,21 @@ mod tests {
     // These tests should not need be different on the "asm" feature for bn256.
     // See https://github.com/privacy-scaling-explorations/halo2curves/issues/100 for why they are - closing the issue there
     // should eliminate the discrepancy here.
-    #[cfg(feature = "asm")]
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "2af2a80ea8a0c21cfc4096e9b2d4822344a29174d88cd86239a99a363efe8702",
     );
-    #[cfg(feature = "asm")]
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "9273fd39ed6220ea28e60abca8bdb3180f90e37e6aaf3031e6d670d073e8a002",
     );
-    #[cfg(not(feature = "asm"))]
-    test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
-      &trivial_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
-      "2af2a80ea8a0c21cfc4096e9b2d4822344a29174d88cd86239a99a363efe8702",
-    );
-    #[cfg(not(feature = "asm"))]
-    test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
-      &cubic_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
-      "9273fd39ed6220ea28e60abca8bdb3180f90e37e6aaf3031e6d670d073e8a002",
-    );
-    #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       "eac63861dcbaa924a1bd9721f01528271385dd6ff182c77bc62e03448adc1902",
     );
-    #[cfg(not(feature = "asm"))]
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
