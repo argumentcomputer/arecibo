@@ -190,9 +190,24 @@ macro_rules! impl_traits {
 
     impl<G: DlogGroup> TranscriptReprTrait<G> for $name::Affine {
       fn to_transcript_bytes(&self) -> Vec<u8> {
-        let coords = self.coordinates().unwrap();
+        let (x, y, is_infinity_byte) = {
+          let coordinates = self.coordinates();
+          if coordinates.is_some().unwrap_u8() == 1 {
+            (
+              *coordinates.unwrap().x(),
+              *coordinates.unwrap().y(),
+              u8::from(false),
+            )
+          } else {
+            ($name::Base::zero(), $name::Base::zero(), u8::from(true))
+          }
+        };
 
-        [coords.x().to_repr(), coords.y().to_repr()].concat()
+        x.to_repr()
+          .into_iter()
+          .chain(y.to_repr().into_iter())
+          .chain(std::iter::once(is_infinity_byte))
+          .collect()
       }
     }
   };
