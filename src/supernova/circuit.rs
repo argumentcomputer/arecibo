@@ -607,6 +607,7 @@ mod tests {
     },
     traits::{circuit_supernova::TrivialTestCircuit, snark::default_ck_hint},
   };
+  use expect_test::{expect, Expect};
 
   // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
   fn test_supernova_recursive_circuit_with<E1, E2>(
@@ -614,8 +615,8 @@ mod tests {
     secondary_params: &SuperNovaAugmentedCircuitParams,
     ro_consts1: ROConstantsCircuit<E2>,
     ro_consts2: ROConstantsCircuit<E1>,
-    num_constraints_primary: usize,
-    num_constraints_secondary: usize,
+    num_constraints_primary: &Expect,
+    num_constraints_secondary: &Expect,
     num_augmented_circuits: usize,
   ) where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -634,7 +635,8 @@ mod tests {
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint());
-    assert_eq!(cs.num_constraints(), num_constraints_primary);
+
+    num_constraints_primary.assert_eq(&cs.num_constraints().to_string());
 
     let tc2 = TrivialTestCircuit::default();
     // Initialize the shape and ck for the secondary
@@ -649,7 +651,8 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
     let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint());
-    assert_eq!(cs.num_constraints(), num_constraints_secondary);
+
+    num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
     // Execute the base case for the primary
     let zero1 = <<E2 as Engine>::Base as Field>::ZERO;
@@ -717,7 +720,13 @@ mod tests {
     let ro_consts2: ROConstantsCircuit<PallasEngine> = PoseidonConstantsCircuit::default();
 
     test_supernova_recursive_circuit_with::<PallasEngine, VestaEngine>(
-      &params1, &params2, ro_consts1, ro_consts2, 9844, 10392, 1,
+      &params1,
+      &params2,
+      ro_consts1,
+      ro_consts2,
+      &expect!["9844"],
+      &expect!["10392"],
+      1,
     );
     // TODO: extend to num_augmented_circuits >= 2
   }
@@ -730,7 +739,13 @@ mod tests {
     let ro_consts2: ROConstantsCircuit<Bn256Engine> = PoseidonConstantsCircuit::default();
 
     test_supernova_recursive_circuit_with::<Bn256Engine, GrumpkinEngine>(
-      &params1, &params2, ro_consts1, ro_consts2, 10012, 10581, 1,
+      &params1,
+      &params2,
+      ro_consts1,
+      ro_consts2,
+      &expect!["10012"],
+      &expect!["10581"],
+      1,
     );
     // TODO: extend to num_augmented_circuits >= 2
   }
@@ -743,7 +758,13 @@ mod tests {
     let ro_consts2: ROConstantsCircuit<Secp256k1Engine> = PoseidonConstantsCircuit::default();
 
     test_supernova_recursive_circuit_with::<Secp256k1Engine, Secq256k1Engine>(
-      &params1, &params2, ro_consts1, ro_consts2, 10291, 11004, 1,
+      &params1,
+      &params2,
+      ro_consts1,
+      ro_consts2,
+      &expect!["10291"],
+      &expect!["11004"],
+      1,
     );
     // TODO: extend to num_augmented_circuits >= 2
   }

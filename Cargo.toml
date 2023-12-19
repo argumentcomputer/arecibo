@@ -66,6 +66,7 @@ pprof = { version = "0.11" }
 sha2 = "0.10.7"
 tracing-test = "0.2.4"
 proptest = "1.2.0"
+expect-test = "1.4.1"
 
 [[bench]]
 name = "recursive-snark"

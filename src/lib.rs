@@ -1007,6 +1007,7 @@ mod tests {
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   use core::{fmt::Write, marker::PhantomData};
+  use expect_test::{expect, Expect};
   use ff::PrimeField;
   use halo2curves::bn256::Bn256;
   use traits::circuit::TrivialCircuit;
@@ -1063,7 +1064,7 @@ mod tests {
     }
   }
 
-  fn test_pp_digest_with<E1, E2, T1, T2, EE1, EE2>(circuit1: &T1, circuit2: &T2, expected: &str)
+  fn test_pp_digest_with<E1, E2, T1, T2, EE1, EE2>(circuit1: &T1, circuit2: &T2, expected: &Expect)
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -1091,7 +1092,8 @@ mod tests {
         let _ = write!(output, "{b:02x}");
         output
       });
-    assert_eq!(digest_str, expected);
+
+    expected.assert_eq(&digest_str);
   }
 
   #[test]
@@ -1103,13 +1105,13 @@ mod tests {
     test_pp_digest_with::<PallasEngine, VestaEngine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1,
       &trivial_circuit2,
-      "f4a04841515b4721519e2671b7ee11e58e2d4a30bb183ded963b71ad2ec80d00",
+      &expect!["f4a04841515b4721519e2671b7ee11e58e2d4a30bb183ded963b71ad2ec80d00"],
     );
 
     test_pp_digest_with::<PallasEngine, VestaEngine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1,
       &trivial_circuit2,
-      "dc1b7c40ab50c5c6877ad027769452870cc28f1d13f140de7ca3a00138c58502",
+      &expect!["dc1b7c40ab50c5c6877ad027769452870cc28f1d13f140de7ca3a00138c58502"],
     );
 
     let trivial_circuit1_grumpkin = TrivialCircuit::<<Bn256Engine as Engine>::Scalar>::default();
@@ -1122,22 +1124,22 @@ mod tests {
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "2af2a80ea8a0c21cfc4096e9b2d4822344a29174d88cd86239a99a363efe8702",
+      &expect!["2af2a80ea8a0c21cfc4096e9b2d4822344a29174d88cd86239a99a363efe8702"],
     );
     test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "9273fd39ed6220ea28e60abca8bdb3180f90e37e6aaf3031e6d670d073e8a002",
+      &expect!["9273fd39ed6220ea28e60abca8bdb3180f90e37e6aaf3031e6d670d073e8a002"],
     );
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "eac63861dcbaa924a1bd9721f01528271385dd6ff182c77bc62e03448adc1902",
+      &expect!["eac63861dcbaa924a1bd9721f01528271385dd6ff182c77bc62e03448adc1902"],
     );
     test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      "21bd7e07175b23e3bd2bbc6a0c3b9efd8603815609dbe93f8df9c174e132de03",
+      &expect!["21bd7e07175b23e3bd2bbc6a0c3b9efd8603815609dbe93f8df9c174e132de03"],
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
@@ -1147,12 +1149,12 @@ mod tests {
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      "7652ef8326b01e784eaac7b44bd0bc2f27af3904c96ef2bf7ab1b923b8aae701",
+      &expect!["7652ef8326b01e784eaac7b44bd0bc2f27af3904c96ef2bf7ab1b923b8aae701"],
     );
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      "da51e6bac881c054c4ed08320ce42d8a0e61a22fbd70bbbbf05384ec4adeb201",
+      &expect!["da51e6bac881c054c4ed08320ce42d8a0e61a22fbd70bbbbf05384ec4adeb201"],
     );
   }
 
