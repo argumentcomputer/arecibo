@@ -312,29 +312,15 @@ We then verify that $(u',w')$ is a satisfying circuit, which proves that all rel
 
 We then need to verify that all accumulators $(U[\ ], W[\ ])$ and $(U', W')$ are correct by checking the circuit satisfiability.
 
-## Links to relevant
+## Comparsion of Nova and SuperNova
 
-### [RecursiveSNARK](./mod.rs#L400)
-
-1) [`new`](./mod.rs#L443)
-2) [`prove_step`](./mod.rs#L615)
-3) [`verify`](./mod.rs#L797)
-
-### [SuperNova Augmented Circuit](./circuit.rs#L126)
-
-1) [`synthesize_base_case`](./circuit.rs#L276)
-2) [`synthesize_non_base_case`](./circuit.rs#L323)
-3) [`synthesize`](./circuit.rs#L410)
-4) [Public IO](./circuit.rs#L584)
-
-### [SuperNova CompressedSNARK](./snark.rs)
-
-1) [`prove`](./snark.rs#L142)
-2) [`verify`](./snark.rs#L227)
-
-#### [BatchedRelaxedR1CSSNARKTrait](../traits/snark.rs#L65)
-
-1) [Batched Spartan](../spartan/batched.rs)
-2) [Batched Spartan with computation commitments](../spartan/batched_ppsnark.rs)
-3) [Batched sumcheck](../spartan/sumcheck.rs#L464)
-4) [Batched sumcheck verify](../spartan/sumcheck.rs#L65)
+|                                  |         Nova          |          SuperNova           |
+| -------------------------------- | --------------------- | ---------------------------- |
+| `RecursiveSNARK`                 | `lib.rs`              | `supernova/mod.rs`           |
+| `CompressedSNARK`                | `lib.rs`              | `supernova/snark.rs`         |
+| `StepCircuit`                    | `traits/circuit.rs`   | `traits/circuit_supernova.rs`|
+| Augmented Circuit                | `circuit.rs`          | `supernova/circuit.rs`       |
+| `(Batched)RelaxedR1CSSNARKTrait` | `traits/snark.rs`     | `traits/snark.rs`            |
+| Direct Spartan                   | `spartan/snark.rs`    | `spartan/batched.rs`         |
+| Spartan with Spark preprocessing | `spartan/ppsnark.rs`  | `spartan/batched_ppsnark.rs` |
+| (batched) Sumcheck primitives    | `spartan/sumcheck.rs` | `spartan/sumcheck.rs`        |
