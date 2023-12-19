@@ -1,8 +1,8 @@
 //! This module implements the Nova traits for `pallas::Point`, `pallas::Scalar`, `vesta::Point`, `vesta::Scalar`.
 use crate::{
   provider::{
-    msm::cpu_best_msm,
     traits::{CompressedGroup, DlogGroup},
+    util::msm::cpu_best_msm,
   },
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
@@ -185,6 +185,29 @@ macro_rules! impl_traits {
     impl<G: Group> TranscriptReprTrait<G> for $name::Scalar {
       fn to_transcript_bytes(&self) -> Vec<u8> {
         self.to_repr().to_vec()
+      }
+    }
+
+    impl<G: DlogGroup> TranscriptReprTrait<G> for $name::Affine {
+      fn to_transcript_bytes(&self) -> Vec<u8> {
+        let (x, y, is_infinity_byte) = {
+          let coordinates = self.coordinates();
+          if coordinates.is_some().unwrap_u8() == 1 {
+            (
+              *coordinates.unwrap().x(),
+              *coordinates.unwrap().y(),
+              u8::from(false),
+            )
+          } else {
+            ($name::Base::zero(), $name::Base::zero(), u8::from(true))
+          }
+        };
+
+        x.to_repr()
+          .into_iter()
+          .chain(y.to_repr().into_iter())
+          .chain(std::iter::once(is_infinity_byte))
+          .collect()
       }
     }
   };

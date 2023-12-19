@@ -1,4 +1,4 @@
-# Nova: Recursive SNARKs without trusted setup
+# Nova: High-speed recursive arguments from folding schemes
 
 > [!NOTE]
 > This repository is a fork of the original hosted at [https://github.com/microsoft/nova](https://github.com/microsoft/nova). It's an incubator for experimenting with more advanced variants of the original software and working out the kinks in them.

@@ -65,7 +65,8 @@ pub trait DlogGroup:
     + Send
     + Sync
     + Serialize
-    + for<'de> Deserialize<'de>;
+    + for<'de> Deserialize<'de>
+    + TranscriptReprTrait<Self>;
 
   /// A method to compute a multiexponentation
   fn vartime_multiscalar_mul(
@@ -222,6 +223,26 @@ macro_rules! impl_traits {
     impl<G: Group> TranscriptReprTrait<G> for $name::Scalar {
       fn to_transcript_bytes(&self) -> Vec<u8> {
         self.to_repr().to_vec()
+      }
+    }
+
+    impl<G: DlogGroup> TranscriptReprTrait<G> for $name::Affine {
+      fn to_transcript_bytes(&self) -> Vec<u8> {
+        let (x, y, is_infinity_byte) = {
+          let coordinates = self.coordinates();
+          if coordinates.is_some().unwrap_u8() == 1 && ($name_curve_affine::identity() != *self) {
+            let c = coordinates.unwrap();
+            (*c.x(), *c.y(), u8::from(false))
+          } else {
+            ($name::Base::zero(), $name::Base::zero(), u8::from(false))
+          }
+        };
+
+        x.to_repr()
+          .into_iter()
+          .chain(y.to_repr().into_iter())
+          .chain(std::iter::once(is_infinity_byte))
+          .collect()
       }
     }
   };

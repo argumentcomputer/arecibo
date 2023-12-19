@@ -2,6 +2,7 @@
 
 // public modules to be used as an evaluation engine with Spartan
 pub mod ipa_pc;
+pub mod mlkzg;
 pub mod non_hiding_zeromorph;
 
 // crate-public modules, made crate-public mostly for tests
@@ -18,7 +19,6 @@ mod util;
 
 // crate-private modules
 mod keccak;
-mod msm;
 
 use crate::{
   provider::{
@@ -68,6 +68,19 @@ impl Engine for GrumpkinEngine {
 pub struct Bn256EngineZM;
 
 impl Engine for Bn256EngineZM {
+  type Base = bn256::Base;
+  type Scalar = bn256::Scalar;
+  type GE = bn256::Point;
+  type RO = PoseidonRO<Self::Base, Self::Scalar>;
+  type ROCircuit = PoseidonROCircuit<Self::Base>;
+  type TE = Keccak256Transcript<Self>;
+  type CE = KZGCommitmentEngine<Bn256>;
+}
+/// An implementation of Nova traits with multilinear KZG over the BN256 curve
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Bn256EngineKZG;
+
+impl Engine for Bn256EngineKZG {
   type Base = bn256::Base;
   type Scalar = bn256::Scalar;
   type GE = bn256::Point;
@@ -137,9 +150,9 @@ impl Engine for VestaEngine {
 mod tests {
   use crate::provider::{
     bn256_grumpkin::{bn256, grumpkin},
-    msm::cpu_best_msm,
     secp_secq::{secp256k1, secq256k1},
     traits::DlogGroup,
+    util::msm::cpu_best_msm,
   };
   use digest::{ExtendableOutput, Update};
   use group::{ff::Field, Curve, Group};
