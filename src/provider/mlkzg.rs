@@ -53,9 +53,7 @@ where
   E::Fr: TranscriptReprTrait<E::G1>,
   E::G1Affine: TranscriptReprTrait<E::G1>, // TODO: this bound on DlogGroup is really unusable!
 {
-  fn compute_challenge(
-    transcript: &mut impl TranscriptEngineTrait<NE>,
-  ) -> E::Fr {
+  fn compute_challenge(transcript: &mut impl TranscriptEngineTrait<NE>) -> E::Fr {
     transcript.squeeze(b"c").unwrap()
   }
 
