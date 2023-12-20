@@ -20,7 +20,6 @@ use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use core::cmp::max;
 use ff::{Field, PrimeField};
-use itertools::zip_eq;
 use once_cell::sync::OnceCell;
 use rand_core::{CryptoRng, RngCore};
 
@@ -199,7 +198,7 @@ impl<E: Engine> R1CSShape<E> {
   }
 
   /// Generate a satisfying [RelaxedR1CSWitness] and [RelaxedR1CSInstance] for this [R1CSShape].
-  pub fn random_witness_instance<E: Engine, R: RngCore + CryptoRng>(
+  pub fn random_witness_instance<R: RngCore + CryptoRng>(
     &self,
     commitment_key: &CommitmentKey<E>,
     mut rng: &mut R,
@@ -339,7 +338,7 @@ impl<E: Engine> R1CSShape<E> {
 
     let E = zip_with!(
       (Az.into_par_iter(), Bz.into_par_iter(), Cz.into_par_iter()),
-      |a, b, c| a * b - u * c
+      |a, b, c| a * b - c * u
     )
     .collect::<Vec<E::Scalar>>();
 
@@ -359,10 +358,12 @@ impl<E: Engine> R1CSShape<E> {
 
     // verify if Az * Bz - u*Cz = E
     let E = self.compute_E(&W.W, &U.u, &U.X)?;
-    zip_eq(W.E.par_iter(), E.par_iter())
+    W.E
+      .par_iter()
+      .zip_eq(E.into_par_iter())
       .enumerate()
       .try_for_each(|(i, (we, e))| {
-        if *we != *e {
+        if *we != e {
           // constraint failed, retrieve constraint name
           Err(NovaError::UnSatIndex(i))
         } else {
@@ -831,6 +832,8 @@ pub fn default_T<E: Engine>(shape: &R1CSShape<E>) -> Vec<E::Scalar> {
 #[cfg(test)]
 mod tests {
   use ff::Field;
+  use rand_chacha::ChaCha20Rng;
+  use rand_core::SeedableRng;
 
   use super::*;
   use crate::{
@@ -919,5 +922,25 @@ mod tests {
     test_pad_tiny_r1cs_with::<PallasEngine>();
     test_pad_tiny_r1cs_with::<Bn256Engine>();
     test_pad_tiny_r1cs_with::<Secp256k1Engine>();
+  }
+
+  fn test_random_r1cs_with<E: Engine>() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let ck_size: usize = 16_384;
+    let ck = E::CE::setup(b"ipa", ck_size);
+
+    let cases = [(16, 16, 2, 16), (16, 32, 12, 8), (256, 256, 2, 1024)];
+
+    for (num_cons, num_vars, num_io, num_entries) in cases {
+      let S = R1CSShape::<E>::random(num_cons, num_vars, num_io, num_entries, &mut rng);
+      let (W, U) = S.random_witness_instance(&ck, &mut rng);
+      assert!(S.is_sat_relaxed(&ck, &U, &W).is_ok());
+    }
+  }
+
+  #[test]
+  fn test_random_r1cs() {
+    test_random_r1cs_with::<Bn256Engine>();
   }
 }

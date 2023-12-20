@@ -96,7 +96,7 @@ impl<F: PrimeField> SparseMatrix<F> {
   ) -> Self {
     assert!(num_entries <= rows * cols);
 
-    let mut indices = BTreeSet::<(usize, usize)>::with_capacity(num_entries);
+    let mut indices = BTreeSet::<(usize, usize)>::new();
     while indices.len() < num_entries {
       let row = rng.next_u32() as usize % rows;
       let col = rng.next_u32() as usize % cols;
@@ -105,7 +105,7 @@ impl<F: PrimeField> SparseMatrix<F> {
 
     let matrix = indices
       .into_iter()
-      .map(|(row, col)| (row, col, F::rand(&mut rng)))
+      .map(|(row, col)| (row, col, F::random(&mut rng)))
       .collect::<Vec<_>>();
 
     Self::new(&matrix, rows, cols)
