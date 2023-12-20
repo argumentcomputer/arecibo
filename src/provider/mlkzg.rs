@@ -54,15 +54,8 @@ where
   E::G1Affine: TranscriptReprTrait<E::G1>, // TODO: this bound on DlogGroup is really unusable!
 {
   fn compute_challenge(
-    C: &E::G1Affine,
-    y: &E::Fr,
-    com: &[E::G1Affine],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
-    transcript.absorb(b"C", C);
-    transcript.absorb(b"y", y);
-    transcript.absorb(b"c", &com.to_vec().as_slice());
-
     transcript.squeeze(b"c").unwrap()
   }
 
@@ -265,7 +258,7 @@ where
     // Phase 2
     // We do not need to add x to the transcript, because in our context x was
     // obtained from the transcript.
-    let r = Self::compute_challenge(&C.comm.preprocessed(), eval, &com, transcript);
+    let r = Self::compute_challenge(transcript);
     let u = vec![r, -r, r * r];
 
     // Phase 3 -- create response
@@ -363,7 +356,7 @@ where
 
     // we do not need to add x to the transcript, because in our context x was
     // obtained from the transcript
-    let r = Self::compute_challenge(&C.comm.preprocessed(), y, &com, transcript);
+    let r = Self::compute_challenge(transcript);
 
     if r == E::Fr::ZERO || C.comm == E::G1::zero() {
       return Err(NovaError::ProofVerifyError);
