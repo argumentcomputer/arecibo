@@ -93,11 +93,9 @@ where
   }
 
   fn verifier_second_challenge(
-    C_B: &E::G1Affine,
     W: &[E::G1Affine],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
-    transcript.absorb(b"C_b", C_B);
     transcript.absorb(b"W", &W.to_vec().as_slice());
 
     transcript.squeeze(b"d").unwrap()
@@ -220,14 +218,9 @@ where
       // Now open B at u0, ..., u_{t-1}
       let w = u.par_iter().map(|ui| kzg_open(&B, *ui)).collect::<Vec<_>>();
 
-      // Compute the commitment to the batched polynomial B(X)
-      let q_powers = Self::batch_challenge_powers(q, k);
-      let c_0: E::G1 = C[0].into();
-      let C_B = (c_0 + NE::GE::vartime_multiscalar_mul(&q_powers[1..k], &C[1..k])).preprocessed();
-
       // The prover computes the challenge to keep the transcript in the same
       // state as that of the verifier
-      let _d_0 = Self::verifier_second_challenge(&C_B, &w, transcript);
+      let _d_0 = Self::verifier_second_challenge(&w, transcript);
 
       (w, v)
     };
@@ -325,7 +318,7 @@ where
         .map(|v_i| zip_with!(iter, (q_powers, v_i), |a, b| *a * *b).sum())
         .collect::<Vec<E::Fr>>();
 
-      let d_0 = Self::verifier_second_challenge(&C_B, W, transcript);
+      let d_0 = Self::verifier_second_challenge(W, transcript);
       let d = [d_0, d_0 * d_0];
 
       assert!(t == 3);
