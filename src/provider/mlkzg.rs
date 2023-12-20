@@ -68,14 +68,11 @@ where
 
   // Compute challenge q = Hash(vk, C0, ..., C_{k-1}, u0, ...., u_{t-1},
   // (f_i(u_j))_{i=0..k-1,j=0..t-1})
+  // It is assumed that both 'C' and 'u' are already absorbed by the transcript
   fn get_batch_challenge(
-    C: &[E::G1Affine],
-    u: &[E::Fr],
     v: &[Vec<E::Fr>],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
-    transcript.absorb(b"C", &C.to_vec().as_slice());
-    transcript.absorb(b"u", &u.to_vec().as_slice());
     transcript.absorb(
       b"v",
       &v.iter()
@@ -217,7 +214,7 @@ where
         });
       });
 
-      let q = Self::get_batch_challenge(C, u, &v, transcript);
+      let q = Self::get_batch_challenge(&v, transcript);
       let B = kzg_compute_batch_polynomial(f, q);
 
       // Now open B at u0, ..., u_{t-1}
@@ -314,7 +311,7 @@ where
       let k = C.len();
       let t = u.len();
 
-      let q = Self::get_batch_challenge(C, u, v, transcript);
+      let q = Self::get_batch_challenge(v, transcript);
       let q_powers = Self::batch_challenge_powers(q, k); // 1, q, q^2, ..., q^(k-1)
 
       // Compute the commitment to the batched polynomial B(X)
