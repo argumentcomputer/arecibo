@@ -14,13 +14,14 @@ use crate::{
   traits::{
     commitment::CommitmentEngineTrait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, CE,
+  zip_with, Commitment, CommitmentKey, CE,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use core::cmp::max;
 use ff::{Field, PrimeField};
 use once_cell::sync::OnceCell;
+use rand_core::{CryptoRng, RngCore};
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -159,6 +160,76 @@ impl<E: Engine> R1CSShape<E> {
     })
   }
 
+  /// Generate a random [R1CSShape] with the specified number of constraints, variables, and public inputs/outputs.
+  pub fn random<R: RngCore + CryptoRng>(
+    num_cons: usize,
+    num_vars: usize,
+    num_io: usize,
+    num_entries: usize,
+    mut rng: &mut R,
+  ) -> Self {
+    assert!(num_cons.is_power_of_two());
+    assert!(num_vars.is_power_of_two());
+    assert!(num_entries.is_power_of_two());
+    assert!(num_io < num_vars);
+
+    let num_rows = num_cons;
+    let num_cols = num_vars + 1 + num_io;
+
+    let (NA, NB, NC) = {
+      let N_div_3 = num_entries / 3;
+      let NC = num_entries - (2 * N_div_3);
+      (N_div_3, N_div_3, NC)
+    };
+
+    let A = SparseMatrix::random(num_rows, num_cols, NA, &mut rng);
+    let B = SparseMatrix::random(num_rows, num_cols, NB, &mut rng);
+    let C = SparseMatrix::random(num_rows, num_cols, NC, &mut rng);
+
+    Self {
+      num_cons,
+      num_vars,
+      num_io,
+      A,
+      B,
+      C,
+      digest: Default::default(),
+    }
+  }
+
+  /// Generate a satisfying [RelaxedR1CSWitness] and [RelaxedR1CSInstance] for this [R1CSShape].
+  pub fn random_witness_instance<R: RngCore + CryptoRng>(
+    &self,
+    commitment_key: &CommitmentKey<E>,
+    mut rng: &mut R,
+  ) -> (RelaxedR1CSWitness<E>, RelaxedR1CSInstance<E>) {
+    // Sample a random witness and compute the error term
+    let W = (0..self.num_vars)
+      .map(|_| E::Scalar::random(&mut rng))
+      .collect::<Vec<E::Scalar>>();
+    let u = E::Scalar::random(&mut rng);
+    let X = (0..self.num_io)
+      .map(|_| E::Scalar::random(&mut rng))
+      .collect::<Vec<E::Scalar>>();
+
+    let E = self.compute_E(&W, &u, &X).unwrap();
+
+    let (comm_W, comm_E) = rayon::join(
+      || CE::<E>::commit(commitment_key, &W),
+      || CE::<E>::commit(commitment_key, &E),
+    );
+
+    let witness = RelaxedR1CSWitness { W, E };
+    let instance = RelaxedR1CSInstance {
+      comm_W,
+      comm_E,
+      u,
+      X,
+    };
+
+    (witness, instance)
+  }
+
   /// returned the digest of the `R1CSShape`
   pub fn digest(&self) -> E::Scalar {
     self
@@ -244,6 +315,36 @@ impl<E: Engine> R1CSShape<E> {
     Ok(())
   }
 
+  /// Computes the error term E = Az * Bz - u*Cz.
+  fn compute_E(
+    &self,
+    W: &[E::Scalar],
+    u: &E::Scalar,
+    X: &[E::Scalar],
+  ) -> Result<Vec<E::Scalar>, NovaError> {
+    if X.len() != self.num_io || W.len() != self.num_vars {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    let (Az, (Bz, Cz)) = rayon::join(
+      || self.A.multiply_witness(W, u, X),
+      || {
+        rayon::join(
+          || self.B.multiply_witness(W, u, X),
+          || self.C.multiply_witness(W, u, X),
+        )
+      },
+    );
+
+    let E = zip_with!(
+      (Az.into_par_iter(), Bz.into_par_iter(), Cz.into_par_iter()),
+      |a, b, c| a * b - c * u
+    )
+    .collect::<Vec<E::Scalar>>();
+
+    Ok(E)
+  }
+
   /// Checks if the Relaxed R1CS instance is satisfiable given a witness and its shape
   pub fn is_sat_relaxed(
     &self,
@@ -255,23 +356,20 @@ impl<E: Engine> R1CSShape<E> {
     assert_eq!(W.E.len(), self.num_cons);
     assert_eq!(U.X.len(), self.num_io);
 
-    // verify if Az * Bz = u*Cz + E
-    let res_eq = {
-      let (Az, Bz, Cz) = self.multiply_witness(&W.W, &U.u, &U.X)?;
-      assert_eq!(Az.len(), self.num_cons);
-      assert_eq!(Bz.len(), self.num_cons);
-      assert_eq!(Cz.len(), self.num_cons);
-
-      (0..self.num_cons).try_for_each(|i| {
-        if Az[i] * Bz[i] != U.u * Cz[i] + W.E[i] {
-          // constraint failed
+    // verify if Az * Bz - u*Cz = E
+    let E = self.compute_E(&W.W, &U.u, &U.X)?;
+    W.E
+      .par_iter()
+      .zip_eq(E.into_par_iter())
+      .enumerate()
+      .try_for_each(|(i, (we, e))| {
+        if *we != e {
+          // constraint failed, retrieve constraint name
           Err(NovaError::UnSatIndex(i))
         } else {
           Ok(())
         }
-      })
-    };
-    res_eq?;
+      })?;
 
     // verify if comm_E and comm_W are commitments to E and W
     let res_comm = {
@@ -296,23 +394,15 @@ impl<E: Engine> R1CSShape<E> {
     assert_eq!(W.W.len(), self.num_vars);
     assert_eq!(U.X.len(), self.num_io);
 
-    // verify if Az * Bz = u*Cz
-    let res_eq = {
-      let (Az, Bz, Cz) = self.multiply_witness(&W.W, &E::Scalar::ONE, &U.X)?;
-      assert_eq!(Az.len(), self.num_cons);
-      assert_eq!(Bz.len(), self.num_cons);
-      assert_eq!(Cz.len(), self.num_cons);
-
-      (0..self.num_cons).try_for_each(|i| {
-        if Az[i] * Bz[i] != Cz[i] {
-          // constraint failed, retrieve constaint name
-          Err(NovaError::UnSatIndex(i))
-        } else {
-          Ok(())
-        }
-      })
-    };
-    res_eq?;
+    // verify if Az * Bz - u*Cz = 0
+    let E = self.compute_E(&W.W, &E::Scalar::ONE, &U.X)?;
+    E.into_par_iter().enumerate().try_for_each(|(i, e)| {
+      if e != E::Scalar::ZERO {
+        Err(NovaError::UnSatIndex(i))
+      } else {
+        Ok(())
+      }
+    })?;
 
     // verify if comm_W is a commitment to W
     if U.comm_W != CE::<E>::commit(ck, &W.W) {
@@ -742,6 +832,8 @@ pub fn default_T<E: Engine>(shape: &R1CSShape<E>) -> Vec<E::Scalar> {
 #[cfg(test)]
 mod tests {
   use ff::Field;
+  use rand_chacha::ChaCha20Rng;
+  use rand_core::SeedableRng;
 
   use super::*;
   use crate::{
@@ -830,5 +922,25 @@ mod tests {
     test_pad_tiny_r1cs_with::<PallasEngine>();
     test_pad_tiny_r1cs_with::<Bn256Engine>();
     test_pad_tiny_r1cs_with::<Secp256k1Engine>();
+  }
+
+  fn test_random_r1cs_with<E: Engine>() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let ck_size: usize = 16_384;
+    let ck = E::CE::setup(b"ipa", ck_size);
+
+    let cases = [(16, 16, 2, 16), (16, 32, 12, 8), (256, 256, 2, 1024)];
+
+    for (num_cons, num_vars, num_io, num_entries) in cases {
+      let S = R1CSShape::<E>::random(num_cons, num_vars, num_io, num_entries, &mut rng);
+      let (W, U) = S.random_witness_instance(&ck, &mut rng);
+      assert!(S.is_sat_relaxed(&ck, &U, &W).is_ok());
+    }
+  }
+
+  #[test]
+  fn test_random_r1cs() {
+    test_random_r1cs_with::<Bn256Engine>();
   }
 }

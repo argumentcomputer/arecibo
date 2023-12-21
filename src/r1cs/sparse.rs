@@ -5,11 +5,13 @@
 //! to compute the `A z`, `B z`, and `C z` in Nova.
 
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use ff::PrimeField;
 use itertools::Itertools as _;
+use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +85,30 @@ impl<F: PrimeField> SparseMatrix<F> {
       indptr,
       cols,
     }
+  }
+
+  /// Samples a new random matrix of size `rows` x `cols` with `num_entries` non-zero entries.
+  pub fn random<R: RngCore + CryptoRng>(
+    rows: usize,
+    cols: usize,
+    num_entries: usize,
+    mut rng: &mut R,
+  ) -> Self {
+    assert!(num_entries <= rows * cols);
+
+    let mut indices = BTreeSet::<(usize, usize)>::new();
+    while indices.len() < num_entries {
+      let row = rng.next_u32() as usize % rows;
+      let col = rng.next_u32() as usize % cols;
+      indices.insert((row, col));
+    }
+
+    let matrix = indices
+      .into_iter()
+      .map(|(row, col)| (row, col, F::random(&mut rng)))
+      .collect::<Vec<_>>();
+
+    Self::new(&matrix, rows, cols)
   }
 
   /// Retrieves the data for row slice [i..j] from `ptrs`.
