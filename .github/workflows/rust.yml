@@ -67,6 +67,11 @@ jobs:
       working-directory: ${{ github.workspace }}/lurk
       run: cargo check --all --tests --benches --examples
 
+
+  # Lint dependencies for licensing and auditing issues as per https://github.com/lurk-lab/arecibo/blob/main/deny.toml
+  licenses-audits:
+    uses: lurk-lab/ci-workflows/.github/workflows/licenses-audits.yml@main
+
   misc:
     runs-on: ubuntu-latest
     strategy:
