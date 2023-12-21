@@ -26,7 +26,7 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
     - uses: taiki-e/install-action@nextest
@@ -48,10 +48,10 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         path: ${{ github.workspace }}/arecibo
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         repository: lurk-lab/lurk-rs
         path: ${{ github.workspace }}/lurk
@@ -74,7 +74,7 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           components: rustfmt, clippy
