@@ -175,6 +175,26 @@ macro_rules! impl_traits {
         self.to_repr().to_vec()
       }
     }
+
+    impl<G: DlogGroup> TranscriptReprTrait<G> for $name::Affine {
+      fn to_transcript_bytes(&self) -> Vec<u8> {
+        let (x, y, is_infinity_byte) = {
+          let coordinates = self.coordinates();
+          if coordinates.is_some().unwrap_u8() == 1 && ($name_curve_affine::identity() != *self) {
+            let c = coordinates.unwrap();
+            (*c.x(), *c.y(), u8::from(false))
+          } else {
+            ($name::Base::zero(), $name::Base::zero(), u8::from(false))
+          }
+        };
+
+        x.to_repr()
+          .into_iter()
+          .chain(y.to_repr().into_iter())
+          .chain(std::iter::once(is_infinity_byte))
+          .collect()
+      }
+    }
   };
 }
 
@@ -195,3 +215,47 @@ impl_traits!(
   "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47",
   "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001"
 );
+
+#[cfg(test)]
+mod tests {
+  use ff::Field;
+  use rand::thread_rng;
+
+  use crate::provider::{
+    bn256_grumpkin::{bn256, grumpkin},
+    traits::DlogGroup,
+    util::msm::cpu_best_msm,
+  };
+
+  #[test]
+  fn test_bn256_msm_correctness() {
+    let npoints = 1usize << 16;
+    let points = bn256::Point::from_label(b"test", npoints);
+
+    let mut rng = thread_rng();
+    let scalars = (0..npoints)
+      .map(|_| bn256::Scalar::random(&mut rng))
+      .collect::<Vec<_>>();
+
+    let cpu_msm = cpu_best_msm(&scalars, &points);
+    let gpu_msm = bn256::Point::vartime_multiscalar_mul(&scalars, &points);
+
+    assert_eq!(cpu_msm, gpu_msm);
+  }
+
+  #[test]
+  fn test_grumpkin_msm_correctness() {
+    let npoints = 1usize << 16;
+    let points = grumpkin::Point::from_label(b"test", npoints);
+
+    let mut rng = thread_rng();
+    let scalars = (0..npoints)
+      .map(|_| grumpkin::Scalar::random(&mut rng))
+      .collect::<Vec<_>>();
+
+    let cpu_msm = cpu_best_msm(&scalars, &points);
+    let gpu_msm = grumpkin::Point::vartime_multiscalar_mul(&scalars, &points);
+
+    assert_eq!(cpu_msm, gpu_msm);
+  }
+}
