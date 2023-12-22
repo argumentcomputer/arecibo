@@ -27,12 +27,13 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
     - uses: actions/checkout@v4
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@stable
     - uses: taiki-e/install-action@nextest
     - uses: Swatinem/rust-cache@v2
     - name: Check the minroot example compiles under the abomonate feature
-      run: cargo check --profile dev-ci --features "abomonate" --examples 
+      run: cargo check --profile dev-ci --features "abomonate" --examples
+    - name: Check benches compile under the flamegraph feature
+      run: cargo check --profile dev-ci --features "flamegraph" --benches
     - name: Build, with benches & examples
       run: cargo build --profile dev-ci --benches --examples 
     - name: Linux Tests in parallel, with nextest profile ci and cargo profile dev-ci
@@ -79,8 +80,8 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
@@ -94,8 +95,6 @@ jobs:
           args: --all -- --check
       - name: Check clippy warnings
         run: cargo xclippy -D warnings
-      - name: Check benches compile under the flamegraph feature
-        run: cargo check --profile dev-ci --features "flamegraph" --benches
       - name: Doctests
         run: cargo test --doc --workspace
 
