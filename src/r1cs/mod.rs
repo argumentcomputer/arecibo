@@ -704,7 +704,7 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
 impl<E: Engine> RelaxedR1CSInstance<E> {
   /// Produces a default `RelaxedR1CSInstance` given `R1CSGens` and `R1CSShape`
-  pub fn default(_ck: &CommitmentKey<E>, S: &R1CSShape<E>) -> Self {
+  pub fn default(S: &R1CSShape<E>) -> RelaxedR1CSInstance<E> {
     let (comm_W, comm_E) = (Commitment::<E>::default(), Commitment::<E>::default());
     Self {
       comm_W,
