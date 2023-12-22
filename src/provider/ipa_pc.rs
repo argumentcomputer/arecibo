@@ -410,3 +410,72 @@ where
     }
   }
 }
+
+#[cfg(test)]
+mod test {
+  use ff::Field;
+  use rand_core::SeedableRng;
+  /*  use rand_chacha::ChaCha20Rng;
+  use rand_core::SeedableRng;*/
+  use crate::provider::ipa_pc::EvaluationEngine;
+  use crate::provider::GrumpkinEngine;
+  use crate::spartan::polys::multilinear::MultilinearPolynomial;
+  use crate::traits::evaluation::EvaluationEngineTrait;
+  use crate::traits::{commitment::CommitmentEngineTrait, Engine, TranscriptEngineTrait};
+
+  type GrumpkinIPA = EvaluationEngine<GrumpkinEngine>;
+  type GrumpkinScalar = <GrumpkinEngine as Engine>::Scalar;
+  type GrumpkinCommitmentEngine = <GrumpkinEngine as Engine>::CE;
+  type GrumpkinTranscript = <GrumpkinEngine as Engine>::TE;
+
+  #[test]
+  fn trying() {
+    /*    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+     */
+    for ell in [4, 5, 6] {
+      let mut rng = rand::rngs::StdRng::seed_from_u64(ell as u64);
+
+      let n = 1 << ell; // n = 2^ell
+
+      let poly = (0..n)
+        .map(|_| GrumpkinScalar::random(&mut rng))
+        .collect::<Vec<_>>();
+      let point = (0..ell)
+        .map(|_| GrumpkinScalar::random(&mut rng))
+        .collect::<Vec<_>>();
+      let eval = MultilinearPolynomial::evaluate_with(&poly, &point);
+
+      let ck = GrumpkinCommitmentEngine::setup(b"test", n);
+
+      let commitment = GrumpkinCommitmentEngine::commit(&ck, &poly);
+
+      let (prover_key, verifier_key) = GrumpkinIPA::setup(&ck);
+      let mut prover_transcript = GrumpkinTranscript::new(b"TestEval");
+      let proof = GrumpkinIPA::prove(
+        &ck,
+        &prover_key,
+        &mut prover_transcript,
+        &commitment,
+        &poly,
+        &point,
+        &eval,
+      )
+      .unwrap();
+      let pcp = prover_transcript.squeeze(b"c").unwrap();
+
+      let mut verifier_transcript = GrumpkinTranscript::new(b"TestEval");
+      GrumpkinIPA::verify(
+        &verifier_key,
+        &mut verifier_transcript,
+        &commitment,
+        &point,
+        &eval,
+        &proof,
+      )
+      .unwrap();
+      let pcv = verifier_transcript.squeeze(b"c").unwrap();
+
+      assert_eq!(pcp, pcv);
+    }
+  }
+}
