@@ -230,3 +230,44 @@ impl_traits!(
   "40000000000000000000000000000000224698fc094cf91b992d30ed00000001",
   "40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001"
 );
+
+#[cfg(test)]
+mod tests {
+  use ff::Field;
+  use pasta_curves::{pallas, vesta};
+  use rand::thread_rng;
+
+  use crate::provider::{traits::DlogGroup, util::msm::cpu_best_msm};
+
+  #[test]
+  fn test_pallas_msm_correctness() {
+    let npoints = 1usize << 16;
+    let points = pallas::Point::from_label(b"test", npoints);
+
+    let mut rng = thread_rng();
+    let scalars = (0..npoints)
+      .map(|_| pallas::Scalar::random(&mut rng))
+      .collect::<Vec<_>>();
+
+    let cpu_msm = cpu_best_msm(&scalars, &points);
+    let gpu_msm = pallas::Point::vartime_multiscalar_mul(&scalars, &points);
+
+    assert_eq!(cpu_msm, gpu_msm);
+  }
+
+  #[test]
+  fn test_vesta_msm_correctness() {
+    let npoints = 1usize << 16;
+    let points = vesta::Point::from_label(b"test", npoints);
+
+    let mut rng = thread_rng();
+    let scalars = (0..npoints)
+      .map(|_| vesta::Scalar::random(&mut rng))
+      .collect::<Vec<_>>();
+
+    let cpu_msm = cpu_best_msm(&scalars, &points);
+    let gpu_msm = vesta::Point::vartime_multiscalar_mul(&scalars, &points);
+
+    assert_eq!(cpu_msm, gpu_msm);
+  }
+}
