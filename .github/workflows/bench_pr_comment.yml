@@ -53,7 +53,7 @@ jobs:
         with:
           ref: ${{ steps.comment-branch.outputs.head_ref }}
       # Set the Rust env vars
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: boa-dev/criterion-compare-action@v3
         with:
@@ -80,7 +80,7 @@ jobs:
         with:
           ref: ${{ steps.comment-branch.outputs.head_ref }}
       # Set the Rust env vars
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: boa-dev/criterion-compare-action@v3
         with:
@@ -107,7 +107,7 @@ jobs:
         with:
           ref: ${{ steps.comment-branch.outputs.head_ref }}
       # Set the Rust env vars
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: boa-dev/criterion-compare-action@v3
         with:
