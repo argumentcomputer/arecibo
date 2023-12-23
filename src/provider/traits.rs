@@ -1,8 +1,6 @@
 use crate::traits::{commitment::ScalarMul, Group, TranscriptReprTrait};
-use core::{
-  fmt::Debug,
-  ops::{Add, AddAssign, Sub, SubAssign},
-};
+use core::fmt::Debug;
+use group::{GroupOps, GroupOpsOwned, ScalarMulOwned};
 use serde::{Deserialize, Serialize};
 
 /// Represents a compressed version of a group element
@@ -24,25 +22,6 @@ pub trait CompressedGroup:
   /// Decompresses the compressed group element
   fn decompress(&self) -> Option<Self::GroupElement>;
 }
-
-/// A helper trait for types with a group operation.
-pub trait GroupOps<Rhs = Self, Output = Self>:
-  Add<Rhs, Output = Output> + Sub<Rhs, Output = Output> + AddAssign<Rhs> + SubAssign<Rhs>
-{
-}
-
-impl<T, Rhs, Output> GroupOps<Rhs, Output> for T where
-  T: Add<Rhs, Output = Output> + Sub<Rhs, Output = Output> + AddAssign<Rhs> + SubAssign<Rhs>
-{
-}
-
-/// A helper trait for references with a group operation.
-pub trait GroupOpsOwned<Rhs = Self, Output = Self>: for<'r> GroupOps<&'r Rhs, Output> {}
-impl<T, Rhs, Output> GroupOpsOwned<Rhs, Output> for T where T: for<'r> GroupOps<&'r Rhs, Output> {}
-
-/// A helper trait for references implementing group scalar multiplication.
-pub trait ScalarMulOwned<Rhs, Output = Self>: for<'r> ScalarMul<&'r Rhs, Output> {}
-impl<T, Rhs, Output> ScalarMulOwned<Rhs, Output> for T where T: for<'r> ScalarMul<&'r Rhs, Output> {}
 
 /// A trait that defines extensions to the Group trait
 pub trait DlogGroup:
