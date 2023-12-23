@@ -7,6 +7,7 @@ use crate::{
 use digest::{ExtendableOutput, Update};
 use ff::{FromUniformBytes, PrimeField};
 use group::{cofactor::CofactorCurveAffine, Curve, Group as AnotherGroup};
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use grumpkin_msm::{bn256 as bn256_msm, grumpkin as grumpkin_msm};
 use num_bigint::BigInt;
 use num_traits::Num;
@@ -30,18 +31,32 @@ pub mod grumpkin {
   };
 }
 
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 impl_traits!(
   bn256,
   "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
   "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47",
   bn256_msm
 );
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+impl_traits!(
+  bn256,
+  "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
+  "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47"
+);
 
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 impl_traits!(
   grumpkin,
   "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47",
   "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
   grumpkin_msm
+);
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+impl_traits!(
+  grumpkin,
+  "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47",
+  "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001"
 );
 
 #[cfg(test)]
