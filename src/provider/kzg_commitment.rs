@@ -30,7 +30,7 @@ pub struct KZGCommitmentEngine<E: Engine> {
 impl<E: Engine, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>> CommitmentEngineTrait<NE>
   for KZGCommitmentEngine<E>
 where
-  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
   E::G1Affine: Serialize + for<'de> Deserialize<'de>,
   E::G2Affine: Serialize + for<'de> Deserialize<'de>,
   E::Fr: PrimeFieldBits, // TODO due to use of gen_srs_for_testing, make optional

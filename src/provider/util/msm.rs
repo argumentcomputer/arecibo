@@ -95,7 +95,7 @@ fn cpu_msm_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve
 ///
 /// This will use multithreading if beneficial.
 /// Adapted from zcash/halo2
-pub(crate) fn cpu_best_msm<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+pub(crate) fn cpu_best_msm<C: CurveAffine>(bases: &[C], coeffs: &[C::Scalar]) -> C::Curve {
   assert_eq!(coeffs.len(), bases.len());
 
   let num_threads = current_num_threads();
@@ -137,7 +137,7 @@ mod tests {
       .fold(A::CurveExt::identity(), |acc, (coeff, base)| {
         acc + *base * coeff
       });
-    let msm = cpu_best_msm(&coeffs, &bases);
+    let msm = cpu_best_msm(&bases, &coeffs);
 
     assert_eq!(naive, msm)
   }

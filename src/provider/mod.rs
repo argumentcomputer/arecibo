@@ -205,7 +205,7 @@ mod tests {
         acc + *base * coeff
       });
 
-    assert_eq!(naive, cpu_best_msm(&coeffs, &bases))
+    assert_eq!(naive, cpu_best_msm(&bases, &coeffs))
   }
 
   #[test]
