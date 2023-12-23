@@ -48,7 +48,7 @@ cargo run --release --example minroot
 
 ## Specs
 
-- [SuperNova](./notes/supernova.md)
+- [SuperNova](./src/supernova/Readme.md)
 
 ## References
 The following paper, which appeared at CRYPTO 2022, provides details of the Nova proof system and a proof of security:

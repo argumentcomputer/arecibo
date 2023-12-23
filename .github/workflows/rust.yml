@@ -68,47 +68,16 @@ jobs:
       working-directory: ${{ github.workspace }}/lurk
       run: cargo check --all --tests --benches --examples
 
+  # Wasm build, rustfmt, clippy, doctests, and MSRV
+  code-quality:
+    uses: lurk-lab/ci-workflows/.github/workflows/lints.yml@main
+
+  # Check documentation links aren't broken
+  link-checker:
+    uses: lurk-lab/ci-workflows/.github/workflows/links-check.yml@main
+    with: 
+      fail-fast: true
 
   # Lint dependencies for licensing and auditing issues as per https://github.com/lurk-lab/arecibo/blob/main/deny.toml
   licenses-audits:
     uses: lurk-lab/ci-workflows/.github/workflows/licenses-audits.yml@main
-
-  misc:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-    env:
-      RUSTFLAGS: -D warnings
-    steps:
-      - uses: actions/checkout@v2
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: rustup target add wasm32-unknown-unknown
-      - name: Wasm build 
-        run: cargo build --target wasm32-unknown-unknown
-      - name: Check Rustfmt Code Style
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-      - name: Check clippy warnings
-        run: cargo xclippy -D warnings
-      - name: Doctests
-        run: cargo test --doc --workspace
-
-  msrv:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Install rustup
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    - uses: Swatinem/rust-cache@v2
-    - name: Install cargo-msrv
-      run: cargo install cargo-msrv
-    - name: Check Rust MSRV
-      run: cargo msrv verify
