@@ -28,7 +28,7 @@ use rayon::{
   prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator},
 };
 use ref_cast::RefCast;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
@@ -145,7 +145,7 @@ pub struct ZMPCS<E, NE> {
 
 impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>> ZMPCS<E, NE>
 where
-  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
   // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
   <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
 {
@@ -463,9 +463,9 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, (Ve
 impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr, CE = KZGCommitmentEngine<E>>>
   EvaluationEngineTrait<NE> for ZMPCS<E, NE>
 where
-  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
-  E::G1Affine: Serialize + DeserializeOwned,
-  E::G2Affine: Serialize + DeserializeOwned,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  E::G1Affine: Serialize + for<'de> Deserialize<'de>,
+  E::G2Affine: Serialize + for<'de> Deserialize<'de>,
   <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
   E::Fr: PrimeFieldBits, // TODO due to use of gen_srs_for_testing, make optional
 {
@@ -542,7 +542,7 @@ mod test {
 
   fn commit_open_verify_with<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>>()
   where
-    E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
     <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
     E::Fr: PrimeFieldBits,
   {

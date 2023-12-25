@@ -1,7 +1,7 @@
 //! This module provides an implementation of a commitment engine
 use crate::{
   errors::NovaError,
-  provider::traits::{CompressedGroup, DlogGroup},
+  provider::traits::DlogGroup,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
@@ -14,6 +14,7 @@ use core::{
   ops::{Add, Mul, MulAssign},
 };
 use ff::Field;
+use group::{prime::PrimeCurve, Curve, Group, GroupEncoding};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -23,21 +24,21 @@ use serde::{Deserialize, Serialize};
 pub struct CommitmentKey<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
-  ck: Vec<<E::GE as DlogGroup>::PreprocessedGroupElement>,
+  ck: Vec<<E::GE as PrimeCurve>::Affine>,
 }
 
 /// [CommitmentKey]s are often large, and this helps with cloning bottlenecks
 impl<E> Clone for CommitmentKey<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   fn clone(&self) -> Self {
     Self {
-      ck: self.ck.par_iter().cloned().collect(),
+      ck: self.ck[..].par_iter().cloned().collect(),
     }
   }
 }
@@ -45,7 +46,7 @@ where
 impl<E> Len for CommitmentKey<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   fn length(&self) -> usize {
     self.ck.len()
@@ -62,26 +63,26 @@ pub struct Commitment<E: Engine> {
 }
 
 /// A type that holds a compressed commitment
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct CompressedCommitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
-  comm: <E::GE as DlogGroup>::CompressedGroupElement,
+  comm: <E::GE as DlogGroup>::Compressed,
 }
 
 impl<E> CommitmentTrait<E> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   type CompressedCommitment = CompressedCommitment<E>;
 
   fn compress(&self) -> Self::CompressedCommitment {
     CompressedCommitment {
-      comm: self.comm.compress(),
+      comm: <E::GE as GroupEncoding>::to_bytes(&self.comm).into(),
     }
   }
 
@@ -90,13 +91,11 @@ where
   }
 
   fn decompress(c: &Self::CompressedCommitment) -> Result<Self, NovaError> {
-    let comm = <<E as Engine>::GE as DlogGroup>::CompressedGroupElement::decompress(&c.comm);
-    if comm.is_none() {
+    let opt_comm = <<E as Engine>::GE as GroupEncoding>::from_bytes(&c.comm.clone().into());
+    let Some(comm) = Option::from(opt_comm) else {
       return Err(NovaError::DecompressionError);
-    }
-    Ok(Commitment {
-      comm: comm.unwrap(),
-    })
+    };
+    Ok(Commitment { comm })
   }
 }
 
@@ -107,7 +106,7 @@ where
 {
   fn default() -> Self {
     Commitment {
-      comm: E::GE::zero(),
+      comm: E::GE::identity(),
     }
   }
 }
@@ -149,7 +148,7 @@ where
 impl<E> TranscriptReprTrait<E::GE> for CompressedCommitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   fn to_transcript_bytes(&self) -> Vec<u8> {
     self.comm.to_transcript_bytes()
@@ -159,7 +158,7 @@ where
 impl<E> MulAssign<E::Scalar> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   fn mul_assign(&mut self, scalar: E::Scalar) {
     *self = Commitment {
@@ -171,7 +170,7 @@ where
 impl<'a, 'b, E> Mul<&'b E::Scalar> for &'a Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   type Output = Commitment<E>;
   fn mul(self, scalar: &'b E::Scalar) -> Commitment<E> {
@@ -184,7 +183,7 @@ where
 impl<E> Mul<E::Scalar> for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   type Output = Commitment<E>;
 
@@ -198,7 +197,7 @@ where
 impl<E> Add for Commitment<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   type Output = Commitment<E>;
 
@@ -218,7 +217,7 @@ pub struct CommitmentEngine<E: Engine> {
 impl<E> CommitmentEngineTrait<E> for CommitmentEngine<E>
 where
   E: Engine,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   type CommitmentKey = CommitmentKey<E>;
   type Commitment = Commitment<E>;
@@ -268,7 +267,7 @@ where
 impl<E> CommitmentKeyExtTrait<E> for CommitmentKey<E>
 where
   E: Engine<CE = CommitmentEngine<E>>,
-  E::GE: DlogGroup,
+  E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   fn split_at(&self, n: usize) -> (CommitmentKey<E>, CommitmentKey<E>) {
     (
@@ -299,7 +298,7 @@ where
       .into_par_iter()
       .map(|i| {
         let bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
-        E::GE::vartime_multiscalar_mul(&w, &bases).preprocessed()
+        E::GE::vartime_multiscalar_mul(&w, &bases).to_affine()
       })
       .collect();
 
@@ -312,7 +311,7 @@ where
       .ck
       .clone()
       .into_par_iter()
-      .map(|g| E::GE::vartime_multiscalar_mul(&[*r], &[g]).preprocessed())
+      .map(|g| E::GE::vartime_multiscalar_mul(&[*r], &[g]).to_affine())
       .collect();
 
     CommitmentKey { ck: ck_scaled }
@@ -326,7 +325,7 @@ where
       .collect::<Result<Vec<Commitment<E>>, NovaError>>()?;
     let ck = (0..d.len())
       .into_par_iter()
-      .map(|i| d[i].comm.preprocessed())
+      .map(|i| d[i].comm.to_affine())
       .collect();
     Ok(CommitmentKey { ck })
   }

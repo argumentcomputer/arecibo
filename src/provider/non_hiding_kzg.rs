@@ -234,7 +234,7 @@ pub struct UVKZGPCS<E> {
 
 impl<E: MultiMillerLoop> UVKZGPCS<E>
 where
-  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
 {
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
@@ -327,7 +327,7 @@ mod tests {
   fn end_to_end_test_template<E>() -> Result<(), NovaError>
   where
     E: MultiMillerLoop,
-    E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
     E::Fr: PrimeFieldBits,
   {
     for _ in 0..100 {

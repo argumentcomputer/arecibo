@@ -1,90 +1,33 @@
-use crate::traits::{commitment::ScalarMul, Group, TranscriptReprTrait};
-use core::{
-  fmt::Debug,
-  ops::{Add, AddAssign, Sub, SubAssign},
-};
+use crate::traits::{Group, TranscriptReprTrait};
+use group::{prime::PrimeCurve, GroupEncoding};
 use serde::{Deserialize, Serialize};
-
-/// Represents a compressed version of a group element
-pub trait CompressedGroup:
-  Clone
-  + Copy
-  + Debug
-  + Eq
-  + Send
-  + Sync
-  + TranscriptReprTrait<Self::GroupElement>
-  + Serialize
-  + for<'de> Deserialize<'de>
-  + 'static
-{
-  /// A type that holds the decompressed version of the compressed group element
-  type GroupElement: DlogGroup;
-
-  /// Decompresses the compressed group element
-  fn decompress(&self) -> Option<Self::GroupElement>;
-}
-
-/// A helper trait for types with a group operation.
-pub trait GroupOps<Rhs = Self, Output = Self>:
-  Add<Rhs, Output = Output> + Sub<Rhs, Output = Output> + AddAssign<Rhs> + SubAssign<Rhs>
-{
-}
-
-impl<T, Rhs, Output> GroupOps<Rhs, Output> for T where
-  T: Add<Rhs, Output = Output> + Sub<Rhs, Output = Output> + AddAssign<Rhs> + SubAssign<Rhs>
-{
-}
-
-/// A helper trait for references with a group operation.
-pub trait GroupOpsOwned<Rhs = Self, Output = Self>: for<'r> GroupOps<&'r Rhs, Output> {}
-impl<T, Rhs, Output> GroupOpsOwned<Rhs, Output> for T where T: for<'r> GroupOps<&'r Rhs, Output> {}
-
-/// A helper trait for references implementing group scalar multiplication.
-pub trait ScalarMulOwned<Rhs, Output = Self>: for<'r> ScalarMul<&'r Rhs, Output> {}
-impl<T, Rhs, Output> ScalarMulOwned<Rhs, Output> for T where T: for<'r> ScalarMul<&'r Rhs, Output> {}
+use std::fmt::Debug;
 
 /// A trait that defines extensions to the Group trait
 pub trait DlogGroup:
-  Group
+  Group<Scalar = <Self as DlogGroup>::ScalarExt>
   + Serialize
   + for<'de> Deserialize<'de>
-  + GroupOps
-  + GroupOpsOwned
-  + ScalarMul<<Self as Group>::Scalar>
-  + ScalarMulOwned<<Self as Group>::Scalar>
+  + PrimeCurve<Scalar = <Self as DlogGroup>::ScalarExt, Affine = <Self as DlogGroup>::AffineExt>
 {
-  /// A type representing the compressed version of the group element
-  type CompressedGroupElement: CompressedGroup<GroupElement = Self>;
-
-  /// A type representing preprocessed group element
-  type PreprocessedGroupElement: Clone
+  type ScalarExt;
+  type AffineExt: Clone + Debug + Eq + Serialize + for<'de> Deserialize<'de> + Sync + Send;
+  type Compressed: Clone
     + Debug
-    + PartialEq
     + Eq
-    + Send
-    + Sync
+    + From<<Self as GroupEncoding>::Repr>
+    + Into<<Self as GroupEncoding>::Repr>
     + Serialize
     + for<'de> Deserialize<'de>
+    + Sync
+    + Send
     + TranscriptReprTrait<Self>;
 
   /// A method to compute a multiexponentation
-  fn vartime_multiscalar_mul(
-    scalars: &[Self::Scalar],
-    bases: &[Self::PreprocessedGroupElement],
-  ) -> Self;
+  fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::AffineExt]) -> Self;
 
   /// Produce a vector of group elements using a static label
-  fn from_label(label: &'static [u8], n: usize) -> Vec<Self::PreprocessedGroupElement>;
-
-  /// Compresses the group element
-  fn compress(&self) -> Self::CompressedGroupElement;
-
-  /// Produces a preprocessed element
-  fn preprocessed(&self) -> Self::PreprocessedGroupElement;
-
-  /// Returns an element that is the additive identity of the group
-  fn zero() -> Self;
+  fn from_label(label: &'static [u8], n: usize) -> Vec<Self::Affine>;
 
   /// Returns the affine coordinates (x, y, infinty) for the point
   fn to_coordinates(&self) -> (<Self as Group>::Base, <Self as Group>::Base, bool);
@@ -98,11 +41,16 @@ pub trait DlogGroup:
 macro_rules! impl_traits {
   (
     $name:ident,
-    $name_compressed:ident,
-    $name_curve:ident,
-    $name_curve_affine:ident,
     $order_str:literal,
     $base_str:literal
+  ) => {
+    $crate::impl_traits!($name, $order_str, $base_str, cpu_best_msm);
+  };
+  (
+    $name:ident,
+    $order_str:literal,
+    $base_str:literal,
+    $large_msm_method: ident
   ) => {
     impl Group for $name::Point {
       type Base = $name::Base;
@@ -119,25 +67,24 @@ macro_rules! impl_traits {
     }
 
     impl DlogGroup for $name::Point {
-      type CompressedGroupElement = $name_compressed;
-      type PreprocessedGroupElement = $name::Affine;
+      type ScalarExt = $name::Scalar;
+      type AffineExt = $name::Affine;
+      // note: for halo2curves implementations, $name::Compressed == <$name::Point as GroupEncoding>::Repr
+      // so the blanket impl<T> From<T> for T and impl<T> Into<T> apply.
+      type Compressed = $name::Compressed;
 
-      fn vartime_multiscalar_mul(
-        scalars: &[Self::Scalar],
-        bases: &[Self::PreprocessedGroupElement],
-      ) -> Self {
-        cpu_best_msm(scalars, bases)
+      fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::AffineExt]) -> Self {
+        #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+        if scalars.len() >= 128 {
+          $large_msm_method(bases, scalars)
+        } else {
+          cpu_best_msm(bases, scalars)
+        }
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        cpu_best_msm(bases, scalars)
       }
 
-      fn preprocessed(&self) -> Self::PreprocessedGroupElement {
-        self.to_affine()
-      }
-
-      fn compress(&self) -> Self::CompressedGroupElement {
-        self.to_bytes()
-      }
-
-      fn from_label(label: &'static [u8], n: usize) -> Vec<Self::PreprocessedGroupElement> {
+      fn from_label(label: &'static [u8], n: usize) -> Vec<Self::Affine> {
         let mut shake = Shake256::default();
         shake.update(label);
         let mut reader = shake.finalize_xof();
@@ -147,10 +94,10 @@ macro_rules! impl_traits {
           reader.read_exact(&mut uniform_bytes).unwrap();
           uniform_bytes_vec.push(uniform_bytes);
         }
-        let gens_proj: Vec<$name_curve> = (0..n)
+        let gens_proj: Vec<$name::Point> = (0..n)
           .into_par_iter()
           .map(|i| {
-            let hash = $name_curve::hash_to_curve("from_uniform_bytes");
+            let hash = $name::Point::hash_to_curve("from_uniform_bytes");
             hash(&uniform_bytes_vec[i])
           })
           .collect();
@@ -168,7 +115,7 @@ macro_rules! impl_traits {
                 core::cmp::min((i + 1) * chunk, gens_proj.len())
               };
               if end > start {
-                let mut gens = vec![$name_curve_affine::identity(); end - start];
+                let mut gens = vec![$name::Affine::identity(); end - start];
                 <Self as Curve>::batch_normalize(&gens_proj[start..end], &mut gens);
                 gens
               } else {
@@ -177,21 +124,15 @@ macro_rules! impl_traits {
             })
             .collect()
         } else {
-          let mut gens = vec![$name_curve_affine::identity(); n];
+          let mut gens = vec![$name::Affine::identity(); n];
           <Self as Curve>::batch_normalize(&gens_proj, &mut gens);
           gens
         }
       }
 
-      fn zero() -> Self {
-        $name::Point::identity()
-      }
-
       fn to_coordinates(&self) -> (Self::Base, Self::Base, bool) {
         let coordinates = self.to_affine().coordinates();
-        if coordinates.is_some().unwrap_u8() == 1
-          && ($name_curve_affine::identity() != self.to_affine())
-        {
+        if coordinates.is_some().unwrap_u8() == 1 && ($name::Point::identity() != *self) {
           (*coordinates.unwrap().x(), *coordinates.unwrap().y(), false)
         } else {
           (Self::Base::zero(), Self::Base::zero(), true)
@@ -206,17 +147,9 @@ macro_rules! impl_traits {
       }
     }
 
-    impl<G: DlogGroup> TranscriptReprTrait<G> for $name_compressed {
+    impl<G: DlogGroup> TranscriptReprTrait<G> for $name::Compressed {
       fn to_transcript_bytes(&self) -> Vec<u8> {
         self.as_ref().to_vec()
-      }
-    }
-
-    impl CompressedGroup for $name_compressed {
-      type GroupElement = $name::Point;
-
-      fn decompress(&self) -> Option<$name::Point> {
-        Some($name_curve::from_bytes(&self).unwrap())
       }
     }
 
@@ -230,7 +163,7 @@ macro_rules! impl_traits {
       fn to_transcript_bytes(&self) -> Vec<u8> {
         let (x, y, is_infinity_byte) = {
           let coordinates = self.coordinates();
-          if coordinates.is_some().unwrap_u8() == 1 && ($name_curve_affine::identity() != *self) {
+          if coordinates.is_some().unwrap_u8() == 1 && ($name::Affine::identity() != *self) {
             let c = coordinates.unwrap();
             (*c.x(), *c.y(), u8::from(false))
           } else {

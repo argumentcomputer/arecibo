@@ -49,7 +49,7 @@ impl<E, NE> EvaluationEngine<E, NE>
 where
   E: Engine,
   NE: NovaEngine<GE = E::G1, Scalar = E::Fr>,
-  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: DlogGroup,
   E::Fr: TranscriptReprTrait<E::G1>,
   E::G1Affine: TranscriptReprTrait<E::G1>, // TODO: this bound on DlogGroup is really unusable!
 {
@@ -104,7 +104,7 @@ where
   E::Fr: Serialize + DeserializeOwned,
   E::G1Affine: Serialize + DeserializeOwned,
   E::G2Affine: Serialize + DeserializeOwned,
-  E::G1: DlogGroup<PreprocessedGroupElement = E::G1Affine, Scalar = E::Fr>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
   <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
   E::Fr: PrimeFieldBits, // TODO due to use of gen_srs_for_testing, make optional
   E::Fr: TranscriptReprTrait<E::G1>,
@@ -161,7 +161,7 @@ where
 
       <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &h)
         .comm
-        .preprocessed()
+        .to_affine()
     };
 
     let kzg_open_batch = |C: &[E::G1Affine],
@@ -253,7 +253,7 @@ where
       .map(|i| {
         <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i])
           .comm
-          .preprocessed()
+          .to_affine()
       })
       .collect();
 
@@ -265,7 +265,7 @@ where
 
     // Phase 3 -- create response
     let mut com_all = comms.clone();
-    com_all.insert(0, C.comm.preprocessed());
+    com_all.insert(0, C.comm.to_affine());
     let (w, evals) = kzg_open_batch(&com_all, &polys, &u, transcript);
 
     Ok(EvaluationArgument { comms, w, evals })
@@ -300,7 +300,7 @@ where
 
       // Compute the commitment to the batched polynomial B(X)
       let c_0: E::G1 = C[0].into();
-      let C_B = (c_0 + NE::GE::vartime_multiscalar_mul(&q_powers[1..k], &C[1..k])).preprocessed();
+      let C_B = (c_0 + NE::GE::vartime_multiscalar_mul(&q_powers[1..k], &C[1..k])).to_affine();
 
       // Compute the batched openings
       // compute B(u_i) = v[i][0] + q*v[i][1] + ... + q^(t-1) * v[i][t-1]
@@ -356,10 +356,10 @@ where
     // obtained from the transcript
     let r = Self::compute_challenge(&com, transcript);
 
-    if r == E::Fr::ZERO || C.comm == E::G1::zero() {
+    if r == E::Fr::ZERO || C.comm == E::G1::identity() {
       return Err(NovaError::ProofVerifyError);
     }
-    com.insert(0, C.comm.preprocessed()); // set com_0 = C, shifts other commitments to the right
+    com.insert(0, C.comm.to_affine()); // set com_0 = C, shifts other commitments to the right
 
     let u = vec![r, -r, r * r];
 
