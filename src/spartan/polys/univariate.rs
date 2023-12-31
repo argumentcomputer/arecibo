@@ -45,7 +45,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
     if self.is_zero() {
       Some((UniPoly::zero(), UniPoly::zero()))
     } else if divisor.is_zero() {
-      panic!("Dividing by zero polynomial")
+      None
     } else if self.degree() < divisor.degree() {
       Some((UniPoly::zero(), self.clone()))
     } else {

@@ -99,7 +99,7 @@ where
   }
 }
 
-impl<E: Engine> Default for Commitment<E>
+impl<E> Default for Commitment<E>
 where
   E: Engine,
   E::GE: DlogGroup,

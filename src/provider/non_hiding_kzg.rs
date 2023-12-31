@@ -285,7 +285,7 @@ where
 
   /// Verifies that `value` is the evaluation at `x` of the polynomial
   /// committed inside `comm`.
-  #[allow(dead_code)]
+  #[allow(dead_code, clippy::unnecessary_wraps)]
   pub fn verify(
     verifier_param: impl Borrow<KZGVerifierKey<E>>,
     commitment: &UVKZGCommitment<E>,
