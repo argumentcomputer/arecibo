@@ -162,9 +162,9 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
 
     // a routine to turn a vector of usize into a vector scalars
     let to_vec_scalar = |v: &[usize]| -> Vec<E::Scalar> {
-      (0..v.len())
-        .map(|i| E::Scalar::from(v[i] as u64))
-        .collect::<Vec<E::Scalar>>()
+      v.iter()
+        .map(|x| E::Scalar::from(*x as u64))
+        .collect::<Vec<_>>()
     };
 
     R1CSShapeSparkRepr {
@@ -464,16 +464,13 @@ impl<E: Engine> MemorySumcheckInstance<E> {
         Result<Vec<E::Scalar>, NovaError>,
         Result<Vec<E::Scalar>, NovaError>,
       ),
-      (
-        Result<Vec<E::Scalar>, NovaError>,
-        Result<Vec<E::Scalar>, NovaError>,
-      ),
+      (Vec<E::Scalar>, Vec<E::Scalar>),
     ) {
       rayon::join(
         || {
           rayon::join(
             || {
-              let inv = batch_invert(&T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>())?;
+              let inv = batch_invert(&T.par_iter().map(|e| *e + *r).collect::<Vec<_>>())?;
 
               // compute inv[i] * TS[i] in parallel
               Ok(
@@ -481,13 +478,13 @@ impl<E: Engine> MemorySumcheckInstance<E> {
                   .collect::<Vec<_>>(),
               )
             },
-            || batch_invert(&W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
+            || batch_invert(&W.par_iter().map(|e| *e + *r).collect::<Vec<_>>()),
           )
         },
         || {
           rayon::join(
-            || Ok(T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
-            || Ok(W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
+            || T.par_iter().map(|e| *e + *r).collect(),
+            || W.par_iter().map(|e| *e + *r).collect(),
           )
         },
       )
@@ -538,7 +535,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       w_plus_r_inv_col,
     ];
 
-    let aux_poly_vec = [t_plus_r_row?, w_plus_r_row?, t_plus_r_col?, w_plus_r_col?];
+    let aux_poly_vec = [t_plus_r_row, w_plus_r_row, t_plus_r_col, w_plus_r_col];
 
     Ok((comm_vec, poly_vec, aux_poly_vec))
   }
@@ -1371,9 +1368,7 @@ where
       eval_col,
       eval_w_plus_r_inv_col,
       eval_ts_col,
-    ]
-    .into_iter()
-    .collect::<Vec<E::Scalar>>();
+    ];
 
     let comm_vec = [
       U.comm_W,
@@ -1659,9 +1654,8 @@ where
       self.eval_col,
       self.eval_w_plus_r_inv_col,
       self.eval_ts_col,
-    ]
-    .into_iter()
-    .collect::<Vec<E::Scalar>>();
+    ];
+
     let comm_vec = [
       U.comm_W,
       comm_Az,
