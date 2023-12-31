@@ -114,35 +114,37 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
       max(total_nz, max(2 * S.num_vars, S.num_cons)).next_power_of_two()
     };
 
-    let (mut row, mut col) = (vec![0; N], vec![N - 1; N]); // we make col lookup into the last entry of z, so we commit to zeros
+    // we make col lookup into the last entry of z, so we commit to zeros
+    let (mut row, mut col, mut val_A, mut val_B, mut val_C) = (
+      vec![0; N],
+      vec![N - 1; N],
+      vec![E::Scalar::ZERO; N],
+      vec![E::Scalar::ZERO; N],
+      vec![E::Scalar::ZERO; N],
+    );
 
-    for (i, (r, c, _)) in S.A.iter().chain(S.B.iter()).chain(S.C.iter()).enumerate() {
+    for (i, entry) in S.A.iter().enumerate() {
+      let (r, c, v) = entry;
       row[i] = r;
       col[i] = c;
+      val_A[i] = v;
     }
-    let val_A = {
-      let mut val = vec![E::Scalar::ZERO; N];
-      for (i, (_, _, v)) in S.A.iter().enumerate() {
-        val[i] = v;
-      }
-      val
-    };
 
-    let val_B = {
-      let mut val = vec![E::Scalar::ZERO; N];
-      for (i, (_, _, v)) in S.B.iter().enumerate() {
-        val[S.A.len() + i] = v;
-      }
-      val
-    };
+    let b_offset = S.A.len();
+    for (i, entry) in S.B.iter().enumerate() {
+      let (r, c, v) = entry;
+      row[b_offset + i] = r;
+      col[b_offset + i] = c;
+      val_B[b_offset + i] = v;
+    }
 
-    let val_C = {
-      let mut val = vec![E::Scalar::ZERO; N];
-      for (i, (_, _, v)) in S.C.iter().enumerate() {
-        val[S.A.len() + S.B.len() + i] = v;
-      }
-      val
-    };
+    let c_offset = S.A.len() + S.B.len();
+    for (i, entry) in S.C.iter().enumerate() {
+      let (r, c, v) = entry;
+      row[c_offset + i] = r;
+      col[c_offset + i] = c;
+      val_C[c_offset + i] = v;
+    }
 
     // timestamp calculation routine
     let timestamp_calc = |num_ops: usize, num_cells: usize, addr_trace: &[usize]| -> Vec<usize> {
