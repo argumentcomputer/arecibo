@@ -43,7 +43,7 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
     let X0 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.X[0]))?;
     let X1 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.X[1]))?;
 
-    Ok(AllocatedR1CSInstance { W, X0, X1 })
+    Ok(Self { W, X0, X1 })
   }
 
   /// Absorb the provided instance in the RO
@@ -106,7 +106,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       n_limbs,
     )?;
 
-    Ok(AllocatedRelaxedR1CSInstance { W, E, u, X0, X1 })
+    Ok(Self { W, E, u, X0, X1 })
   }
 
   /// Allocates the hardcoded default `RelaxedR1CSInstance` in the circuit.
@@ -138,7 +138,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       n_limbs,
     )?;
 
-    Ok(AllocatedRelaxedR1CSInstance { W, E, u, X0, X1 })
+    Ok(Self { W, E, u, X0, X1 })
   }
 
   /// Allocates the R1CS Instance as a `RelaxedR1CSInstance` in the circuit.
@@ -167,7 +167,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       n_limbs,
     )?;
 
-    Ok(AllocatedRelaxedR1CSInstance {
+    Ok(Self {
       W: inst.W,
       E,
       u,
@@ -235,7 +235,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     ro_consts: ROConstantsCircuit<E>,
     limb_width: usize,
     n_limbs: usize,
-  ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
+  ) -> Result<Self, SynthesisError> {
     // Compute r:
     let mut ro = E::ROCircuit::new(ro_consts, NUM_FE_FOR_RO);
     ro.absorb(params);
@@ -326,9 +326,9 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
   pub fn conditionally_select<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     cs: CS,
-    other: &AllocatedRelaxedR1CSInstance<E>,
+    other: &Self,
     condition: &Boolean,
-  ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
+  ) -> Result<Self, SynthesisError> {
     conditionally_select_alloc_relaxed_r1cs(cs, self, other, condition)
   }
 }

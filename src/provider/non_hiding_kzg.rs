@@ -33,7 +33,7 @@ pub struct UniversalKZGParam<E: Engine> {
 }
 
 impl<E: Engine> PartialEq for UniversalKZGParam<E> {
-  fn eq(&self, other: &UniversalKZGParam<E>) -> bool {
+  fn eq(&self, other: &Self) -> bool {
     self.powers_of_g == other.powers_of_g && self.powers_of_h == other.powers_of_h
   }
 }

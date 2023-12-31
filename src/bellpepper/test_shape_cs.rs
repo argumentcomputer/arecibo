@@ -23,7 +23,7 @@ enum NamedObject {
 
 impl Eq for OrderedVariable {}
 impl PartialEq for OrderedVariable {
-  fn eq(&self, other: &OrderedVariable) -> bool {
+  fn eq(&self, other: &Self) -> bool {
     match (self.0.get_unchecked(), other.0.get_unchecked()) {
       (Index::Input(ref a), Index::Input(ref b)) | (Index::Aux(ref a), Index::Aux(ref b)) => a == b,
       _ => false,
@@ -95,7 +95,7 @@ where
   #[allow(unused)]
   /// Create a new, default `TestShapeCS`,
   pub fn new() -> Self {
-    TestShapeCS::default()
+    Self::default()
   }
 
   /// Returns the number of constraints defined for this `TestShapeCS`.
@@ -216,8 +216,8 @@ where
 impl<E: Engine> Default for TestShapeCS<E> {
   fn default() -> Self {
     let mut map = HashMap::new();
-    map.insert("ONE".into(), NamedObject::Var(TestShapeCS::<E>::one()));
-    TestShapeCS {
+    map.insert("ONE".into(), NamedObject::Var(Self::one()));
+    Self {
       named_objects: map,
       current_namespace: vec![],
       constraints: vec![],

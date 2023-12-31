@@ -96,7 +96,7 @@ mod tests {
 
   impl<E: Engine> S<E> {
     fn new(i: usize) -> Self {
-      S {
+      Self {
         i,
         digest: OnceCell::new(),
       }

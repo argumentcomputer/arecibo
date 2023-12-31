@@ -71,7 +71,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
     S_comm: Vec<R1CSShapeSparkCommitment<E>>,
     vk_ee: EE::VerifierKey,
   ) -> Self {
-    VerifierKey {
+    Self {
       num_vars,
       S_comm,
       vk_ee,
@@ -742,7 +742,7 @@ where
       .map(|comms| comms.map(|comm| comm.compress()))
       .collect();
 
-    Ok(BatchedRelaxedR1CSSNARK {
+    Ok(Self {
       comms_Az_Bz_Cz,
       comms_L_row_col,
       comms_mem_oracles,

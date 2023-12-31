@@ -42,7 +42,7 @@ impl<E: Engine> NIFS<E> {
     W1: &RelaxedR1CSWitness<E>,
     U2: &R1CSInstance<E>,
     W2: &R1CSWitness<E>,
-  ) -> Result<(NIFS<E>, (RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>)), NovaError> {
+  ) -> Result<(Self, (RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>)), NovaError> {
     // initialize a new RO
     let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 
@@ -96,7 +96,7 @@ impl<E: Engine> NIFS<E> {
     T: &mut Vec<E::Scalar>,
     ABC_Z_1: &mut R1CSResult<E>,
     ABC_Z_2: &mut R1CSResult<E>,
-  ) -> Result<NIFS<E>, NovaError> {
+  ) -> Result<Self, NovaError> {
     // initialize a new RO
     let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 

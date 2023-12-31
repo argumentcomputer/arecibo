@@ -98,13 +98,13 @@ pub struct ZMCommitment<E: Engine>(
 
 impl<E: Engine> From<UVKZGCommitment<E>> for ZMCommitment<E> {
   fn from(value: UVKZGCommitment<E>) -> Self {
-    ZMCommitment(value.0)
+    Self(value.0)
   }
 }
 
 impl<E: Engine> From<ZMCommitment<E>> for UVKZGCommitment<E> {
   fn from(value: ZMCommitment<E>) -> Self {
-    UVKZGCommitment(value.0)
+    Self(value.0)
   }
 }
 
@@ -114,7 +114,7 @@ pub struct ZMEvaluation<E: Engine>(E::Fr);
 
 impl<E: Engine> From<UVKZGEvaluation<E>> for ZMEvaluation<E> {
   fn from(value: UVKZGEvaluation<E>) -> Self {
-    ZMEvaluation(value.0)
+    Self(value.0)
   }
 }
 
@@ -491,7 +491,7 @@ where
     let polynomial = MultilinearPolynomial::new(poly.to_vec());
     let evaluation = ZMEvaluation(*eval);
 
-    ZMPCS::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
+    Self::open(pk, &commitment, &polynomial, point, &evaluation, transcript)
   }
 
   fn verify(
@@ -505,7 +505,7 @@ where
     let commitment = ZMCommitment::from(UVKZGCommitment::from(*comm));
     let evaluation = ZMEvaluation(*eval);
 
-    if !ZMPCS::verify(vk, transcript, &commitment, point, &evaluation, arg)? {
+    if !Self::verify(vk, transcript, &commitment, point, &evaluation, arg)? {
       return Err(NovaError::UnSat);
     }
     Ok(())

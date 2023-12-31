@@ -108,7 +108,7 @@ impl<E: Engine> TranscriptReprTrait<E::GE> for R1CSShapeSparkCommitment<E> {
 
 impl<E: Engine> R1CSShapeSparkRepr<E> {
   /// represents `R1CSShape` in a Spark-friendly format amenable to memory checking
-  pub fn new(S: &R1CSShape<E>) -> R1CSShapeSparkRepr<E> {
+  pub fn new(S: &R1CSShape<E>) -> Self {
     let N = {
       let total_nz = S.A.len() + S.B.len() + S.C.len();
       max(total_nz, max(2 * S.num_vars, S.num_cons)).next_power_of_two()
@@ -169,7 +169,7 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
         .collect::<Vec<_>>()
     };
 
-    R1CSShapeSparkRepr {
+    Self {
       N,
 
       // dense representation
@@ -1082,7 +1082,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
     S_comm: R1CSShapeSparkCommitment<E>,
     vk_ee: EE::VerifierKey,
   ) -> Self {
-    VerifierKey {
+    Self {
       num_cons,
       num_vars,
       S_comm,
@@ -1419,7 +1419,7 @@ where
 
     let eval_arg = EE::prove(ck, &pk.pk_ee, &mut transcript, &u.c, &w.p, &rand_sc, &u.e)?;
 
-    Ok(RelaxedR1CSSNARK {
+    Ok(Self {
       comm_Az: comm_Az.compress(),
       comm_Bz: comm_Bz.compress(),
       comm_Cz: comm_Cz.compress(),

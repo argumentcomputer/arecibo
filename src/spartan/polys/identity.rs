@@ -8,7 +8,7 @@ pub struct IdentityPolynomial<Scalar: PrimeField> {
 
 impl<Scalar: PrimeField> IdentityPolynomial<Scalar> {
   pub fn new(ell: usize) -> Self {
-    IdentityPolynomial {
+    Self {
       ell,
       _p: PhantomData,
     }

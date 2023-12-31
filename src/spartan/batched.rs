@@ -82,7 +82,7 @@ pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
   fn new(shapes: Vec<R1CSShape<E>>, vk_ee: EE::VerifierKey) -> Self {
-    VerifierKey {
+    Self {
       vk_ee,
       S: shapes,
       digest: OnceCell::new(),
@@ -382,7 +382,7 @@ where
     let (evals_Az, evals_Bz, evals_Cz): (Vec<_>, Vec<_>, Vec<_>) =
       evals_Az_Bz_Cz.into_iter().multiunzip();
 
-    Ok(BatchedRelaxedR1CSSNARK {
+    Ok(Self {
       sc_proof_outer,
       claims_outer: (evals_Az, evals_Bz, evals_Cz),
       evals_E,

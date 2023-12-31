@@ -20,7 +20,7 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
     // t_pow = [t^{2^0}, t^{2^1}, ..., t^{2^{ell-1}}]
     let t_pow = Self::squares(t, ell);
 
-    PowPolynomial {
+    Self {
       eq: EqPolynomial::new(t_pow),
     }
   }

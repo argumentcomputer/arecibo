@@ -58,7 +58,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
   fn new(shape: R1CSShape<E>, vk_ee: EE::VerifierKey) -> Self {
-    VerifierKey {
+    Self {
       vk_ee,
       S: shape,
       digest: OnceCell::new(),
@@ -267,7 +267,7 @@ where
       &batched_u.e,
     )?;
 
-    Ok(RelaxedR1CSSNARK {
+    Ok(Self {
       sc_proof_outer,
       claims_outer: (claim_Az, claim_Bz, claim_Cz),
       eval_E,

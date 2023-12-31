@@ -19,7 +19,7 @@ impl<F: PrimeField> Arbitrary for FWrap<F> {
     use rand_core::SeedableRng;
 
     let strategy = any::<[u8; 32]>()
-      .prop_map(|seed| FWrap(F::random(StdRng::from_seed(seed))))
+      .prop_map(|seed| Self(F::random(StdRng::from_seed(seed))))
       .no_shrink();
     strategy.boxed()
   }

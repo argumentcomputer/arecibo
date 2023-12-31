@@ -54,7 +54,7 @@ where
       |lc| lc,
     );
 
-    Ok(AllocatedPoint { x, y, is_infinity })
+    Ok(Self { x, y, is_infinity })
   }
 
   /// checks if `self` is on the curve or if it is infinity
@@ -108,7 +108,7 @@ where
     let zero = alloc_zero(cs.namespace(|| "zero"));
     let one = alloc_one(cs.namespace(|| "one"));
 
-    Ok(AllocatedPoint {
+    Ok(Self {
       x: zero.clone(),
       y: zero,
       is_infinity: one,
@@ -148,7 +148,7 @@ where
   pub fn add<CS: ConstraintSystem<E::Base>>(
     &self,
     mut cs: CS,
-    other: &AllocatedPoint<E>,
+    other: &Self,
   ) -> Result<Self, SynthesisError> {
     // Compute boolean equal indicating if self = other
 
@@ -178,13 +178,13 @@ where
     //      return add(self, other)
     //  }
     // }
-    let result_for_equal_x = AllocatedPoint::select_point_or_infinity(
+    let result_for_equal_x = Self::select_point_or_infinity(
       cs.namespace(|| "equal_y ? result_from_double : infinity"),
       &result_from_double,
       &Boolean::from(equal_y),
     )?;
 
-    AllocatedPoint::conditionally_select(
+    Self::conditionally_select(
       cs.namespace(|| "equal ? result_from_double : result_from_add"),
       &result_for_equal_x,
       &result_from_add,
@@ -197,7 +197,7 @@ where
   pub fn add_internal<CS: ConstraintSystem<E::Base>>(
     &self,
     mut cs: CS,
-    other: &AllocatedPoint<E>,
+    other: &Self,
     equal_x: &AllocatedBit,
   ) -> Result<Self, SynthesisError> {
     //************************************************************************/
@@ -501,7 +501,7 @@ where
         acc.add(cs.namespace(|| "res minus self"), &neg)
       }?;
 
-      AllocatedPoint::conditionally_select(
+      Self::conditionally_select(
         cs.namespace(|| "remove slack if necessary"),
         &acc,
         &acc_minus_initial,
@@ -527,7 +527,7 @@ where
     )?;
 
     // we now perform the remaining scalar mul using complete addition law
-    let mut acc = AllocatedPoint {
+    let mut acc = Self {
       x,
       y,
       is_infinity: res.is_infinity,
@@ -536,7 +536,7 @@ where
 
     for (i, bit) in complete_bits.iter().enumerate() {
       let temp = acc.add(cs.namespace(|| format!("add_complete {i}")), &p_complete)?;
-      acc = AllocatedPoint::conditionally_select(
+      acc = Self::conditionally_select(
         cs.namespace(|| format!("acc_complete_iteration_{i}")),
         &temp,
         &acc,
@@ -826,7 +826,7 @@ mod tests {
     }
 
     /// Add any two points
-    pub fn add(&self, other: &Point<E>) -> Self {
+    pub fn add(&self, other: &Self) -> Self {
       if self.x == other.x {
         // If self == other then call double
         if self.y == other.y {
@@ -845,7 +845,7 @@ mod tests {
     }
 
     /// Add two different points
-    pub fn add_internal(&self, other: &Point<E>) -> Self {
+    pub fn add_internal(&self, other: &Self) -> Self {
       if self.is_infinity {
         return other.clone();
       }

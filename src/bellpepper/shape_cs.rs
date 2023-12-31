@@ -22,7 +22,7 @@ where
 impl<E: Engine> ShapeCS<E> {
   /// Create a new, default `ShapeCS`,
   pub fn new() -> Self {
-    ShapeCS::default()
+    Self::default()
   }
 
   /// Returns the number of constraints defined for this `ShapeCS`.
@@ -43,7 +43,7 @@ impl<E: Engine> ShapeCS<E> {
 
 impl<E: Engine> Default for ShapeCS<E> {
   fn default() -> Self {
-    ShapeCS {
+    Self {
       constraints: vec![],
       inputs: 1,
       aux: 0,

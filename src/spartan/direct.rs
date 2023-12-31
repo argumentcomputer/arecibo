@@ -142,7 +142,7 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
     // prove the instance using Spartan
     let snark = S::prove(&pk.ck, &pk.pk, &pk.S, &u_relaxed, &w_relaxed)?;
 
-    Ok(DirectSNARK {
+    Ok(Self {
       comm_W: u.comm_W,
       snark,
       _p: PhantomData,

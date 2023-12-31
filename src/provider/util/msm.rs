@@ -52,17 +52,17 @@ fn cpu_msm_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve
       impl<C: CurveAffine> Bucket<C> {
         fn add_assign(&mut self, other: &C) {
           *self = match *self {
-            Bucket::None => Bucket::Affine(*other),
-            Bucket::Affine(a) => Bucket::Projective(a + *other),
-            Bucket::Projective(a) => Bucket::Projective(a + other),
+            Self::None => Self::Affine(*other),
+            Self::Affine(a) => Self::Projective(a + *other),
+            Self::Projective(a) => Self::Projective(a + other),
           }
         }
 
         fn add(self, other: C::Curve) -> C::Curve {
           match self {
-            Bucket::None => other,
-            Bucket::Affine(a) => other + a,
-            Bucket::Projective(a) => other + a,
+            Self::None => other,
+            Self::Affine(a) => other + a,
+            Self::Projective(a) => other + a,
           }
         }
       }

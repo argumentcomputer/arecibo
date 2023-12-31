@@ -202,7 +202,7 @@ where
       &f_W_secondary,
     )?;
 
-    let compressed_snark = CompressedSNARK {
+    let compressed_snark = Self {
       r_U_primary,
       r_W_snark_primary,
 
@@ -465,8 +465,8 @@ mod test {
 
     fn circuit_index(&self) -> usize {
       match self {
-        TestCircuit::Square(c) => c.circuit_index(),
-        TestCircuit::Cube(c) => c.circuit_index(),
+        Self::Square(c) => c.circuit_index(),
+        Self::Cube(c) => c.circuit_index(),
       }
     }
 
@@ -483,13 +483,13 @@ mod test {
       SynthesisError,
     > {
       match self {
-        TestCircuit::Square(c) => c.synthesize(cs, pc, z),
-        TestCircuit::Cube(c) => c.synthesize(cs, pc, z),
+        Self::Square(c) => c.synthesize(cs, pc, z),
+        Self::Cube(c) => c.synthesize(cs, pc, z),
       }
     }
   }
 
-  impl<E1, E2> NonUniformCircuit<E1, E2, TestCircuit<E1>, TrivialSecondaryCircuit<E2::Scalar>>
+  impl<E1, E2> NonUniformCircuit<E1, E2, Self, TrivialSecondaryCircuit<E2::Scalar>>
     for TestCircuit<E1>
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -499,7 +499,7 @@ mod test {
       2
     }
 
-    fn primary_circuit(&self, circuit_index: usize) -> TestCircuit<E1> {
+    fn primary_circuit(&self, circuit_index: usize) -> Self {
       match circuit_index {
         0 => Self::Square(SquareCircuit { _p: PhantomData }),
         1 => Self::Cube(CubeCircuit { _p: PhantomData }),
@@ -651,8 +651,8 @@ mod test {
 
     fn circuit_index(&self) -> usize {
       match self {
-        BigTestCircuit::Square(c) => c.circuit_index(),
-        BigTestCircuit::BigPower(c) => c.circuit_index(),
+        Self::Square(c) => c.circuit_index(),
+        Self::BigPower(c) => c.circuit_index(),
       }
     }
 
@@ -669,13 +669,13 @@ mod test {
       SynthesisError,
     > {
       match self {
-        BigTestCircuit::Square(c) => c.synthesize(cs, pc, z),
-        BigTestCircuit::BigPower(c) => c.synthesize(cs, pc, z),
+        Self::Square(c) => c.synthesize(cs, pc, z),
+        Self::BigPower(c) => c.synthesize(cs, pc, z),
       }
     }
   }
 
-  impl<E1, E2> NonUniformCircuit<E1, E2, BigTestCircuit<E1>, TrivialSecondaryCircuit<E2::Scalar>>
+  impl<E1, E2> NonUniformCircuit<E1, E2, Self, TrivialSecondaryCircuit<E2::Scalar>>
     for BigTestCircuit<E1>
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -685,7 +685,7 @@ mod test {
       2
     }
 
-    fn primary_circuit(&self, circuit_index: usize) -> BigTestCircuit<E1> {
+    fn primary_circuit(&self, circuit_index: usize) -> Self {
       match circuit_index {
         0 => Self::Square(SquareCircuit { _p: PhantomData }),
         1 => Self::BigPower(BigPowerCircuit { _p: PhantomData }),

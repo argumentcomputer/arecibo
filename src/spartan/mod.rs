@@ -47,7 +47,7 @@ impl<E: Engine> PolyEvalWitness<E> {
   ///
   /// We allow the input polynomials to have different sizes, and interpret smaller ones as
   /// being padded with 0 to the maximum size of all polynomials.
-  fn batch_diff_size(W: Vec<PolyEvalWitness<E>>, s: E::Scalar) -> PolyEvalWitness<E> {
+  fn batch_diff_size(W: Vec<Self>, s: E::Scalar) -> Self {
     let powers = powers::<E>(&s, W.len());
 
     let size_max = W.iter().map(|w| w.p.len()).max().unwrap();
@@ -81,7 +81,7 @@ impl<E: Engine> PolyEvalWitness<E> {
         },
       );
 
-    PolyEvalWitness { p }
+    Self { p }
   }
 
   /// Given a set of polynomials \[Pᵢ\] and a scalar `s`, this method computes the weighted sum
@@ -91,7 +91,7 @@ impl<E: Engine> PolyEvalWitness<E> {
   /// # Panics
   ///
   /// This method panics if the polynomials in `p_vec` are not all of the same length.
-  fn batch(p_vec: &[&Vec<E::Scalar>], s: &E::Scalar) -> PolyEvalWitness<E> {
+  fn batch(p_vec: &[&Vec<E::Scalar>], s: &E::Scalar) -> Self {
     p_vec
       .iter()
       .for_each(|p| assert_eq!(p.len(), p_vec[0].len()));
@@ -110,7 +110,7 @@ impl<E: Engine> PolyEvalWitness<E> {
       },
     );
 
-    PolyEvalWitness { p }
+    Self { p }
   }
 }
 
@@ -128,7 +128,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     num_vars: &[usize],
     x: Vec<E::Scalar>,
     s: E::Scalar,
-  ) -> PolyEvalInstance<E> {
+  ) -> Self {
     let num_instances = num_vars.len();
     assert_eq!(c_vec.len(), num_instances);
     assert_eq!(e_vec.len(), num_instances);
@@ -159,19 +159,14 @@ impl<E: Engine> PolyEvalInstance<E> {
     // v = ∑ᵢ γⁱ⋅vᵢ
     let eval_joint = zip_with!((evals_scaled.into_iter(), powers.iter()), |e, g_i| e * g_i).sum();
 
-    PolyEvalInstance {
+    Self {
       c: comm_joint,
       x,
       e: eval_joint,
     }
   }
 
-  fn batch(
-    c_vec: &[Commitment<E>],
-    x: &[E::Scalar],
-    e_vec: &[E::Scalar],
-    s: &E::Scalar,
-  ) -> PolyEvalInstance<E> {
+  fn batch(c_vec: &[Commitment<E>], x: &[E::Scalar], e_vec: &[E::Scalar], s: &E::Scalar) -> Self {
     let num_instances = c_vec.len();
     assert_eq!(e_vec.len(), num_instances);
 
@@ -182,7 +177,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     let c = zip_with!(par_iter, (c_vec, powers_of_s), |c, p| *c * *p)
       .reduce(Commitment::<E>::default, |acc, item| acc + item);
 
-    PolyEvalInstance {
+    Self {
       c,
       x: x.to_vec(),
       e,

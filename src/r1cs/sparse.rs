@@ -46,7 +46,7 @@ impl<F: PrimeField> Clone for SparseMatrix<F> {
 impl<F: PrimeField> SparseMatrix<F> {
   /// 0x0 empty matrix
   pub fn empty() -> Self {
-    SparseMatrix {
+    Self {
       data: vec![],
       indices: vec![],
       indptr: vec![0],
@@ -79,7 +79,7 @@ impl<F: PrimeField> SparseMatrix<F> {
       data.extend(val);
     }
 
-    SparseMatrix {
+    Self {
       data,
       indices,
       indptr,
