@@ -9,6 +9,8 @@ use itertools::Itertools as _;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub(in crate::spartan) mod engine;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub(crate) struct SumcheckProof<E: Engine> {

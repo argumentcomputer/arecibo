@@ -18,9 +18,10 @@ use crate::{
       univariate::{CompressedUniPoly, UniPoly},
     },
     powers,
-    ppsnark::{
-      InnerSumcheckInstance, MemorySumcheckInstance, OuterSumcheckInstance,
-      R1CSShapeSparkCommitment, R1CSShapeSparkRepr, SumcheckEngine, WitnessBoundSumcheck,
+    ppsnark::{R1CSShapeSparkCommitment, R1CSShapeSparkRepr},
+    sumcheck::engine::{
+      InnerSumcheckInstance, MemorySumcheckInstance, OuterSumcheckInstance, SumcheckEngine,
+      WitnessBoundSumcheck,
     },
     sumcheck::SumcheckProof,
     PolyEvalInstance, PolyEvalWitness,
