@@ -41,9 +41,7 @@ use super::polys::masked_eq::MaskedEqPolynomial;
 
 fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar> {
   let mut v_padded = vec![*e; n];
-  for (i, v_i) in v.iter().enumerate() {
-    v_padded[i] = *v_i;
-  }
+  v_padded[..v.len()].copy_from_slice(v);
   v_padded
 }
 
@@ -1699,5 +1697,27 @@ where
     )?;
 
     Ok(())
+  }
+}
+#[cfg(test)]
+mod tests {
+  use crate::provider::PallasEngine;
+
+  use super::*;
+  use ff::Field;
+  use pasta_curves::Fq as Scalar;
+
+  #[test]
+  fn test_padded() {
+    let mut rng = rand::thread_rng();
+    let e = Scalar::random(&mut rng);
+    let v: Vec<Scalar> = (0..10).map(|_| Scalar::random(&mut rng)).collect();
+    let n = 20;
+
+    let result = padded::<PallasEngine>(&v, n, &e);
+
+    assert_eq!(result.len(), n);
+    assert_eq!(&result[0..10], &v[..]);
+    assert!(result[10..].iter().all(|&i| i == e));
   }
 }
