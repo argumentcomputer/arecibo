@@ -24,7 +24,7 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   ///
   /// Each Scalar in `r` corresponds to a bit from the binary representation of an input value `e`.
   pub const fn new(r: Vec<Scalar>) -> Self {
-    EqPolynomial { r }
+    Self { r }
   }
 
   /// Evaluates the `EqPolynomial` at a given point `rx`.
@@ -79,7 +79,7 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
 impl<Scalar: PrimeField> FromIterator<Scalar> for EqPolynomial<Scalar> {
   fn from_iter<I: IntoIterator<Item = Scalar>>(iter: I) -> Self {
     let r: Vec<_> = iter.into_iter().collect();
-    EqPolynomial { r }
+    Self { r }
   }
 }
 

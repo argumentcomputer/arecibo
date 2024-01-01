@@ -82,7 +82,7 @@ pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
   fn new(shapes: Vec<R1CSShape<E>>, vk_ee: EE::VerifierKey) -> Self {
-    VerifierKey {
+    Self {
       vk_ee,
       S: shapes,
       digest: OnceCell::new(),
@@ -164,9 +164,9 @@ where
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    U.iter().for_each(|u| {
+    for u in U.iter() {
       transcript.absorb(b"U", u);
-    });
+    }
 
     let (polys_W, polys_E): (Vec<_>, Vec<_>) = W.into_iter().map(|w| (w.W, w.E)).unzip();
 
@@ -382,7 +382,7 @@ where
     let (evals_Az, evals_Bz, evals_Cz): (Vec<_>, Vec<_>, Vec<_>) =
       evals_Az_Bz_Cz.into_iter().multiunzip();
 
-    Ok(BatchedRelaxedR1CSSNARK {
+    Ok(Self {
       sc_proof_outer,
       claims_outer: (evals_Az, evals_Bz, evals_Cz),
       evals_E,
@@ -403,9 +403,9 @@ where
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    U.iter().for_each(|u| {
+    for u in U.iter() {
       transcript.absorb(b"U", u);
-    });
+    }
 
     let num_instances = U.len();
 
@@ -462,14 +462,12 @@ where
     .collect::<Vec<_>>();
 
     // Add evaluations of Az, Bz, Cz, E to transcript
-    ABCE_evals
-      .iter()
-      .for_each(|(claim_Az, claim_Bz, claim_Cz, eval_E)| {
-        transcript.absorb(
-          b"claims_outer",
-          &[*claim_Az, *claim_Bz, *claim_Cz, *eval_E].as_slice(),
-        )
-      });
+    for (claim_Az, claim_Bz, claim_Cz, eval_E) in ABCE_evals.iter() {
+      transcript.absorb(
+        b"claims_outer",
+        &[*claim_Az, *claim_Bz, *claim_Cz, *eval_E].as_slice(),
+      )
+    }
 
     // Evaluate τ(rₓ) for each instance
     let evals_tau = zip_with!(iter, (polys_tau, r_x), |poly_tau, r_x| poly_tau

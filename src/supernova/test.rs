@@ -33,7 +33,7 @@ where
   F: PrimeField,
 {
   fn new(circuit_index: usize, rom_size: usize) -> Self {
-    CubicCircuit {
+    Self {
       circuit_index,
       rom_size,
       _p: PhantomData,
@@ -165,7 +165,7 @@ where
   F: PrimeField,
 {
   fn new(circuit_index: usize, rom_size: usize) -> Self {
-    SquareCircuit {
+    Self {
       circuit_index,
       rom_size,
       _p: PhantomData,
@@ -817,8 +817,7 @@ where
   }
 }
 
-impl<E1, E2>
-  NonUniformCircuit<E1, E2, RootCheckingCircuit<E1::Scalar>, TrivialSecondaryCircuit<E1::Base>>
+impl<E1, E2> NonUniformCircuit<E1, E2, Self, TrivialSecondaryCircuit<E1::Base>>
   for RootCheckingCircuit<E1::Scalar>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,

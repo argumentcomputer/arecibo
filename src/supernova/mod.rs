@@ -64,13 +64,12 @@ impl<E: Engine> std::ops::Deref for CircuitDigests<E> {
 impl<E: Engine> CircuitDigests<E> {
   /// Construct a new [CircuitDigests]
   pub fn new(digests: Vec<E::Scalar>) -> Self {
-    CircuitDigests { digests }
+    Self { digests }
   }
 
   /// Return the [CircuitDigests]' digest.
   pub fn digest(&self) -> E::Scalar {
-    let dc: DigestComputer<'_, <E as Engine>::Scalar, CircuitDigests<E>> =
-      DigestComputer::new(self);
+    let dc: DigestComputer<'_, <E as Engine>::Scalar, Self> = DigestComputer::new(self);
     dc.digest().expect("Failure in computing digest")
   }
 }
@@ -244,7 +243,7 @@ where
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
-    let pp = PublicParams {
+    let pp = Self {
       circuit_shapes,
       ro_consts_primary,
       ro_consts_circuit_primary,
@@ -269,7 +268,7 @@ where
   pub fn into_parts(self) -> (Vec<CircuitShape<E1>>, AuxParams<E1, E2>) {
     let digest = self.digest();
 
-    let PublicParams {
+    let Self {
       circuit_shapes,
       ro_consts_primary,
       ro_consts_circuit_primary,
@@ -302,7 +301,7 @@ where
 
   /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
   pub fn from_parts(circuit_shapes: Vec<CircuitShape<E1>>, aux_params: AuxParams<E1, E2>) -> Self {
-    let pp = PublicParams {
+    let pp = Self {
       circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
       ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
@@ -330,7 +329,7 @@ where
     circuit_shapes: Vec<CircuitShape<E1>>,
     aux_params: AuxParams<E1, E2>,
   ) -> Self {
-    PublicParams {
+    Self {
       circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
       ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
@@ -366,8 +365,7 @@ where
     self
       .digest
       .get_or_try_init(|| {
-        let dc: DigestComputer<'_, <E1 as Engine>::Scalar, PublicParams<E1, E2, C1, C2>> =
-          DigestComputer::new(self);
+        let dc: DigestComputer<'_, <E1 as Engine>::Scalar, Self> = DigestComputer::new(self);
         dc.digest()
       })
       .cloned()

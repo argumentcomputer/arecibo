@@ -61,7 +61,7 @@ where
   E::G1: Group,
 {
   fn from(c: Commitment<NE>) -> Self {
-    UVKZGCommitment(c.comm.to_affine())
+    Self(c.comm.to_affine())
   }
 }
 
@@ -71,7 +71,7 @@ where
   E::G1: Group,
 {
   fn from(c: UVKZGCommitment<E>) -> Self {
-    Commitment {
+    Self {
       comm: c.0.to_curve(),
     }
   }

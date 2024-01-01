@@ -18,9 +18,10 @@ use crate::{
       univariate::{CompressedUniPoly, UniPoly},
     },
     powers,
-    ppsnark::{
-      InnerSumcheckInstance, MemorySumcheckInstance, OuterSumcheckInstance,
-      R1CSShapeSparkCommitment, R1CSShapeSparkRepr, SumcheckEngine, WitnessBoundSumcheck,
+    ppsnark::{R1CSShapeSparkCommitment, R1CSShapeSparkRepr},
+    sumcheck::engine::{
+      InnerSumcheckInstance, MemorySumcheckInstance, OuterSumcheckInstance, SumcheckEngine,
+      WitnessBoundSumcheck,
     },
     sumcheck::SumcheckProof,
     PolyEvalInstance, PolyEvalWitness,
@@ -71,7 +72,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
     S_comm: Vec<R1CSShapeSparkCommitment<E>>,
     vk_ee: EE::VerifierKey,
   ) -> Self {
-    VerifierKey {
+    Self {
       num_vars,
       S_comm,
       vk_ee,
@@ -214,9 +215,9 @@ where
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    U.iter().for_each(|u| {
+    for u in U.iter() {
       transcript.absorb(b"U", u);
-    });
+    }
 
     // Append public inputs to Wᵢ: Zᵢ = [Wᵢ, uᵢ, Xᵢ]
     let polys_Z = zip_with!(par_iter, (W, U, N), |W, U, Ni| {
@@ -297,9 +298,9 @@ where
     .collect::<Vec<_>>();
 
     // absorb the claimed evaluations into the transcript
-    evals_Az_Bz_Cz_at_tau.iter().for_each(|evals| {
+    for evals in evals_Az_Bz_Cz_at_tau.iter() {
       transcript.absorb(b"e", &evals.as_slice());
-    });
+    }
 
     // Pad Zᵢ, E to Nᵢ
     let polys_Z = polys_Z
@@ -368,9 +369,9 @@ where
       .collect::<Vec<_>>();
 
     // absorb commitments to L_row and L_col in the transcript
-    comms_L_row_col.iter().for_each(|comms| {
+    for comms in comms_L_row_col.iter() {
       transcript.absorb(b"e", &comms.as_slice());
-    });
+    }
 
     // For each instance, batch Mz = Az + c*Bz + c^2*Cz
     let c = transcript.squeeze(b"c")?;
@@ -495,9 +496,9 @@ where
         )?;
 
       // Commit to oracles
-      comms_mem_oracles.iter().for_each(|comms| {
+      for comms in comms_mem_oracles.iter() {
         transcript.absorb(b"l", &comms.as_slice());
-      });
+      }
 
       // Sample new random variable for eq polynomial
       let rho = transcript.squeeze(b"r")?;
@@ -706,9 +707,9 @@ where
     .map(|p| PolyEvalWitness::<E> { p })
     .collect::<Vec<_>>();
 
-    evals_vec.iter().for_each(|evals| {
+    for evals in evals_vec.iter() {
       transcript.absorb(b"e", &evals.as_slice()); // comm_vec is already in the transcript
-    });
+    }
     let evals_vec = evals_vec.into_iter().flatten().collect::<Vec<_>>();
 
     let c = transcript.squeeze(b"c")?;
@@ -742,7 +743,7 @@ where
       .map(|comms| comms.map(|comm| comm.compress()))
       .collect();
 
-    Ok(BatchedRelaxedR1CSSNARK {
+    Ok(Self {
       comms_Az_Bz_Cz,
       comms_L_row_col,
       comms_mem_oracles,
@@ -771,9 +772,9 @@ where
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    U.iter().for_each(|u| {
+    for u in U.iter() {
       transcript.absorb(b"U", u);
-    });
+    }
 
     // Decompress commitments
     let comms_Az_Bz_Cz = self
@@ -823,9 +824,9 @@ where
     });
 
     // absorb commitments to L_row and L_col in the transcript
-    comms_L_row_col.iter().for_each(|comms| {
+    for comms in comms_L_row_col.iter() {
       transcript.absorb(b"e", &comms.as_slice());
-    });
+    }
 
     // Batch at tau for each instance
     let c = transcript.squeeze(b"c")?;
@@ -849,9 +850,9 @@ where
     let gamma = transcript.squeeze(b"g")?;
     let r = transcript.squeeze(b"r")?;
 
-    comms_mem_oracles.iter().for_each(|comms| {
+    for comms in comms_mem_oracles.iter() {
       transcript.absorb(b"l", &comms.as_slice());
-    });
+    }
 
     let rho = transcript.squeeze(b"r")?;
 
@@ -1035,9 +1036,9 @@ where
     .collect::<Vec<_>>();
 
     // Add all Sumcheck evaluations to the transcript
-    evals_vec.iter().for_each(|evals| {
+    for evals in evals_vec.iter() {
       transcript.absorb(b"e", &evals.as_slice()); // comm_vec is already in the transcript
-    });
+    }
 
     let c = transcript.squeeze(b"c")?;
 
@@ -1159,18 +1160,18 @@ where
     assert_eq!(inner.len(), num_instances);
     assert_eq!(witness.len(), num_instances);
 
-    mem.iter_mut().for_each(|inst| {
+    for inst in mem.iter_mut() {
       assert!(inst.size().is_power_of_two());
-    });
-    outer.iter().for_each(|inst| {
+    }
+    for inst in outer.iter() {
       assert!(inst.size().is_power_of_two());
-    });
-    inner.iter().for_each(|inst| {
+    }
+    for inst in inner.iter() {
       assert!(inst.size().is_power_of_two());
-    });
-    witness.iter().for_each(|inst| {
+    }
+    for inst in witness.iter() {
       assert!(inst.size().is_power_of_two());
-    });
+    }
 
     let degree = mem[0].degree();
     assert!(mem.iter().all(|inst| inst.degree() == degree));

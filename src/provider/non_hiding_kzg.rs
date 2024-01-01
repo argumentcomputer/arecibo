@@ -33,7 +33,7 @@ pub struct UniversalKZGParam<E: Engine> {
 }
 
 impl<E: Engine> PartialEq for UniversalKZGParam<E> {
-  fn eq(&self, other: &UniversalKZGParam<E>) -> bool {
+  fn eq(&self, other: &Self) -> bool {
     self.powers_of_g == other.powers_of_g && self.powers_of_h == other.powers_of_h
   }
 }
@@ -285,7 +285,7 @@ where
 
   /// Verifies that `value` is the evaluation at `x` of the polynomial
   /// committed inside `comm`.
-  #[allow(dead_code)]
+  #[allow(dead_code, clippy::unnecessary_wraps)]
   pub fn verify(
     verifier_param: impl Borrow<KZGVerifierKey<E>>,
     commitment: &UVKZGCommitment<E>,

@@ -124,7 +124,7 @@ where
   E::GE: DlogGroup,
 {
   fn new(comm_a_vec: &Commitment<E>, b_vec: &[E::Scalar], c: &E::Scalar) -> Self {
-    InnerProductInstance {
+    Self {
       comm_a_vec: *comm_a_vec,
       b_vec: b_vec.to_vec(),
       c: *c,
@@ -149,7 +149,7 @@ struct InnerProductWitness<E: Engine> {
 
 impl<E: Engine> InnerProductWitness<E> {
   fn new(a_vec: &[E::Scalar]) -> Self {
-    InnerProductWitness {
+    Self {
       a_vec: a_vec.to_vec(),
     }
   }
@@ -279,7 +279,7 @@ where
       ck = ck_folded;
     }
 
-    Ok(InnerProductArgument {
+    Ok(Self {
       L_vec,
       R_vec,
       a_hat: a_vec[0],

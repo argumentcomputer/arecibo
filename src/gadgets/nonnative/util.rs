@@ -89,7 +89,7 @@ impl<Scalar: PrimeField> Num<Scalar> {
       },
     )?;
 
-    Ok(Num {
+    Ok(Self {
       value: new_value,
       num: LinearCombination::zero() + var,
     })

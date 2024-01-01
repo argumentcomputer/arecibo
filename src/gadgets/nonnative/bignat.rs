@@ -70,7 +70,7 @@ impl BigNatParams {
   pub fn new(limb_width: usize, n_limbs: usize) -> Self {
     let mut max_word = BigInt::from(1) << limb_width as u32;
     max_word -= 1;
-    BigNatParams {
+    Self {
       max_word,
       n_limbs,
       limb_width,
@@ -100,8 +100,8 @@ impl<Scalar: PrimeField> PartialEq for BigNat<Scalar> {
 impl<Scalar: PrimeField> Eq for BigNat<Scalar> {}
 
 impl<Scalar: PrimeField> From<BigNat<Scalar>> for Polynomial<Scalar> {
-  fn from(other: BigNat<Scalar>) -> Polynomial<Scalar> {
-    Polynomial {
+  fn from(other: BigNat<Scalar>) -> Self {
+    Self {
       coefficients: other.limbs,
       values: other.limb_values,
     }
@@ -450,7 +450,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     self_grouped.equal_when_carried(cs.namespace(|| "grouped"), &other_grouped)
   }
 
-  pub fn add(&self, other: &Self) -> Result<BigNat<Scalar>, SynthesisError> {
+  pub fn add(&self, other: &Self) -> Result<Self, SynthesisError> {
     self.enforce_limb_width_agreement(other, "add")?;
     let n_limbs = max(self.params.n_limbs, other.params.n_limbs);
     let max_word = &self.params.max_word + &other.params.max_word;
@@ -500,12 +500,12 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     mut cs: CS,
     other: &Self,
     modulus: &Self,
-  ) -> Result<(BigNat<Scalar>, BigNat<Scalar>), SynthesisError> {
+  ) -> Result<(Self, Self), SynthesisError> {
     self.enforce_limb_width_agreement(other, "mult_mod")?;
     let limb_width = self.params.limb_width;
     let quotient_bits = (self.n_bits() + other.n_bits()).saturating_sub(modulus.params.min_bits);
     let quotient_limbs = quotient_bits.saturating_sub(1) / limb_width + 1;
-    let quotient = BigNat::alloc_from_nat(
+    let quotient = Self::alloc_from_nat(
       cs.namespace(|| "quotient"),
       || {
         Ok({
@@ -519,7 +519,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       quotient_limbs,
     )?;
     quotient.assert_well_formed(cs.namespace(|| "quotient rangecheck"))?;
-    let remainder = BigNat::alloc_from_nat(
+    let remainder = Self::alloc_from_nat(
       cs.namespace(|| "remainder"),
       || {
         Ok({
@@ -559,8 +559,8 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       x
     };
 
-    let left_int = BigNat::from_poly(left, limb_width, left_max_word);
-    let right_int = BigNat::from_poly(right, limb_width, right_max_word);
+    let left_int = Self::from_poly(left, limb_width, left_max_word);
+    let right_int = Self::from_poly(right, limb_width, right_max_word);
     left_int.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int)?;
     Ok((quotient, remainder))
   }
@@ -570,19 +570,19 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     &self,
     mut cs: CS,
     modulus: &Self,
-  ) -> Result<BigNat<Scalar>, SynthesisError> {
+  ) -> Result<Self, SynthesisError> {
     self.enforce_limb_width_agreement(modulus, "red_mod")?;
     let limb_width = self.params.limb_width;
     let quotient_bits = self.n_bits().saturating_sub(modulus.params.min_bits);
     let quotient_limbs = quotient_bits.saturating_sub(1) / limb_width + 1;
-    let quotient = BigNat::alloc_from_nat(
+    let quotient = Self::alloc_from_nat(
       cs.namespace(|| "quotient"),
       || Ok(self.value.grab()? / modulus.value.grab()?),
       self.params.limb_width,
       quotient_limbs,
     )?;
     quotient.assert_well_formed(cs.namespace(|| "quotient rangecheck"))?;
-    let remainder = BigNat::alloc_from_nat(
+    let remainder = Self::alloc_from_nat(
       cs.namespace(|| "remainder"),
       || Ok(self.value.grab()? % modulus.value.grab()?),
       self.params.limb_width,
@@ -605,13 +605,13 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       x
     };
 
-    let right_int = BigNat::from_poly(right, limb_width, right_max_word);
+    let right_int = Self::from_poly(right, limb_width, right_max_word);
     self.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int)?;
     Ok(remainder)
   }
 
   /// Combines limbs into groups.
-  pub fn group_limbs(&self, limbs_per_group: usize) -> BigNat<Scalar> {
+  pub fn group_limbs(&self, limbs_per_group: usize) -> Self {
     let n_groups = (self.limbs.len() - 1) / limbs_per_group + 1;
     let limb_values = self.limb_values.as_ref().map(|vs| {
       let mut values: Vec<Scalar> = vec![Scalar::ZERO; n_groups];
@@ -653,7 +653,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       acc.set_bit((i * self.params.limb_width) as u64, true);
       acc
     }) * &self.params.max_word;
-    BigNat {
+    Self {
       params: BigNatParams {
         min_bits: self.params.min_bits,
         limb_width: self.params.limb_width * limbs_per_group,
@@ -682,7 +682,7 @@ impl<Scalar: PrimeField> Polynomial<Scalar> {
     &self,
     mut cs: CS,
     other: &Self,
-  ) -> Result<Polynomial<Scalar>, SynthesisError> {
+  ) -> Result<Self, SynthesisError> {
     let n_product_coeffs = self.coefficients.len() + other.coefficients.len() - 1;
     let values = self.values.as_ref().and_then(|self_vs| {
       other.values.as_ref().map(|other_vs| {
@@ -704,7 +704,7 @@ impl<Scalar: PrimeField> Polynomial<Scalar> {
         Ok(LinearCombination::zero() + cs.alloc(|| format!("prod {i}"), || Ok(values.grab()?[i]))?)
       })
       .collect::<Result<Vec<LinearCombination<Scalar>>, SynthesisError>>()?;
-    let product = Polynomial {
+    let product = Self {
       coefficients,
       values,
     };
@@ -773,7 +773,7 @@ impl<Scalar: PrimeField> Polynomial<Scalar> {
         lc
       })
       .collect();
-    Polynomial {
+    Self {
       coefficients,
       values,
     }

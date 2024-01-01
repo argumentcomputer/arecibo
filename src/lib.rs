@@ -81,7 +81,7 @@ impl<E: Engine> CircuitShape<E> {
 
   /// Return the [CircuitShape]' digest.
   pub fn digest(&self) -> E::Scalar {
-    let dc: DigestComputer<'_, <E as Engine>::Scalar, CircuitShape<E>> = DigestComputer::new(self);
+    let dc: DigestComputer<'_, <E as Engine>::Scalar, Self> = DigestComputer::new(self);
     dc.digest().expect("Failure in computing digest")
   }
 }
@@ -227,7 +227,7 @@ where
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
 
-    PublicParams {
+    Self {
       F_arity_primary,
       F_arity_secondary,
       ro_consts_primary,

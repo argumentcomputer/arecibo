@@ -69,10 +69,7 @@ impl<'a, F: PrimeField, T: Digestible> DigestComputer<'a, F, T> {
   /// Compute the digest of a `Digestible` instance.
   pub fn digest(&self) -> Result<F, io::Error> {
     let mut hasher = Self::hasher();
-    self
-      .inner
-      .write_bytes(&mut hasher)
-      .expect("Serialization error");
+    self.inner.write_bytes(&mut hasher)?;
     let bytes: [u8; 32] = hasher.finalize().into();
     Ok(Self::map_to_field(&bytes))
   }
@@ -99,7 +96,7 @@ mod tests {
 
   impl<E: Engine> S<E> {
     fn new(i: usize) -> Self {
-      S {
+      Self {
         i,
         digest: OnceCell::new(),
       }

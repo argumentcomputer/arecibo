@@ -123,7 +123,7 @@ impl<E: Engine> R1CSShape<E> {
     A: SparseMatrix<E::Scalar>,
     B: SparseMatrix<E::Scalar>,
     C: SparseMatrix<E::Scalar>,
-  ) -> Result<R1CSShape<E>, NovaError> {
+  ) -> Result<Self, NovaError> {
     let is_valid = |num_cons: usize,
                     num_vars: usize,
                     num_io: usize,
@@ -149,7 +149,7 @@ impl<E: Engine> R1CSShape<E> {
       return Err(NovaError::OddInputLength);
     }
 
-    Ok(R1CSShape {
+    Ok(Self {
       num_cons,
       num_vars,
       num_io,
@@ -527,7 +527,7 @@ impl<E: Engine> R1CSShape<E> {
     // check if the number of variables are as expected, then
     // we simply set the number of constraints to the next power of two
     if self.num_vars == m {
-      return R1CSShape {
+      return Self {
         num_cons: m,
         num_vars: m,
         num_io: self.num_io,
@@ -563,7 +563,7 @@ impl<E: Engine> R1CSShape<E> {
     let B_padded = apply_pad(self.B.clone());
     let C_padded = apply_pad(self.C.clone());
 
-    R1CSShape {
+    Self {
       num_cons: num_cons_padded,
       num_vars: num_vars_padded,
       num_io: self.num_io,
@@ -577,8 +577,8 @@ impl<E: Engine> R1CSShape<E> {
 
 impl<E: Engine> R1CSResult<E> {
   /// Produces a default `R1CSResult` given an `R1CSShape`
-  pub fn default(S: &R1CSShape<E>) -> R1CSResult<E> {
-    R1CSResult {
+  pub fn default(S: &R1CSShape<E>) -> Self {
+    Self {
       AZ: vec![E::Scalar::ZERO; S.num_cons],
       BZ: vec![E::Scalar::ZERO; S.num_cons],
       CZ: vec![E::Scalar::ZERO; S.num_cons],
@@ -588,11 +588,11 @@ impl<E: Engine> R1CSResult<E> {
 
 impl<E: Engine> R1CSWitness<E> {
   /// A method to create a witness object using a vector of scalars
-  pub fn new(S: &R1CSShape<E>, W: Vec<E::Scalar>) -> Result<R1CSWitness<E>, NovaError> {
+  pub fn new(S: &R1CSShape<E>, W: Vec<E::Scalar>) -> Result<Self, NovaError> {
     if S.num_vars != W.len() {
       Err(NovaError::InvalidWitnessLength)
     } else {
-      Ok(R1CSWitness { W })
+      Ok(Self { W })
     }
   }
 
@@ -608,11 +608,11 @@ impl<E: Engine> R1CSInstance<E> {
     S: &R1CSShape<E>,
     comm_W: Commitment<E>,
     X: Vec<E::Scalar>,
-  ) -> Result<R1CSInstance<E>, NovaError> {
+  ) -> Result<Self, NovaError> {
     if S.num_io != X.len() {
       Err(NovaError::InvalidInputLength)
     } else {
-      Ok(R1CSInstance { comm_W, X })
+      Ok(Self { comm_W, X })
     }
   }
 }
@@ -628,16 +628,16 @@ impl<E: Engine> AbsorbInROTrait<E> for R1CSInstance<E> {
 
 impl<E: Engine> RelaxedR1CSWitness<E> {
   /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
-  pub fn default(S: &R1CSShape<E>) -> RelaxedR1CSWitness<E> {
-    RelaxedR1CSWitness {
+  pub fn default(S: &R1CSShape<E>) -> Self {
+    Self {
       W: vec![E::Scalar::ZERO; S.num_vars],
       E: vec![E::Scalar::ZERO; S.num_cons],
     }
   }
 
   /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
-  pub fn from_r1cs_witness(S: &R1CSShape<E>, witness: R1CSWitness<E>) -> RelaxedR1CSWitness<E> {
-    RelaxedR1CSWitness {
+  pub fn from_r1cs_witness(S: &R1CSShape<E>, witness: R1CSWitness<E>) -> Self {
+    Self {
       W: witness.W,
       E: vec![E::Scalar::ZERO; S.num_cons],
     }
@@ -654,7 +654,7 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
     W2: &R1CSWitness<E>,
     T: &[E::Scalar],
     r: &E::Scalar,
-  ) -> Result<RelaxedR1CSWitness<E>, NovaError> {
+  ) -> Result<Self, NovaError> {
     let (W1, E1) = (&self.W, &self.E);
     let W2 = &W2.W;
 
@@ -672,7 +672,7 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
       .zip_eq(T)
       .map(|(a, b)| *a + *r * *b)
       .collect::<Vec<E::Scalar>>();
-    Ok(RelaxedR1CSWitness { W, E })
+    Ok(Self { W, E })
   }
 
   /// Mutably folds an incoming `R1CSWitness` into the current one
@@ -701,7 +701,7 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
   }
 
   /// Pads the provided witness to the correct length
-  pub fn pad(&self, S: &R1CSShape<E>) -> RelaxedR1CSWitness<E> {
+  pub fn pad(&self, S: &R1CSShape<E>) -> Self {
     let mut W = self.W.clone();
     W.extend(vec![E::Scalar::ZERO; S.num_vars - W.len()]);
 
@@ -714,9 +714,9 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
 impl<E: Engine> RelaxedR1CSInstance<E> {
   /// Produces a default `RelaxedR1CSInstance` given `R1CSGens` and `R1CSShape`
-  pub fn default(_ck: &CommitmentKey<E>, S: &R1CSShape<E>) -> RelaxedR1CSInstance<E> {
+  pub fn default(_ck: &CommitmentKey<E>, S: &R1CSShape<E>) -> Self {
     let (comm_W, comm_E) = (Commitment::<E>::default(), Commitment::<E>::default());
-    RelaxedR1CSInstance {
+    Self {
       comm_W,
       comm_E,
       u: E::Scalar::ZERO,
@@ -729,10 +729,10 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
     _ck: &CommitmentKey<E>,
     S: &R1CSShape<E>,
     instance: R1CSInstance<E>,
-  ) -> RelaxedR1CSInstance<E> {
+  ) -> Self {
     assert_eq!(S.num_io, instance.X.len());
 
-    RelaxedR1CSInstance {
+    Self {
       comm_W: instance.comm_W,
       comm_E: Commitment::<E>::default(),
       u: E::Scalar::ONE,
@@ -741,11 +741,8 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
   }
 
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
-  pub fn from_r1cs_instance_unchecked(
-    comm_W: &Commitment<E>,
-    X: &[E::Scalar],
-  ) -> RelaxedR1CSInstance<E> {
-    RelaxedR1CSInstance {
+  pub fn from_r1cs_instance_unchecked(comm_W: &Commitment<E>, X: &[E::Scalar]) -> Self {
+    Self {
       comm_W: *comm_W,
       comm_E: Commitment::<E>::default(),
       u: E::Scalar::ONE,
@@ -754,12 +751,7 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
   }
 
   /// Folds an incoming `RelaxedR1CSInstance` into the current one
-  pub fn fold(
-    &self,
-    U2: &R1CSInstance<E>,
-    comm_T: &Commitment<E>,
-    r: &E::Scalar,
-  ) -> RelaxedR1CSInstance<E> {
+  pub fn fold(&self, U2: &R1CSInstance<E>, comm_T: &Commitment<E>, r: &E::Scalar) -> Self {
     let (X1, u1, comm_W_1, comm_E_1) =
       (&self.X, &self.u, &self.comm_W.clone(), &self.comm_E.clone());
     let (X2, comm_W_2) = (&U2.X, &U2.comm_W);
@@ -774,7 +766,7 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
     let comm_E = *comm_E_1 + *comm_T * *r;
     let u = *u1 + *r;
 
-    RelaxedR1CSInstance {
+    Self {
       comm_W,
       comm_E,
       X,

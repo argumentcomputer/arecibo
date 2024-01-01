@@ -9,6 +9,8 @@ use itertools::Itertools as _;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub(in crate::spartan) mod engine;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub(crate) struct SumcheckProof<E: Engine> {
@@ -166,7 +168,7 @@ impl<E: Engine> SumcheckProof<E> {
     }
 
     Ok((
-      SumcheckProof {
+      Self {
         compressed_polys: polys,
       },
       r,
@@ -294,7 +296,7 @@ impl<E: Engine> SumcheckProof<E> {
 
     let claims_prod = (poly_A_final, poly_B_final);
 
-    Ok((SumcheckProof::new(quad_polys), r, claims_prod))
+    Ok((Self::new(quad_polys), r, claims_prod))
   }
 
   #[inline]
@@ -453,7 +455,7 @@ impl<E: Engine> SumcheckProof<E> {
     }
 
     Ok((
-      SumcheckProof {
+      Self {
         compressed_polys: polys,
       },
       r,
@@ -602,7 +604,7 @@ impl<E: Engine> SumcheckProof<E> {
     let poly_D_final = poly_D_vec.into_iter().map(|poly| poly[0]).collect();
 
     Ok((
-      SumcheckProof {
+      Self {
         compressed_polys: polys,
       },
       r,

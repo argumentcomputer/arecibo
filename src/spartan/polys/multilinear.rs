@@ -45,7 +45,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   pub fn new(Z: Vec<Scalar>) -> Self {
     let num_vars = Z.len().log_2();
     assert_eq!(Z.len(), 1 << num_vars);
-    MultilinearPolynomial { num_vars, Z }
+    Self { num_vars, Z }
   }
 
   /// evaluations of the polynomial in all the 2^num_vars Boolean inputs
@@ -66,7 +66,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   /// Returns a random polynomial
   ///
   pub fn random<R: RngCore + CryptoRng>(num_vars: usize, mut rng: &mut R) -> Self {
-    MultilinearPolynomial::new(
+    Self::new(
       std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
         .take(1 << num_vars)
         .collect(),
@@ -145,7 +145,7 @@ pub(crate) struct SparsePolynomial<Scalar: PrimeField> {
 
 impl<Scalar: PrimeField> SparsePolynomial<Scalar> {
   pub fn new(num_vars: usize, Z: Vec<(usize, Scalar)>) -> Self {
-    SparsePolynomial { num_vars, Z }
+    Self { num_vars, Z }
   }
 
   /// Computes the $\tilde{eq}$ extension polynomial.
@@ -171,7 +171,7 @@ impl<Scalar: PrimeField> SparsePolynomial<Scalar> {
       .into_par_iter()
       .map(|i| {
         let bits = (self.Z[i].0).get_bits(r.len());
-        SparsePolynomial::compute_chi(&bits, r) * self.Z[i].1
+        Self::compute_chi(&bits, r) * self.Z[i].1
       })
       .sum()
   }
@@ -189,7 +189,7 @@ impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
 
     let sum: Vec<Scalar> = zip_with!(into_iter, (self.Z, other.Z), |a, b| a + b).collect();
 
-    Ok(MultilinearPolynomial::new(sum))
+    Ok(Self::new(sum))
   }
 }
 

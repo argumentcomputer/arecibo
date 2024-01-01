@@ -95,17 +95,17 @@ where
     let Some(comm) = Option::from(opt_comm) else {
       return Err(NovaError::DecompressionError);
     };
-    Ok(Commitment { comm })
+    Ok(Self { comm })
   }
 }
 
-impl<E: Engine> Default for Commitment<E>
+impl<E> Default for Commitment<E>
 where
   E: Engine,
   E::GE: DlogGroup,
 {
   fn default() -> Self {
-    Commitment {
+    Self {
       comm: E::GE::identity(),
     }
   }
@@ -161,7 +161,7 @@ where
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
   fn mul_assign(&mut self, scalar: E::Scalar) {
-    *self = Commitment {
+    *self = Self {
       comm: self.comm * scalar,
     };
   }
@@ -185,10 +185,10 @@ where
   E: Engine,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
-  type Output = Commitment<E>;
+  type Output = Self;
 
-  fn mul(self, scalar: E::Scalar) -> Commitment<E> {
-    Commitment {
+  fn mul(self, scalar: E::Scalar) -> Self {
+    Self {
       comm: self.comm * scalar,
     }
   }
@@ -199,10 +199,10 @@ where
   E: Engine,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
-  type Output = Commitment<E>;
+  type Output = Self;
 
-  fn add(self, other: Commitment<E>) -> Commitment<E> {
-    Commitment {
+  fn add(self, other: Self) -> Self {
+    Self {
       comm: self.comm + other.comm,
     }
   }
@@ -269,28 +269,28 @@ where
   E: Engine<CE = CommitmentEngine<E>>,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
-  fn split_at(&self, n: usize) -> (CommitmentKey<E>, CommitmentKey<E>) {
+  fn split_at(&self, n: usize) -> (Self, Self) {
     (
-      CommitmentKey {
+      Self {
         ck: self.ck[0..n].to_vec(),
       },
-      CommitmentKey {
+      Self {
         ck: self.ck[n..].to_vec(),
       },
     )
   }
 
-  fn combine(&self, other: &CommitmentKey<E>) -> CommitmentKey<E> {
+  fn combine(&self, other: &Self) -> Self {
     let ck = {
       let mut c = self.ck.clone();
       c.extend(other.ck.clone());
       c
     };
-    CommitmentKey { ck }
+    Self { ck }
   }
 
   // combines the left and right halves of `self` using `w1` and `w2` as the weights
-  fn fold(&self, w1: &E::Scalar, w2: &E::Scalar) -> CommitmentKey<E> {
+  fn fold(&self, w1: &E::Scalar, w2: &E::Scalar) -> Self {
     let w = vec![*w1, *w2];
     let (L, R) = self.split_at(self.ck.len() / 2);
 
@@ -302,7 +302,7 @@ where
       })
       .collect();
 
-    CommitmentKey { ck }
+    Self { ck }
   }
 
   /// Scales each element in `self` by `r`
@@ -314,7 +314,7 @@ where
       .map(|g| E::GE::vartime_multiscalar_mul(&[*r], &[g]).to_affine())
       .collect();
 
-    CommitmentKey { ck: ck_scaled }
+    Self { ck: ck_scaled }
   }
 
   /// reinterprets a vector of commitments as a set of generators
@@ -327,6 +327,6 @@ where
       .into_par_iter()
       .map(|i| d[i].comm.to_affine())
       .collect();
-    Ok(CommitmentKey { ck })
+    Ok(Self { ck })
   }
 }

@@ -30,28 +30,28 @@ pub struct CompressedUniPoly<Scalar: PrimeField> {
 
 impl<Scalar: PrimeField> UniPoly<Scalar> {
   pub fn new(coeffs: Vec<Scalar>) -> Self {
-    let mut res = UniPoly { coeffs };
+    let mut res = Self { coeffs };
     res.truncate_leading_zeros();
     res
   }
 
   fn zero() -> Self {
-    UniPoly::new(Vec::new())
+    Self::new(Vec::new())
   }
 
   /// Divide self by another polynomial, and returns the
   /// quotient and remainder.
-  pub fn divide_with_q_and_r(&self, divisor: &Self) -> Option<(UniPoly<Scalar>, UniPoly<Scalar>)> {
+  pub fn divide_with_q_and_r(&self, divisor: &Self) -> Option<(Self, Self)> {
     if self.is_zero() {
-      Some((UniPoly::zero(), UniPoly::zero()))
+      Some((Self::zero(), Self::zero()))
     } else if divisor.is_zero() {
-      panic!("Dividing by zero polynomial")
+      None
     } else if self.degree() < divisor.degree() {
-      Some((UniPoly::zero(), self.clone()))
+      Some((Self::zero(), self.clone()))
     } else {
       // Now we know that self.degree() >= divisor.degree();
       let mut quotient = vec![Scalar::ZERO; self.degree() - divisor.degree() + 1];
-      let mut remainder: UniPoly<Scalar> = self.clone();
+      let mut remainder: Self = self.clone();
       // Can unwrap here because we know self is not zero.
       let divisor_leading_inv = divisor.leading_coefficient().unwrap().invert().unwrap();
       while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
@@ -66,7 +66,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
           remainder.coeffs.pop();
         }
       }
-      Some((UniPoly::new(quotient), remainder))
+      Some((Self::new(quotient), remainder))
     }
   }
 
@@ -112,7 +112,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
       vec![d, c, b, a]
     };
 
-    UniPoly { coeffs }
+    Self { coeffs }
   }
 
   pub fn degree(&self) -> usize {
