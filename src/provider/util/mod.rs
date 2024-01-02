@@ -37,7 +37,7 @@ pub(crate) mod test_utils {
     // Mock commitment key.
     let ck = E::CE::setup(b"test", 1 << seed);
     // Commits to the provided vector using the provided generators.
-    let commitment = E::CE::commit(&ck, &poly.evaluations());
+    let commitment = E::CE::commit(&ck, poly.evaluations());
 
     // Generate Prover and verifier key for given commitment key.
     let (prover_key, verifier_key) = EE::setup(&ck);
@@ -49,7 +49,7 @@ pub(crate) mod test_utils {
       &prover_key,
       &mut prover_transcript,
       &commitment,
-      &poly.evaluations(),
+      poly.evaluations(),
       &point,
       &eval,
     )
@@ -97,7 +97,7 @@ pub(crate) mod test_utils {
     // Mock commitment key.
     let ck = E::CE::setup(b"test", 1 << seed);
     // Commits to the provided vector using the provided generators.
-    let commitment = E::CE::commit(&ck, &prover_poly.evaluations());
+    let commitment = E::CE::commit(&ck, prover_poly.evaluations());
 
     // Generate Prover and verifier key for given commitment key.
     let (prover_key, verifier_key) = EE::setup(&ck);
@@ -109,7 +109,7 @@ pub(crate) mod test_utils {
       &prover_key,
       &mut prover_transcript,
       &commitment,
-      &prover_poly.evaluations(),
+      prover_poly.evaluations(),
       &prover_point,
       &prover_eval,
     )
