@@ -13,21 +13,34 @@ use halo2curves::bn256::Bn256;
 use rand::rngs::StdRng;
 use rand_core::{CryptoRng, RngCore, SeedableRng};
 use std::time::Duration;
+
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
-// Then `cargo criterion --bench pcs`. The results are located in `target/criterion/data/<name-of-benchmark>`.
-criterion_group! {
-      name = pcs;
-      config = Criterion::default().warm_up_time(Duration::from_millis(3000));
-      targets = bench_pcs
+// Then `cargo criterion --bench pcs`.
+// For flamegraphs, run `cargo criterion --bench pcs --features flamegraph -- --profile-time <secs>`.
+// The results are located in `target/criterion/profile/<name-of-benchmark>`.
+cfg_if::cfg_if! {
+  if #[cfg(feature = "flamegraph")] {
+    criterion_group! {
+          name = pcs;
+          config = Criterion::default().warm_up_time(Duration::from_millis(3000)).with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)));
+          targets = bench_pcs
+    }
+  } else {
+    criterion_group! {
+          name = pcs;
+          config = Criterion::default().warm_up_time(Duration::from_millis(3000));
+          targets = bench_pcs
+    }
+  }
 }
 
 criterion_main!(pcs);
 
-const TEST_ELL: [usize; 3] = [4, 5, 6];
+const TEST_ELL: [usize; 11] = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 fn bench_pcs(c: &mut Criterion) {
   for ell in TEST_ELL.iter() {
-    let mut group = c.benchmark_group(format!("PCS-Seed-{ell}"));
-    group.sampling_mode(SamplingMode::Flat);
+    let mut group = c.benchmark_group(format!("PCS-PolynomialSize-{ell}"));
+    group.sampling_mode(SamplingMode::Flat).sample_size(10);
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(*ell as u64);
 
