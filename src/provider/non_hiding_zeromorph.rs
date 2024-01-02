@@ -443,19 +443,19 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, (Ve
   //           = [- (y^i * x^(2^num_vars - d_i - 1) + z * (x^(2^i) * Φ_(n-i-1)(x^(2^(i+1))) - u_i * Φ_(n-i)(x^(2^i)))), i ∈ [0, num_vars-1]]
   #[allow(clippy::disallowed_methods)]
   let q_scalars = iter::successors(Some(F::ONE), |acc| Some(*acc * y)).take(num_vars)
-    .zip_eq(offsets_of_x)
-    // length: num_vars + 1
-    .zip(squares_of_x)
-    // length: num_vars + 1
-    .zip(&vs)
-    .zip_eq(&vs[1..])
-    .zip_eq(point.iter().rev()) // assume variables come in BE form
-    .map(
-      |(((((power_of_y, offset_of_x), square_of_x), v_i), v_j), u_i)| {
-        (-(power_of_y * offset_of_x), -(z * (square_of_x * v_j - *u_i * v_i)))
-      },
-    )
-    .unzip();
+      .zip_eq(offsets_of_x)
+      // length: num_vars + 1
+      .zip(squares_of_x)
+      // length: num_vars + 1
+      .zip(&vs)
+      .zip_eq(&vs[1..])
+      .zip_eq(point.iter().rev()) // assume variables come in BE form
+      .map(
+        |(((((power_of_y, offset_of_x), square_of_x), v_i), v_j), u_i)| {
+          (-(power_of_y * offset_of_x), -(z * (square_of_x * v_j - *u_i * v_i)))
+        },
+      )
+      .unzip();
 
   // -vs[0] * z = -z * (x^(2^num_vars) - 1) / (x - 1) = -z Φ_n(x)
   (-vs[0] * z, q_scalars)
@@ -539,7 +539,8 @@ mod test {
         batched_lifted_degree_quotient, eval_and_quotient_scalars, trim, ZMEvaluation, ZMPCS,
       },
       traits::DlogGroup,
-      Bn256Engine,
+      util::test_utils::{test_fail_bad_proof, test_from_seed},
+      Bn256Engine, Bn256EngineZM,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
     traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
@@ -601,6 +602,14 @@ mod test {
   #[test]
   fn test_commit_open_verify() {
     commit_open_verify_with::<Bn256, Bn256Engine>();
+  }
+
+  #[test]
+  fn test_multiple_seeds() {
+    for ell in [4, 5, 6] {
+      test_from_seed::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>>(ell);
+      test_fail_bad_proof::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>>(ell);
+    }
   }
 
   #[test]
