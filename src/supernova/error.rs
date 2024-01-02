@@ -10,7 +10,7 @@ pub enum SuperNovaError {
   /// Nova error
   #[error("NovaError")]
   NovaError(#[from] NovaError),
-  /// missig commitment key
+  /// missing commitment key
   #[error("MissingCK")]
   MissingCK,
   /// Extended error for supernova

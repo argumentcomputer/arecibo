@@ -23,6 +23,7 @@ use crate::{
 
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
+use bellpepper_core::SynthesisError;
 use ff::{Field, PrimeField};
 use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
@@ -497,7 +498,7 @@ where
     let (zi_primary_pc_next, zi_primary) =
       circuit_primary.synthesize(&mut cs_primary).map_err(|err| {
         debug!("err {:?}", err);
-        NovaError::SynthesisError
+        NovaError::from(err)
       })?;
     if zi_primary.len() != pp[circuit_index].F_arity {
       return Err(SuperNovaError::NovaError(
@@ -508,7 +509,7 @@ where
       .r1cs_instance_and_witness(&pp[circuit_index].r1cs_shape, &pp.ck_primary)
       .map_err(|err| {
         debug!("err {:?}", err);
-        NovaError::SynthesisError
+        err
       })?;
 
     // base case for the secondary
@@ -535,7 +536,7 @@ where
     );
     let (_, zi_secondary) = circuit_secondary
       .synthesize(&mut cs_secondary)
-      .map_err(|_| NovaError::SynthesisError)?;
+      .map_err(NovaError::from)?;
     if zi_secondary.len() != pp.circuit_shape_secondary.F_arity {
       return Err(NovaError::InvalidStepOutputLength.into());
     }
@@ -567,15 +568,21 @@ where
     // Outputs of the two circuits and next program counter thus far.
     let zi_primary = zi_primary
       .iter()
-      .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
+      .map(|v| {
+        v.get_value()
+          .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
+      })
       .collect::<Result<Vec<<E1 as Engine>::Scalar>, SuperNovaError>>()?;
     let zi_primary_pc_next = zi_primary_pc_next
       .expect("zi_primary_pc_next missing")
       .get_value()
-      .ok_or::<SuperNovaError>(NovaError::SynthesisError.into())?;
+      .ok_or::<SuperNovaError>(NovaError::from(SynthesisError::AssignmentMissing).into())?;
     let zi_secondary = zi_secondary
       .iter()
-      .map(|v| v.get_value().ok_or(NovaError::SynthesisError.into()))
+      .map(|v| {
+        v.get_value()
+          .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
+      })
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, SuperNovaError>>()?;
 
     // handle the base case by initialize U_next in next round
@@ -671,7 +678,7 @@ where
 
     let (zi_primary_pc_next, zi_primary) = circuit_primary
       .synthesize(&mut cs_primary)
-      .map_err(|_| SuperNovaError::NovaError(NovaError::SynthesisError))?;
+      .map_err(NovaError::from)?;
     if zi_primary.len() != pp[circuit_index].F_arity {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidInitialInputLength,
@@ -737,7 +744,7 @@ where
     );
     let (_, zi_secondary) = circuit_secondary
       .synthesize(&mut cs_secondary)
-      .map_err(|_| SuperNovaError::NovaError(NovaError::SynthesisError))?;
+      .map_err(NovaError::from)?;
     if zi_secondary.len() != pp.circuit_shape_secondary.F_arity {
       return Err(SuperNovaError::NovaError(
         NovaError::InvalidInitialInputLength,
@@ -745,26 +752,25 @@ where
     }
 
     let (l_u_secondary_next, l_w_secondary_next) = cs_secondary
-      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
-      .map_err(|_| SuperNovaError::NovaError(NovaError::UnSat))?;
+      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)?;
 
     // update the running instances and witnesses
     let zi_primary = zi_primary
       .iter()
       .map(|v| {
         v.get_value()
-          .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))
+          .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
       })
       .collect::<Result<Vec<<E1 as Engine>::Scalar>, SuperNovaError>>()?;
     let zi_primary_pc_next = zi_primary_pc_next
       .expect("zi_primary_pc_next missing")
       .get_value()
-      .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))?;
+      .ok_or::<SuperNovaError>(NovaError::from(SynthesisError::AssignmentMissing).into())?;
     let zi_secondary = zi_secondary
       .iter()
       .map(|v| {
         v.get_value()
-          .ok_or(SuperNovaError::NovaError(NovaError::SynthesisError))
+          .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
       })
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, SuperNovaError>>()?;
 
