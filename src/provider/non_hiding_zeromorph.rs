@@ -529,17 +529,17 @@ mod test {
   use rand_core::SeedableRng;
 
   use super::quotients;
-  use crate::errors::PCSError;
-  use crate::provider::non_hiding_kzg::{KZGProverKey, UVKZGCommitment, UVKZGPCS};
+
   use crate::{
+    errors::PCSError,
     provider::{
       keccak::Keccak256Transcript,
-      non_hiding_kzg::{UVKZGPoly, UniversalKZGParam},
+      non_hiding_kzg::{KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS},
       non_hiding_zeromorph::{
         batched_lifted_degree_quotient, eval_and_quotient_scalars, trim, ZMEvaluation, ZMPCS,
       },
       traits::DlogGroup,
-      util::test_utils::{test_fail_bad_proof, test_from_seed},
+      util::test_utils::test_from_ell,
       Bn256Engine, Bn256EngineZM,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
@@ -607,8 +607,7 @@ mod test {
   #[test]
   fn test_multiple_seeds() {
     for ell in [4, 5, 6] {
-      test_from_seed::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>>(ell);
-      test_fail_bad_proof::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>>(ell);
+      test_from_ell::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>>(ell);
     }
   }
 

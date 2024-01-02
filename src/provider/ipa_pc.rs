@@ -414,14 +414,13 @@ where
 #[cfg(test)]
 mod test {
   use crate::provider::ipa_pc::EvaluationEngine;
-  use crate::provider::util::test_utils::{test_fail_bad_proof, test_from_seed};
+  use crate::provider::util::test_utils::test_from_ell;
   use crate::provider::GrumpkinEngine;
 
   #[test]
   fn test_multiple_seeds() {
     for ell in [4, 5, 6] {
-      test_from_seed::<GrumpkinEngine, EvaluationEngine<GrumpkinEngine>>(ell);
-      test_fail_bad_proof::<GrumpkinEngine, EvaluationEngine<GrumpkinEngine>>(ell);
+      test_from_ell::<GrumpkinEngine, EvaluationEngine<GrumpkinEngine>>(ell);
     }
   }
 }

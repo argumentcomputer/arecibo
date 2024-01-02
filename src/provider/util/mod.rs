@@ -11,81 +11,58 @@ pub mod msm {
   }
 }
 
-#[cfg(any(test, feature = "bench"))]
+#[cfg(test)]
 pub mod test_utils {
   //! Contains utilities for testing and benchmarking.
-
   use crate::spartan::polys::multilinear::MultilinearPolynomial;
-  use crate::traits::commitment::CommitmentEngineTrait;
-  use crate::traits::evaluation::EvaluationEngineTrait;
-  use crate::traits::Engine;
-  #[cfg(test)]
-  use crate::traits::TranscriptEngineTrait;
-  use ff::Field;
-  use rand_core::SeedableRng;
-  /// Generates a random polynomial and point from a seed. Then, produces the evaluation of the point
-  /// over the polynomial.
-  pub fn gen_poly_point_eval<E: Engine>(
-    seed: usize,
-  ) -> (
-    MultilinearPolynomial<<E as Engine>::Scalar>,
-    Vec<<E as Engine>::Scalar>,
-    <E as Engine>::Scalar,
-  ) {
-    let mut rng = rand::rngs::StdRng::seed_from_u64(seed as u64);
-
-    // Generate random polynomial and point.
-    let poly = MultilinearPolynomial::random(seed, &mut rng);
-    let point = (0..seed)
-      .map(|_| E::Scalar::random(&mut rng))
-      .collect::<Vec<_>>();
-
-    // Calculation evaluation of point over polynomial.
-    let eval = MultilinearPolynomial::evaluate_with(poly.evaluations(), &point);
-
-    (poly, point, eval)
-  }
-
-  /// Commits to the provided vector using the provided generators, and generate Prover and verifier
-  /// key for given commitment key.
-  pub fn commitment_setup<E: Engine, EE: EvaluationEngineTrait<E>>(
-    seed: usize,
-    poly: &MultilinearPolynomial<<E as Engine>::Scalar>,
-  ) -> (
-    <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
-    <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
-    <EE as EvaluationEngineTrait<E>>::ProverKey,
-    <EE as EvaluationEngineTrait<E>>::VerifierKey,
-  ) {
-    // Mock commitment key.
-    let ck = E::CE::setup(b"test", 1 << seed);
-    // Commits to the provided vector using the provided generators.
-    let commitment = E::CE::commit(&ck, poly.evaluations());
-
-    // Generate Prover and verifier key for given commitment key.
-    let (prover_key, verifier_key) = EE::setup(&ck);
-
-    (ck, commitment, prover_key, verifier_key)
-  }
+  use crate::traits::{
+    commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
+  };
 
   /// Generates a random polynomial and point from a seed to test a proving/verifying flow of one
   /// of our EvaluationEngine over a given Engine.
   #[cfg(test)]
-  pub(crate) fn test_from_seed<E: Engine, EE: EvaluationEngineTrait<E>>(seed: usize) {
-    let (poly, point, eval) = gen_poly_point_eval::<E>(seed);
+  pub(crate) fn test_from_ell<E: Engine, EE: EvaluationEngineTrait<E>>(ell: usize) {
+    use rand_core::SeedableRng;
 
-    let (ck, commitment, prover_key, verifier_key) = commitment_setup::<E, EE>(seed, &poly);
+    let mut rng = rand::rngs::StdRng::seed_from_u64(ell as u64);
+
+    let (poly, point, eval) = MultilinearPolynomial::random_with_eval(ell, &mut rng);
+
+    // Mock commitment key.
+    let ck = E::CE::setup(b"test", 1 << ell);
+    // Commits to the provided vector using the provided generators.
+    let commitment = E::CE::commit(&ck, poly.evaluations());
+
+    test_prove_verify_with::<E, EE>(&ck, &commitment, &poly, &point, &eval, true)
+  }
+
+  #[cfg(test)]
+  pub(crate) fn test_prove_verify_with<E: Engine, EE: EvaluationEngineTrait<E>>(
+    ck: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
+    commitment: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
+    poly: &MultilinearPolynomial<<E as Engine>::Scalar>,
+    point: &[<E as Engine>::Scalar],
+    eval: &<E as Engine>::Scalar,
+    evaluate_bad_proof: bool,
+  ) {
+    use crate::traits::TranscriptEngineTrait;
+    use ff::Field;
+    use std::ops::Add;
+
+    // Generate Prover and verifier key for given commitment key.
+    let (prover_key, verifier_key) = EE::setup(ck);
 
     // Generate proof.
     let mut prover_transcript = E::TE::new(b"TestEval");
     let proof = EE::prove(
-      &ck,
+      ck,
       &prover_key,
       &mut prover_transcript,
-      &commitment,
+      commitment,
       poly.evaluations(),
-      &point,
-      &eval,
+      point,
+      eval,
     )
     .unwrap();
     let pcp = prover_transcript.squeeze(b"c").unwrap();
@@ -95,9 +72,9 @@ pub mod test_utils {
     EE::verify(
       &verifier_key,
       &mut verifier_transcript,
-      &commitment,
-      &point,
-      &eval,
+      commitment,
+      point,
+      eval,
       &proof,
     )
     .unwrap();
@@ -105,49 +82,27 @@ pub mod test_utils {
 
     // Check if the prover transcript and verifier transcript are kept in the same state.
     assert_eq!(pcp, pcv);
-  }
 
-  /// Test the flow where we have a bad proof generated and we try to verify it. We expect it to fail,
-  /// as it should.
-  #[cfg(test)]
-  pub(crate) fn test_fail_bad_proof<E: Engine, EE: EvaluationEngineTrait<E>>(seed: usize) {
-    let mut rng = rand::rngs::StdRng::seed_from_u64(seed as u64);
+    if evaluate_bad_proof {
+      // Generate another point to verify proof. Also produce eval.
+      let altered_verifier_point = point
+        .iter()
+        .map(|s| s.add(<E as Engine>::Scalar::ONE))
+        .collect::<Vec<_>>();
+      let altered_verifier_eval =
+        MultilinearPolynomial::evaluate_with(poly.evaluations(), &altered_verifier_point);
 
-    let (prover_poly, prover_point, prover_eval) = gen_poly_point_eval::<E>(seed);
-
-    // Generate another point to verify proof. Also produce eval.
-    let verifier_point = prover_point
-      .iter()
-      .map(|_| E::Scalar::random(&mut rng))
-      .collect::<Vec<_>>();
-    let verifier_eval =
-      MultilinearPolynomial::evaluate_with(prover_poly.evaluations(), &prover_point);
-
-    let (ck, commitment, prover_key, verifier_key) = commitment_setup::<E, EE>(seed, &prover_poly);
-
-    // Generate proof.
-    let mut prover_transcript = E::TE::new(b"TestEval");
-    let proof = EE::prove(
-      &ck,
-      &prover_key,
-      &mut prover_transcript,
-      &commitment,
-      prover_poly.evaluations(),
-      &prover_point,
-      &prover_eval,
-    )
-    .unwrap();
-
-    // Verify proof, should fail.
-    let mut verifier_transcript = E::TE::new(b"TestEval");
-    assert!(EE::verify(
-      &verifier_key,
-      &mut verifier_transcript,
-      &commitment,
-      &verifier_point,
-      &verifier_eval,
-      &proof,
-    )
-    .is_err());
+      // Verify proof, should fail.
+      let mut verifier_transcript = E::TE::new(b"TestEval");
+      assert!(EE::verify(
+        &verifier_key,
+        &mut verifier_transcript,
+        commitment,
+        &altered_verifier_point,
+        &altered_verifier_eval,
+        &proof,
+      )
+      .is_err());
+    }
   }
 }

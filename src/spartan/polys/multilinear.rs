@@ -63,14 +63,39 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     self.Z.len()
   }
 
+  /// Returns true if no evaluations.
+  pub fn is_empty(&self) -> bool {
+    self.Z.len() == 0
+  }
+
   /// Returns a random polynomial
-  ///
   pub fn random<R: RngCore + CryptoRng>(num_vars: usize, mut rng: &mut R) -> Self {
     Self::new(
       std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
         .take(1 << num_vars)
         .collect(),
     )
+  }
+
+  /// Returns a random polynomial, a point and calculate its evaluation.
+  pub fn random_with_eval<R: RngCore + CryptoRng>(
+    num_vars: usize,
+    mut rng: &mut R,
+  ) -> (Self, Vec<Scalar>, Scalar) {
+    let poly = Self::new(
+      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
+        .take(1 << num_vars)
+        .collect(),
+    );
+    // Generate random polynomial and point.
+    let point = (0..num_vars)
+      .map(|_| Scalar::random(&mut rng))
+      .collect::<Vec<_>>();
+
+    // Calculation evaluation of point over polynomial.
+    let eval = Self::evaluate_with(poly.evaluations(), &point);
+
+    (poly, point, eval)
   }
 
   /// Binds the polynomial's top variable using the given scalar.
