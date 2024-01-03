@@ -7,11 +7,7 @@ use arecibo::traits::{
   commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
   TranscriptEngineTrait,
 };
-use criterion::measurement::WallTime;
-use criterion::{
-  black_box, criterion_group, criterion_main, Bencher, BenchmarkGroup, BenchmarkId, Criterion,
-  SamplingMode, Throughput,
-};
+use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion, SamplingMode};
 use halo2curves::bn256::Bn256;
 use rand::rngs::StdRng;
 use rand_core::{CryptoRng, RngCore, SeedableRng};
@@ -70,7 +66,7 @@ fn bench_pcs(c: &mut Criterion) {
 
     // Proving group
     {
-      let mut proving_group = c.benchmark_group(format!("PCS-Proving"));
+      let mut proving_group = c.benchmark_group("PCS-Proving");
       proving_group
         .sampling_mode(SamplingMode::Flat)
         .sample_size(10);
@@ -90,7 +86,7 @@ fn bench_pcs(c: &mut Criterion) {
 
     // Verifying group
     {
-      let mut verifying_group = c.benchmark_group(format!("PCS-Verifying"));
+      let mut verifying_group = c.benchmark_group("PCS-Verifying");
       verifying_group
         .sampling_mode(SamplingMode::Flat)
         .sample_size(10);
@@ -148,8 +144,8 @@ fn deterministic_assets<E: Engine, EE: EvaluationEngineTrait<E>, R: CryptoRng + 
 }
 
 fn bench_pcs_proving_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
-  b: &mut Bencher,
-  mut bench_assets: &mut BenchAssests<E, EE>,
+  b: &mut Bencher<'_>,
+  bench_assets: &BenchAssests<E, EE>,
 ) {
   // Bench generate proof.
   b.iter(|| {
@@ -167,7 +163,7 @@ fn bench_pcs_proving_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
 }
 
 fn bench_pcs_verifying_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
-  b: &mut Bencher,
+  b: &mut Bencher<'_>,
   bench_assets: &BenchAssests<E, EE>,
 ) {
   // Bench verify proof.
