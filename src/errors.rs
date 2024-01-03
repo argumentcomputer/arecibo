@@ -61,8 +61,8 @@ pub enum NovaError {
   #[error("IncorrectWitness")]
   IncorrectWitness,
   /// return when error during synthesis
-  #[error("SynthesisError")]
-  SynthesisError,
+  #[error("SynthesisError: {0}")]
+  SynthesisError(String),
   /// returned when there is an error creating a digest
   #[error("DigestError")]
   DigestError,
@@ -83,4 +83,10 @@ pub enum PCSError {
   /// returned when a length check fails in a PCS
   #[error("LengthError")]
   LengthError,
+}
+
+impl From<bellpepper_core::SynthesisError> for NovaError {
+  fn from(err: bellpepper_core::SynthesisError) -> Self {
+    Self::SynthesisError(err.to_string())
+  }
 }

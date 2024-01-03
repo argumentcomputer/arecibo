@@ -29,7 +29,7 @@ pub fn get_from_vec_alloc_relaxed_r1cs<E: Engine, CS: ConstraintSystem<<E as Eng
 
   // Compare all instances in `a` to the first one
   let first: AllocatedRelaxedR1CSInstance<E> = a
-    .get(0)
+    .first()
     .cloned()
     .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?;
 
