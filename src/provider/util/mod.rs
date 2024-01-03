@@ -21,8 +21,7 @@ pub mod test_utils {
 
   /// Generates a random polynomial and point from a seed to test a proving/verifying flow of one
   /// of our EvaluationEngine over a given Engine.
-  #[cfg(test)]
-  pub(crate) fn test_from_ell<E: Engine, EE: EvaluationEngineTrait<E>>(ell: usize) {
+  pub(crate) fn prove_verify_from_ell<E: Engine, EE: EvaluationEngineTrait<E>>(ell: usize) {
     use rand_core::SeedableRng;
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(ell as u64);
@@ -34,11 +33,10 @@ pub mod test_utils {
     // Commits to the provided vector using the provided generators.
     let commitment = E::CE::commit(&ck, poly.evaluations());
 
-    test_prove_verify_with::<E, EE>(&ck, &commitment, &poly, &point, &eval, true)
+    prove_verify_with::<E, EE>(&ck, &commitment, &poly, &point, &eval, true)
   }
 
-  #[cfg(test)]
-  pub(crate) fn test_prove_verify_with<E: Engine, EE: EvaluationEngineTrait<E>>(
+  pub(crate) fn prove_verify_with<E: Engine, EE: EvaluationEngineTrait<E>>(
     ck: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
     commitment: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
     poly: &MultilinearPolynomial<<E as Engine>::Scalar>,

@@ -8,7 +8,10 @@ use arecibo::traits::{
   TranscriptEngineTrait,
 };
 use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion, SamplingMode};
+use criterion::{
+  black_box, criterion_group, criterion_main, Bencher, BenchmarkGroup, BenchmarkId, Criterion,
+  SamplingMode, Throughput,
+};
 use halo2curves::bn256::Bn256;
 use rand::rngs::StdRng;
 use rand_core::{CryptoRng, RngCore, SeedableRng};
@@ -36,39 +39,81 @@ cfg_if::cfg_if! {
 
 criterion_main!(pcs);
 
-const TEST_ELL: [usize; 11] = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+const TEST_ELL: [usize; 2] = [10, 11];
+
+struct BenchAssests<E: Engine, EE: EvaluationEngineTrait<E>> {
+  poly: MultilinearPolynomial<<E as Engine>::Scalar>,
+  point: Vec<<E as Engine>::Scalar>,
+  eval: <E as Engine>::Scalar,
+  ck: <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
+  commitment: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
+  prover_key: <EE as EvaluationEngineTrait<E>>::ProverKey,
+  verifier_key: <EE as EvaluationEngineTrait<E>>::VerifierKey,
+  proof: Option<<EE as EvaluationEngineTrait<E>>::EvaluationArgument>,
+}
+
+// Macro to generate benchmark code for multiple engine and evaluation engine types
+macro_rules! benchmark_engines {
+    ($ell:expr, $rng:expr, $group:expr, $internal_fn:expr, $( ($engine:ty, $eval_engine:ty, $engine_name:expr) ),*) => {
+        $(
+            let mut assets = deterministic_assets::<$engine, $eval_engine, StdRng>($ell, &mut $rng);
+            $group.bench_with_input(BenchmarkId::new($engine_name, $ell), &$ell, |b, _| {
+                $internal_fn(b, &mut assets);
+            });
+        )*
+    };
+}
+
 fn bench_pcs(c: &mut Criterion) {
-  for ell in TEST_ELL.iter() {
-    let mut group = c.benchmark_group(format!("PCS-PolynomialSize-{ell}"));
-    group.sampling_mode(SamplingMode::Flat).sample_size(10);
+  for &ell in TEST_ELL.iter() {
+    let mut rng = rand::rngs::StdRng::seed_from_u64(ell as u64);
 
-    let mut rng = rand::rngs::StdRng::seed_from_u64(*ell as u64);
+    // Proving group
+    {
+      let mut proving_group = c.benchmark_group(format!("PCS-Proving"));
+      proving_group
+        .sampling_mode(SamplingMode::Flat)
+        .sample_size(10);
 
-    bench_pcs_internal::<GrumpkinEngine, IPAEvaluationEngine<GrumpkinEngine>, StdRng>(
-      &mut group,
-      "IPA-Grumpkin",
-      *ell,
-      &mut rng,
-    );
+      benchmark_engines!(
+          ell,
+          rng,
+          proving_group,
+          bench_pcs_proving_internal,
+          (GrumpkinEngine, IPAEvaluationEngine<GrumpkinEngine>, "IPA"),
+          (Bn256EngineKZG, MLEvaluationEngine<Bn256, Bn256EngineKZG>, "MLKZG"),
+          (Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>, "ZM")
+      );
 
-    bench_pcs_internal::<Bn256EngineKZG, MLEvaluationEngine<Bn256, Bn256EngineKZG>, StdRng>(
-      &mut group, "MLKZG-Bn", *ell, &mut rng,
-    );
+      proving_group.finish();
+    }
 
-    bench_pcs_internal::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>, StdRng>(
-      &mut group, "ZM-Bn", *ell, &mut rng,
-    );
+    // Verifying group
+    {
+      let mut verifying_group = c.benchmark_group(format!("PCS-Verifying"));
+      verifying_group
+        .sampling_mode(SamplingMode::Flat)
+        .sample_size(10);
 
-    group.finish();
+      benchmark_engines!(
+          ell,
+          rng,
+          verifying_group,
+          bench_pcs_verifying_internal,
+          (GrumpkinEngine, IPAEvaluationEngine<GrumpkinEngine>, "IPA"),
+          (Bn256EngineKZG, MLEvaluationEngine<Bn256, Bn256EngineKZG>, "MLKZG"),
+          (Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>, "ZM")
+      );
+
+      verifying_group.finish();
+    }
   }
 }
 
-fn bench_pcs_internal<E: Engine, EE: EvaluationEngineTrait<E>, R: CryptoRng + RngCore>(
-  group: &mut BenchmarkGroup<'_, WallTime>,
-  id: &str,
+fn deterministic_assets<E: Engine, EE: EvaluationEngineTrait<E>, R: CryptoRng + RngCore>(
   ell: usize,
   mut rng: &mut R,
-) {
+) -> BenchAssests<E, EE> {
   let (poly, point, eval) = MultilinearPolynomial::random_with_eval(ell, &mut rng);
 
   // Mock commitment key.
@@ -78,64 +123,63 @@ fn bench_pcs_internal<E: Engine, EE: EvaluationEngineTrait<E>, R: CryptoRng + Rn
 
   let (prover_key, verifier_key) = EE::setup(&ck);
 
-  // Bench generate proof.
-  group.bench_function(format!("Prove-{}", id), |b| {
-    b.iter(|| {
-      EE::prove(
-        &ck,
-        &prover_key,
-        &mut E::TE::new(b"TestEval"),
-        &commitment,
-        poly.evaluations(),
-        &point,
-        &eval,
-      )
-      .unwrap();
-    })
-  });
-
   // Generate proof so that we can bench verification.
-  let mut prover_transcript = E::TE::new(b"TestEval");
   let proof = EE::prove(
     &ck,
     &prover_key,
-    &mut prover_transcript,
+    &mut E::TE::new(b"TestEval"),
     &commitment,
     poly.evaluations(),
     &point,
     &eval,
   )
   .unwrap();
-  let pcp = prover_transcript.squeeze(b"c").unwrap();
 
-  // Bench verify proof.
-  group.bench_function(format!("Verify-{}", id), |b| {
-    b.iter(|| {
-      EE::verify(
-        &verifier_key,
-        &mut E::TE::new(b"TestEval"),
-        &commitment,
-        &point,
-        &eval,
-        &proof,
-      )
-      .unwrap();
-    })
+  BenchAssests {
+    poly,
+    point,
+    eval,
+    ck,
+    commitment,
+    prover_key,
+    verifier_key,
+    proof: Some(proof),
+  }
+}
+
+fn bench_pcs_proving_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
+  b: &mut Bencher,
+  mut bench_assets: &mut BenchAssests<E, EE>,
+) {
+  // Bench generate proof.
+  b.iter(|| {
+    EE::prove(
+      &bench_assets.ck,
+      &bench_assets.prover_key,
+      &mut E::TE::new(b"TestEval"),
+      &bench_assets.commitment,
+      bench_assets.poly.evaluations(),
+      &bench_assets.point,
+      &bench_assets.eval,
+    )
+    .unwrap();
   });
+}
 
-  // Assert that verification goes well and that challenge passes.
-  let mut verifier_transcript = E::TE::new(b"TestEval");
-  EE::verify(
-    &verifier_key,
-    &mut verifier_transcript,
-    &commitment,
-    &point,
-    &eval,
-    &proof,
-  )
-  .unwrap();
-  let pcv = verifier_transcript.squeeze(b"c").unwrap();
-
-  // Check if the prover transcript and verifier transcript are kept in the same state.
-  assert_eq!(pcp, pcv);
+fn bench_pcs_verifying_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
+  b: &mut Bencher,
+  bench_assets: &BenchAssests<E, EE>,
+) {
+  // Bench verify proof.
+  b.iter(|| {
+    EE::verify(
+      &bench_assets.verifier_key,
+      &mut E::TE::new(b"TestEval"),
+      &bench_assets.commitment,
+      &bench_assets.point,
+      &bench_assets.eval,
+      bench_assets.proof.as_ref().unwrap(),
+    )
+    .unwrap();
+  });
 }

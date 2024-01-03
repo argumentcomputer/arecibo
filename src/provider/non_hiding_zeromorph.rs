@@ -539,7 +539,7 @@ mod test {
         batched_lifted_degree_quotient, eval_and_quotient_scalars, trim, ZMEvaluation, ZMPCS,
       },
       traits::DlogGroup,
-      util::test_utils::test_from_ell,
+      util::test_utils::prove_verify_from_ell,
       Bn256Engine, Bn256EngineZM,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
@@ -605,9 +605,9 @@ mod test {
   }
 
   #[test]
-  fn test_multiple_seeds() {
+  fn test_multiple_polynomial_size() {
     for ell in [4, 5, 6] {
-      test_from_ell::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>>(ell);
+      prove_verify_from_ell::<Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>>(ell);
     }
   }
 
