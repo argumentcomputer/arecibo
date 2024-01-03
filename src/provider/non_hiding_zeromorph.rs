@@ -208,9 +208,10 @@ where
 
     // Compute the batched, lifted-degree quotient `\hat{q}`
     // qq_hat = ∑_{i=0}^{num_vars-1} y^i * X^(2^num_vars - d_k - 1) * q_i(x)
-    let q_hat = batched_lifted_degree_quotient(y, &quotients_polys);
+    let (q_hat, offset) = batched_lifted_degree_quotient(y, &quotients_polys);
+
     // Compute and absorb the commitment C_q = [\hat{q}]
-    let q_hat_comm = UVKZGPCS::commit(&pp.commit_pp, &q_hat)?;
+    let q_hat_comm = UVKZGPCS::commit_offset(&pp.commit_pp, &q_hat, offset)?;
     transcript.absorb(b"q_hat", &q_hat_comm);
 
     // Get challenges x and z
@@ -367,7 +368,7 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
 fn batched_lifted_degree_quotient<F: PrimeField>(
   y: F,
   quotients_polys: &[UVKZGPoly<F>],
-) -> UVKZGPoly<F> {
+) -> (UVKZGPoly<F>, usize) {
   let num_vars = quotients_polys.len();
 
   let powers_of_y = (0..num_vars)
@@ -386,8 +387,7 @@ fn batched_lifted_degree_quotient<F: PrimeField>(
     .fold(
       vec![F::ZERO; 1 << num_vars],
       |mut q_hat, (idx, (power_of_y, q))| {
-        let offset = q_hat.len() - (1 << idx);
-        q_hat[offset..]
+        q_hat[(1 << num_vars) - (1 << idx)..]
           .par_iter_mut()
           .zip(q)
           .for_each(|(q_hat, q)| {
@@ -396,7 +396,8 @@ fn batched_lifted_degree_quotient<F: PrimeField>(
         q_hat
       },
     );
-  UVKZGPoly::new(q_hat)
+
+  (UVKZGPoly::new(q_hat), 1 << (num_vars - 1))
 }
 
 /// Computes some key terms necessary for computing the partially evaluated univariate ZM polynomial
@@ -514,9 +515,11 @@ where
 
 #[cfg(test)]
 mod test {
+  use std::borrow::Borrow;
   use std::iter;
 
   use ff::{Field, PrimeField, PrimeFieldBits};
+  use group::Curve;
   use halo2curves::bn256::Bn256;
   use halo2curves::bn256::Fr as Scalar;
   use itertools::Itertools as _;
@@ -526,6 +529,8 @@ mod test {
   use rand_core::SeedableRng;
 
   use super::quotients;
+  use crate::errors::PCSError;
+  use crate::provider::non_hiding_kzg::{KZGProverKey, UVKZGCommitment, UVKZGPCS};
   use crate::{
     provider::{
       keccak::Keccak256Transcript,
@@ -538,6 +543,7 @@ mod test {
     },
     spartan::polys::multilinear::MultilinearPolynomial,
     traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
+    NovaError,
   };
 
   fn commit_open_verify_with<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>>()
@@ -696,7 +702,10 @@ mod test {
       });
 
     // Compare the computed and expected batched quotients
-    assert_eq!(batched_quotient, UVKZGPoly::new(batched_quotient_expected));
+    assert_eq!(
+      batched_quotient.0,
+      UVKZGPoly::new(batched_quotient_expected)
+    );
   }
 
   #[test]
@@ -800,5 +809,79 @@ mod test {
       scalar *= -Scalar::ONE;
       assert_eq!(zeta_x_scalars[k], scalar);
     }
+  }
+
+  pub fn commit_filtered<E>(
+    prover_param: impl Borrow<KZGProverKey<E>>,
+    poly: &UVKZGPoly<E::Fr>,
+  ) -> Result<UVKZGCommitment<E>, NovaError>
+  where
+    E: MultiMillerLoop,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+    E::Fr: PrimeFieldBits,
+  {
+    let prover_param = prover_param.borrow();
+
+    if poly.degree() > prover_param.powers_of_g.len() {
+      return Err(NovaError::PCSError(PCSError::LengthError));
+    }
+
+    // We use following filter to optimise MSM for cases where scalars contain a lot of zeroes
+    let initial_bases = &prover_param.powers_of_g.as_slice()[..poly.coeffs.len()].to_vec();
+    let mut scalars = vec![];
+    let mut bases = vec![];
+    for (index, scalar) in poly.coeffs.iter().enumerate() {
+      if !scalar.is_zero_vartime() {
+        scalars.push(*scalar);
+        bases.push(initial_bases[index]);
+      }
+    }
+
+    let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(&scalars, &bases);
+
+    Ok(UVKZGCommitment(C.to_affine()))
+  }
+
+  fn test_ZM_commit_sparsity_template<E>() -> Result<(), NovaError>
+  where
+    E: MultiMillerLoop,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+    E::Fr: PrimeFieldBits,
+  {
+    let degree = 10;
+    let num_vars_multilinear = 3;
+
+    let mut rng = &mut thread_rng();
+    let multilinear_poly = MultilinearPolynomial::<E::Fr>::random(num_vars_multilinear, &mut rng);
+
+    let mut random_points = vec![];
+    for _ in 0..num_vars_multilinear {
+      random_points.push(E::Fr::random(&mut rng));
+    }
+
+    let (quotients, _remainder) = quotients(&multilinear_poly, random_points.as_slice());
+    let quotients_polys = quotients
+      .into_iter()
+      .map(UVKZGPoly::new)
+      .collect::<Vec<_>>();
+
+    let (q_hat, offset) = batched_lifted_degree_quotient(E::Fr::random(&mut rng), &quotients_polys);
+
+    let pp = UniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, degree);
+    let (ck, _vk) = pp.trim(degree);
+
+    let commitment_expected = UVKZGPCS::commit(&ck, &q_hat)?;
+    let commitment_actual_1 = commit_filtered(&ck, &q_hat)?;
+    let commitment_actual_2 = UVKZGPCS::commit_offset(&ck, &q_hat, offset)?;
+
+    assert_eq!(commitment_expected.0, commitment_actual_1.0);
+    assert_eq!(commitment_expected.0, commitment_actual_2.0);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_ZM_commit_sparsity() {
+    test_ZM_commit_sparsity_template::<Bn256>().expect("test failed for Bn256");
   }
 }

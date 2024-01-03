@@ -236,6 +236,30 @@ impl<E: MultiMillerLoop> UVKZGPCS<E>
 where
   E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
 {
+  pub fn commit_offset(
+    prover_param: impl Borrow<KZGProverKey<E>>,
+    poly: &UVKZGPoly<E::Fr>,
+    offset: usize,
+  ) -> Result<UVKZGCommitment<E>, NovaError> {
+    let prover_param = prover_param.borrow();
+
+    if poly.degree() > prover_param.powers_of_g.len() {
+      return Err(NovaError::PCSError(PCSError::LengthError));
+    }
+
+    let scalars = poly.coeffs.as_slice();
+    let bases = prover_param.powers_of_g.as_slice();
+
+    // We can avoid some scalar multiplications if 'scalars' contains a lot of leading zeroes using
+    // offset, that points where non-zero scalars start.
+    let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
+      &scalars[offset..],
+      &bases[offset..scalars.len()],
+    );
+
+    Ok(UVKZGCommitment(C.to_affine()))
+  }
+
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
   pub fn commit(
