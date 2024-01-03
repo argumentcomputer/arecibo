@@ -35,7 +35,7 @@ cfg_if::cfg_if! {
 
 criterion_main!(pcs);
 
-const TEST_ELL: [usize; 2] = [10, 11];
+const TEST_ELL: [usize; 11] = [10, 11, 12, 23, 14, 15, 16, 17, 18, 19, 20];
 
 struct BenchAssests<E: Engine, EE: EvaluationEngineTrait<E>> {
   poly: MultilinearPolynomial<<E as Engine>::Scalar>,
