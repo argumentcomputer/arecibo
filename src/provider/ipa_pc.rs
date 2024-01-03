@@ -418,7 +418,7 @@ mod test {
   use crate::provider::GrumpkinEngine;
 
   #[test]
-  fn test_multiple_seeds() {
+  fn test_multiple_polynomial_size() {
     for ell in [4, 5, 6] {
       prove_verify_from_ell::<GrumpkinEngine, EvaluationEngine<GrumpkinEngine>>(ell);
     }
