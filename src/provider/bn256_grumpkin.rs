@@ -9,10 +9,10 @@ use ff::{FromUniformBytes, PrimeField};
 use group::{cofactor::CofactorCurveAffine, Curve, Group as AnotherGroup};
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use grumpkin_msm::{bn256 as bn256_msm, grumpkin as grumpkin_msm};
+// Remove this when https://github.com/zcash/pasta_curves/issues/41 resolves
+use halo2curves::{CurveAffine, CurveExt};
 use num_bigint::BigInt;
 use num_traits::Num;
-// Remove this when https://github.com/zcash/pasta_curves/issues/41 resolves
-use pasta_curves::arithmetic::{CurveAffine, CurveExt};
 use rayon::prelude::*;
 use sha3::Shake256;
 use std::io::Read;
