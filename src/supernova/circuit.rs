@@ -1,4 +1,4 @@
-//! Supernova implemetation support arbitrary argumented circuits and running instances.
+//! Supernova implementation support arbitrary argumented circuits and running instances.
 //! There are two Verification Circuits for each argumented circuit: The primary and the secondary.
 //! Each of them is over a Pasta curve but
 //! only the primary executes the next step of the computation.
@@ -425,7 +425,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
       let z0_len = self.inputs.as_ref().map_or(0, |inputs| inputs.z0.len());
       if self.step_circuit.arity() != z0_len {
         return Err(SynthesisError::IncompatibleLengthVector(format!(
-          "z0_len {:?} != arity lengh {:?}",
+          "z0_len {:?} != arity length {:?}",
           z0_len,
           self.step_circuit.arity()
         )));

@@ -461,7 +461,7 @@ where
 #[test]
 #[tracing_test::traced_test]
 fn test_trivial_nivc() {
-  // Expirementing with selecting the running claims for nifs
+  // Experimenting with selecting the running claims for nifs
   test_trivial_nivc_with::<PallasEngine, VestaEngine>();
 }
 
