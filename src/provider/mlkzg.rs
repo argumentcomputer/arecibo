@@ -314,25 +314,24 @@ where
       // let L = L0 + L1*d_0 + L2*d_1;
       // let R = R0 + R1*d_0 + R2*d_1;
       //
-      // Note, that while computing L, the intermediate computation of C_B together with computing
-      // L0, L1, L2 can be replaced by single MSM of C with the powers multiplied by (1 + d_0 + d_1)
-      // with additionally concatenated inputs for scalars/bases which should make overall
-      // computation a little bit more efficient.
-      //
       // We group terms to reduce the number of scalar mults (to seven):
       // In Rust, we could use MSMs for these, and speed up verification.
+      //
+      // Note, that while computing L, the intermediate computation of C_B together with computing
+      // L0, L1, L2 can be replaced by single MSM of C with the powers of q multiplied by (1 + d_0 + d_1)
+      // with additionally concatenated inputs for scalars/bases.
 
       let q_power_multiplier = E::Fr::ONE + d_0 + d_1;
 
       let q_powers_multiplied: Vec<E::Fr> = q_powers
-        .iter()
+        .par_iter()
         .map(|q_power| *q_power * q_power_multiplier)
         .collect();
 
       // Compute the batched openings
       // compute B(u_i) = v[i][0] + q*v[i][1] + ... + q^(t-1) * v[i][t-1]
       let B_u = v
-        .iter()
+        .into_par_iter()
         .map(|v_i| zip_with!(iter, (q_powers, v_i), |a, b| *a * *b).sum())
         .collect::<Vec<E::Fr>>();
 
