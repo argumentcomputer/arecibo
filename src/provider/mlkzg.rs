@@ -234,10 +234,10 @@ where
       let mut Pi = vec![E::Fr::ZERO; Pi_len];
 
       #[allow(clippy::needless_range_loop)]
-      for j in 0..Pi_len {
-        Pi[j] = x[ell-i-1] * polys[i][2*j + 1]            // Odd part of P^(i-1)
-                      + (E::Fr::ONE - x[ell-i-1]) * polys[i][2*j]; // Even part of P^(i-1)
-      }
+      Pi.par_iter_mut().enumerate().for_each(|(j, Pi_j)| {
+        *Pi_j = x[ell-i-1] * polys[i][2*j + 1] // Odd part of P^(i-1)
+            + (E::Fr::ONE - x[ell-i-1]) * polys[i][2*j]; // Even part of P^(i-1)
+      });
 
       if i == ell - 1 && *eval != Pi[0] {
         return Err(NovaError::UnSat);
