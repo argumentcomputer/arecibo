@@ -583,7 +583,7 @@ where
     let l_u_secondary = u_secondary;
 
     // Initialize relaxed instance/witness pair for the secondary circuit proofs
-    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
+    let r_W_secondary: RelaxedR1CSWitness<E2> = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
     let r_U_secondary = RelaxedR1CSInstance::default(&pp.ck_secondary, r1cs_secondary);
 
     // Outputs of the two circuits and next program counter thus far.
@@ -616,27 +616,27 @@ where
       .collect::<Vec<Option<RelaxedR1CSInstance<E1>>>>();
 
     // find the largest length r1cs shape for the buffer size
-    let mut max_r1cs_primary = &pp[0].r1cs_shape;
-    pp.circuit_shapes.iter().for_each(|circuit| {
-      if circuit.r1cs_shape.num_cons > max_r1cs_primary.num_cons {
-        max_r1cs_primary = &circuit.r1cs_shape;
-      }
-    });
+    let max_num_cons = pp
+      .circuit_shapes
+      .iter()
+      .map(|circuit| circuit.r1cs_shape.num_cons)
+      .max()
+      .unwrap();
 
     let buffer_primary = ResourceBuffer {
       l_w: None,
       l_u: None,
-      ABC_Z_1: R1CSResult::default(max_r1cs_primary),
-      ABC_Z_2: R1CSResult::default(max_r1cs_primary),
-      T: r1cs::default_T(max_r1cs_primary),
+      ABC_Z_1: R1CSResult::default(max_num_cons),
+      ABC_Z_2: R1CSResult::default(max_num_cons),
+      T: r1cs::default_T::<E1>(max_num_cons),
     };
 
     let buffer_secondary = ResourceBuffer {
       l_w: None,
       l_u: None,
-      ABC_Z_1: R1CSResult::default(r1cs_secondary),
-      ABC_Z_2: R1CSResult::default(r1cs_secondary),
-      T: r1cs::default_T(r1cs_secondary),
+      ABC_Z_1: R1CSResult::default(r1cs_secondary.num_cons),
+      ABC_Z_2: R1CSResult::default(r1cs_secondary.num_cons),
+      T: r1cs::default_T::<E2>(r1cs_secondary.num_cons),
     };
 
     Ok(Self {
@@ -707,7 +707,7 @@ where
       pp[circuit_index].r1cs_shape.num_io + 1,
       pp[circuit_index].r1cs_shape.num_vars,
     );
-    let T =
+    let T: <<E2 as Engine>::CE as CommitmentEngineTrait<E2>>::Commitment =
       Commitment::<E2>::decompress(&nifs_secondary.comm_T).map_err(SuperNovaError::NovaError)?;
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, E2> =
       SuperNovaAugmentedCircuitInputs::new(

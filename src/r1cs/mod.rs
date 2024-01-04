@@ -577,11 +577,11 @@ impl<E: Engine> R1CSShape<E> {
 
 impl<E: Engine> R1CSResult<E> {
   /// Produces a default `R1CSResult` given an `R1CSShape`
-  pub fn default(S: &R1CSShape<E>) -> Self {
+  pub fn default(num_cons: usize) -> Self {
     Self {
-      AZ: vec![E::Scalar::ZERO; S.num_cons],
-      BZ: vec![E::Scalar::ZERO; S.num_cons],
-      CZ: vec![E::Scalar::ZERO; S.num_cons],
+      AZ: vec![E::Scalar::ZERO; num_cons],
+      BZ: vec![E::Scalar::ZERO; num_cons],
+      CZ: vec![E::Scalar::ZERO; num_cons],
     }
   }
 }
@@ -817,8 +817,8 @@ impl<E: Engine> AbsorbInROTrait<E> for RelaxedR1CSInstance<E> {
 }
 
 /// Empty buffer for `commit_T_into`
-pub fn default_T<E: Engine>(shape: &R1CSShape<E>) -> Vec<E::Scalar> {
-  Vec::with_capacity(shape.num_cons)
+pub fn default_T<E: Engine>(num_cons: usize) -> Vec<E::Scalar> {
+  Vec::with_capacity(num_cons)
 }
 
 #[cfg(test)]
