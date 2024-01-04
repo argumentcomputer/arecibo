@@ -72,8 +72,8 @@ pub fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
 }
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> BenchAssests<E, EE> {
-  pub(crate) fn from_num_vars<R: CryptoRng + RngCore>(num_vars: usize, mut rng: &mut R) -> Self {
-    let (poly, point, eval) = random_poly_with_eval::<E, R>(num_vars, &mut rng);
+  pub(crate) fn from_num_vars<R: CryptoRng + RngCore>(num_vars: usize, rng: &mut R) -> Self {
+    let (poly, point, eval) = random_poly_with_eval::<E, R>(num_vars, rng);
 
     // Mock commitment key.
     let ck = E::CE::setup(b"test", 1 << num_vars);
