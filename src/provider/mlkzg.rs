@@ -314,8 +314,10 @@ where
       // let L = L0 + L1*d_0 + L2*d_1;
       // let R = R0 + R1*d_0 + R2*d_1;
       //
-      // Note, that intermediate computation of C_B can be replaced by MSM of C with the
-      // powers multiplied by (1 + d_0 + d_1)
+      // Note, that while computing L, the intermediate computation of C_B together with computing
+      // L0, L1, L2 can be replaced by single MSM of C with the powers multiplied by (1 + d_0 + d_1)
+      // with additionally concatenated inputs for scalars/bases which should make overall
+      // computation a little bit more efficient.
       //
       // We group terms to reduce the number of scalar mults (to seven):
       // In Rust, we could use MSMs for these, and speed up verification.
@@ -334,11 +336,28 @@ where
         .map(|v_i| zip_with!(iter, (q_powers, v_i), |a, b| *a * *b).sum())
         .collect::<Vec<E::Fr>>();
 
-      let L = NE::GE::vartime_multiscalar_mul(&q_powers_multiplied[..k], &C[..k])
-        - E::G1::from(vk.g) * (B_u[0] + d_0 * B_u[1] + d_1 * B_u[2])
-        + E::G1::from(W[0]) * u[0]
-        + E::G1::from(W[1]) * (u[1] * d_0)
-        + E::G1::from(W[2]) * (u[2] * d_1);
+      let L = NE::GE::vartime_multiscalar_mul(
+        &[
+          &q_powers_multiplied[..k],
+          &[
+            u[0],
+            (u[1] * d_0),
+            (u[2] * d_1),
+            (B_u[0] + d_0 * B_u[1] + d_1 * B_u[2]),
+          ],
+        ]
+        .concat(),
+        &[
+          &C[..k],
+          &[
+            E::G1::from(W[0]).into(),
+            E::G1::from(W[1]).into(),
+            E::G1::from(W[2]).into(),
+            (-E::G1::from(vk.g)).into(),
+          ],
+        ]
+        .concat(),
+      );
 
       let R0 = E::G1::from(W[0]);
       let R1 = E::G1::from(W[1]);
