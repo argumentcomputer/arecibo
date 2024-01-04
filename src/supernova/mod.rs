@@ -18,7 +18,7 @@ use crate::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
     AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
-  CircuitShape, Commitment, CommitmentKey,
+  Commitment, CommitmentKey, R1CSWithArity,
 };
 
 use abomonation::Abomonation;
@@ -86,7 +86,7 @@ where
   C2: StepCircuit<E2::Scalar>,
 {
   /// The internal circuit shapes
-  pub circuit_shapes: Vec<CircuitShape<E1>>,
+  pub circuit_shapes: Vec<R1CSWithArity<E1>>,
 
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
@@ -96,7 +96,7 @@ where
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
   ck_secondary: CommitmentKey<E2>,
-  circuit_shape_secondary: CircuitShape<E2>,
+  circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   /// Digest constructed from this `PublicParams`' parameters
@@ -130,7 +130,7 @@ where
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
   ck_secondary: CommitmentKey<E2>,
-  circuit_shape_secondary: CircuitShape<E2>,
+  circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
@@ -144,7 +144,7 @@ where
   C1: StepCircuit<E1::Scalar>,
   C2: StepCircuit<E2::Scalar>,
 {
-  type Output = CircuitShape<E1>;
+  type Output = R1CSWithArity<E1>;
 
   fn index(&self, index: usize) -> &Self::Output {
     &self.circuit_shapes[index]
@@ -217,7 +217,7 @@ where
 
         // We use the largest commitment_key for all instances
         let r1cs_shape_primary = cs.r1cs_shape();
-        CircuitShape::new(r1cs_shape_primary, F_arity)
+        R1CSWithArity::new(r1cs_shape_primary, F_arity)
       })
       .collect::<Vec<_>>();
 
@@ -242,7 +242,7 @@ where
       .synthesize(&mut cs)
       .expect("circuit synthesis failed");
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
-    let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
+    let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     let pp = Self {
       circuit_shapes,
@@ -266,7 +266,7 @@ where
   }
 
   /// Breaks down an instance of [PublicParams] into the circuit params and auxilliary params.
-  pub fn into_parts(self) -> (Vec<CircuitShape<E1>>, AuxParams<E1, E2>) {
+  pub fn into_parts(self) -> (Vec<R1CSWithArity<E1>>, AuxParams<E1, E2>) {
     let digest = self.digest();
 
     let Self {
@@ -301,7 +301,7 @@ where
   }
 
   /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
-  pub fn from_parts(circuit_shapes: Vec<CircuitShape<E1>>, aux_params: AuxParams<E1, E2>) -> Self {
+  pub fn from_parts(circuit_shapes: Vec<R1CSWithArity<E1>>, aux_params: AuxParams<E1, E2>) -> Self {
     let pp = Self {
       circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
@@ -327,7 +327,7 @@ where
   /// Create a [PublicParams] from a vector of raw [CircuitShape] and auxilliary params.
   /// We don't check that the `aux_params.digest` is a valid digest for the created params.
   pub fn from_parts_unchecked(
-    circuit_shapes: Vec<CircuitShape<E1>>,
+    circuit_shapes: Vec<R1CSWithArity<E1>>,
     aux_params: AuxParams<E1, E2>,
   ) -> Self {
     Self {
@@ -349,7 +349,7 @@ where
   /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
   /// `CircuitShape`.
   fn compute_primary_ck(
-    circuit_params: &[CircuitShape<E1>],
+    circuit_params: &[R1CSWithArity<E1>],
     ck_hint1: &CommitmentKeyHint<E1>,
   ) -> CommitmentKey<E1> {
     let size_primary = circuit_params
@@ -1129,7 +1129,7 @@ pub fn circuit_digest<
   let _ = augmented_circuit.synthesize(&mut cs);
 
   let F_arity = circuit.arity();
-  let circuit_params = CircuitShape::new(cs.r1cs_shape(), F_arity);
+  let circuit_params = R1CSWithArity::new(cs.r1cs_shape(), F_arity);
   circuit_params.digest()
 }
 

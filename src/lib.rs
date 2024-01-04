@@ -63,14 +63,14 @@ use traits::{
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
-pub struct CircuitShape<E: Engine> {
+pub struct R1CSWithArity<E: Engine> {
   F_arity: usize,
   r1cs_shape: R1CSShape<E>,
 }
 
-impl<E: Engine> SimpleDigestible for CircuitShape<E> {}
+impl<E: Engine> SimpleDigestible for R1CSWithArity<E> {}
 
-impl<E: Engine> CircuitShape<E> {
+impl<E: Engine> R1CSWithArity<E> {
   /// Create a new `CircuitShape`
   pub fn new(r1cs_shape: R1CSShape<E>, F_arity: usize) -> Self {
     Self {
@@ -110,11 +110,11 @@ where
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
   ck_primary: CommitmentKey<E1>,
-  circuit_shape_primary: CircuitShape<E1>,
+  circuit_shape_primary: R1CSWithArity<E1>,
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
   ck_secondary: CommitmentKey<E2>,
-  circuit_shape_secondary: CircuitShape<E2>,
+  circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
   #[abomonation_skip]
@@ -213,7 +213,7 @@ where
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
-    let circuit_shape_primary = CircuitShape::new(r1cs_shape_primary, F_arity_primary);
+    let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -225,7 +225,7 @@ where
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
-    let circuit_shape_secondary = CircuitShape::new(r1cs_shape_secondary, F_arity_secondary);
+    let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     Self {
       F_arity_primary,
