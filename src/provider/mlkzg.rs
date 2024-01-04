@@ -235,8 +235,7 @@ where
 
       #[allow(clippy::needless_range_loop)]
       Pi.par_iter_mut().enumerate().for_each(|(j, Pi_j)| {
-        *Pi_j = x[ell-i-1] * polys[i][2*j + 1] // Odd part of P^(i-1)
-            + (E::Fr::ONE - x[ell-i-1]) * polys[i][2*j]; // Even part of P^(i-1)
+        *Pi_j = x[ell - i - 1] * (polys[i][2 * j + 1] - polys[i][2 * j]) + polys[i][2 * j];
       });
 
       if i == ell - 1 && *eval != Pi[0] {
