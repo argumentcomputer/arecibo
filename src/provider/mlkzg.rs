@@ -301,6 +301,25 @@ where
       let d_0 = Self::verifier_second_challenge(W, transcript);
       let d_1 = d_0 * d_0;
 
+      assert!(t == 3);
+      assert!(W.len() == 3);
+      // We write a special case for t=3, since this what is required for
+      // mlkzg. Following the paper directly, we must compute:
+      // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
+      // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
+      // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
+      // let R0 = -W[0];
+      // let R1 = -W[1];
+      // let R2 = -W[2];
+      // let L = L0 + L1*d_0 + L2*d_1;
+      // let R = R0 + R1*d_0 + R2*d_1;
+      //
+      // Note, that intermediate computation of C_B can be replaced by MSM of C with the
+      // powers multiplied by (1 + d_0 + d_1)
+      //
+      // We group terms to reduce the number of scalar mults (to seven):
+      // In Rust, we could use MSMs for these, and speed up verification.
+
       let q_power_multiplier = E::Fr::ONE + d_0 + d_1;
 
       let q_powers_multiplied: Vec<E::Fr> = q_powers
@@ -315,21 +334,6 @@ where
         .map(|v_i| zip_with!(iter, (q_powers, v_i), |a, b| *a * *b).sum())
         .collect::<Vec<E::Fr>>();
 
-      assert!(t == 3);
-      assert!(W.len() == 3);
-      // We write a special case for t=3, since this what is required for
-      // mlkzg. Following the paper directly, we must compute:
-      // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
-      // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
-      // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
-      // let R0 = -W[0];
-      // let R1 = -W[1];
-      // let R2 = -W[2];
-      // let L = L0 + L1*d[0] + L2*d[1];
-      // let R = R0 + R1*d[0] + R2*d[1];
-      //
-      // We group terms to reduce the number of scalar mults (to seven):
-      // In Rust, we could use MSMs for these, and speed up verification.
       let L = NE::GE::vartime_multiscalar_mul(&q_powers_multiplied[..k], &C[..k])
         - E::G1::from(vk.g) * (B_u[0] + d_0 * B_u[1] + d_1 * B_u[2])
         + E::G1::from(W[0]) * u[0]
