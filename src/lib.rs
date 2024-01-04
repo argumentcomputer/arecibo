@@ -415,17 +415,17 @@ where
     let buffer_primary = ResourceBuffer {
       l_w: None,
       l_u: None,
-      ABC_Z_1: R1CSResult::default(r1cs_primary),
-      ABC_Z_2: R1CSResult::default(r1cs_primary),
-      T: r1cs::default_T(r1cs_primary),
+      ABC_Z_1: R1CSResult::default(r1cs_primary.num_cons),
+      ABC_Z_2: R1CSResult::default(r1cs_primary.num_cons),
+      T: r1cs::default_T::<E1>(r1cs_primary.num_cons),
     };
 
     let buffer_secondary = ResourceBuffer {
       l_w: None,
       l_u: None,
-      ABC_Z_1: R1CSResult::default(r1cs_secondary),
-      ABC_Z_2: R1CSResult::default(r1cs_secondary),
-      T: r1cs::default_T(r1cs_secondary),
+      ABC_Z_1: R1CSResult::default(r1cs_secondary.num_cons),
+      ABC_Z_2: R1CSResult::default(r1cs_secondary.num_cons),
+      T: r1cs::default_T::<E2>(r1cs_secondary.num_cons),
     };
 
     Ok(Self {
