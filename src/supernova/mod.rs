@@ -703,11 +703,10 @@ where
     )
     .map_err(SuperNovaError::NovaError)?;
 
-    // // clone and updated running instance on respective circuit_index
-    // let r_U_secondary_next = self.r_U_secondary;
-    // let r_W_secondary_next = self.r_W_secondary;
-
-    let mut cs_primary = SatisfyingAssignment::<E1>::new();
+    let mut cs_primary = SatisfyingAssignment::<E1>::with_capacity(
+      pp[circuit_index].r1cs_shape.num_io + 1,
+      pp[circuit_index].r1cs_shape.num_vars,
+    );
     let T =
       Commitment::<E2>::decompress(&nifs_secondary.comm_T).map_err(SuperNovaError::NovaError)?;
     let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, E2> =
@@ -777,7 +776,10 @@ where
     )
     .map_err(SuperNovaError::NovaError)?;
 
-    let mut cs_secondary = SatisfyingAssignment::<E2>::new();
+    let mut cs_secondary = SatisfyingAssignment::<E2>::with_capacity(
+      pp.circuit_shape_secondary.r1cs_shape.num_io + 1,
+      pp.circuit_shape_secondary.r1cs_shape.num_vars,
+    );
     let binding =
       Commitment::<E1>::decompress(&nifs_primary.comm_T).map_err(SuperNovaError::NovaError)?;
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, E1> =
