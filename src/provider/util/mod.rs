@@ -18,6 +18,30 @@ pub mod test_utils {
   use crate::traits::{
     commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
   };
+  use ff::Field;
+  use rand::rngs::StdRng;
+  use rand_core::{CryptoRng, RngCore};
+
+  /// Returns a random polynomial, a point and calculate its evaluation.
+  pub fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
+    num_vars: usize,
+    mut rng: &mut R,
+  ) -> (
+    MultilinearPolynomial<<E as Engine>::Scalar>,
+    Vec<<E as Engine>::Scalar>,
+    <E as Engine>::Scalar,
+  ) {
+    // Generate random polynomial and point.
+    let poly = MultilinearPolynomial::random(num_vars, &mut rng);
+    let point = (0..num_vars)
+      .map(|_| <E as Engine>::Scalar::random(&mut rng))
+      .collect::<Vec<_>>();
+
+    // Calculation evaluation of point over polynomial.
+    let eval = MultilinearPolynomial::evaluate_with(poly.evaluations(), &point);
+
+    (poly, point, eval)
+  }
 
   /// Methods used to test the prove and verify flow of [`MultilinearPolynomial`] Commitment Schemes
   /// (PCS).
@@ -31,7 +55,7 @@ pub mod test_utils {
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(num_vars as u64);
 
-    let (poly, point, eval) = MultilinearPolynomial::random_with_eval(num_vars, &mut rng);
+    let (poly, point, eval) = random_poly_with_eval::<E, StdRng>(num_vars, &mut rng);
 
     // Mock commitment key.
     let ck = E::CE::setup(b"test", 1 << num_vars);
@@ -50,7 +74,6 @@ pub mod test_utils {
     evaluate_bad_proof: bool,
   ) {
     use crate::traits::TranscriptEngineTrait;
-    use ff::Field;
     use std::ops::Add;
 
     // Generate Prover and verifier key for given commitment key.

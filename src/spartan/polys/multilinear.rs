@@ -77,23 +77,6 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     )
   }
 
-  /// Returns a random polynomial, a point and calculate its evaluation.
-  pub fn random_with_eval<R: RngCore + CryptoRng>(
-    num_vars: usize,
-    mut rng: &mut R,
-  ) -> (Self, Vec<Scalar>, Scalar) {
-    let poly = Self::random(num_vars, &mut rng);
-    // Generate random polynomial and point.
-    let point = (0..num_vars)
-      .map(|_| Scalar::random(&mut rng))
-      .collect::<Vec<_>>();
-
-    // Calculation evaluation of point over polynomial.
-    let eval = Self::evaluate_with(poly.evaluations(), &point);
-
-    (poly, point, eval)
-  }
-
   /// Binds the polynomial's top variable using the given scalar.
   ///
   /// This operation modifies the polynomial in-place.
