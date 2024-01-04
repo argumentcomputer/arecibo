@@ -429,7 +429,7 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::provider::util::test_utils::prove_verify_from_ell;
+  use crate::provider::util::test_utils::prove_verify_from_num_vars;
   use crate::{
     provider::keccak::Keccak256Transcript, traits::commitment::CommitmentTrait, CommitmentKey,
   };
@@ -557,8 +557,8 @@ mod tests {
   #[test]
   fn test_mlkzg_more() {
     // test the mlkzg prover and verifier with random instances (derived from a seed)
-    for ell in [4, 5, 6] {
-      prove_verify_from_ell::<NE, EvaluationEngine<E, NE>>(ell);
+    for num_vars in [4, 5, 6] {
+      prove_verify_from_num_vars::<_, EvaluationEngine<E, NE>>(num_vars);
     }
   }
 }

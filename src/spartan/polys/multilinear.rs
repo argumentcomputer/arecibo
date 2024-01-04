@@ -82,11 +82,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     num_vars: usize,
     mut rng: &mut R,
   ) -> (Self, Vec<Scalar>, Scalar) {
-    let poly = Self::new(
-      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
-        .take(1 << num_vars)
-        .collect(),
-    );
+    let poly = Self::random(num_vars, &mut rng);
     // Generate random polynomial and point.
     let point = (0..num_vars)
       .map(|_| Scalar::random(&mut rng))

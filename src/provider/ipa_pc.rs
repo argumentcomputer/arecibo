@@ -414,13 +414,13 @@ where
 #[cfg(test)]
 mod test {
   use crate::provider::ipa_pc::EvaluationEngine;
-  use crate::provider::util::test_utils::prove_verify_from_ell;
+  use crate::provider::util::test_utils::prove_verify_from_num_vars;
   use crate::provider::GrumpkinEngine;
 
   #[test]
   fn test_multiple_polynomial_size() {
-    for ell in [4, 5, 6] {
-      prove_verify_from_ell::<GrumpkinEngine, EvaluationEngine<GrumpkinEngine>>(ell);
+    for num_vars in [4, 5, 6] {
+      prove_verify_from_num_vars::<_, EvaluationEngine<GrumpkinEngine>>(num_vars);
     }
   }
 }

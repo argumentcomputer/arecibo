@@ -11,6 +11,7 @@ use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion
 use halo2curves::bn256::Bn256;
 use rand::rngs::StdRng;
 use rand_core::{CryptoRng, RngCore, SeedableRng};
+use std::any::type_name;
 use std::time::Duration;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
@@ -35,7 +36,7 @@ cfg_if::cfg_if! {
 
 criterion_main!(pcs);
 
-const TEST_ELL: [usize; 11] = [10, 11, 12, 23, 14, 15, 16, 17, 18, 19, 20];
+const NUM_VARS_TEST_VECTOR: [usize; 6] = [10, 12, 14, 16, 18, 20];
 
 struct BenchAssests<E: Engine, EE: EvaluationEngineTrait<E>> {
   poly: MultilinearPolynomial<<E as Engine>::Scalar>,
@@ -48,99 +49,93 @@ struct BenchAssests<E: Engine, EE: EvaluationEngineTrait<E>> {
   proof: Option<<EE as EvaluationEngineTrait<E>>::EvaluationArgument>,
 }
 
-// Macro to generate benchmark code for multiple engine and evaluation engine types
-macro_rules! benchmark_engines {
-    ($ell:expr, $rng:expr, $group:expr, $internal_fn:expr, $( ($engine:ty, $eval_engine:ty, $engine_name:expr) ),*) => {
-        $(
-            let mut assets = deterministic_assets::<$engine, $eval_engine, StdRng>($ell, &mut $rng);
-            $group.bench_with_input(BenchmarkId::new($engine_name, $ell), &$ell, |b, _| {
-                $internal_fn(b, &mut assets);
-            });
-        )*
+impl<E: Engine, EE: EvaluationEngineTrait<E>> BenchAssests<E, EE> {
+  pub(crate) fn from_num_vars<R: CryptoRng + RngCore>(ell: usize, mut rng: &mut R) -> Self {
+    let (poly, point, eval) = MultilinearPolynomial::random_with_eval(ell, &mut rng);
+
+    // Mock commitment key.
+    let ck = E::CE::setup(b"test", 1 << ell);
+    // Commits to the provided vector using the provided generators.
+    let commitment = E::CE::commit(&ck, poly.evaluations());
+
+    let (prover_key, verifier_key) = EE::setup(&ck);
+
+    // Generate proof so that we can bench verification.
+    let proof = EE::prove(
+      &ck,
+      &prover_key,
+      &mut E::TE::new(b"TestEval"),
+      &commitment,
+      poly.evaluations(),
+      &point,
+      &eval,
+    )
+    .unwrap();
+
+    Self {
+      poly,
+      point,
+      eval,
+      ck,
+      commitment,
+      prover_key,
+      verifier_key,
+      proof: Some(proof),
+    }
+  }
+}
+
+// Macro to generate benchmark code for multiple evaluation engine types
+macro_rules! benchmark_all_engines {
+    ($criterion:expr, $test_vector:expr, $proving_fn:expr, $verifying_fn:expr, $( ($assets:ident, $eval_engine:ty) ),*) => {
+        for num_vars in $test_vector.iter() {
+            let mut rng = rand::rngs::StdRng::seed_from_u64(*num_vars as u64);
+
+            $(
+                let $assets: BenchAssests<_, $eval_engine> = BenchAssests::from_num_vars::<StdRng>(*num_vars, &mut rng);
+            )*
+
+            // Proving group
+            let mut proving_group = $criterion.benchmark_group(format!("PCS-Proving {}", num_vars));
+            proving_group
+                .sampling_mode(SamplingMode::Flat)
+                .sample_size(10);
+
+            $(
+                proving_group.bench_with_input(BenchmarkId::new(type_name::<$eval_engine>(), num_vars), &num_vars, |b, _| {
+                    $proving_fn(b, &$assets);
+                });
+            )*
+
+            proving_group.finish();
+
+            // Verifying group
+            let mut verifying_group = $criterion.benchmark_group(format!("PCS-Verifying {}", num_vars));
+            verifying_group
+                .sampling_mode(SamplingMode::Flat)
+                .sample_size(10);
+
+            $(
+                verifying_group.bench_with_input(BenchmarkId::new(type_name::<$eval_engine>(), num_vars), &num_vars, |b, _| {
+                    $verifying_fn(b, &$assets);
+                });
+            )*
+
+            verifying_group.finish();
+        }
     };
 }
 
 fn bench_pcs(c: &mut Criterion) {
-  for &ell in TEST_ELL.iter() {
-    let mut rng = rand::rngs::StdRng::seed_from_u64(ell as u64);
-
-    // Proving group
-    {
-      let mut proving_group = c.benchmark_group("PCS-Proving");
-      proving_group
-        .sampling_mode(SamplingMode::Flat)
-        .sample_size(10);
-
-      benchmark_engines!(
-          ell,
-          rng,
-          proving_group,
-          bench_pcs_proving_internal,
-          (GrumpkinEngine, IPAEvaluationEngine<GrumpkinEngine>, "IPA"),
-          (Bn256EngineKZG, MLEvaluationEngine<Bn256, Bn256EngineKZG>, "MLKZG"),
-          (Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>, "ZM")
-      );
-
-      proving_group.finish();
-    }
-
-    // Verifying group
-    {
-      let mut verifying_group = c.benchmark_group("PCS-Verifying");
-      verifying_group
-        .sampling_mode(SamplingMode::Flat)
-        .sample_size(10);
-
-      benchmark_engines!(
-          ell,
-          rng,
-          verifying_group,
-          bench_pcs_verifying_internal,
-          (GrumpkinEngine, IPAEvaluationEngine<GrumpkinEngine>, "IPA"),
-          (Bn256EngineKZG, MLEvaluationEngine<Bn256, Bn256EngineKZG>, "MLKZG"),
-          (Bn256EngineZM, ZMPCS<Bn256, Bn256EngineZM>, "ZM")
-      );
-
-      verifying_group.finish();
-    }
-  }
-}
-
-fn deterministic_assets<E: Engine, EE: EvaluationEngineTrait<E>, R: CryptoRng + RngCore>(
-  ell: usize,
-  mut rng: &mut R,
-) -> BenchAssests<E, EE> {
-  let (poly, point, eval) = MultilinearPolynomial::random_with_eval(ell, &mut rng);
-
-  // Mock commitment key.
-  let ck = E::CE::setup(b"test", 1 << ell);
-  // Commits to the provided vector using the provided generators.
-  let commitment = E::CE::commit(&ck, poly.evaluations());
-
-  let (prover_key, verifier_key) = EE::setup(&ck);
-
-  // Generate proof so that we can bench verification.
-  let proof = EE::prove(
-    &ck,
-    &prover_key,
-    &mut E::TE::new(b"TestEval"),
-    &commitment,
-    poly.evaluations(),
-    &point,
-    &eval,
-  )
-  .unwrap();
-
-  BenchAssests {
-    poly,
-    point,
-    eval,
-    ck,
-    commitment,
-    prover_key,
-    verifier_key,
-    proof: Some(proof),
-  }
+  benchmark_all_engines!(
+    c,
+    NUM_VARS_TEST_VECTOR,
+    bench_pcs_proving_internal,
+    bench_pcs_verifying_internal,
+    (ipa_assets, IPAEvaluationEngine<GrumpkinEngine>),
+    (mlkzg_assets, MLEvaluationEngine<Bn256, Bn256EngineKZG>),
+    (zm_assets, ZMPCS<Bn256, Bn256EngineZM>)
+  );
 }
 
 fn bench_pcs_proving_internal<E: Engine, EE: EvaluationEngineTrait<E>>(

@@ -19,17 +19,22 @@ pub mod test_utils {
     commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
   };
 
+  /// Methods used to test the prove and verify flow of [`MultilinearPolynomial`] Commitment Schemes
+  /// (PCS).
+  ///
   /// Generates a random polynomial and point from a seed to test a proving/verifying flow of one
-  /// of our EvaluationEngine over a given Engine.
-  pub(crate) fn prove_verify_from_ell<E: Engine, EE: EvaluationEngineTrait<E>>(ell: usize) {
+  /// of our [`EvaluationEngine`].
+  pub(crate) fn prove_verify_from_num_vars<E: Engine, EE: EvaluationEngineTrait<E>>(
+    num_vars: usize,
+  ) {
     use rand_core::SeedableRng;
 
-    let mut rng = rand::rngs::StdRng::seed_from_u64(ell as u64);
+    let mut rng = rand::rngs::StdRng::seed_from_u64(num_vars as u64);
 
-    let (poly, point, eval) = MultilinearPolynomial::random_with_eval(ell, &mut rng);
+    let (poly, point, eval) = MultilinearPolynomial::random_with_eval(num_vars, &mut rng);
 
     // Mock commitment key.
-    let ck = E::CE::setup(b"test", 1 << ell);
+    let ck = E::CE::setup(b"test", 1 << num_vars);
     // Commits to the provided vector using the provided generators.
     let commitment = E::CE::commit(&ck, poly.evaluations());
 
