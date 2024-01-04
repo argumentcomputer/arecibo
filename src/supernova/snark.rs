@@ -4,8 +4,8 @@ use super::{error::SuperNovaError, PublicParams, RecursiveSNARK};
 use crate::{
   constants::NUM_HASH_BITS,
   r1cs::{R1CSInstance, RelaxedR1CSWitness},
+  supernova::StepCircuit,
   traits::{
-    circuit_supernova::StepCircuit,
     snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
     AbsorbInROTrait, Engine, ROTrait,
   },
@@ -336,8 +336,7 @@ mod test {
       VestaEngine,
     },
     spartan::{batched, batched_ppsnark, snark::RelaxedR1CSSNARK},
-    supernova::NonUniformCircuit,
-    traits::circuit_supernova::TrivialSecondaryCircuit,
+    supernova::{circuit::TrivialSecondaryCircuit, NonUniformCircuit},
   };
 
   use abomonation::Abomonation;

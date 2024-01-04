@@ -3,11 +3,8 @@ use arecibo::{
   provider::{PallasEngine, VestaEngine},
   supernova::NonUniformCircuit,
   supernova::{PublicParams, RecursiveSNARK},
-  traits::{
-    circuit_supernova::{StepCircuit, TrivialTestCircuit},
-    snark::default_ck_hint,
-    Engine,
-  },
+  supernova::{StepCircuit, TrivialTestCircuit},
+  traits::{snark::default_ck_hint, Engine},
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;

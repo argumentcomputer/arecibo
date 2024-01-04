@@ -2,12 +2,8 @@
 use arecibo::{
   supernova::NonUniformCircuit,
   supernova::{snark::CompressedSNARK, PublicParams, RecursiveSNARK},
-  traits::{
-    circuit_supernova::{StepCircuit, TrivialTestCircuit},
-    snark::BatchedRelaxedR1CSSNARKTrait,
-    snark::RelaxedR1CSSNARKTrait,
-    Engine,
-  },
+  supernova::{StepCircuit, TrivialTestCircuit},
+  traits::{snark::BatchedRelaxedR1CSSNARKTrait, snark::RelaxedR1CSSNARKTrait, Engine},
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;

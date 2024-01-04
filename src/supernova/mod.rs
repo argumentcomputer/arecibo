@@ -14,7 +14,6 @@ use crate::{
   },
   scalar_as_base,
   traits::{
-    circuit_supernova::StepCircuit,
     commitment::{CommitmentEngineTrait, CommitmentTrait},
     AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
@@ -40,11 +39,11 @@ use bellpepper_core::ConstraintSystem;
 use crate::nifs::NIFS;
 
 mod circuit; // declare the module first
+pub use circuit::{StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit};
 use circuit::{
   SuperNovaAugmentedCircuit, SuperNovaAugmentedCircuitInputs, SuperNovaAugmentedCircuitParams,
 };
-
-use self::error::SuperNovaError;
+use error::SuperNovaError;
 
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
