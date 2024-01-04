@@ -98,7 +98,7 @@ macro_rules! benchmark_all_engines {
             // Proving group
             let mut proving_group = $criterion.benchmark_group(format!("PCS-Proving {}", num_vars));
             proving_group
-                .sampling_mode(SamplingMode::Flat)
+                .sampling_mode(SamplingMode::Auto)
                 .sample_size(10);
 
             $(
@@ -112,7 +112,7 @@ macro_rules! benchmark_all_engines {
             // Verifying group
             let mut verifying_group = $criterion.benchmark_group(format!("PCS-Verifying {}", num_vars));
             verifying_group
-                .sampling_mode(SamplingMode::Flat)
+                .sampling_mode(SamplingMode::Auto)
                 .sample_size(10);
 
             $(
