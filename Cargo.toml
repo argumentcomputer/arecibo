@@ -62,14 +62,17 @@ getrandom = { version = "0.2.0", default-features = false, features = ["js"] }
 # bypass the default "multicore" feature
 halo2curves = { version = "0.5.0", default-features = false, features = ["bits", "derive_serde"] }
 
-[dev-dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+proptest = "1.2.0"
+pprof = { version = "0.13" }
 criterion = { version = "0.5", features = ["html_reports"] }
+
+[dev-dependencies]
 flate2 = "1.0"
 hex = "0.4.3"
-pprof = { version = "0.13" }
+
 sha2 = "0.10.7"
 tracing-test = "0.2.4"
-proptest = "1.2.0"
 expect-test = "1.4.1"
 
 [[bench]]
