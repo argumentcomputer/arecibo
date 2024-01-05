@@ -96,6 +96,10 @@ harness = false
 name = "compressed-snark-supernova"
 harness = false
 
+[[bench]]
+name = "pcs"
+harness = false
+
 [features]
 default = []
 abomonate = []

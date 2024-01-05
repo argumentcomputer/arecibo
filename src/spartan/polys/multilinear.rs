@@ -63,8 +63,12 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     self.Z.len()
   }
 
+  /// Returns true if no evaluations.
+  pub fn is_empty(&self) -> bool {
+    self.Z.len() == 0
+  }
+
   /// Returns a random polynomial
-  ///
   pub fn random<R: RngCore + CryptoRng>(num_vars: usize, mut rng: &mut R) -> Self {
     Self::new(
       std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
