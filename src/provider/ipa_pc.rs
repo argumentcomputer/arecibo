@@ -112,7 +112,7 @@ fn inner_product<T: Field + Send + Sync>(a: &[T], b: &[T]) -> T {
 
 /// An inner product instance consists of a commitment to a vector `a` and another vector `b`
 /// and the claim that c = <a, b>.
-pub struct InnerProductInstance<E: Engine> {
+struct InnerProductInstance<E: Engine> {
   comm_a_vec: Commitment<E>,
   b_vec: Vec<E::Scalar>,
   c: E::Scalar,
