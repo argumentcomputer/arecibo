@@ -99,7 +99,7 @@ impl<E: Engine> SumcheckProof<E> {
   }
 
   #[inline]
-  pub(in crate::spartan) fn compute_eval_points_quad<F>(
+  fn compute_eval_points_quad<F>(
     poly_A: &MultilinearPolynomial<E::Scalar>,
     poly_B: &MultilinearPolynomial<E::Scalar>,
     comb_func: &F,
@@ -300,7 +300,7 @@ impl<E: Engine> SumcheckProof<E> {
   }
 
   #[inline]
-  pub(in crate::spartan) fn compute_eval_points_cubic<F>(
+  fn compute_eval_points_cubic<F>(
     poly_A: &MultilinearPolynomial<E::Scalar>,
     poly_B: &MultilinearPolynomial<E::Scalar>,
     poly_C: &MultilinearPolynomial<E::Scalar>,
@@ -344,7 +344,7 @@ impl<E: Engine> SumcheckProof<E> {
   }
 
   #[inline]
-  pub(in crate::spartan) fn compute_eval_points_cubic_with_additive_term<F>(
+  fn compute_eval_points_cubic_with_additive_term<F>(
     poly_A: &MultilinearPolynomial<E::Scalar>,
     poly_B: &MultilinearPolynomial<E::Scalar>,
     poly_C: &MultilinearPolynomial<E::Scalar>,
