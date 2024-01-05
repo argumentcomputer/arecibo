@@ -785,6 +785,7 @@ mod tests {
   use super::*;
   use bellpepper_core::{test_cs::TestConstraintSystem, Circuit};
   use pasta_curves::pallas::Scalar;
+  #[cfg(not(target_arch = "wasm32"))]
   use proptest::prelude::*;
 
   pub struct PolynomialMultiplier<Scalar: PrimeField> {
@@ -865,8 +866,8 @@ mod tests {
     }
   }
 
+  #[cfg(not(target_arch = "wasm32"))]
   proptest! {
-
     #![proptest_config(ProptestConfig {
       cases: 10, // this test is costlier as max n gets larger
       .. ProptestConfig::default()

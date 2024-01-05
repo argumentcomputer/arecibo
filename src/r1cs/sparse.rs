@@ -264,11 +264,13 @@ impl<'a, F: PrimeField> Iterator for Iter<'a, F> {
 #[cfg(test)]
 mod tests {
   use super::SparseMatrix;
+  #[cfg(not(target_arch = "wasm32"))]
+  use crate::r1cs::util::FWrap;
   use crate::{
     provider::PallasEngine,
-    r1cs::util::FWrap,
     traits::{Engine, Group},
   };
+  #[cfg(not(target_arch = "wasm32"))]
   use proptest::{
     prelude::*,
     strategy::{BoxedStrategy, Just, Strategy},
@@ -310,11 +312,13 @@ mod tests {
     assert_eq!(result, vec![Fr::from(25), Fr::from(9), Fr::from(4)]);
   }
 
+  #[cfg(not(target_arch = "wasm32"))]
   fn coo_strategy() -> BoxedStrategy<Vec<(usize, usize, FWrap<Fr>)>> {
     let coo_strategy = any::<FWrap<Fr>>().prop_flat_map(|f| (0usize..100, 0usize..100, Just(f)));
     proptest::collection::vec(coo_strategy, 10).boxed()
   }
 
+  #[cfg(not(target_arch = "wasm32"))]
   proptest! {
       #[test]
       fn test_matrix_iter(mut coo_matrix in coo_strategy()) {
