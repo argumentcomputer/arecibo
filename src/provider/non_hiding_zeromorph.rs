@@ -69,7 +69,7 @@ pub struct ZMVerifierKey<E: Engine> {
 //
 // TODO: important, we need a better way to handle that the commitment key should be 2^max_degree sized,
 // see the runtime error in commit() below
-pub fn trim<E: Engine>(
+fn trim<E: Engine>(
   params: &UniversalKZGParam<E>,
   max_degree: usize,
 ) -> (ZMProverKey<E>, ZMVerifierKey<E>) {
@@ -93,7 +93,7 @@ pub fn trim<E: Engine>(
 #[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct ZMCommitment<E: Engine>(
   /// the actual commitment is an affine point.
-  pub E::G1Affine,
+  E::G1Affine,
 );
 
 impl<E: Engine> From<UVKZGCommitment<E>> for ZMCommitment<E> {
@@ -126,11 +126,11 @@ impl<E: Engine> From<UVKZGEvaluation<E>> for ZMEvaluation<E> {
 /// Proofs
 pub struct ZMProof<E: Engine> {
   /// proof
-  pub pi: E::G1Affine,
+  pi: E::G1Affine,
   /// Polynomial commitment to qhat
-  pub cqhat: UVKZGCommitment<E>,
+  cqhat: UVKZGCommitment<E>,
   /// Polynomial commitment to qk
-  pub ck: Vec<UVKZGCommitment<E>>,
+  ck: Vec<UVKZGCommitment<E>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
@@ -155,7 +155,7 @@ where
 
   /// Generate a commitment for a polynomial
   /// Note that the scheme is not hidding
-  pub fn commit(
+  fn commit(
     pp: impl Borrow<ZMProverKey<E>>,
     poly: &MultilinearPolynomial<E::Fr>,
   ) -> Result<ZMCommitment<E>, NovaError> {
@@ -168,7 +168,7 @@ where
 
   /// On input a polynomial `poly` and a point `point`, outputs a proof for the
   /// same.
-  pub fn open(
+  fn open(
     pp: &impl Borrow<ZMProverKey<E>>,
     comm: &ZMCommitment<E>,
     poly: &MultilinearPolynomial<E::Fr>,
@@ -252,7 +252,7 @@ where
 
   /// Verifies that `value` is the evaluation at `x` of the polynomial
   /// committed inside `comm`.
-  pub fn verify(
+  fn verify(
     vk: &impl Borrow<ZMVerifierKey<E>>,
     transcript: &mut impl TranscriptEngineTrait<NE>,
     comm: &ZMCommitment<E>,
@@ -819,7 +819,7 @@ mod test {
     }
   }
 
-  pub fn commit_filtered<E>(
+  fn commit_filtered<E>(
     prover_param: impl Borrow<KZGProverKey<E>>,
     poly: &UVKZGPoly<E::Fr>,
   ) -> Result<UVKZGCommitment<E>, NovaError>
