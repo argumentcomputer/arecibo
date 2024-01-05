@@ -7,15 +7,15 @@ pub mod non_hiding_zeromorph;
 
 // crate-public modules, made crate-public mostly for tests
 pub(crate) mod bn256_grumpkin;
-pub(crate) mod pasta;
-pub(crate) mod pedersen;
+mod pasta;
+mod pedersen;
 pub(crate) mod poseidon;
 pub(crate) mod secp_secq;
 pub(crate) mod traits;
 // a non-hiding variant of {kzg, zeromorph}
-pub(crate) mod kzg_commitment;
-pub(crate) mod non_hiding_kzg;
-pub(crate) mod util;
+mod kzg_commitment;
+mod non_hiding_kzg;
+mod util;
 
 // crate-private modules
 mod keccak;
