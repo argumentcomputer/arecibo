@@ -84,7 +84,7 @@ where
 /// Given a scalar and a table of pre-computed multiples of a base point, this function
 /// efficiently computes the scalar multiplication by breaking the scalar into windows and
 /// adding the corresponding multiples from the table.
-pub(crate) fn windowed_mul<T>(
+fn windowed_mul<T>(
   outerc: usize,
   window: usize,
   multiples_of_g: &[Vec<T::Affine>],
