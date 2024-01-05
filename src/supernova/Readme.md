@@ -257,8 +257,8 @@ This branch returns $U\_{i+1}[\ ]$, $b\_{X_0}$ as well as the selector $s$.
 If $i \equiv 0$, then the verification circuit must instantiate the inputs as their defaults.
 Namely, it initializes a list $U_0[\ ]$ (different from the input list which is given to the previous branch) with "empty instances" (all group elements are set to the identity).
 
-The ouptut list of instances $U_1[\ ]$ is
-- **Primary curve**: the incomming proof $u$ is trivial, so the result of folding two trivial instances is defined as the trivial relaxed instance.
+The output list of instances $U_1[\ ]$ is
+- **Primary curve**: the incoming proof $u$ is trivial, so the result of folding two trivial instances is defined as the trivial relaxed instance.
 - **Secondary curve**: the instance $U_0[\mathsf{pc}']$ is simply replaced with the relaxation of $u$ using conditional selection.
 
 This branch returns $U_1[\ ]$.
@@ -312,7 +312,7 @@ We then verify that $(u',w')$ is a satisfying circuit, which proves that all rel
 
 We then need to verify that all accumulators $(U[\ ], W[\ ])$ and $(U', W')$ are correct by checking the circuit satisfiability.
 
-## Comparsion of Nova and SuperNova
+## Comparison of Nova and SuperNova
 
 |                                  |         Nova          |          SuperNova           |
 | -------------------------------- | --------------------- | ---------------------------- |

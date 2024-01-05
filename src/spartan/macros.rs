@@ -1,4 +1,4 @@
-/// Macros to give syntactic sugar for zipWith pattern and variatns.
+/// Macros to give syntactic sugar for zipWith pattern and variants.
 ///
 /// ```ignore
 /// use crate::spartan::zip_with;
