@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-use anyhow::anyhow;
 use arecibo::{
   provider::{PallasEngine, VestaEngine},
   traits::{
@@ -14,6 +13,9 @@ use core::marker::PhantomData;
 use criterion::*;
 use ff::PrimeField;
 use std::time::Duration;
+
+mod common;
+use common::{noise_threshold_env, BenchParams};
 
 type E1 = PallasEngine;
 type E2 = VestaEngine;
@@ -46,54 +48,17 @@ criterion_main!(recursive_snark);
 const NUM_CONS_VERIFIER_CIRCUIT_PRIMARY: usize = 9825;
 const NUM_SAMPLES: usize = 10;
 
-// TODO: Why Copy and &'static str over String?
-#[derive(Clone, Debug, Copy)]
-struct BenchParams {
-  name: &'static str,
-  step_size: usize,
-  // TODO: Is this useful?
-  //date: &'static str,
-  sha: &'static str,
-}
-impl BenchParams {
-  fn name_params(&self) -> (String, String) {
-    let output_type = bench_parameters_env().unwrap_or("stdout".into());
-    match output_type.as_ref() {
-      "pr-comment" => todo!(),
-      "commit-comment" => (
-        format!("ref={}", self.sha),
-        format!("{}-StepCircuitSize-{}", self.name, self.step_size),
-      ),
-      // TODO: refine "gh-pages" and "stdout"
-      _ => todo!(),
-    }
-  }
-}
-
-fn bench_parameters_env() -> anyhow::Result<String> {
-  std::env::var("ARECIBO_BENCH_OUTPUT").map_err(|e| anyhow!("Bench output env var isn't set: {e}"))
-}
-
-fn noise_threshold_env() -> anyhow::Result<f64> {
-  std::env::var("ARECIBO_BENCH_NOISE_THRESHOLD")
-    .map_err(|e| anyhow!("Noise threshold env var isn't set: {e}"))
-    .and_then(|nt| {
-      nt.parse::<f64>()
-        .map_err(|e| anyhow!("Failed to parse noise threshold: {e}"))
-    })
-}
-
 fn bench_recursive_snark(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
     NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
     16384,
-    //32768,
-    //65536,
-    //131072,
-    //262144,
-    //524288,
-    //1048576,
+    32768,
+    65536,
+    131072,
+    262144,
+    524288,
+    1048576,
   ]
   .iter()
   {
@@ -143,15 +108,12 @@ fn bench_recursive_snark(c: &mut Criterion) {
       assert!(res.is_ok());
     }
 
-    let prove_params = BenchParams {
-      name: "Prove",
+    let bench_params = BenchParams {
       step_size: num_cons,
       sha: env!("VERGEN_GIT_SHA"),
     };
-    let (name, params) = prove_params.name_params();
-    let bench_id = BenchmarkId::new(name, params);
 
-    group.bench_function(bench_id, |b| {
+    group.bench_function(bench_params.bench_id("Prove"), |b| {
       b.iter(|| {
         // produce a recursive SNARK for a step of the recursion
         assert!(black_box(&mut recursive_snark.clone())
@@ -164,16 +126,8 @@ fn bench_recursive_snark(c: &mut Criterion) {
       })
     });
 
-    let verify_params = BenchParams {
-      name: "Verify",
-      step_size: num_cons,
-      sha: env!("VERGEN_GIT_SHA"),
-    };
-    let (name, params) = verify_params.name_params();
-    let bench_id = BenchmarkId::new(name, params);
-
     // Benchmark the verification time
-    group.bench_function(bench_id, |b| {
+    group.bench_function(bench_params.bench_id("Verify"), |b| {
       b.iter(|| {
         assert!(black_box(&recursive_snark)
           .verify(

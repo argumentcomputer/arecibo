@@ -91,13 +91,15 @@ jobs:
           NUM_VCPUS=$(nproc --all)
           # Get total RAM in GB
           TOTAL_RAM=$(grep MemTotal /proc/meminfo | awk '{$2=$2/(1024^2); print int($2), "GB RAM";}')
+          WORKFLOW_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           
           # Use conditionals to ensure that only non-empty variables are inserted
           [[ ! -z "${{ env.GPU_NAME }}" ]] && sed -i "/^\"\"\"$/i ${{ env.GPU_NAME }}" tables.toml
           [[ ! -z "$CPU_MODEL" ]] && sed -i "/^\"\"\"$/i $CPU_MODEL" tables.toml
           [[ ! -z "$NUM_VCPUS" ]] && sed -i "/^\"\"\"$/i $NUM_VCPUS" tables.toml
           [[ ! -z "$TOTAL_RAM" ]] && sed -i "/^\"\"\"$/i $TOTAL_RAM" tables.toml          
-          sed -i "/^\"\"\"$/i Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" tables.toml
+          sed -i "/^\"\"\"$/i Workflow run: $WORKFLOW_URL" tables.toml
+          echo "WORKFLOW_URL=$WORKFLOW_URL" | tee -a $GITHUB_ENV
         working-directory: ${{ github.workspace }}
       # Create a `criterion-table` and write in commit comment
       - name: Run `criterion-table`
@@ -126,21 +128,14 @@ jobs:
       - name: Get PR number from merge branch
         run: |
           echo "PR_NUMBER=$(echo ${{ github.event.merge_group.head_ref }} | sed -e 's/.*pr-\(.*\)-.*/\1/')" | tee -a $GITHUB_ENV
-      - name: Create file for issue
-        if: steps.regression-check.outcome == 'failure'
-        run: |
-          printf '%s\n' "Regression >= 10% found during merge for PR #${{ env.PR_NUMBER }}
-          Commit: ${{ github.sha }}
-          Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" > ./_body.md
-      - name: Open issue on regression
-        if: steps.regression-check.outcome == 'failure'
-        uses: peter-evans/create-issue-from-file@v4
+      - uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+          GIT_SHA: ${{ github.sha }}
+          WORKFLOW_URL: ${{ env.WORKFLOW_URL }}
         with:
-          title: ':rotating_light: Performance regression detected for PR #${{ env.PR_NUMBER }}'
-          content-filepath: ./_body.md
-          labels: |
-            P-Performance
-            automated issue
+          filename: .github/PERF_REGRESSION.md
       - name: Remove old dev bench
         run: |
           rm ${{ env.BASE_COMMIT }}.json

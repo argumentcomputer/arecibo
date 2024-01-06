@@ -32,5 +32,5 @@ gpu-bench +benches: gpu-env
 gpu-bench-ci +benches:
   #!/bin/sh
   for bench in {{benches}}; do
-    cargo criterion --bench $bench --features "cuda" --message-format=json > {{commit}}.json
+    cargo criterion --bench $bench --features "cuda" --message-format=json > "$bench-{{commit}}".json
   done
