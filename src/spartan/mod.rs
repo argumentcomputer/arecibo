@@ -10,11 +10,11 @@ pub mod batched;
 pub mod batched_ppsnark;
 #[macro_use]
 mod macros;
-pub(crate) mod math;
+mod math;
 pub mod polys;
 pub mod ppsnark;
 pub mod snark;
-pub(in crate::spartan) mod sumcheck;
+mod sumcheck;
 
 use crate::{
   r1cs::{R1CSShape, SparseMatrix},
@@ -35,7 +35,7 @@ fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
 }
 
 /// A type that holds a witness to a polynomial evaluation instance
-pub struct PolyEvalWitness<E: Engine> {
+struct PolyEvalWitness<E: Engine> {
   p: Vec<E::Scalar>, // polynomial
 }
 
@@ -114,7 +114,7 @@ impl<E: Engine> PolyEvalWitness<E> {
 }
 
 /// A type that holds a polynomial evaluation instance
-pub struct PolyEvalInstance<E: Engine> {
+struct PolyEvalInstance<E: Engine> {
   c: Commitment<E>,  // commitment to the polynomial
   x: Vec<E::Scalar>, // evaluation point
   e: E::Scalar,      // claimed evaluation
@@ -185,7 +185,7 @@ impl<E: Engine> PolyEvalInstance<E> {
 }
 
 /// Bounds "row" variables of (A, B, C) matrices viewed as 2d multilinear polynomials
-pub fn compute_eval_table_sparse<E: Engine>(
+fn compute_eval_table_sparse<E: Engine>(
   S: &R1CSShape<E>,
   rx: &[E::Scalar],
 ) -> (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>) {

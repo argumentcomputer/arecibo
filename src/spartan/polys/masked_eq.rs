@@ -62,7 +62,7 @@ impl<'a, Scalar: PrimeField> MaskedEqPolynomial<'a, Scalar> {
   /// representation.
   ///
   /// Returns a vector of Scalars, each corresponding to the polynomial evaluation at a specific point.
-  pub fn evals_from_points(r: &[Scalar], num_masked_vars: usize) -> Vec<Scalar> {
+  fn evals_from_points(r: &[Scalar], num_masked_vars: usize) -> Vec<Scalar> {
     let mut evals = EqPolynomial::evals_from_points(r);
 
     // replace the first 2^m evaluations with 0

@@ -70,7 +70,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
     }
   }
 
-  pub fn is_zero(&self) -> bool {
+  fn is_zero(&self) -> bool {
     self.coeffs.is_empty() || self.coeffs.iter().all(|c| c == &Scalar::ZERO)
   }
 
@@ -80,7 +80,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
     }
   }
 
-  pub fn leading_coefficient(&self) -> Option<&Scalar> {
+  fn leading_coefficient(&self) -> Option<&Scalar> {
     self.coeffs.last()
   }
 

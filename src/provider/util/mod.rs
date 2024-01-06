@@ -23,7 +23,7 @@ pub mod test_utils {
   use rand_core::{CryptoRng, RngCore};
 
   /// Returns a random polynomial, a point and calculate its evaluation.
-  pub fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
+  fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
     num_vars: usize,
     mut rng: &mut R,
   ) -> (
@@ -65,7 +65,7 @@ pub mod test_utils {
     prove_verify_with::<E, EE>(&ck, &commitment, &poly, &point, &eval, true)
   }
 
-  pub(crate) fn prove_verify_with<E: Engine, EE: EvaluationEngineTrait<E>>(
+  fn prove_verify_with<E: Engine, EE: EvaluationEngineTrait<E>>(
     ck: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
     commitment: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
     poly: &MultilinearPolynomial<<E as Engine>::Scalar>,
