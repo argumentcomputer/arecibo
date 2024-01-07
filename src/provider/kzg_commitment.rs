@@ -23,7 +23,7 @@ use crate::provider::{
 
 /// Provides a commitment engine
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct KZGCommitmentEngine<E: Engine> {
+pub struct KZGCommitmentEngine<E> {
   _p: PhantomData<E>,
 }
 
