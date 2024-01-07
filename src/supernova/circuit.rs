@@ -100,7 +100,7 @@ impl<F: PrimeField, S: StepCircuit<F>> EnforcingStepCircuit<F> for S {}
 
 /// A trivial step circuit that simply returns the input
 #[derive(Clone, Debug, Default)]
-pub struct TrivialTestCircuit<F: PrimeField> {
+pub struct TrivialTestCircuit<F> {
   _p: PhantomData<F>,
 }
 
@@ -130,7 +130,7 @@ where
 /// NOTE: This should not be needed. The secondary circuit doesn't need the program counter at all.
 /// Ideally, the need this fills could be met by `traits::circuit::TrivialTestCircuit` (or equivalent).
 #[derive(Clone, Debug, Default)]
-pub struct TrivialSecondaryCircuit<F: PrimeField> {
+pub struct TrivialSecondaryCircuit<F> {
   _p: PhantomData<F>,
 }
 
