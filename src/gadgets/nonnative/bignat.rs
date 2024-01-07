@@ -788,7 +788,7 @@ mod tests {
   #[cfg(not(target_arch = "wasm32"))]
   use proptest::prelude::*;
 
-  pub struct PolynomialMultiplier<Scalar: PrimeField> {
+  pub struct PolynomialMultiplier<Scalar> {
     pub a: Vec<Scalar>,
     pub b: Vec<Scalar>,
   }
