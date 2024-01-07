@@ -29,7 +29,7 @@ impl<T: SimpleDigestible> Digestible for T {
   }
 }
 
-pub struct DigestComputer<'a, F: PrimeField, T> {
+pub struct DigestComputer<'a, F, T> {
   inner: &'a T,
   _phantom: PhantomData<F>,
 }
