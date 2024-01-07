@@ -10,7 +10,7 @@ use itertools::zip_eq;
 /// The polynomial is defined by the formula:
 /// eqₘ(x,r) = eq(x,r) - ( ∏_{0 ≤ i < n-m} (1−rᵢ)(1−xᵢ) )⋅( ∏_{n-m ≤ i < n} (1−rᵢ)(1−xᵢ) + rᵢ⋅xᵢ )
 #[derive(Debug)]
-pub struct MaskedEqPolynomial<'a, Scalar: PrimeField> {
+pub struct MaskedEqPolynomial<'a, Scalar> {
   eq: &'a EqPolynomial<Scalar>,
   num_masked_vars: usize,
 }
