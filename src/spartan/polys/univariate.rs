@@ -17,14 +17,14 @@ use crate::traits::{Group, TranscriptReprTrait};
 // ax^3 + bx^2 + cx + d stored as vec![d, c, b, a]
 #[derive(Debug, Clone, PartialEq, Eq, RefCast)]
 #[repr(transparent)]
-pub struct UniPoly<Scalar: PrimeField> {
+pub struct UniPoly<Scalar> {
   pub coeffs: Vec<Scalar>,
 }
 
 // ax^2 + bx + c stored as vec![c, a]
 // ax^3 + bx^2 + cx + d stored as vec![d, c, a]
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompressedUniPoly<Scalar: PrimeField> {
+pub struct CompressedUniPoly<Scalar> {
   coeffs_except_linear_term: Vec<Scalar>,
 }
 
