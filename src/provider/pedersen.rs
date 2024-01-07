@@ -210,7 +210,7 @@ where
 
 /// Provides a commitment engine
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommitmentEngine<E: Engine> {
+pub struct CommitmentEngine<E> {
   _p: PhantomData<E>,
 }
 
