@@ -157,6 +157,7 @@ fn bench_recursive_snark_internal_with_arity(
 
   let bench_params = BenchParams {
     step_size: num_cons,
+    date: env!("VERGEN_GIT_COMMIT_DATE"),
     sha: env!("VERGEN_GIT_SHA"),
   };
 

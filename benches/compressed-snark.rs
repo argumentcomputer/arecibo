@@ -106,6 +106,7 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
 
   let bench_params = BenchParams {
     step_size: num_cons,
+    date: env!("VERGEN_GIT_COMMIT_DATE"),
     sha: env!("VERGEN_GIT_SHA"),
   };
 

@@ -18,7 +18,13 @@ impl BenchParams {
         format!("{}-StepCircuitSize-{}", name, self.step_size),
       ),
       // TODO: refine "gh-pages"
-      _ => BenchmarkId::new(name, format!("StepCircuitSize-{}-{}", self.sha, self.date)),
+      _ => BenchmarkId::new(
+        name,
+        format!(
+          "StepCircuitSize-{}-{}-{}",
+          self.step_size, self.sha, self.date
+        ),
+      ),
     }
   }
 }
