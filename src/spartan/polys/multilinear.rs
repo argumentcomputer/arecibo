@@ -32,7 +32,7 @@ use crate::spartan::{math::Math, polys::eq::EqPolynomial};
 ///
 /// Vector $Z$ indicates $Z(e)$ where $e$ ranges from $0$ to $2^m-1$.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MultilinearPolynomial<Scalar: PrimeField> {
+pub struct MultilinearPolynomial<Scalar> {
   num_vars: usize,           // the number of variables in the multilinear polynomial
   pub(crate) Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
@@ -142,7 +142,7 @@ impl<Scalar: PrimeField> Index<usize> for MultilinearPolynomial<Scalar> {
 /// For example, the evaluations are [0, 0, 0, 1, 0, 1, 0, 2].
 /// The sparse polynomial only store the non-zero values, [(3, 1), (5, 1), (7, 2)].
 /// In the tuple, the first is index, the second is value.
-pub(crate) struct SparsePolynomial<Scalar: PrimeField> {
+pub(crate) struct SparsePolynomial<Scalar> {
   num_vars: usize,
   Z: Vec<(usize, Scalar)>,
 }

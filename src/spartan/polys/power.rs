@@ -10,7 +10,7 @@ use std::iter::successors;
 /// $$
 /// \tilde{power}(x, t) = \prod_{i=1}^m(1 + (t^{2^i} - 1) * x_i)
 /// $$
-pub struct PowPolynomial<Scalar: PrimeField> {
+pub struct PowPolynomial<Scalar> {
   eq: EqPolynomial<Scalar>,
 }
 

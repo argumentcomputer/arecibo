@@ -349,7 +349,7 @@ mod test {
   type S2<E> = RelaxedR1CSSNARK<E, EE<E>>;
 
   #[derive(Clone)]
-  struct SquareCircuit<E: Engine> {
+  struct SquareCircuit<E> {
     _p: PhantomData<E>,
   }
 
@@ -392,7 +392,7 @@ mod test {
   }
 
   #[derive(Clone)]
-  struct CubeCircuit<E: Engine> {
+  struct CubeCircuit<E> {
     _p: PhantomData<E>,
   }
 
@@ -576,7 +576,7 @@ mod test {
   }
 
   #[derive(Clone)]
-  struct BigPowerCircuit<E: Engine> {
+  struct BigPowerCircuit<E> {
     _p: PhantomData<E>,
   }
 

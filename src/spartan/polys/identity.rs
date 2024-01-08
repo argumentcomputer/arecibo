@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 use ff::PrimeField;
 
-pub struct IdentityPolynomial<Scalar: PrimeField> {
+pub struct IdentityPolynomial<Scalar> {
   ell: usize,
   _p: PhantomData<Scalar>,
 }

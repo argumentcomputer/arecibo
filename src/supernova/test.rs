@@ -22,16 +22,13 @@ use tap::TapOptional;
 use super::{utils::get_selector_vec_from_index, *};
 
 #[derive(Clone, Debug, Default)]
-struct CubicCircuit<F: PrimeField> {
+struct CubicCircuit<F> {
   _p: PhantomData<F>,
   circuit_index: usize,
   rom_size: usize,
 }
 
-impl<F> CubicCircuit<F>
-where
-  F: PrimeField,
-{
+impl<F> CubicCircuit<F> {
   fn new(circuit_index: usize, rom_size: usize) -> Self {
     Self {
       circuit_index,
@@ -154,16 +151,13 @@ where
 }
 
 #[derive(Clone, Debug, Default)]
-struct SquareCircuit<F: PrimeField> {
+struct SquareCircuit<F> {
   _p: PhantomData<F>,
   circuit_index: usize,
   rom_size: usize,
 }
 
-impl<F> SquareCircuit<F>
-where
-  F: PrimeField,
-{
+impl<F> SquareCircuit<F> {
   fn new(circuit_index: usize, rom_size: usize) -> Self {
     Self {
       circuit_index,
@@ -282,7 +276,6 @@ struct TestROM<E1, E2, S>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  S: EnforcingStepCircuit<E2::Scalar> + Default,
 {
   rom: Vec<usize>,
   _p: PhantomData<(E1, E2, S)>,
@@ -354,7 +347,6 @@ impl<E1, E2, S> TestROM<E1, E2, S>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  S: EnforcingStepCircuit<E2::Scalar> + Default,
 {
   fn new(rom: Vec<usize>) -> Self {
     Self {
@@ -656,7 +648,7 @@ fn test_supernova_pp_digest() {
 
 // y is a non-deterministic hint representing the cube root of the input at a step.
 #[derive(Clone, Debug)]
-struct CubeRootCheckingCircuit<F: PrimeField> {
+struct CubeRootCheckingCircuit<F> {
   y: Option<F>,
 }
 
@@ -704,7 +696,7 @@ where
 
 // y is a non-deterministic hint representing the fifth root of the input at a step.
 #[derive(Clone, Debug)]
-struct FifthRootCheckingCircuit<F: PrimeField> {
+struct FifthRootCheckingCircuit<F> {
   y: Option<F>,
 }
 

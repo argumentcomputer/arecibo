@@ -4,7 +4,7 @@ use proptest::prelude::*;
 
 /// Wrapper struct around a field element that implements additional traits
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FWrap<F: PrimeField>(pub F);
+pub struct FWrap<F>(pub F);
 
 impl<F: PrimeField> Copy for FWrap<F> {}
 

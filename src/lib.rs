@@ -1007,7 +1007,7 @@ mod tests {
   type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
 
   #[derive(Clone, Debug, Default)]
-  struct CubicCircuit<F: PrimeField> {
+  struct CubicCircuit<F> {
     _p: PhantomData<F>,
   }
 
@@ -1506,7 +1506,7 @@ mod tests {
   {
     // y is a non-deterministic advice representing the fifth root of the input at a step.
     #[derive(Clone, Debug)]
-    struct FifthRootCheckingCircuit<F: PrimeField> {
+    struct FifthRootCheckingCircuit<F> {
       y: F,
     }
 
