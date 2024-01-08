@@ -43,7 +43,6 @@ jobs:
   check-lurk-compiles:
     uses: lurk-lab/ci-workflows/.github/workflows/check-lurk-compiles.yml@main
     with:
-      package-name: "arecibo"
       runner: "buildjet-8vcpu-ubuntu-2204"
 
   # Wasm build, rustfmt, clippy, doctests, and MSRV
