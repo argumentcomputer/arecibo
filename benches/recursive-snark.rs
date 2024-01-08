@@ -52,13 +52,13 @@ fn bench_recursive_snark(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
     NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
-    16384,
-    32768,
-    65536,
-    131072,
-    262144,
-    524288,
-    1048576,
+    //16384,
+    //32768,
+    //65536,
+    //131072,
+    //262144,
+    //524288,
+    //1048576,
   ]
   .iter()
   {
@@ -110,11 +110,13 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     let bench_params = BenchParams {
       step_size: num_cons,
+      date: env!("VERGEN_GIT_COMMIT_DATE"),
       sha: env!("VERGEN_GIT_SHA"),
     };
 
     group.bench_function(bench_params.bench_id("Prove"), |b| {
       b.iter(|| {
+        std::thread::sleep(std::time::Duration::from_millis(500));
         // produce a recursive SNARK for a step of the recursion
         assert!(black_box(&mut recursive_snark.clone())
           .prove_step(

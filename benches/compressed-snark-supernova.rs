@@ -167,6 +167,7 @@ fn bench_compressed_snark_internal_with_arity<
 
   let bench_params = BenchParams {
     step_size: num_cons,
+    date: env!("VERGEN_GIT_COMMIT_DATE"),
     sha: env!("VERGEN_GIT_SHA"),
   };
 
@@ -206,13 +207,13 @@ fn bench_one_augmented_circuit_compressed_snark(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
     NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
-    16384,
-    32768,
-    65536,
-    131072,
-    262144,
-    524288,
-    1048576,
+    // 16384,
+    // 32768,
+    // 65536,
+    // 131072,
+    // 262144,
+    // 524288,
+    // 1048576,
   ]
   .iter()
   {
@@ -233,13 +234,13 @@ fn bench_two_augmented_circuit_compressed_snark(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
     NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
-    16384,
-    32768,
-    65536,
-    131072,
-    262144,
-    524288,
-    1048576,
+    //16384,
+    //32768,
+    //65536,
+    //131072,
+    //262144,
+    //524288,
+    //1048576,
   ]
   .iter()
   {
@@ -260,13 +261,13 @@ fn bench_two_augmented_circuit_compressed_snark_with_computational_commitments(c
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
     NUM_CONS_VERIFIER_CIRCUIT_PRIMARY,
-    16384,
-    32768,
-    65536,
-    131072,
-    262144,
-    524288,
-    1048576,
+    //16384,
+    //32768,
+    //65536,
+    //131072,
+    //262144,
+    //524288,
+    //1048576,
   ]
   .iter()
   {
