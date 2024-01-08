@@ -14,7 +14,7 @@ concurrency:
 jobs:
   cuda:
     name: Rust tests on CUDA
-    if: github.event_name != 'pull_request' || github.event.action == 'enqueued'
+    # if: github.event_name != 'pull_request' || github.event.action == 'enqueued'
     runs-on: [self-hosted, gpu-ci]
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
 
   opencl:
     name: Rust tests on OpenCL
-    if: github.event_name != 'pull_request' || github.event.action == 'enqueued'
+    # if: github.event_name != 'pull_request' || github.event.action == 'enqueued'
     runs-on: [self-hosted, gpu-ci]
     steps:
       - uses: actions/checkout@v4
