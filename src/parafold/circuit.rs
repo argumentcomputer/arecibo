@@ -1,161 +1,26 @@
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
-use itertools::chain;
 
-use crate::parafold::{
-  FoldProof, NIVCProof, NIVCState, ProvingKey, R1CSInstance, RelaxedR1CSInstance,
-};
+use crate::gadgets::r1cs::AllocatedRelaxedR1CSInstance;
+use crate::parafold::circuit::nivc::AllocatedNIVCIO;
+use crate::parafold::circuit::scalar_mul::AllocatedScalarMulInstance;
+use crate::parafold::circuit::transcript::AllocatedTranscript;
+use crate::parafold::{NIVCProof, ProvingKey};
 use crate::traits::{Engine, ROConstantsCircuit};
-use crate::Commitment;
 
-// TODO: This represents a non-native point
-struct AllocatedCommitment<E: Engine> {
-  x: AllocatedNum<E::Scalar>,
-  y: AllocatedNum<E::Scalar>,
+mod nifs;
+mod nivc;
+mod scalar_mul;
+mod transcript;
+
+struct AllocatedRecursionState<E: Engine> {
+  self_acc: AllocatedRelaxedR1CSInstance<E>,
+  nivc_acc: Vec<AllocatedRelaxedR1CSInstance<E>>,
+  nivc_state: AllocatedNIVCIO<E>,
 }
 
-impl<E: Engine> AllocatedCommitment<E> {
-  pub fn alloc_infallible<CS, F>(mut cs: CS, _commitment: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> Commitment<E>,
-  {
-    let x = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc x"), || E::Scalar::ZERO);
-    let y = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc y"), || E::Scalar::ZERO);
-    Self { x, y }
-  }
-}
-
-#[derive(Clone)]
-struct AllocatedNIVCState<F: PrimeField> {
-  pc: AllocatedNum<F>,
-  z: Vec<AllocatedNum<F>>,
-}
-
-impl<F: PrimeField> AllocatedNIVCState<F> {
-  pub fn alloc_infallible<CS, N>(mut cs: CS, state: N) -> Self
-  where
-    CS: ConstraintSystem<F>,
-    N: FnOnce() -> NIVCState<F>,
-  {
-    let NIVCState { pc, z } = state();
-    let pc = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pc"), || F::from(pc as u64));
-    let z = z
-      .into_iter()
-      .enumerate()
-      .map(|(i, z)| AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc z[{i}]")), || z))
-      .collect();
-
-    Self { pc, z }
-  }
-
-  pub fn io_vec(input: Self, output: Self) -> Vec<AllocatedNum<F>> {
-    let AllocatedNIVCState { pc: pc_in, z: z_in } = input;
-    let AllocatedNIVCState {
-      pc: pc_out,
-      z: z_out,
-    } = output;
-
-    chain!([pc_in], z_in.into_iter(), [pc_out], z_out.into_iter()).collect()
-  }
-}
-
-struct AllocatedFoldProof<E: Engine> {
-  instance: AllocatedR1CSInstance<E>,
-  proof: AllocatedCommitment<E>,
-}
-
-impl<E: Engine> AllocatedFoldProof<E> {
-  pub fn alloc_infallible<CS, F>(mut cs: CS, fold_proof: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> FoldProof<E>,
-  {
-    let FoldProof { instance, proof } = fold_proof();
-    let instance =
-      AllocatedR1CSInstance::alloc_infallible(cs.namespace(|| "alloc instance"), || instance);
-    let proof = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc proof"), || proof.T);
-    Self { instance, proof }
-  }
-}
-
-struct AllocatedR1CSInstance<E: Engine> {
-  W: AllocatedCommitment<E>,
-  X: Vec<AllocatedNum<E::Scalar>>,
-}
-
-impl<E: Engine> AllocatedR1CSInstance<E> {
-  pub fn alloc_infallible<CS, F>(mut cs: CS, instance: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> R1CSInstance<E>,
-  {
-    let R1CSInstance { W, X } = instance();
-    let W = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc W"), || W);
-    let X = X
-      .into_iter()
-      .enumerate()
-      .map(|(i, X)| AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc X[{i}]")), || X))
-      .collect();
-
-    Self { W, X }
-  }
-}
-
-struct AllocatedRelaxedR1CSInstance<E: Engine> {
-  W: AllocatedCommitment<E>,
-  E: AllocatedCommitment<E>,
-  u: AllocatedNum<E::Scalar>,
-  X: Vec<AllocatedNum<E::Scalar>>,
-}
-
-impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
-  pub fn alloc_infallible<CS, F>(mut cs: CS, instance: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> RelaxedR1CSInstance<E>,
-  {
-    let RelaxedR1CSInstance { W, X, u, E } = instance();
-    let W = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc W"), || W);
-    let X = X
-      .into_iter()
-      .enumerate()
-      .map(|(i, X)| AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc X[{i}]")), || X))
-      .collect();
-    let u = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc u"), || u);
-    let E = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc E"), || E);
-
-    Self { W, X, u, E }
-  }
-
-  pub fn nifs_fold<CS>(
-    mut _cs: CS,
-    acc_curr: Self,
-    _pp: &AllocatedNum<E::Scalar>,
-    _ro_consts: &ROConstantsCircuit<E>,
-    _proof: AllocatedFoldProof<E>,
-  ) -> Result<Self, SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    Ok(acc_curr)
-  }
-
-  pub fn nifs_fold_many<CS>(
-    mut _cs: CS,
-    accs_curr: Vec<Self>,
-    _index: usize,
-    _pp: &[AllocatedNum<E::Scalar>],
-    _ro_consts: &ROConstantsCircuit<E>,
-    _proof: AllocatedFoldProof<E>,
-  ) -> Result<Vec<Self>, SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    Ok(accs_curr)
-  }
-}
+impl<E: Engine> AllocatedRecursionState<E> {}
 
 /// Given the state transition over the io
 ///   `self_state = (vk_self, vk_nivc, self_acc, nivc_acc, nivc_io)`
@@ -166,11 +31,12 @@ pub struct StateTransitionCircuit<E: Engine> {
   pp_self: AllocatedNum<E::Scalar>,
   pp_nivc: Vec<AllocatedNum<E::Scalar>>,
 
-  self_acc: AllocatedRelaxedR1CSInstance<E>,
-  nivc_acc: Vec<AllocatedRelaxedR1CSInstance<E>>,
+  state: AllocatedRecursionState<E>,
 
-  nivc_state_init: AllocatedNIVCState<E::Scalar>,
-  nivc_state_curr: AllocatedNIVCState<E::Scalar>,
+  scalar_mul_instances: Vec<AllocatedScalarMulInstance<E>>,
+
+  transcript: AllocatedTranscript<E::Scalar>,
+  // vec of cycle fold proofs to be verified in a batch
 }
 
 impl<E: Engine> StateTransitionCircuit<E> {
@@ -179,8 +45,7 @@ impl<E: Engine> StateTransitionCircuit<E> {
     pk: &ProvingKey<E>,
     self_acc_prev: RelaxedR1CSInstance<E>,
     nivc_acc_curr: impl IntoIterator<Item = Option<RelaxedR1CSInstance<E>>>,
-    nivc_state_init: NIVCState<E::Scalar>,
-    nivc_state_curr: NIVCState<E::Scalar>,
+    nivc_state: NIVCState<E::Scalar>,
   ) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
@@ -215,14 +80,8 @@ impl<E: Engine> StateTransitionCircuit<E> {
       })
       .collect::<Vec<_>>();
 
-    let nivc_state_init =
-      AllocatedNIVCState::alloc_infallible(cs.namespace(|| "alloc nivc_state_init"), || {
-        nivc_state_init
-      });
-    let nivc_state_curr =
-      AllocatedNIVCState::alloc_infallible(cs.namespace(|| "alloc nivc_state_curr"), || {
-        nivc_state_curr
-      });
+    let nivc_state =
+      AllocatedNIVCIO::alloc_infallible(cs.namespace(|| "alloc nivc_state"), || nivc_state);
 
     Ok(Self {
       ro_consts,
@@ -230,8 +89,9 @@ impl<E: Engine> StateTransitionCircuit<E> {
       pp_nivc,
       self_acc: self_acc_prev,
       nivc_acc: nivc_acc_curr,
-      nivc_state_init,
-      nivc_state_curr,
+      nivc_state,
+      scalar_mul_instances: vec![],
+      transcript: AllocatedTranscript::new()?,
     })
   }
 
@@ -254,8 +114,7 @@ impl<E: Engine> StateTransitionCircuit<E> {
       &self.pp_nivc,
       &self.self_acc, // self_acc_prev
       &self.nivc_acc, // self_acc_curr
-      &self.nivc_state_init,
-      &self.nivc_state_curr,
+      &self.nivc_state,
     )?;
 
     // TODO: Replace with constraint
@@ -274,55 +133,76 @@ impl<E: Engine> StateTransitionCircuit<E> {
         self_fold_proof_curr
       });
 
-    let self_acc_curr = AllocatedRelaxedR1CSInstance::nifs_fold(
+    let (self_acc_curr, scalar_mul_instances) = self.self_acc.nifs_fold(
       cs.namespace(|| "fold self_acc_prev"),
-      self.self_acc,
-      &self.pp_self,
-      &self.ro_consts,
       self_fold_proof_curr,
+      &mut self.transcript,
     )?;
 
     self.self_acc = self_acc_curr;
+    self.scalar_mul_instances.extend(scalar_mul_instances);
     Ok(self)
   }
 
   pub(crate) fn fold_many_nivc<CS>(
-    mut self,
     mut cs: CS,
-    proofs: impl IntoIterator<Item = NIVCProof<E>>,
-  ) -> Result<Self, SynthesisError>
+    accs_curr: Vec<AllocatedRelaxedR1CSInstance<E>>,
+    state_curr: AllocatedNIVCIO<E>,
+    proofs: Vec<FoldProof<E>>,
+    transcript: &mut AllocatedTranscript<E>,
+  ) -> Result<(Vec<AllocatedRelaxedR1CSInstance<E>>, AllocatedNIVCIO<E>), SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let (nivc_acc_next, nivc_state_next) = proofs.into_iter().enumerate().try_fold(
-      (self.nivc_acc, self.nivc_state_curr),
-      |(nivc_acc_curr, nivc_state_curr), (i, proof)| {
+    let num_scalar_mul_instances = 2 * proofs.len();
+
+    let (accs_next, state_next) = proofs.into_iter().enumerate().try_fold(
+      (
+        accs_curr,
+        state_curr,
+        Vec::with_capacity(num_scalar_mul_instances),
+      ),
+      |(accs_curr, state_curr, scalar_mul_instances), (i, proof)| {
         let NIVCProof {
-          input,
-          output,
-          proof,
+          io: state,
+          proof: fold_proof,
         } = proof;
+
+        // Absorb
+        let fold_proof = AllocatedFoldProof::alloc_infallible(
+          cs.namespace(|| format!("alloc fold_proof[{i}]")),
+          || fold_proof,
+        );
+        let state = AllocatedNIVCIO::alloc_infallible(
+          cs.namespace(|| format!("alloc state[{i}]")),
+          || state,
+        );
+
+        transcript.absorb(cs.namespace(|| format!("absorb state[{i}]")), &state)?;
+        transcript.absorb(
+          cs.namespace(|| format!("absorb fold_proof[{i}]")),
+          &fold_proof,
+        )?;
 
         // sanity check that we are folding the right io
         // assert_eq(nivc_state_curr.get_value(), input)
-
-        let nivc_state_next = AllocatedNIVCState::alloc_infallible(
-          cs.namespace(|| format!("alloc nivc_state[{i}]")),
-          || output,
-        );
-        let fold_proof_next = AllocatedFoldProof::alloc_infallible(
-          cs.namespace(|| format!("alloc fold_proof[{i}]")),
-          || proof,
-        );
 
         // is_zk = (nivc_state_curr == nivc_state_next)
         // if this is true, then skip io check, and allow for a random E
 
         let pc_curr = input.pc;
 
-        let _io = AllocatedNIVCState::io_vec(nivc_state_curr.clone(), nivc_state_next.clone());
+        let _io = AllocatedNIVCIO::io_vec(nivc_state_curr.clone(), nivc_state_next.clone());
 
         // TODO: Enforce io == fold_proof_next.instance.X
+
+        AllocatedRelaxedR1CSInstance::nifs_fold_many(
+          cs.namespace(|| format!("fold_many {i}")),
+          accs_curr,
+          0,
+          AllocatedFoldProof {},
+          &mut AllocatedTranscript {},
+        )?;
 
         // TODO: Add conditional selection logic
         let nivc_acc_next = AllocatedRelaxedR1CSInstance::nifs_fold_many(
@@ -337,6 +217,8 @@ impl<E: Engine> StateTransitionCircuit<E> {
         Ok::<_, SynthesisError>((nivc_acc_next, nivc_state_next))
       },
     )?;
+
+    // given all verifier outputs, apply the reduction to each step
     self.nivc_acc = nivc_acc_next;
     self.nivc_state_curr = nivc_state_next;
     Ok(self)
@@ -353,21 +235,20 @@ impl<E: Engine> StateTransitionCircuit<E> {
       &self.pp_nivc,
       &self.self_acc, // self_acc_curr
       &self.nivc_acc, // self_acc_next
-      &self.nivc_state_init,
-      &self.nivc_state_curr,
+      &self.nivc_state,
     )?;
 
     self_io_hash_next.inputize(cs.namespace(|| "inputize self_io_hash_curr"))
   }
+
   fn io_hash<CS>(
-    mut _cs: CS,
+    /*mut*/ _cs: CS,
     _ro_consts: &ROConstantsCircuit<E>,
     _pp_self: &AllocatedNum<E::Scalar>,
     _pp_nivc: &[AllocatedNum<E::Scalar>],
     _self_acc: &AllocatedRelaxedR1CSInstance<E>,
     _nivc_acc: &[AllocatedRelaxedR1CSInstance<E>],
-    _nivc_state_curr: &AllocatedNIVCState<E::Scalar>,
-    _nivc_state_next: &AllocatedNIVCState<E::Scalar>,
+    _nivc_state: &AllocatedNIVCIO<E::Scalar>,
   ) -> Result<AllocatedNum<E::Scalar>, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
