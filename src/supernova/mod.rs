@@ -74,7 +74,7 @@ impl<E: Engine> CircuitDigests<E> {
   }
 }
 
-/// A vector of [CircuitParams] corresponding to a set of [PublicParams]
+/// A vector of [R1CSWithArity] adjoined to a set of [PublicParams]
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PublicParams<E1, E2, C1, C2>
