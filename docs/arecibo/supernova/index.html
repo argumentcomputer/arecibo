@@ -1,0 +1,346 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="SuperNova Description"><title>arecibo::supernova - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-cb6f1f67f1bcd037.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.73.0 (cc66ad468 2023-10-03)" data-channel="1.73.0" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-1596385f77d47ef2.css" data-theme-dark-css="dark-0a43001d3fc2282c.css" data-theme-ayu-css="ayu-fd19013d6ce078bf.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-1596385f77d47ef2.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-0a43001d3fc2282c.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../../arecibo/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../../arecibo/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Module supernova</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">arecibo</a>::<wbr><a class="mod" href="#">supernova</a><button id="copy-path" title="Copy item path to clipboard"><img src="../../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="src" href="../../src/arecibo/supernova/mod.rs.html#1-1154">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="supernova-description"><a href="#supernova-description">SuperNova Description</a></h2>
+<p>This document explains from a high-level how the SuperNova protocol was implemented in Arecibo.
+We aim to provide a mathematical description of the protocol, as it is implemented, and highlight the differences with the original paper.</p>
+<h3 id="terminology-and-concept-clarifications"><a href="#terminology-and-concept-clarifications">Terminology and Concept Clarifications</a></h3>
+<p>Before delving into the specifics of the implementation, it’s crucial to define and clarify some key terms and concepts used throughout this document:</p>
+<ul>
+<li><strong>Recursive SNARK</strong>: A Recursive SNARK is a type of succinct non-interactive argument of knowledge for a circuit $F$ which can be composed with itself as $z_{i+1} \gets F(z_i)$.
+Each iteration proves the verification of a proof for $z_i$ and the correctness of $z_{i+1}$, ensuring the proving of each step remains constant.</li>
+<li><strong>Augmentation Circuit</strong>: In the context of the SuperNova protocol, an augmentation circuit refers to a circuit $F’$ composing $F$ with a circuit which partially verifies the validity of the previous output $z_i$ before running $F(z_i)$.</li>
+<li><strong>NIFS Folding Verifier</strong>: A non-interactive folding scheme is a protocol for efficiently updating a proof $\pi_i$ about an iterated function $z_{i+1} \gets F(z_i)$ into a new proof $\pi_{i+1}$, through a process referred to as “folding”.
+By splitting the proof into an instance/witness pair $(u,w) = \pi$, the folding verifier describes an algorithm for verifying that the $u$ component was properly updated.</li>
+</ul>
+<h3 id="supernova-vs-nova"><a href="#supernova-vs-nova">SuperNova vs. Nova</a></h3>
+<p>The main improvement of SuperNova, is to allow each iteration to apply one of several functions to the previous output, whereas Nova only supported the iteration of a single function.</p>
+<p>Let $F_0, \ldots, F_{\ell-1}$ be folding circuits with the same arity $a$.
+In the context of SuperNova, this means that each $F_j$ takes $a$ inputs from the previous iteration, and returns $a$ outputs.
+These circuits implement the <code>circuit_supernova::StepCircuit</code> trait, where the main differences with the existing <code>StepCircuit</code> trait are</p>
+<ul>
+<li>The circuit $F_j$ provides its <code>circuit_index</code> $j$</li>
+<li>The <code>synthesize</code> function upon input $z_i$ returns the next <code>program_counter</code> $\mathsf{pc}_{i+1}$ alongside the output $z_{i+1}$. It also accepts the (optional) input program counter $\mathsf{pc}_i$, which can be <code>None</code> when $\ell=1$. During circuit synthesis, a constraint enforces $\mathsf{pc}_i \equiv j$. In contrast to the paper, the <em>predicate</em> function $\varphi$ is built into the circuit itself. In other words, we have the signature $(\mathsf{pc}_{i+1}, z_{i+1}) \gets F_{j}(\mathsf{pc}_{i}, z_{i})$.</li>
+</ul>
+<p>The goal is to efficiently prove the following computation:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code>pc_i = pc_0
+z_i = z_0
+<span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..num_steps
+	(pc_i, z_i) = F_{pc_i}(z_i)
+<span class="kw">return </span>z_i</code></pre></div>
+<h3 id="cycles-of-curves"><a href="#cycles-of-curves">Cycles of Curves</a></h3>
+<p>“Cycles of Curves” describes a technique for more efficiently verifying the output $z_i$ of the previous circuit iteration, by running the verification on a curve whose base/scalar fields are inverted.
+The result is that the elliptic curve scalar multiplications in the algorithm can be computed in the “native field” of the circuit, minimizing the need for expensive non-native field arithmetic.</p>
+<p>While the original Nova implementation allows computation to be done on both curves, the SuperNova implementation only uses the cycle curve to verify the computation performed on the primary curve.</p>
+<h3 id="prover-state"><a href="#prover-state">Prover state</a></h3>
+<p>The prover needs to store data about the previous function iteration. It is defined by the <code>supernova::RecursiveSNARK</code> struct. It contains:</p>
+<ul>
+<li>$i$: the number of iterations performed.
+Note that the <code>new</code> constructor actually performs the first iteration, and the first call to <code>prove_step</code> simply sets the counter to 1.</li>
+<li>Primary curve:
+<ul>
+<li>$(\mathsf{pc}_i, z_0, z_i)$: current program counter and inputs for the primary circuit</li>
+<li>$U[\ ],W[\ ]$: List of relaxed instance/witness pairs for all the circuits on the primary curve.
+These can be <code>None</code> when the circuit for that pair has not yet been executed.
+The last updated entry is the result of having folded a proof for the correctness of $z_i$.</li>
+</ul>
+</li>
+<li>Secondary curve
+<ul>
+<li>$(z_0’, z_i’)$: Inputs for the single circuit on the secondary curve.</li>
+<li>$u’,w’$: Proof for the correctness of the circuit that produced $z_i’$</li>
+<li>$U’, W’$: Relaxed instance/witness pair into which $(u’, w’)$ will be folded into in the next iteration.</li>
+</ul>
+</li>
+</ul>
+<p>Due to the particularities of the cycles of curves implementation, the outputs of the circuits producing $(z_i, z_i’)$ are encoded in public outputs of the proof $u’$.</p>
+<h3 id="prove-step"><a href="#prove-step">Prove Step</a></h3>
+<p>At each step, the prover needs to:</p>
+<ul>
+<li>Create a proof $T’$ for folding $u’$ into $U’$, producing $U’_{next}$.</li>
+<li>Create a proof $(u,w)$ on the primary curve for the statements:
+<ul>
+<li>$(\mathsf{pc}_{i+1}, z_{i+1}) \gets F_\mathsf{pc_i}(z_i)$</li>
+<li>Verifying the folding of $u’$ into $U’$ with $T’$</li>
+</ul>
+</li>
+<li>Create a proof $T$ for folding $u$ into $U[\mathsf{pc}_i]$, producing $U_{next}$</li>
+<li>Create a proof $(u’_{next}, w’_{next})$ for the verification on the secondary curve
+<ul>
+<li>Verifying the folding of $u$ into $U[\mathsf{pc}_i]$ with $T$</li>
+</ul>
+</li>
+<li>Update the state of the claims
+<ul>
+<li>$U’ = U’_{next}$, $W’ = W’_{next}$</li>
+<li>$U[\mathsf{pc}_i] = U_{next}$, $W[\mathsf{pc}_i] = W_{next}$</li>
+<li>$(u’,w’) = (u’_{next}, w’_{next})$</li>
+</ul>
+</li>
+<li>Save $z_{i+1},z’_{i+1}, \mathsf{pc}_{i+1}$ as inputs for the next iteration.</li>
+</ul>
+<p>In pseudocode, <code>prove_step</code> looks something like:</p>
+<div class="example-wrap"><pre class="language-text"><code>if i = 0 {
+	U[] = [ø;l]
+
+	// Create a proof for the first iteration of F on the primary curve
+	(pc_1, z_1), (u_1, w_1) &lt;- Prove(F_{pc0},
+		i=0,
+		pc_0,
+		z_0,
+		_,   // z_i : z_0 is the input used
+		_,   // U&#39; : Existing accumulator is empty
+		_,   // u&#39; : No proof of the secondary curve to verify
+		_,   // T&#39; : Nothing to fold
+		0,   // index of u&#39; in U&#39;
+	)
+	// The circuit output is [ vk, i=1, pc_1, z_0, z_1, U&#39;=ø ]
+	// Update state to catch up with verifier
+	z_i    = z_1
+	pc_i   = pc_1
+	U&#39;     = ø
+	W&#39;     = ø
+
+	// Create proof on secondary curve
+	// verifying the validity of the first proof
+	z&#39;_1, (u&#39;_1, w&#39;_1) &lt;- Prove(F&#39;,
+		i,
+		0,      // pc is always 0 on secondary curve
+		z&#39;_0,
+		_,      // z&#39;_i : z&#39;_0 is the input used
+		_,      // U[]: all accumulators on primary curve are empty
+		u_0,    // proof for z1
+		_,      // T: u_0 is directly included into U[pc0]
+		pc_1,   // index of u_0 in U[]
+	)
+	// The circuit outputs [ vk, i=1, z&#39;_0, z&#39;_1, U_next[] ]
+	// Update state to catch up with verifier
+	z_i&#39;    = z_1&#39;
+	U[pc_1] = u_1
+	W[pc_1] = w_1
+
+	// Save the proof of F&#39; to be folded into U&#39; in the next iteration
+	u&#39;     = u&#39;_1
+	w&#39;     = w&#39;_1
+} else {
+	// Create folding proof for u&#39; into U&#39;, producing U&#39;_next
+	(U&#39;_next, W&#39;_next), T&#39; &lt;- NIFS.Prove(U&#39;, W&#39;, u&#39;, w&#39;)
+
+	// Create a proof for the next iteration of F on the primary curve
+	(pc_next, z_next), (u_new, w_new) &lt;- Prove(F_{pc_i},
+		i,
+		pc_i,
+		z_0,
+		z_i,
+		[U&#39;],
+		u&#39;,
+		T&#39;,
+		0,     // index of u&#39; in [U&#39;] is always 0
+	)
+	// The circuit outputs [ vk, i+1, pc_next, z_0, z_next, U&#39;_next ]
+	// Update state to catch up with verifier
+	z_i  = z_next
+	pc_i = pc_next
+	U&#39;   = U&#39;_next
+	W&#39;   = W&#39;_next
+
+	// Create folding proof for u_new into U[pci], producing U_next
+	(U_next, W_next), T &lt;- NIFS.Prove(U[pci], W[pci], u_new, w_new)
+
+	// Create proof on secondary curve
+	// verifying the folding of u_next into
+	z&#39;_next, (u&#39;_next, w&#39;_next) &lt;- Prove(F&#39;,
+		i,
+		0,     // pc is always 0 on secondary curve
+		z_0&#39;,
+		z_i&#39;,
+		U[],
+		u_new,
+		T,
+		pc_i,  // Index of u_new in U[]
+	)
+	// The circuit outputs [ vk, i+1, z&#39;_0, z&#39;_next, U_next[] ]
+	// Update state to catch up with verifier
+	z_i&#39;       = z&#39;_next
+	U[pc_next] = U_next
+	W[pc_next] = W_next
+
+	// Save the proof of F&#39; to be folded into U&#39; in the next iteration
+	u&#39;         = u&#39;_next
+	w&#39;         = w&#39;_next
+}
+</code></pre></div>
+<p>Each iteration stops when the prover has produced a valid R1CS instance $(u’,w’)$ for the secondary circuit, just before folding it back into its accumulator $(U’,W’)$ in the next iteration.
+This allows us to access the public outputs of the secondary circuit in the next iteration, or when verifying the IVC chain.</p>
+<h3 id="augmented-circuit"><a href="#augmented-circuit">Augmented Circuit</a></h3>
+<p>During each proof iteration, the circuits evaluated and proved by the prover need to be <em>augmented</em> to include additional constraints which verify that the previous iteration was correctly accumulated.</p>
+<p>To minimize code duplication, there is only a single version of the recursive verification circuit. The circuit is customized depending on whether it is synthesized on the primary/secondary curve.</p>
+<h4 id="input-allocation"><a href="#input-allocation">Input Allocation</a></h4>
+<p>The inputs of provided to the augmented step circuit $F’_j$ are:</p>
+<p><strong>Inputs for step circuit</strong></p>
+<ul>
+<li>$\mathsf{vk}$: a digest of the verification key for the final compressing SNARK (which includes all public parameters of all circuits)</li>
+<li>$i \in \mathbb{Z}_{\geq 0}$: the number of iteration of the functions before running $F$</li>
+<li>$\mathsf{pc}_i \in [\ell]$: index of the current function being executed
+<ul>
+<li><strong>Primary</strong>: The program counter $\mathsf{pc}_i$ must always be <code>Some</code>, and through the <code>EnforcingStepCircuit</code> trait, we enforce $\mathsf{pc}_i \equiv j$.</li>
+<li><strong>Secondary</strong>: Always <code>None</code>, and interpreted as $\mathsf{pc}_i \equiv 0$, since there is only a single circuit.</li>
+</ul>
+</li>
+<li>$z_0 \in \mathbb{F}^a$: inputs for the first iteration of $F$</li>
+<li>$z_i \in \mathbb{F}^a$: inputs for the current iteration of $F$
+<ul>
+<li><strong>Base case</strong>: Set to <code>None</code>, in which case it is allocated as $[0]$, and $z_0$ is used as $z_i$.</li>
+</ul>
+</li>
+<li>$U_i[\ ] \in \mathbb{R}’^\ell$: list of relaxed R1CS instances on the other curve
+<ul>
+<li><strong>Primary</strong>: Since there is only a single circuit on the secondary curve, we have $\ell = 0$ and therefore $U_i[\ ]$ only contains a single <code>RelaxedR1CSInstance</code>.</li>
+<li><strong>Secondary</strong>: The list of input relaxed instances $U_i[\ ]$ is initialized by passing a slice <code>[Option&lt;RelaxedR1CSInstance&lt;G&gt;&gt;]</code>, one for each circuit on the primary curve.
+Since some of these instances do not exist yet (i.e. for circuits which have not been executed yet), the <code>None</code> entries are allocated as a default instance.</li>
+</ul>
+</li>
+</ul>
+<p>To minimize the cost related to handling public inputs/outputs of the circuit, these values are hashed as $H(\mathsf{vk}, i, \mathsf{pc}_i, z_0, z_i, U_i[\ ])$.
+In the first iteration though, the hash comparison is skipped, and the optional values are conditionally replaced with constrained default values.</p>
+<p><strong>Auxiliary inputs for recursive verification of other the curve’s circuit</strong></p>
+<ul>
+<li>$u \in \mathbb{R}’$: fresh R1CS instance for the previous iteration on the other curve
+<ul>
+<li>Contains the public outputs of the 2 previous circuits on the different curves.</li>
+<li><strong>Base case – Primary</strong>: Set to <code>None</code>, since there is no proof of the secondary curve to fold</li>
+</ul>
+</li>
+<li>$T \in \mathbb{G}‘$: Proof for folding $u$ into $U[\mathsf{pc}’]$.
+<ul>
+<li><strong>Base case – Primary</strong>: Set to <code>None</code>, since there is no proof of the secondary curve to fold</li>
+</ul>
+</li>
+<li>$\mathsf{pc}’ \in [\ell]$: index of the previously executed function on the other curve.
+<ul>
+<li><strong>Primary</strong>: Always 0 since the program counter on the secondary curve is always 0</li>
+<li><strong>Secondary</strong>: Equal to the program counter of the last function proved on the primary curve.</li>
+</ul>
+</li>
+</ul>
+<p>These non-deterministic inputs are used to compute the circuit’s outputs.
+When they are empty, we allocate checked default values instead.
+We also check that the computed hash of the inputs matches the hash of the output of the previous iteration contained in $u$.</p>
+<p><strong>Outputs</strong></p>
+<ul>
+<li>$\mathsf{vk}$: passed along as-is</li>
+<li>$i+1 \in \mathbb{Z}_{\geq 0}$: the incremented number of iterations</li>
+<li>$\mathsf{pc}_{i+1} \in [\ell]$: index of next function to execute</li>
+<li>$z_0 \in \mathbb{F}^a$: passed along as-is</li>
+<li>$z_{i+1} \in \mathbb{F}^a$: output of the execution $F_{\mathsf{pc}_i}$</li>
+<li>$U_{i+1}[\ ] \in \mathbb{R}‘^\ell$: Updated list of Relaxed R1CS instances, reflecting the folding of $u$ into $U_i[\mathsf{pc}’]$
+<ul>
+<li><strong>Primary</strong>: Since no input proof was provided, we set $U_1$ to the default initial instance.</li>
+</ul>
+</li>
+</ul>
+<p>All these values should be computed deterministically from the inputs described above (even if just passed along as-is).
+The actual public output is the hash of these values, to be consistent with the encoding of the inputs.</p>
+<h4 id="constraints"><a href="#constraints">Constraints</a></h4>
+<p>The circuit has a branching depending on whether it is verifying the first iteration of the IVC chain. Each branch computes the next list of instances $U_{i+1}[\ ]$.</p>
+<h5 id="branch-i0-synthesize_non_base_case"><a href="#branch-i0-synthesize_non_base_case">Branch: i&gt;0 <code>synthesize_non_base_case</code></a></h5>
+<p>The verification circuit first checks that the public output $u.X_0$ is equal to the hash of all outputs of the previous circuit iteration.
+Note that this value is defined as a public output of the proof $u$ on the other curve.
+It was simply passed along unverified by the cycle circuit to link the two circuits from the same curve.
+Since the base case does not have any previous input, we only check the hash if $i&gt;0$.
+The circuit produces a bit corresponding to:</p>
+<p>$$b_{X_0} \gets X_0 \stackrel{?}{=} H(\mathsf{vk}, i, \mathsf{pc}_i, z_0, z_i, U_i[\ ])$$</p>
+<p>This bit is checked later on.</p>
+<p>The circuit extracts $U_i[\mathsf{pc}‘]$ by using conditional selection on $U_i[\ ]$.
+This is done by computing a selector vector $s \in {0,1}^\ell$ such that $s_{\mathsf{pc}’}=1$ and all other entries are 0.</p>
+<p>The instance new folding instance $U_{i+1}[\mathsf{pc}’]$ is produced by running the NIFS folding verifier:</p>
+<p>$$
+U_{i+1}[\mathsf{pc}‘] \gets \mathsf{NIFS}.\mathsf{Verify}(\mathsf{vk}, u, U[\mathsf{pc}’], T)
+$$</p>
+<p>A new list of accumulators $U_{i+1}[\ ]$ is then obtained using conditional selection.
+This branch returns $U_{i+1}[\ ]$, $b_{X_0}$ as well as the selector $s$.</p>
+<h5 id="branch-i0-synthesize_base_case"><a href="#branch-i0-synthesize_base_case">Branch: i=0 (<code>synthesize_base_case</code>)</a></h5>
+<p>If $i \equiv 0$, then the verification circuit must instantiate the inputs as their defaults.
+Namely, it initializes a list $U_0[\ ]$ (different from the input list which is given to the previous branch) with “empty instances” (all group elements are set to the identity).</p>
+<p>The output list of instances $U_1[\ ]$ is</p>
+<ul>
+<li><strong>Primary curve</strong>: the incoming proof $u$ is trivial, so the result of folding two trivial instances is defined as the trivial relaxed instance.</li>
+<li><strong>Secondary curve</strong>: the instance $U_0[\mathsf{pc}’]$ is simply replaced with the relaxation of $u$ using conditional selection.</li>
+</ul>
+<p>This branch returns $U_1[\ ]$.</p>
+<h5 id="remaining-constraints"><a href="#remaining-constraints">Remaining constraints</a></h5>
+<p>Having run both branches, the circuit has computed</p>
+<ul>
+<li>
+<p>$U_{i+1}[\ ], b_{X_0}, s$ from the first branch</p>
+</li>
+<li>
+<p>$U_1[\ ]$ from the second branch</p>
+</li>
+<li>
+<p>Using the bit $b_{i=0} \gets i \stackrel{?}{=} 0$, it needs to conditionally select which list of instance to return.</p>
+<ul>
+<li>$U_{i+1} \gets b_{i=0} \ \ ?\ \ U_{1}[\ ] \ \  :\ \  U_{i+1}[\ ]$</li>
+</ul>
+</li>
+<li>
+<p>Check that $(i\neq 0) \implies b_{X_0}$, enforcing that the hash is correct when not handling the base case</p>
+<ul>
+<li>$b_{i=0} \lor b_{X_0}$</li>
+</ul>
+</li>
+<li>
+<p>Select</p>
+<ul>
+<li>$z_i \gets b_{i=0} \ \ ?\ \ z_0 \ \  :\ \  z_i$</li>
+</ul>
+</li>
+<li>
+<p>Enforce circuit selection</p>
+<ul>
+<li>$\mathsf{pc}_{i} \equiv j$</li>
+</ul>
+</li>
+<li>
+<p>Compute next output</p>
+<ul>
+<li>$(\mathsf{pc}_{i+1}, z_{i+1}) \gets F_j(z_i)$</li>
+</ul>
+</li>
+</ul>
+<h4 id="public-outputs"><a href="#public-outputs">Public Outputs</a></h4>
+<p>The output at this point would be</p>
+<p>$$
+\Big (i+1, \mathsf{pc}_{i+1}, z_0, z_{i+1}, U_{i+1}\Big)
+$$</p>
+<p>To keep the number of public outputs small, the outputs of the circuit are hashed into a single field element. We create this hash as $H_{out} = H\big (\mathsf{vk}, i+1, \mathsf{pc}_{i+1}, z_0, z_{i+1}, U_{next}\big)$.</p>
+<p>We also return the hash resulting from the output on the other curve, $u.X_1$. It will be unpacked at the start of the next iteration of the circuit on the cycle curve, so we swap it and place it first. The actual public output is then.</p>
+<p>$$
+[u.X_1, H_{out}]
+$$</p>
+<p>We can view output as the shared state between the circuits on the two curve. The list of two elements is a queue, where the last inserted element is popped out to be consumed by the verification circuit, and the resulting output is added to the end of the queue.</p>
+<h3 id="verification"><a href="#verification">Verification</a></h3>
+<p>After any number of iterations of <code>prove_step</code>, we can check that the current prover state is correct. In particular, we want to ensure that $(z_i, z’_i)$ are the correct outputs after having run $i$ iterations of the folding prover.</p>
+<p>To verify that $(z_i, z’_i)$ are correct, the verifier needs to recompute the public outputs of the latest proof $u’$. Since this is the output on the secondary curve, the first entry $u’.X_0$ will be the output of the primary curve circuit producing $(\mathsf{pc}_i, z_i)$ and the accumulator $U’$ in which we will fold $u’$. The second entry $u’.X_1$ is the output of the last circuit on the secondary curve, which will have folded the proof for $(\mathsf{pc}_i, z_i)$ into $U[\ ]$.</p>
+<ul>
+<li>$u’.X_0 \stackrel{?}{=} H(\mathsf{vk}, i, \mathsf{pc}_i, z_0, z_i, U’)$</li>
+<li>$u’.X_1 \stackrel{?}{=} H’(\mathsf{vk}, i, z’_0, z’_i, U[\ ])$</li>
+</ul>
+<p>We then verify that $(u’,w’)$ is a satisfying circuit, which proves that all relaxed instances $U[\ ], U’$ were correctly updated through by folding proof.</p>
+<p>We then need to verify that all accumulators $(U[\ ], W[\ ])$ and $(U’, W’)$ are correct by checking the circuit satisfiability.</p>
+<h3 id="comparison-of-nova-and-supernova"><a href="#comparison-of-nova-and-supernova">Comparison of Nova and SuperNova</a></h3><div><table><thead><tr><th></th><th>Nova</th><th>SuperNova</th></tr></thead><tbody>
+<tr><td><code>RecursiveSNARK</code></td><td><code>lib.rs</code></td><td><code>supernova/mod.rs</code></td></tr>
+<tr><td><code>CompressedSNARK</code></td><td><code>lib.rs</code></td><td><code>supernova/snark.rs</code></td></tr>
+<tr><td><code>StepCircuit</code></td><td><code>traits/circuit.rs</code></td><td><code>traits/circuit_supernova.rs</code></td></tr>
+<tr><td>Augmented Circuit</td><td><code>circuit.rs</code></td><td><code>supernova/circuit.rs</code></td></tr>
+<tr><td><code>(Batched)RelaxedR1CSSNARKTrait</code></td><td><code>traits/snark.rs</code></td><td><code>traits/snark.rs</code></td></tr>
+<tr><td>Direct Spartan</td><td><code>spartan/snark.rs</code></td><td><code>spartan/batched.rs</code></td></tr>
+<tr><td>Spartan with Spark preprocessing</td><td><code>spartan/ppsnark.rs</code></td><td><code>spartan/batched_ppsnark.rs</code></td></tr>
+<tr><td>(batched) Sumcheck primitives</td><td><code>spartan/sumcheck.rs</code></td><td><code>spartan/sumcheck.rs</code></td></tr>
+</tbody></table>
+</div></div></details><h2 id="modules" class="small-section-header"><a href="#modules">Modules</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="error/index.html" title="mod arecibo::supernova::error">error</a></div><div class="desc docblock-short">This module defines errors returned by the library.</div></li><li><div class="item-name"><a class="mod" href="snark/index.html" title="mod arecibo::supernova::snark">snark</a></div><div class="desc docblock-short">This module defines a final compressing SNARK for supernova proofs</div></li></ul><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.AuxParams.html" title="struct arecibo::supernova::AuxParams">AuxParams</a></div><div class="desc docblock-short">Auxiliary <a href="struct.PublicParams.html" title="struct arecibo::supernova::PublicParams">PublicParams</a> information about the commitment keys and
+secondary circuit. This is used as a helper struct when reconstructing
+<a href="struct.PublicParams.html" title="struct arecibo::supernova::PublicParams">PublicParams</a> downstream in lurk.</div></li><li><div class="item-name"><a class="struct" href="struct.CircuitDigests.html" title="struct arecibo::supernova::CircuitDigests">CircuitDigests</a></div><div class="desc docblock-short">A struct that manages all the digests of the primary circuits of a SuperNova instance</div></li><li><div class="item-name"><a class="struct" href="struct.PublicParams.html" title="struct arecibo::supernova::PublicParams">PublicParams</a></div><div class="desc docblock-short">A vector of <a href="../struct.R1CSWithArity.html" title="struct arecibo::R1CSWithArity">R1CSWithArity</a> adjoined to a set of <a href="struct.PublicParams.html" title="struct arecibo::supernova::PublicParams">PublicParams</a></div></li><li><div class="item-name"><a class="struct" href="struct.RecursiveSNARK.html" title="struct arecibo::supernova::RecursiveSNARK">RecursiveSNARK</a></div><div class="desc docblock-short">A SNARK that proves the correct execution of an non-uniform incremental computation</div></li><li><div class="item-name"><a class="struct" href="struct.TrivialSecondaryCircuit.html" title="struct arecibo::supernova::TrivialSecondaryCircuit">TrivialSecondaryCircuit</a></div><div class="desc docblock-short">A trivial step circuit that simply returns the input, for use on the secondary circuit when implementing NIVC.
+NOTE: This should not be needed. The secondary circuit doesn’t need the program counter at all.
+Ideally, the need this fills could be met by <code>traits::circuit::TrivialTestCircuit</code> (or equivalent).</div></li><li><div class="item-name"><a class="struct" href="struct.TrivialTestCircuit.html" title="struct arecibo::supernova::TrivialTestCircuit">TrivialTestCircuit</a></div><div class="desc docblock-short">A trivial step circuit that simply returns the input</div></li></ul><h2 id="traits" class="small-section-header"><a href="#traits">Traits</a></h2><ul class="item-table"><li><div class="item-name"><a class="trait" href="trait.NonUniformCircuit.html" title="trait arecibo::supernova::NonUniformCircuit">NonUniformCircuit</a></div><div class="desc docblock-short">SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. <code>C1</code> must be a
+type (likely an <code>Enum</code>) for which a potentially-distinct instance can be supplied for each <code>index</code> below
+<code>self.num_circuits()</code>.</div></li><li><div class="item-name"><a class="trait" href="trait.StepCircuit.html" title="trait arecibo::supernova::StepCircuit">StepCircuit</a></div><div class="desc docblock-short">A helper trait for a step of the incremental computation for <code>SuperNova</code> (i.e., circuit for F) – to be implemented by
+applications.</div></li></ul><h2 id="functions" class="small-section-header"><a href="#functions">Functions</a></h2><ul class="item-table"><li><div class="item-name"><a class="fn" href="fn.circuit_digest.html" title="fn arecibo::supernova::circuit_digest">circuit_digest</a></div><div class="desc docblock-short">Compute the circuit digest of a supernova <a href="trait.StepCircuit.html" title="trait arecibo::supernova::StepCircuit">StepCircuit</a>.</div></li></ul></section></div></main></body></html>

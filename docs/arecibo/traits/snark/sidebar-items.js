@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["default_ck_hint"],"trait":["BatchedRelaxedR1CSSNARKTrait","DigestHelperTrait","RelaxedR1CSSNARKTrait"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["ProverKey","R1CSShapeSparkCommitment","R1CSShapeSparkRepr","RelaxedR1CSSNARK","VerifierKey"]};

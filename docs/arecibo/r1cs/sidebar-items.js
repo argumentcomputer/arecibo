@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["commitment_key","commitment_key_size","default_T"],"struct":["R1CSInstance","R1CSResult","R1CSShape","R1CSWitness","RelaxedR1CSInstance","RelaxedR1CSWitness"],"type":["CommitmentKeyHint"]};

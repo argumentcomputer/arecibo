@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["circuit_digest"],"mod":["error","snark"],"struct":["AuxParams","CircuitDigests","PublicParams","RecursiveSNARK","TrivialSecondaryCircuit","TrivialTestCircuit"],"trait":["NonUniformCircuit","StepCircuit"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["NUM_HASH_BITS"]};
