@@ -15,6 +15,15 @@ pub struct R1CS<E: Engine> {
   W: Vec<E::Scalar>,
 }
 
+impl<E: Engine> R1CS<E> {
+  pub fn new(X: Vec<E::Scalar>, W_comm: Commitment<E>, W: Vec<E::Scalar>) -> Self {
+    Self {
+      instance: R1CSInstance { X, W: W_comm },
+      W,
+    }
+  }
+}
+
 /// Instance of an R1CS accumulator for a circuit
 #[derive(Debug, Clone)]
 pub struct R1CSInstance<E: Engine> {
@@ -78,7 +87,7 @@ impl<E: Engine> RelaxedR1CS<E> {
     let r = transcript.squeeze(b"r").unwrap();
 
     let (acc_next, scalar_mul_instances) =
-        Self::combine(acc_curr, &circuit_new, &fold_proof, r, transcript);
+      Self::combine(acc_curr, &circuit_new, &fold_proof, r, transcript);
     (acc_next, fold_proof, scalar_mul_instances)
   }
 
@@ -98,7 +107,7 @@ impl<E: Engine> RelaxedR1CS<E> {
     let r = transcript.squeeze(b"r").unwrap();
 
     let (acc_next, scalar_mul_instances) =
-        Self::combine_accumulator(acc_curr, &acc_new, &fold_proof, r, transcript);
+      Self::combine_accumulator(acc_curr, &acc_new, &fold_proof, r, transcript);
     (acc_next, fold_proof, scalar_mul_instances)
   }
 
@@ -236,7 +245,7 @@ impl<E: Engine> RelaxedR1CS<E> {
 }
 
 impl<E: Engine> RelaxedR1CSInstance<E> {
-  fn default(shape: &R1CSShape<E>) -> Self {
+  pub fn default(shape: &R1CSShape<E>) -> Self {
     Self {
       u: E::Scalar::ZERO,
       X: vec![E::Scalar::ZERO; shape.num_io],
