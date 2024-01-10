@@ -125,7 +125,7 @@ where
     _C: &Commitment<NE>,
     hat_P: &[E::Fr],
     point: &[E::Fr],
-    eval: &E::Fr,
+    _eval: &E::Fr,
   ) -> Result<Self::EvaluationArgument, NovaError> {
     let x: Vec<E::Fr> = point.to_vec();
 
@@ -259,7 +259,6 @@ where
     let u = vec![r, -r, r * r];
 
     // Phase 3 -- create response
-    polys.push(vec![*eval]); // final 'Pi' polynomial is constant and equals to eval
     let (w, evals) = kzg_open_batch(&polys, &u, transcript);
 
     Ok(EvaluationArgument { comms, w, evals })
@@ -289,7 +288,6 @@ where
       let k = C.len();
       let t = u.len();
 
-      //let q = Self::get_batch_challenge_ignoring_eval(v, eval, transcript);
       let q = Self::get_batch_challenge(v, transcript);
       let q_powers = Self::batch_challenge_powers(q, k); // 1, q, q^2, ..., q^(k-1)
 
@@ -381,10 +379,6 @@ where
     }
     com.insert(0, C.comm.to_affine()); // set com_0 = C, shifts other commitments to the right
 
-    // compute commitment to constant eval and add it commitments vector
-    let com_to_eval = E::G1Affine::from(vk.g * (*y));
-    com.push(com_to_eval);
-
     let u = vec![r, -r, r * r];
 
     // Setup vectors (Y, ypos, yneg) from pi.v
@@ -392,18 +386,15 @@ where
     if v.len() != 3 {
       return Err(NovaError::ProofVerifyError);
     }
-    if v[0].len() != ell + 1 || v[1].len() != ell + 1 || v[2].len() != ell + 1 {
+    if v[0].len() != ell || v[1].len() != ell || v[2].len() != ell {
       return Err(NovaError::ProofVerifyError);
     }
     let ypos = &v[0];
     let yneg = &v[1];
-    let Y = &v[2];
+    let mut Y = v[2].to_vec();
+    Y.push(*y);
 
     // Check consistency of (Y, ypos, yneg)
-    if Y[ell] != *y {
-      return Err(NovaError::ProofVerifyError);
-    }
-
     let two = E::Fr::from(2u64);
     for i in 0..ell {
       if two * r * Y[i + 1]
