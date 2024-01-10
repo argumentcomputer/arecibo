@@ -39,6 +39,7 @@ jobs:
       - name: Set bench output format and base SHA
         run: |
           echo "ARECIBO_BENCH_OUTPUT=commit-comment" | tee -a $GITHUB_ENV
+          echo "ARECIBO_NUM_CONS=16384,1038732" | tee -a $GITHUB_ENV
           echo "BASE_COMMIT=${{ github.event.merge_group.base_sha }}" | tee -a $GITHUB_ENV
           GPU_NAME=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader,nounits | tail -n1)
           echo "GPU_ID=$(echo $GPU_NAME | awk '{ print $NF }')" | tee -a $GITHUB_ENV
@@ -54,14 +55,14 @@ jobs:
           # Copy justfile to dev, overwriting existing config with that of PR branch
           cp ../benches/justfile .
           # Run benchmark
-          just gpu-bench-ci recursive-snark recursive-snark-supernova compressed-snark compressed-snark-supernova
+          just gpu-bench-ci supernova-ci
           # Copy bench output to PR branch
-          cp *-${{ env.BASE_COMMIT }}.json ..
+          cp supernova-ci-${{ env.BASE_COMMIT }}.json ..
         working-directory: ${{ github.workspace }}/dev
       - name: Run GPU bench on PR branch
         run: |
-          just gpu-bench-ci recursive-snark recursive-snark-supernova compressed-snark compressed-snark-supernova
-          cp *-${{ github.sha }}.json ..
+          just gpu-bench-ci supernova-ci
+          cp supernova-ci-${{ github.sha }}.json ..
         working-directory: ${{ github.workspace }}/benches
       - name: copy the benchmark template and prepare it with data
         run: |
@@ -85,36 +86,34 @@ jobs:
       # Create a `criterion-table` and write in commit comment
       - name: Run `criterion-table`
         run: |
-          cat recursive-snark-${{ env.BASE_COMMIT }}.json recursive-snark-${{ github.sha }}.json \
-          recursive-snark-supernova-${{ env.BASE_COMMIT }}.json recursive-snark-supernova- ${{ github.sha }}.json \
-          compressed-snark-${{ env.BASE_COMMIT }}.json compressed-snark-${{ github.sha }}.json \
-          compressed-snark-supernova-${{ env.BASE_COMMIT }}.json compressed-snark-supernova- ${{ github.sha }}.json \
-          | criterion-table > BENCHMARKS.md
+          cat supernova-ci-${{ env.BASE_COMMIT }}.json | criterion-table > BENCHMARKS.md
       - name: Write bench on commit comment
         uses: peter-evans/commit-comment@v3
         with:
           body-path: BENCHMARKS.md
-      # Check for a slowdown >= `$ARECIBO_NOISE_THRESHOLD` (fallback is 5%). If so, open an issue but don't block merge
+      # Check for a slowdown >= `$ARECIBO_NOISE_THRESHOLD` (fallback is 30%/1.3x). If so, open an issue but don't block merge
+      # Since we are parsing for slowdowns, we simply add 1 to the noise threshold decimal to get the regression factor
       - name: Check for perf regression
         id: regression-check
         run: |
-          REGRESSIONS=$(awk -F'[*x]' '/slower/{print $12}' BENCHMARKS.md)
+          REGRESSIONS=$(grep -o '[0-9.]*x slower' BENCHMARKS.md | cut -d 'x' -f1)
           echo $regressions
 
           if [ ! -z "${{ env.ARECIBO_NOISE_THRESHOLD}}" ]; then
-            NOISE_THRESHOLD=$(echo "1+${{ env.ARECIBO_NOISE_THRESHOLD }}" | bc)
+            REGRESSION_FACTOR=$(echo "${{ env.ARECIBO_NOISE_THRESHOLD }}+1" | bc)
           else
-            NOISE_THRESHOLD=1.05
+            REGRESSION_FACTOR=1.3
           fi
 
           for r in $REGRESSIONS
           do
-            if (( $(echo "$r >= $NOISE_THRESHOLD" | bc -l) ))
+            if (( $(echo "$r >= $REGRESSION_FACTOR" | bc -l) ))
             then
               exit 1
             fi
           done
-          echo "NOISE_THRESHOLD=$NOISE_THRESHOLD" | tee -a $GITHUB_ENV
+
+          echo "NOISE_THRESHOLD=$("(REGRESSION_FACTOR-1)*100" | bc) | tee -a $GITHUB_ENV
         continue-on-error: true
       # Not possible to use ${{ github.event.number }} with the `merge_group` trigger
       - name: Get PR number from merge branch
@@ -126,6 +125,6 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
           GIT_SHA: ${{ github.sha }}
           WORKFLOW_URL: ${{ env.WORKFLOW_URL }}
-          NOISE_THRESHOLD: $${{ env.NOISE_THRESHOLD }}
+          NOISE_THRESHOLD: ${{ env.NOISE_THRESHOLD }}
         with:
           filename: .github/PERF_REGRESSION.md

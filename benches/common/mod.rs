@@ -1,3 +1,5 @@
+pub mod supernova;
+
 use anyhow::anyhow;
 use criterion::BenchmarkId;
 
