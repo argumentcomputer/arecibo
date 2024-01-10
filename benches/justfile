@@ -28,9 +28,9 @@ gpu-bench +benches: gpu-env
     cargo criterion --bench $bench --features "cuda"
   done
 
-# Run CUDA benchmarks on GPU, tuned for CI
+# Run CUDA benchmarks on GPU, tuned for CI on x86_64
 gpu-bench-ci +benches:
   #!/bin/sh
   for bench in {{benches}}; do
-    cargo criterion --bench $bench --features "cuda" --message-format=json > "$bench-{{commit}}".json
+    cargo criterion --bench $bench --features "cuda,asm" --message-format=json > "$bench-{{commit}}".json
   done
