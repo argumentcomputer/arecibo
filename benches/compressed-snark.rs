@@ -81,7 +81,7 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
 
   // produce a recursive SNARK
   let num_steps = 3;
-  let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> = RecursiveSNARK::new(
+  let mut recursive_snark: RecursiveSNARK<'_, E1, E2, C1, C2> = RecursiveSNARK::new(
     &pp,
     &c_primary,
     &c_secondary,

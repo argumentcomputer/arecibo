@@ -17,7 +17,7 @@ use crate::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
     AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
-  Commitment, CommitmentKey, R1CSWithArity, MSMContext
+  Commitment, CommitmentKey, MSMContext, R1CSWithArity,
 };
 
 #[cfg(feature = "abomonate")]

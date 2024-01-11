@@ -14,7 +14,7 @@ use crate::{
   traits::{
     commitment::CommitmentEngineTrait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
-  zip_with, Commitment, CommitmentKey, CE, MSMContext,
+  zip_with, Commitment, CommitmentKey, MSMContext, CE,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;

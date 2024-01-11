@@ -131,7 +131,7 @@ macro_rules! impl_traits {
     impl FixedBaseMSM for $name::Point {
       type MSMContext<'a> = grumpkin_msm::$name::MSMContext<'a>;
 
-      fn init_context<'a>(bases: &'a [Self::AffineExt]) -> Self::MSMContext<'a> {
+      fn init_context(bases: &[Self::AffineExt]) -> Self::MSMContext<'_> {
         cfg_if::cfg_if! {
           if #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))] {
             grumpkin_msm::$name::init(bases)
@@ -142,7 +142,10 @@ macro_rules! impl_traits {
       }
 
       #[tracing::instrument(skip_all, name = "fixed_multiscalar_mul")]
-      fn fixed_multiscalar_mul<'a>(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'a>) -> Self {
+      fn fixed_multiscalar_mul(
+        scalars: &[Self::ScalarExt],
+        context: &Self::MSMContext<'_>,
+      ) -> Self {
         cfg_if::cfg_if! {
           if #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))] {
             grumpkin_msm::$name::with(context, scalars)

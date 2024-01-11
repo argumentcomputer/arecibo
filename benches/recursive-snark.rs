@@ -85,7 +85,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
     // the first step is cheaper than other steps owing to the presence of
     // a lot of zeros in the satisfying assignment
     let num_warmup_steps = 10;
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> = RecursiveSNARK::new(
+    let mut recursive_snark: RecursiveSNARK<'_, E1, E2, C1, C2> = RecursiveSNARK::new(
       &pp,
       &c_primary,
       &c_secondary,

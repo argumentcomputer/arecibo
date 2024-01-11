@@ -34,7 +34,7 @@ use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
 
-use super::traits::{VariableBaseMSM, FixedBaseMSM};
+use super::traits::{FixedBaseMSM, VariableBaseMSM};
 
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq)]

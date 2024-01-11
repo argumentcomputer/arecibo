@@ -232,7 +232,7 @@ where
     }
   }
 
-  fn into_context<'a>(ck: &'a Self::CommitmentKey) -> Self::MSMContext<'a> {
+  fn into_context(ck: &Self::CommitmentKey) -> Self::MSMContext<'_> {
     <E::GE as FixedBaseMSM>::init_context(&ck.ck)
   }
 
@@ -243,7 +243,7 @@ where
     }
   }
 
-  fn commit_fixed<'a>(context: &Self::MSMContext<'a>, v: &[E::Scalar]) -> Self::Commitment {
+  fn commit_fixed(context: &Self::MSMContext<'_>, v: &[E::Scalar]) -> Self::Commitment {
     // assert!(context.npoints() >= v.len());
     Commitment {
       comm: E::GE::fixed_multiscalar_mul(v, context),

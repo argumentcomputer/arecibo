@@ -1,6 +1,9 @@
 //! This module implements the Nova traits for `pallas::Point`, `pallas::Scalar`, `vesta::Point`, `vesta::Scalar`.
 use crate::{
-  provider::{traits::{DlogGroup, VariableBaseMSM, FixedBaseMSM}, util::msm::cpu_best_msm},
+  provider::{
+    traits::{DlogGroup, FixedBaseMSM, VariableBaseMSM},
+    util::msm::cpu_best_msm,
+  },
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use derive_more::{From, Into};
@@ -126,7 +129,7 @@ macro_rules! impl_traits {
     impl FixedBaseMSM for $name::Point {
       type MSMContext<'a> = grumpkin_msm::pasta::$name::MSMContext<'a>;
 
-      fn init_context<'a>(bases: &'a [Self::AffineExt]) -> Self::MSMContext<'a> {
+      fn init_context(bases: &[Self::AffineExt]) -> Self::MSMContext<'_> {
         cfg_if::cfg_if! {
           if #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))] {
             grumpkin_msm::pasta::$name::init(bases)
@@ -137,7 +140,10 @@ macro_rules! impl_traits {
       }
 
       #[tracing::instrument(skip_all, name = "fixed_multiscalar_mul")]
-      fn fixed_multiscalar_mul<'a>(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'a>) -> Self {
+      fn fixed_multiscalar_mul(
+        scalars: &[Self::ScalarExt],
+        context: &Self::MSMContext<'_>,
+      ) -> Self {
         cfg_if::cfg_if! {
           if #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))] {
             grumpkin_msm::pasta::$name::with(context, scalars)
@@ -212,7 +218,10 @@ mod tests {
   use pasta_curves::{pallas, vesta};
   use rand::thread_rng;
 
-  use crate::provider::{traits::{DlogGroup, VariableBaseMSM}, util::msm::cpu_best_msm};
+  use crate::provider::{
+    traits::{DlogGroup, VariableBaseMSM},
+    util::msm::cpu_best_msm,
+  };
 
   #[test]
   fn test_pallas_msm_correctness() {

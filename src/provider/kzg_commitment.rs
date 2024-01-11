@@ -57,12 +57,12 @@ where
     }
   }
 
-  fn into_context<'a>(ck: &'a Self::CommitmentKey) -> Self::MSMContext<'a> {
+  fn into_context(ck: &Self::CommitmentKey) -> Self::MSMContext<'_> {
     <E::G1 as FixedBaseMSM>::init_context(&ck.powers_of_g)
   }
 
-  fn commit_fixed<'a>(
-    context: &Self::MSMContext<'a>,
+  fn commit_fixed(
+    context: &Self::MSMContext<'_>,
     v: &[<NE as NovaEngine>::Scalar],
   ) -> Self::Commitment {
     Commitment {

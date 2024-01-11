@@ -39,10 +39,11 @@ pub trait FixedBaseMSM: DlogGroup {
   type MSMContext<'a>: Clone + Default + Debug + Send + Sync;
 
   /// Initialize the [MSMContext] with a fixed set of points.
-  fn init_context<'a>(bases: &'a [Self::AffineExt]) -> Self::MSMContext<'a>;
+  fn init_context(bases: &[Self::AffineExt]) -> Self::MSMContext<'_>;
 
   /// Compute a multiexponentation against a fixed base
-  fn fixed_multiscalar_mul<'a>(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'a>) -> Self;
+  fn fixed_multiscalar_mul(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'_>)
+    -> Self;
 }
 
 /// This implementation behaves in ways specific to the halo2curves suite of curves in:
@@ -158,12 +159,15 @@ macro_rules! impl_traits {
       // TODO don't hardcode
       type MSMContext<'a> = &'a [Self::AffineExt];
 
-      fn init_context<'a>(bases: &'a [Self::AffineExt]) -> Self::MSMContext<'a> {
+      fn init_context(bases: &[Self::AffineExt]) -> Self::MSMContext<'_> {
         bases
       }
 
       #[tracing::instrument(skip_all, name = "fixed_multiscalar_mul")]
-      fn fixed_multiscalar_mul<'a>(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'a>) -> Self {
+      fn fixed_multiscalar_mul(
+        scalars: &[Self::ScalarExt],
+        context: &Self::MSMContext<'_>,
+      ) -> Self {
         cpu_best_msm(context, scalars)
       }
     }
