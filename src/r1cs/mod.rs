@@ -510,6 +510,8 @@ impl<E: Engine> R1CSShape<E> {
         .collect_into_vec(T)
     });
 
+
+    eprint!("commit T: ");
     let commit_T_fixed = CE::<E>::commit_fixed(context, T);
     // let commit_T = CE::<E>::commit(ck, T);
     // assert_eq!(commit_T_fixed, commit_T);

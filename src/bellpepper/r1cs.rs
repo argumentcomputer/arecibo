@@ -70,6 +70,7 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     let W = R1CSWitness::<E>::new(shape, aux_assignment)?;
     let X = input_assignment[1..].to_owned();
 
+    eprint!("commit witness: ");
     let comm_W = W.commit_fixed(context);
 
     let instance = R1CSInstance::<E>::new(shape, comm_W, X)?;
