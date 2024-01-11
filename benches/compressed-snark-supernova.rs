@@ -167,7 +167,7 @@ fn bench_compressed_snark_internal_with_arity<
 
   let bench_params = BenchParams {
     step_size: num_cons,
-    curve_cycle: "Pasta",
+    curve_cycle: "Grumpkin",
     date: env!("VERGEN_GIT_COMMIT_DATE"),
     sha: env!("VERGEN_GIT_SHA"),
   };
