@@ -1,4 +1,4 @@
-# Run final tests only when attempting to merge, shown as skipped status checks beforehand
+# Run regression check only when attempting to merge, shown as skipped status check beforehand
 name: GPU benchmark regression test
 
 on:
@@ -39,7 +39,7 @@ jobs:
       - name: Set bench output format and base SHA
         run: |
           echo "ARECIBO_BENCH_OUTPUT=commit-comment" | tee -a $GITHUB_ENV
-          echo "ARECIBO_NUM_CONS=16384,1038732" | tee -a $GITHUB_ENV
+          echo "ARECIBO_BENCH_NUM_CONS=16384,1038732" | tee -a $GITHUB_ENV
           echo "BASE_COMMIT=${{ github.event.merge_group.base_sha }}" | tee -a $GITHUB_ENV
           GPU_NAME=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader,nounits | tail -n1)
           echo "GPU_ID=$(echo $GPU_NAME | awk '{ print $NF }')" | tee -a $GITHUB_ENV
@@ -78,7 +78,7 @@ jobs:
           # Use conditionals to ensure that only non-empty variables are inserted
           [[ ! -z "${{ env.GPU_NAME }}" ]] && sed -i "/^\"\"\"$/i ${{ env.GPU_NAME }}" tables.toml
           [[ ! -z "$CPU_MODEL" ]] && sed -i "/^\"\"\"$/i $CPU_MODEL" tables.toml
-          [[ ! -z "$NUM_VCPUS" ]] && sed -i "/^\"\"\"$/i $NUM_VCPUS" tables.toml
+          [[ ! -z "$NUM_VCPUS" ]] && sed -i "/^\"\"\"$/i $NUM_VCPUS vCPUs" tables.toml
           [[ ! -z "$TOTAL_RAM" ]] && sed -i "/^\"\"\"$/i $TOTAL_RAM" tables.toml          
           sed -i "/^\"\"\"$/i Workflow run: $WORKFLOW_URL" tables.toml
           echo "WORKFLOW_URL=$WORKFLOW_URL" | tee -a $GITHUB_ENV
@@ -91,16 +91,16 @@ jobs:
         uses: peter-evans/commit-comment@v3
         with:
           body-path: BENCHMARKS.md
-      # Check for a slowdown >= `$ARECIBO_NOISE_THRESHOLD` (fallback is 30%/1.3x). If so, open an issue but don't block merge
+      # Check for a slowdown >= `$ARECIBO_BENCH_NOISE_THRESHOLD` (fallback is 30%/1.3x). If so, open an issue but don't block merge
       # Since we are parsing for slowdowns, we simply add 1 to the noise threshold decimal to get the regression factor
       - name: Check for perf regression
         id: regression-check
         run: |
           REGRESSIONS=$(grep -o '[0-9.]*x slower' BENCHMARKS.md | cut -d 'x' -f1)
-          echo $regressions
+          echo $REGRESSIONS
 
-          if [ ! -z "${{ env.ARECIBO_NOISE_THRESHOLD}}" ]; then
-            REGRESSION_FACTOR=$(echo "${{ env.ARECIBO_NOISE_THRESHOLD }}+1" | bc)
+          if [ ! -z "${{ env.ARECIBO_BENCH_NOISE_THRESHOLD}}" ]; then
+            REGRESSION_FACTOR=$(echo "${{ env.ARECIBO_BENCH_NOISE_THRESHOLD }}+1" | bc)
           else
             REGRESSION_FACTOR=1.3
           fi

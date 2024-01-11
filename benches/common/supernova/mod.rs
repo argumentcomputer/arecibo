@@ -26,6 +26,7 @@ pub type SS1 = arecibo::spartan::batched_ppsnark::BatchedRelaxedR1CSSNARK<E1, EE
 pub type SS2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
 
 // This should match the value in test_supernova_recursive_circuit_pasta
+// Note `NUM_CONS_VERIFIER_CIRCUIT_PRIMARY` is different for Nova and Supernova
 // TODO: This should also be a table matching the num_augmented_circuits in the below
 pub const NUM_CONS_VERIFIER_CIRCUIT_PRIMARY: usize = 9844;
 pub const NUM_SAMPLES: usize = 10;
@@ -36,6 +37,7 @@ pub enum SnarkType {
   Compressed,
 }
 
+// TODO: Move this up a level to `common/mod.rs`, then integrate with non-Supernova benches
 pub fn num_cons() -> Vec<usize> {
   num_cons_env().unwrap_or_else(|_| {
     vec![
@@ -52,8 +54,8 @@ pub fn num_cons() -> Vec<usize> {
 }
 
 fn num_cons_env() -> anyhow::Result<Vec<usize>> {
-  std::env::var("ARECIBO_NUM_CONS")
-    .map_err(|e| anyhow!("ARECIBO_NUM_CONS env var not set: {e}"))
+  std::env::var("ARECIBO_BENCH_NUM_CONS")
+    .map_err(|e| anyhow!("ARECIBO_BENCH_NUM_CONS env var not set: {e}"))
     .and_then(|rc| {
       let vec: anyhow::Result<Vec<usize>> = rc
         .split(',')

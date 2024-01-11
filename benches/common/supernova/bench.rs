@@ -166,7 +166,9 @@ pub fn run_bench<S1: BatchedRelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1CSSNARKTrait
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in num_cons().iter() {
     // number of constraints in the step circuit
-    let num_cons = num_cons_in_augmented_circuit - NUM_CONS_VERIFIER_CIRCUIT_PRIMARY;
+    let num_cons = num_cons_in_augmented_circuit
+      .checked_sub(NUM_CONS_VERIFIER_CIRCUIT_PRIMARY)
+      .expect("Negative `num_cons`, constraint numbers out of date!");
 
     let mut group = c.benchmark_group(group_name);
     group.sample_size(NUM_SAMPLES);

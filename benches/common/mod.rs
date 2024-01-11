@@ -12,7 +12,7 @@ pub(crate) struct BenchParams {
 }
 impl BenchParams {
   pub(crate) fn bench_id(&self, name: &str) -> BenchmarkId {
-    let output_type = bench_output_env().unwrap_or("stdout".into());
+    let output_type = output_type_env().unwrap_or("stdout".into());
     match output_type.as_ref() {
       "pr-comment" => BenchmarkId::new(name, format!("StepCircuitSize-{}", self.step_size)),
       "commit-comment" => BenchmarkId::new(
@@ -31,13 +31,14 @@ impl BenchParams {
   }
 }
 
-fn bench_output_env() -> anyhow::Result<String> {
-  std::env::var("ARECIBO_BENCH_OUTPUT").map_err(|e| anyhow!("Bench output env var isn't set: {e}"))
+fn output_type_env() -> anyhow::Result<String> {
+  std::env::var("ARECIBO_BENCH_OUTPUT")
+    .map_err(|e| anyhow!("ARECIBO_BENCH_OUTPUT env var isn't set: {e}"))
 }
 
 pub(crate) fn noise_threshold_env() -> anyhow::Result<f64> {
   std::env::var("ARECIBO_BENCH_NOISE_THRESHOLD")
-    .map_err(|e| anyhow!("Noise threshold env var isn't set: {e}"))
+    .map_err(|e| anyhow!("ARECIBO_BENCH_NOISE_THRESHOLD env var isn't set: {e}"))
     .and_then(|nt| {
       nt.parse::<f64>()
         .map_err(|e| anyhow!("Failed to parse noise threshold: {e}"))
