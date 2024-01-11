@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use arecibo::{
-  provider::{PallasEngine, VestaEngine},
+  provider::{Bn256Engine, GrumpkinEngine},
   supernova::NonUniformCircuit,
   supernova::{PublicParams, RecursiveSNARK},
   supernova::{StepCircuit, TrivialTestCircuit},
@@ -103,9 +103,9 @@ fn bench_recursive_snark_internal_with_arity(
   num_cons: usize,
 ) {
   let bench: NonUniformBench<
-    PallasEngine,
-    VestaEngine,
-    TrivialTestCircuit<<VestaEngine as Engine>::Scalar>,
+    Bn256Engine,
+    GrumpkinEngine,
+    TrivialTestCircuit<<GrumpkinEngine as Engine>::Scalar>,
   > = NonUniformBench::new(2, num_cons);
   let pp = PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint());
 
@@ -114,9 +114,9 @@ fn bench_recursive_snark_internal_with_arity(
   // the first step is cheaper than other steps owing to the presence of
   // a lot of zeros in the satisfying assignment
   let num_warmup_steps = 10;
-  let z0_primary = vec![<PallasEngine as Engine>::Scalar::from(2u64)];
-  let z0_secondary = vec![<VestaEngine as Engine>::Scalar::from(2u64)];
-  let mut recursive_snark_option: Option<RecursiveSNARK<PallasEngine, VestaEngine>> = None;
+  let z0_primary = vec![<Bn256Engine as Engine>::Scalar::from(2u64)];
+  let z0_secondary = vec![<GrumpkinEngine as Engine>::Scalar::from(2u64)];
+  let mut recursive_snark_option: Option<RecursiveSNARK<Bn256Engine, GrumpkinEngine>> = None;
   let mut selected_augmented_circuit = 0;
 
   for _ in 0..num_warmup_steps {
@@ -182,8 +182,8 @@ fn bench_recursive_snark_internal_with_arity(
       assert!(black_box(&mut recursive_snark.clone())
         .verify(
           black_box(&pp),
-          black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
-          black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
+          black_box(&[<Bn256Engine as Engine>::Scalar::from(2u64)]),
+          black_box(&[<GrumpkinEngine as Engine>::Scalar::from(2u64)]),
         )
         .is_ok());
     });
