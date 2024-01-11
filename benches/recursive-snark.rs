@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use arecibo::{
-  provider::{PallasEngine, VestaEngine},
+  provider::{Bn256Engine, GrumpkinEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     snark::default_ck_hint,
@@ -17,8 +17,8 @@ use std::time::Duration;
 mod common;
 use common::{noise_threshold_env, BenchParams};
 
-type E1 = PallasEngine;
-type E2 = VestaEngine;
+type E1 = Bn256Engine;
+type E2 = GrumpkinEngine;
 type C1 = NonTrivialCircuit<<E1 as Engine>::Scalar>;
 type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
 
@@ -110,7 +110,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     let bench_params = BenchParams {
       step_size: num_cons,
-      curve_cycle: "Pasta",
+      curve_cycle: "Grumpkin",
       date: env!("VERGEN_GIT_COMMIT_DATE"),
       sha: env!("VERGEN_GIT_SHA"),
     };

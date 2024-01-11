@@ -14,8 +14,8 @@ use std::time::Duration;
 mod common;
 use common::{noise_threshold_env, BenchParams};
 
-type E1 = arecibo::provider::PallasEngine;
-type E2 = arecibo::provider::VestaEngine;
+type E1 = arecibo::provider::Bn256Engine;
+type E2 = arecibo::provider::GrumpkinEngine;
 type EE1 = arecibo::provider::ipa_pc::EvaluationEngine<E1>;
 type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
 // SNARKs without computation commitments
@@ -167,7 +167,7 @@ fn bench_compressed_snark_internal_with_arity<
 
   let bench_params = BenchParams {
     step_size: num_cons,
-    curve_cycle: "Pasta",
+    curve_cycle: "Grumpkin",
     date: env!("VERGEN_GIT_COMMIT_DATE"),
     sha: env!("VERGEN_GIT_SHA"),
   };
