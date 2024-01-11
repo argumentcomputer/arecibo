@@ -1139,12 +1139,12 @@ mod tests {
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      &expect!["7652ef8326b01e784eaac7b44bd0bc2f27af3904c96ef2bf7ab1b923b8aae701"],
+      &expect!["fd2ff9d03e5512c66014399352ce0a8d722fe9c95005067ca05fe5ce84aabb02"],
     );
     test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      &expect!["da51e6bac881c054c4ed08320ce42d8a0e61a22fbd70bbbbf05384ec4adeb201"],
+      &expect!["1e4526ea166c8cccb685bd065ba82438b3ba89e24612d3e071fd30a6065c2b03"],
     );
   }
 

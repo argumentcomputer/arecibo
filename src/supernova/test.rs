@@ -643,7 +643,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, _>(
     &test_rom_secp,
-    &expect!["326db6480944b0869a524ff22e71e9cff0f900728845679da5d9615cf78a2903"],
+    &expect!["e955513a59f75c63bc0649425045e6e472bddf4490a558e95bfcab14b4911a00"],
   );
 }
 
