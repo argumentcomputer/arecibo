@@ -603,8 +603,10 @@ where
 
     let zi_primary = circuit_primary.synthesize(&mut cs_primary)?;
 
-    let (l_u_primary, l_w_primary) =
-      cs_primary.r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)?;
+    let (l_u_primary, l_w_primary) = cs_primary.r1cs_fixed(
+      &pp.circuit_shape_primary.r1cs_shape,
+      &self.buffer_primary.msm_context,
+    )?;
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
@@ -645,7 +647,10 @@ where
     let zi_secondary = circuit_secondary.synthesize(&mut cs_secondary)?;
 
     let (l_u_secondary, l_w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
+      .r1cs_fixed(
+        &pp.circuit_shape_secondary.r1cs_shape,
+        &self.buffer_secondary.msm_context,
+      )
       .map_err(|_e| NovaError::UnSat)?;
 
     // update the running instances and witnesses

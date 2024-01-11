@@ -603,6 +603,11 @@ impl<E: Engine> R1CSWitness<E> {
   pub fn commit(&self, ck: &CommitmentKey<E>) -> Commitment<E> {
     CE::<E>::commit(ck, &self.W)
   }
+
+  /// Commits to the witness using the supplied generators
+  pub fn commit_fixed(&self, context: &MSMContext<'_, E>) -> Commitment<E> {
+    CE::<E>::commit_fixed(context, &self.W)
+  }
 }
 
 impl<E: Engine> R1CSInstance<E> {
