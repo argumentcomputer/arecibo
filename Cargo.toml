@@ -82,13 +82,13 @@ harness = false
 name = "compressed-snark"
 harness = false
 
-[[bench]]
-name = "compute-digest"
-harness = false
+#[[bench]]
+#name = "compute-digest"
+#harness = false
 
-[[bench]]
-name = "sha256"
-harness = false
+#[[bench]]
+#name = "sha256"
+#harness = false
 
 [[bench]]
 name = "recursive-snark-supernova"
@@ -98,9 +98,9 @@ harness = false
 name = "compressed-snark-supernova"
 harness = false
 
-[[bench]]
-name = "pcs"
-harness = false
+#[[bench]]
+#name = "pcs"
+#harness = false
 
 [features]
 default = []

@@ -110,6 +110,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     let bench_params = BenchParams {
       step_size: num_cons,
+      curve_cycle: "Pasta",
       date: env!("VERGEN_GIT_COMMIT_DATE"),
       sha: env!("VERGEN_GIT_SHA"),
     };

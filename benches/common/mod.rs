@@ -5,6 +5,7 @@ use criterion::BenchmarkId;
 #[derive(Clone, Debug, Copy)]
 pub(crate) struct BenchParams {
   pub step_size: usize,
+  pub curve_cycle: &'static str,
   pub date: &'static str,
   pub sha: &'static str,
 }
@@ -14,7 +15,7 @@ impl BenchParams {
     match output_type.as_ref() {
       "pr-comment" => BenchmarkId::new(name, format!("StepCircuitSize-{}", self.step_size)),
       "commit-comment" => BenchmarkId::new(
-        format!("ref={}", self.sha),
+        format!("curve-cycle={}", self.curve_cycle),
         format!("{}-StepCircuitSize-{}", name, self.step_size),
       ),
       // TODO: refine "gh-pages"
