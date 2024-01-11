@@ -12,7 +12,7 @@ use std::{borrow::Borrow, marker::PhantomData, ops::Mul, sync::Arc};
 
 use crate::{
   errors::{NovaError, PCSError},
-  provider::traits::DlogGroup,
+  provider::traits::{DlogGroup, VariableBaseMSM},
   provider::util::fb_msm,
   traits::{commitment::Len, Group, TranscriptReprTrait},
 };
@@ -237,6 +237,7 @@ pub struct UVKZGPCS<E> {
 impl<E: MultiMillerLoop> UVKZGPCS<E>
 where
   E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  E::G1: VariableBaseMSM,
 {
   pub fn commit_offset(
     prover_param: impl Borrow<KZGProverKey<E>>,
@@ -254,7 +255,7 @@ where
 
     // We can avoid some scalar multiplications if 'scalars' contains a lot of leading zeroes using
     // offset, that points where non-zero scalars start.
-    let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
+    let C = <E::G1 as VariableBaseMSM>::vartime_multiscalar_mul(
       &scalars[offset..],
       &bases[offset..scalars.len()],
     );
@@ -273,7 +274,7 @@ where
     if poly.degree() > prover_param.powers_of_g().len() {
       return Err(NovaError::PCSError(PCSError::LengthError));
     }
-    let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
+    let C = <E::G1 as VariableBaseMSM>::vartime_multiscalar_mul(
       poly.coeffs.as_slice(),
       &prover_param.powers_of_g()[..poly.coeffs.len()],
     );
@@ -309,7 +310,7 @@ where
       .divide_with_q_and_r(&divisor)
       .map(|(q, _r)| q)
       .ok_or(NovaError::PCSError(PCSError::ZMError))?;
-    let proof = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
+    let proof = <E::G1 as VariableBaseMSM>::vartime_multiscalar_mul(
       witness_polynomial.coeffs.as_slice(),
       &prover_param.powers_of_g()[..witness_polynomial.coeffs.len()],
     );
@@ -448,7 +449,7 @@ mod tests {
   fn end_to_end_test_template<E>() -> Result<(), NovaError>
   where
     E: MultiMillerLoop,
-    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM,
     E::Fr: PrimeFieldBits,
   {
     for _ in 0..100 {

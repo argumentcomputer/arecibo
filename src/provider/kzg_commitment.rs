@@ -21,6 +21,8 @@ use crate::provider::{
   traits::DlogGroup,
 };
 
+use super::traits::{FixedBaseMSM, VariableBaseMSM};
+
 /// Provides a commitment engine
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KZGCommitmentEngine<E> {
@@ -30,13 +32,14 @@ pub struct KZGCommitmentEngine<E> {
 impl<E: Engine, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>> CommitmentEngineTrait<NE>
   for KZGCommitmentEngine<E>
 where
-  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM + FixedBaseMSM,
   E::G1Affine: Serialize + for<'de> Deserialize<'de>,
   E::G2Affine: Serialize + for<'de> Deserialize<'de>,
   E::Fr: PrimeFieldBits, // TODO due to use of gen_srs_for_testing, make optional
 {
   type CommitmentKey = UniversalKZGParam<E>;
   type Commitment = Commitment<NE>;
+  type MSMContext<'a> = <E::G1 as FixedBaseMSM>::MSMContext<'a>;
 
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey {
     // TODO: this is just for testing, replace by grabbing from a real setup for production
@@ -51,6 +54,19 @@ where
     assert!(ck.length() >= v.len());
     Commitment {
       comm: E::G1::vartime_multiscalar_mul(v, &ck.powers_of_g[..v.len()]),
+    }
+  }
+
+  fn into_context<'a>(ck: &'a Self::CommitmentKey) -> Self::MSMContext<'a> {
+    <E::G1 as FixedBaseMSM>::init_context(&ck.powers_of_g)
+  }
+
+  fn commit_fixed<'a>(
+    context: &Self::MSMContext<'a>,
+    v: &[<NE as NovaEngine>::Scalar],
+  ) -> Self::Commitment {
+    Commitment {
+      comm: E::G1::fixed_multiscalar_mul(v, context),
     }
   }
 }

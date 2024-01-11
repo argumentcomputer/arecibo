@@ -17,7 +17,7 @@ use crate::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
     AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
-  Commitment, CommitmentKey, R1CSWithArity,
+  Commitment, CommitmentKey, R1CSWithArity, MSMContext
 };
 
 #[cfg(feature = "abomonate")]
@@ -476,12 +476,15 @@ where
 /// which allows the reuse of memory allocations and avoids unnecessary new allocations in the critical section.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-struct ResourceBuffer<E: Engine> {
+struct ResourceBuffer<'a, E: Engine> {
   l_w: Option<R1CSWitness<E>>,
   l_u: Option<R1CSInstance<E>>,
 
   ABC_Z_1: R1CSResult<E>,
   ABC_Z_2: R1CSResult<E>,
+
+  #[serde(skip)]
+  msm_context: MSMContext<'a, E>,
 
   /// buffer for `commit_T`
   T: Vec<E::Scalar>,
@@ -490,7 +493,7 @@ struct ResourceBuffer<E: Engine> {
 /// A SNARK that proves the correct execution of an non-uniform incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RecursiveSNARK<E1, E2>
+pub struct RecursiveSNARK<'a, E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -511,9 +514,9 @@ where
   program_counter: E1::Scalar,
 
   /// Buffer for memory needed by the primary fold-step
-  buffer_primary: ResourceBuffer<E1>,
+  buffer_primary: ResourceBuffer<'a, E1>,
   /// Buffer for memory needed by the secondary fold-step
-  buffer_secondary: ResourceBuffer<E2>,
+  buffer_secondary: ResourceBuffer<'a, E2>,
 
   // Relaxed instances for the primary circuits
   // Entries are `None` if the circuit has not been executed yet
@@ -531,7 +534,7 @@ where
   l_u_secondary: R1CSInstance<E2>,
 }
 
-impl<E1, E2> RecursiveSNARK<E1, E2>
+impl<'a, E1, E2> RecursiveSNARK<'a, E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -543,7 +546,7 @@ where
     C1: StepCircuit<E1::Scalar>,
     C2: StepCircuit<E2::Scalar>,
   >(
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &'a PublicParams<E1, E2, C1, C2>,
     non_uniform_circuit: &C0,
     c_primary: &C1,
     c_secondary: &C2,
@@ -707,6 +710,7 @@ where
       l_u: None,
       ABC_Z_1: R1CSResult::default(max_num_cons),
       ABC_Z_2: R1CSResult::default(max_num_cons),
+      msm_context: E1::CE::into_context(&pp.ck_primary),
       T: r1cs::default_T::<E1>(max_num_cons),
     };
 
@@ -715,6 +719,7 @@ where
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_secondary.num_cons),
       ABC_Z_2: R1CSResult::default(r1cs_secondary.num_cons),
+      msm_context: E2::CE::into_context(&pp.ck_secondary),
       T: r1cs::default_T::<E2>(r1cs_secondary.num_cons),
     };
 
@@ -769,6 +774,7 @@ where
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
       &*pp.ck_secondary,
+      &self.buffer_secondary.msm_context,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(self.pp_digest),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -842,6 +848,7 @@ where
 
     let nifs_primary = NIFS::prove_mut(
       &*pp.ck_primary,
+      &self.buffer_primary.msm_context,
       &pp.ro_consts_primary,
       &self.pp_digest,
       &pp[circuit_index].r1cs_shape,

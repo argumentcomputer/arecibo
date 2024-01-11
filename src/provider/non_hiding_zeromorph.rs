@@ -34,6 +34,8 @@ use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
 
+use super::traits::{VariableBaseMSM, FixedBaseMSM};
+
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ZMProverKey<E: Engine> {
@@ -138,7 +140,7 @@ pub struct ZMPCS<E, NE> {
 
 impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>> ZMPCS<E, NE>
 where
-  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM,
   // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
   <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
 {
@@ -284,7 +286,7 @@ where
       proof.ck.iter().map(|c| c.0).collect(),
     ]
     .concat();
-    let c = <E::G1 as DlogGroup>::vartime_multiscalar_mul(&scalars, &bases).to_affine();
+    let c = <E::G1 as VariableBaseMSM>::vartime_multiscalar_mul(&scalars, &bases).to_affine();
 
     let pi = proof.pi;
 
@@ -457,7 +459,7 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, (Ve
 impl<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr, CE = KZGCommitmentEngine<E>>>
   EvaluationEngineTrait<NE> for ZMPCS<E, NE>
 where
-  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM + FixedBaseMSM,
   E::G1Affine: Serialize + for<'de> Deserialize<'de>,
   E::G2Affine: Serialize + for<'de> Deserialize<'de>,
   <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
@@ -525,6 +527,7 @@ mod test {
   use super::quotients;
   use super::trim_zeromorph;
 
+  use crate::provider::traits::VariableBaseMSM;
   use crate::{
     errors::PCSError,
     provider::{
@@ -546,7 +549,7 @@ mod test {
 
   fn commit_open_verify_with<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>>()
   where
-    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM,
     <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
     E::Fr: PrimeFieldBits,
   {
@@ -825,7 +828,7 @@ mod test {
   ) -> Result<UVKZGCommitment<E>, NovaError>
   where
     E: MultiMillerLoop,
-    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM,
     E::Fr: PrimeFieldBits,
   {
     let prover_param = prover_param.borrow();
@@ -845,7 +848,7 @@ mod test {
       }
     }
 
-    let C = <E::G1 as DlogGroup>::vartime_multiscalar_mul(&scalars, &bases);
+    let C = <E::G1 as VariableBaseMSM>::vartime_multiscalar_mul(&scalars, &bases);
 
     Ok(UVKZGCommitment(C.to_affine()))
   }
@@ -853,7 +856,7 @@ mod test {
   fn test_ZM_commit_sparsity_template<E>() -> Result<(), NovaError>
   where
     E: MultiMillerLoop,
-    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM,
     E::Fr: PrimeFieldBits,
   {
     let degree = 10;

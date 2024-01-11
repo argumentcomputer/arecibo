@@ -1,7 +1,7 @@
 //! This module provides an implementation of a commitment engine
 use crate::{
   errors::NovaError,
-  provider::traits::DlogGroup,
+  provider::traits::{DlogGroup, VariableBaseMSM},
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
@@ -17,6 +17,8 @@ use ff::Field;
 use group::{prime::PrimeCurve, Curve, Group, GroupEncoding};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+
+use super::traits::FixedBaseMSM;
 
 /// A type that holds commitment generators
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
@@ -218,9 +220,11 @@ impl<E> CommitmentEngineTrait<E> for CommitmentEngine<E>
 where
   E: Engine,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
+  E::GE: VariableBaseMSM + FixedBaseMSM,
 {
   type CommitmentKey = CommitmentKey<E>;
   type Commitment = Commitment<E>;
+  type MSMContext<'a> = <E::GE as FixedBaseMSM>::MSMContext<'a>;
 
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey {
     Self::CommitmentKey {
@@ -228,10 +232,21 @@ where
     }
   }
 
+  fn into_context<'a>(ck: &'a Self::CommitmentKey) -> Self::MSMContext<'a> {
+    <E::GE as FixedBaseMSM>::init_context(&ck.ck)
+  }
+
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment {
     assert!(ck.ck.len() >= v.len());
     Commitment {
       comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[..v.len()]),
+    }
+  }
+
+  fn commit_fixed<'a>(context: &Self::MSMContext<'a>, v: &[E::Scalar]) -> Self::Commitment {
+    // assert!(context.npoints() >= v.len());
+    Commitment {
+      comm: E::GE::fixed_multiscalar_mul(v, context),
     }
   }
 }
@@ -268,6 +283,7 @@ impl<E> CommitmentKeyExtTrait<E> for CommitmentKey<E>
 where
   E: Engine<CE = CommitmentEngine<E>>,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
+  E::GE: VariableBaseMSM + FixedBaseMSM,
 {
   fn split_at(&self, n: usize) -> (Self, Self) {
     (

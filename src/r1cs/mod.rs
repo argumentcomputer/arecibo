@@ -14,7 +14,7 @@ use crate::{
   traits::{
     commitment::CommitmentEngineTrait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
-  zip_with, Commitment, CommitmentKey, CE,
+  zip_with, Commitment, CommitmentKey, CE, MSMContext,
 };
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
@@ -469,6 +469,7 @@ impl<E: Engine> R1CSShape<E> {
   pub fn commit_T_into(
     &self,
     ck: &CommitmentKey<E>,
+    context: &MSMContext<'_, E>,
     U1: &RelaxedR1CSInstance<E>,
     W1: &RelaxedR1CSWitness<E>,
     U2: &R1CSInstance<E>,
@@ -509,6 +510,9 @@ impl<E: Engine> R1CSShape<E> {
         .collect_into_vec(T)
     });
 
+    let commit_T_fixed = CE::<E>::commit_fixed(context, T);
+    let commit_T = CE::<E>::commit(ck, T);
+    assert_eq!(commit_T_fixed, commit_T);
     Ok(CE::<E>::commit(ck, T))
   }
 

@@ -120,7 +120,7 @@ where
   pub fn prove(
     pp: &PublicParams<E1, E2, C1, C2>,
     pk: &ProverKey<E1, E2, C1, C2, S1, S2>,
-    recursive_snark: &RecursiveSNARK<E1, E2>,
+    recursive_snark: &RecursiveSNARK<'_, E1, E2>,
   ) -> Result<Self, SuperNovaError> {
     // fold the secondary circuit's instance
     let res_secondary = NIFS::prove(

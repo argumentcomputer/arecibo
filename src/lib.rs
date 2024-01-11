@@ -367,12 +367,15 @@ where
 /// which allows the reuse of memory allocations and avoids unnecessary new allocations in the critical section.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct ResourceBuffer<E: Engine> {
+pub struct ResourceBuffer<'a, E: Engine> {
   l_w: Option<R1CSWitness<E>>,
   l_u: Option<R1CSInstance<E>>,
 
   ABC_Z_1: R1CSResult<E>,
   ABC_Z_2: R1CSResult<E>,
+
+  #[serde(skip)]
+  msm_context: MSMContext<'a, E>,
 
   /// buffer for `commit_T`
   T: Vec<E::Scalar>,
@@ -381,7 +384,7 @@ pub struct ResourceBuffer<E: Engine> {
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RecursiveSNARK<E1, E2, C1, C2>
+pub struct RecursiveSNARK<'a, E1, E2, C1, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -398,9 +401,9 @@ where
   l_u_secondary: R1CSInstance<E2>,
 
   /// Buffer for memory needed by the primary fold-step
-  buffer_primary: ResourceBuffer<E1>,
+  buffer_primary: ResourceBuffer<'a, E1>,
   /// Buffer for memory needed by the secondary fold-step
-  buffer_secondary: ResourceBuffer<E2>,
+  buffer_secondary: ResourceBuffer<'a, E2>,
 
   i: usize,
   zi_primary: Vec<E1::Scalar>,
@@ -408,7 +411,7 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
-impl<E1, E2, C1, C2> RecursiveSNARK<E1, E2, C1, C2>
+impl<'a, E1, E2, C1, C2> RecursiveSNARK<'a, E1, E2, C1, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -417,7 +420,7 @@ where
 {
   /// Create new instance of recursive SNARK
   pub fn new(
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &'a PublicParams<E1, E2, C1, C2>,
     c_primary: &C1,
     c_secondary: &C2,
     z0_primary: &[E1::Scalar],
@@ -509,6 +512,7 @@ where
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_primary.num_cons),
       ABC_Z_2: R1CSResult::default(r1cs_primary.num_cons),
+      msm_context: E1::CE::into_context(&pp.ck_primary),
       T: r1cs::default_T::<E1>(r1cs_primary.num_cons),
     };
 
@@ -517,6 +521,7 @@ where
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_secondary.num_cons),
       ABC_Z_2: R1CSResult::default(r1cs_secondary.num_cons),
+      msm_context: E2::CE::into_context(&pp.ck_secondary),
       T: r1cs::default_T::<E2>(r1cs_secondary.num_cons),
     };
 
@@ -562,6 +567,7 @@ where
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
       &*pp.ck_secondary,
+      &self.buffer_secondary.msm_context,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -603,6 +609,7 @@ where
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
       &*pp.ck_primary,
+      &self.buffer_primary.msm_context,
       &pp.ro_consts_primary,
       &pp.digest(),
       &pp.circuit_shape_primary.r1cs_shape,
@@ -893,7 +900,7 @@ where
   pub fn prove(
     pp: &PublicParams<E1, E2, C1, C2>,
     pk: &ProverKey<E1, E2, C1, C2, S1, S2>,
-    recursive_snark: &RecursiveSNARK<E1, E2, C1, C2>,
+    recursive_snark: &RecursiveSNARK<'_, E1, E2, C1, C2>,
   ) -> Result<Self, NovaError> {
     // fold the secondary circuit's instance with its running instance
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
@@ -1064,6 +1071,7 @@ pub fn circuit_digest<
 
 type CommitmentKey<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey;
 type Commitment<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment;
+type MSMContext<'a, E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::MSMContext<'a>;
 type CompressedCommitment<E> = <<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment as CommitmentTrait<E>>::CompressedCommitment;
 type CE<E> = <E as Engine>::CE;
 
@@ -1670,6 +1678,7 @@ mod tests {
 
     // produce a recursive SNARK
     let mut recursive_snark: RecursiveSNARK<
+      '_,
       E1,
       E2,
       FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,

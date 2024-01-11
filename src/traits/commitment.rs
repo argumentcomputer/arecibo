@@ -79,10 +79,18 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
 
   /// Holds the type of the commitment
   type Commitment: CommitmentTrait<E>;
+  /// Holds the type of the MSM context
+  type MSMContext<'a>: Clone + Default + Debug + Send + Sync;
 
   /// Samples a new commitment key of a specified size
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey;
 
+  /// Creates a fixed MSM context to commit into
+  fn into_context<'a>(ck: &'a Self::CommitmentKey) -> Self::MSMContext<'a>;
+
   /// Commits to the provided vector using the provided generators
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment;
+
+  /// Commits to the provided vector using the fixed generators
+  fn commit_fixed<'a>(context: &Self::MSMContext<'a>, v: &[E::Scalar]) -> Self::Commitment;
 }

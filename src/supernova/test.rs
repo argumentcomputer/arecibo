@@ -397,7 +397,7 @@ where
   );
   let z0_secondary = vec![<E2 as Engine>::Scalar::ONE];
 
-  let mut recursive_snark_option: Option<RecursiveSNARK<E1, E2>> = None;
+  let mut recursive_snark_option: Option<RecursiveSNARK<'_, E1, E2>> = None;
 
   for &op_code in test_rom.rom.iter() {
     let circuit_primary = test_rom.primary_circuit(op_code);

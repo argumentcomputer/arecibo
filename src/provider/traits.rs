@@ -23,14 +23,26 @@ pub trait DlogGroup:
     + Send
     + TranscriptReprTrait<Self>;
 
-  /// A method to compute a multiexponentation
-  fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::AffineExt]) -> Self;
-
   /// Produce a vector of group elements using a static label
   fn from_label(label: &'static [u8], n: usize) -> Vec<Self::Affine>;
 
   /// Returns the affine coordinates (x, y, infinity) for the point
   fn to_coordinates(&self) -> (<Self as Group>::Base, <Self as Group>::Base, bool);
+}
+
+pub trait VariableBaseMSM: DlogGroup {
+  /// Compute a multiexponentation
+  fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::AffineExt]) -> Self;
+}
+
+pub trait FixedBaseMSM: DlogGroup {
+  type MSMContext<'a>: Clone + Default + Debug + Send + Sync;
+
+  /// Initialize the [MSMContext] with a fixed set of points.
+  fn init_context<'a>(bases: &'a [Self::AffineExt]) -> Self::MSMContext<'a>;
+
+  /// Compute a multiexponentation against a fixed base
+  fn fixed_multiscalar_mul<'a>(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'a>) -> Self;
 }
 
 /// This implementation behaves in ways specific to the halo2curves suite of curves in:
@@ -72,17 +84,6 @@ macro_rules! impl_traits {
       // note: for halo2curves implementations, $name::Compressed == <$name::Point as GroupEncoding>::Repr
       // so the blanket impl<T> From<T> for T and impl<T> Into<T> apply.
       type Compressed = $name::Compressed;
-
-      fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::AffineExt]) -> Self {
-        #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-        if scalars.len() >= 128 {
-          $large_msm_method(bases, scalars)
-        } else {
-          cpu_best_msm(bases, scalars)
-        }
-        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-        cpu_best_msm(bases, scalars)
-      }
 
       fn from_label(label: &'static [u8], n: usize) -> Vec<Self::Affine> {
         let mut shake = Shake256::default();
@@ -137,6 +138,33 @@ macro_rules! impl_traits {
         } else {
           (Self::Base::zero(), Self::Base::zero(), true)
         }
+      }
+    }
+
+    impl VariableBaseMSM for $name::Point {
+      fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::AffineExt]) -> Self {
+        #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+        if scalars.len() >= 128 {
+          $large_msm_method(bases, scalars)
+        } else {
+          cpu_best_msm(bases, scalars)
+        }
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        cpu_best_msm(bases, scalars)
+      }
+    }
+
+    impl FixedBaseMSM for $name::Point {
+      // TODO don't hardcode
+      type MSMContext<'a> = &'a [Self::AffineExt];
+
+      fn init_context<'a>(bases: &'a [Self::AffineExt]) -> Self::MSMContext<'a> {
+        bases
+      }
+
+      #[tracing::instrument(skip_all, name = "fixed_multiscalar_mul")]
+      fn fixed_multiscalar_mul<'a>(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'a>) -> Self {
+        cpu_best_msm(context, scalars)
       }
     }
 

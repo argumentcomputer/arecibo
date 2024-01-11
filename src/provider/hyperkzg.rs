@@ -33,6 +33,8 @@ use ref_cast::RefCast as _;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::sync::Arc;
 
+use super::traits::{FixedBaseMSM, VariableBaseMSM};
+
 /// Provides an implementation of a polynomial evaluation argument
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound(
@@ -112,7 +114,7 @@ where
   E::Fr: Serialize + DeserializeOwned,
   E::G1Affine: Serialize + DeserializeOwned,
   E::G2Affine: Serialize + DeserializeOwned,
-  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine> + VariableBaseMSM + FixedBaseMSM,
   <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
   E::Fr: PrimeFieldBits, // TODO due to use of gen_srs_for_testing, make optional
   E::Fr: TranscriptReprTrait<E::G1>,
