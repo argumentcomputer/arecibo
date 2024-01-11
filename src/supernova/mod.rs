@@ -773,7 +773,7 @@ where
 
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
-      // &*pp.ck_secondary,
+      &*pp.ck_secondary,
       &self.buffer_secondary.msm_context,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(self.pp_digest),
@@ -847,7 +847,7 @@ where
     };
 
     let nifs_primary = NIFS::prove_mut(
-      // &*pp.ck_primary,
+      &*pp.ck_primary,
       &self.buffer_primary.msm_context,
       &pp.ro_consts_primary,
       &self.pp_digest,

@@ -120,7 +120,7 @@ macro_rules! impl_traits {
           let zero_count = scalars.par_iter().filter(|s|<$name::Scalar as ff::Field>::is_zero_vartime(s)).count();
           let start = std::time::Instant::now();
           let ret = grumpkin_msm::pasta::$name::msm(bases, scalars);
-          eprintln!("zeros, scalars, preallocated-time: {}, {}, {:?}", zero_count, scalars.len(), start.elapsed());
+          eprintln!("zeros, scalars, time: {}, {}, {:?}", zero_count, scalars.len(), start.elapsed());
           ret
         } else {
           cpu_best_msm(bases, scalars)

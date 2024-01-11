@@ -566,7 +566,7 @@ where
 
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
-      // &*pp.ck_secondary,
+      &*pp.ck_secondary,
       &self.buffer_secondary.msm_context,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
@@ -603,14 +603,16 @@ where
 
     let zi_primary = circuit_primary.synthesize(&mut cs_primary)?;
 
-    let (l_u_primary, l_w_primary) = cs_primary.r1cs_fixed(
-      &pp.circuit_shape_primary.r1cs_shape,
-      &self.buffer_primary.msm_context,
-    )?;
+    // let (l_u_primary, l_w_primary) = cs_primary.r1cs_fixed(
+    //   &pp.circuit_shape_primary.r1cs_shape,
+    //   &self.buffer_primary.msm_context,
+    // )?;
+    let (l_u_primary, l_w_primary) =
+      cs_primary.r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)?;
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
-      // &*pp.ck_primary,
+      &*pp.ck_primary,
       &self.buffer_primary.msm_context,
       &pp.ro_consts_primary,
       &pp.digest(),
@@ -646,11 +648,14 @@ where
     );
     let zi_secondary = circuit_secondary.synthesize(&mut cs_secondary)?;
 
+    // let (l_u_secondary, l_w_secondary) = cs_secondary
+    //   .r1cs_fixed(
+    //     &pp.circuit_shape_secondary.r1cs_shape,
+    //     &self.buffer_secondary.msm_context,
+    //   )
+    //   .map_err(|_e| NovaError::UnSat)?;
     let (l_u_secondary, l_w_secondary) = cs_secondary
-      .r1cs_fixed(
-        &pp.circuit_shape_secondary.r1cs_shape,
-        &self.buffer_secondary.msm_context,
-      )
+      .r1cs_instance_and_witness(&pp.circuit_shape_secondary.r1cs_shape, &pp.ck_secondary)
       .map_err(|_e| NovaError::UnSat)?;
 
     // update the running instances and witnesses
