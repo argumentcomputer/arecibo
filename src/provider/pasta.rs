@@ -117,9 +117,12 @@ macro_rules! impl_traits {
       fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::Affine]) -> Self {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         if scalars.len() >= 128 {
-          let zero_count = scalars.par_iter().filter(|s|<$name::Scalar as ff::Field>::is_zero_vartime(s)).count();
-          eprintln!("zeros: {}, scalars: {}", zero_count, scalars.len());
-          grumpkin_msm::pasta::$name::msm(bases, scalars)
+          // let zero_count = scalars.par_iter().filter(|s|<$name::Scalar as ff::Field>::is_zero_vartime(s)).count();
+          // eprintln!("zeros: {}, scalars: {}", zero_count, scalars.len());
+          let start = std::time::Instant::now();
+          let ret = grumpkin_msm::pasta::$name::msm(bases, scalars);
+          eprintln!("preallocated time: {:?}, scalars: {}", start.elapsed(), scalars.len());
+          ret
         } else {
           cpu_best_msm(bases, scalars)
         }
@@ -148,9 +151,12 @@ macro_rules! impl_traits {
       ) -> Self {
         cfg_if::cfg_if! {
           if #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))] {
-            let zero_count = scalars.par_iter().filter(|s|<$name::Scalar as ff::Field>::is_zero_vartime(s)).count();
-            eprintln!("zeros: {}, scalars: {}", zero_count, scalars.len());
-            grumpkin_msm::pasta::$name::with(context, scalars)
+            // let zero_count = scalars.par_iter().filter(|s|<$name::Scalar as ff::Field>::is_zero_vartime(s)).count();
+            // eprintln!("zeros: {}, scalars: {}", zero_count, scalars.len());
+            let start = std::time::Instant::now();
+            let ret = grumpkin_msm::pasta::$name::with(context, scalars);
+            eprintln!("preallocated time: {:?}, scalars: {}", start.elapsed(), scalars.len());
+            ret
           } else {
             cpu_best_msm(context.points(), scalars)
           }
