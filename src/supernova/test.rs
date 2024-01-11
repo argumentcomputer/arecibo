@@ -14,6 +14,7 @@ use crate::{bellpepper::test_shape_cs::TestShapeCS, gadgets::utils::alloc_one};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
+use expect_test::{expect, Expect};
 use ff::Field;
 use ff::PrimeField;
 use std::fmt::Write;
@@ -568,7 +569,7 @@ fn test_recursive_circuit() {
   );
 }
 
-fn test_pp_digest_with<E1, E2, T1, T2, NC>(non_uniform_circuit: &NC, expected: &str)
+fn test_pp_digest_with<E1, E2, T1, T2, NC>(non_uniform_circuit: &NC, expected: &Expect)
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -595,7 +596,7 @@ where
       let _ = write!(output, "{b:02x}");
       output
     });
-  assert_eq!(digest_str, expected);
+  expected.assert_eq(&digest_str);
 }
 
 #[test]
@@ -612,7 +613,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<PallasEngine, VestaEngine, _, _, _>(
     &test_rom,
-    "7e203fdfeab0ee8f56f8948497f8de73539d52e64cef89e44fff84711cf8b100",
+    &expect!["7e203fdfeab0ee8f56f8948497f8de73539d52e64cef89e44fff84711cf8b100"],
   );
 
   let rom = vec![
@@ -627,7 +628,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, _>(
     &test_rom_grumpkin,
-    "5caf6efbdb5a928b44a6eb4ff597e2b5f6764450ceb86b7065aac6cf965c0203",
+    &expect!["5caf6efbdb5a928b44a6eb4ff597e2b5f6764450ceb86b7065aac6cf965c0203"],
   );
 
   let rom = vec![
@@ -642,7 +643,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, _>(
     &test_rom_secp,
-    "326db6480944b0869a524ff22e71e9cff0f900728845679da5d9615cf78a2903",
+    &expect!["e955513a59f75c63bc0649425045e6e472bddf4490a558e95bfcab14b4911a00"],
   );
 }
 

@@ -16,6 +16,7 @@ bellpepper-core = { git="https://github.com/lurk-lab/bellpepper", branch="dev", 
 bellpepper = { git="https://github.com/lurk-lab/bellpepper", branch="dev", default-features = false }
 ff = { version = "0.13.0", features = ["derive"] }
 digest = "0.10"
+halo2curves = { version = "0.6.0", features = ["bits", "derive_serde"] }
 sha3 = "0.10"
 rayon = "1.7"
 rand_core = { version = "0.6", default-features = false }
@@ -52,14 +53,9 @@ derive_more = "0.99.17"
 # see: https://github.com/lurk-lab/grumpkin-msm/pull/3
 grumpkin-msm = { git = "https://github.com/lurk-lab/grumpkin-msm", branch = "dev" }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-halo2curves = { version = "0.5.0", features = ["bits", "derive_serde", "multicore"] }
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # see https://github.com/rust-random/rand/pull/948
 getrandom = { version = "0.2.0", default-features = false, features = ["js"] }
-# bypass the default "multicore" feature
-halo2curves = { version = "0.5.0", default-features = false, features = ["bits", "derive_serde"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 proptest = "1.2.0"
