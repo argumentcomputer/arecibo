@@ -468,7 +468,7 @@ impl<E: Engine> R1CSShape<E> {
   /// This is [`R1CSShape::commit_T`] but into a buffer.
   pub fn commit_T_into(
     &self,
-    ck: &CommitmentKey<E>,
+    // ck: &CommitmentKey<E>,
     context: &MSMContext<'_, E>,
     U1: &RelaxedR1CSInstance<E>,
     W1: &RelaxedR1CSWitness<E>,
@@ -511,9 +511,9 @@ impl<E: Engine> R1CSShape<E> {
     });
 
     let commit_T_fixed = CE::<E>::commit_fixed(context, T);
-    let commit_T = CE::<E>::commit(ck, T);
-    assert_eq!(commit_T_fixed, commit_T);
-    Ok(CE::<E>::commit(ck, T))
+    // let commit_T = CE::<E>::commit(ck, T);
+    // assert_eq!(commit_T_fixed, commit_T);
+    Ok(commit_T_fixed)
   }
 
   /// Pads the `R1CSShape` so that the shape passes `is_regular_shape`

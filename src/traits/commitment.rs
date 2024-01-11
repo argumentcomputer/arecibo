@@ -86,7 +86,7 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey;
 
   /// Creates a fixed MSM context to commit into
-  fn into_context(ck: & Self::CommitmentKey) -> Self::MSMContext<'_>;
+  fn into_context(ck: &Self::CommitmentKey) -> Self::MSMContext<'_>;
 
   /// Commits to the provided vector using the provided generators
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment;

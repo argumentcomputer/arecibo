@@ -42,8 +42,7 @@ pub trait FixedBaseMSM: DlogGroup {
   fn init_context(bases: &[Self::AffineExt]) -> Self::MSMContext<'_>;
 
   /// Compute a multiexponentation against a fixed base
-  fn fixed_multiscalar_mul(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'_>)
-    -> Self;
+  fn fixed_multiscalar_mul(scalars: &[Self::ScalarExt], context: &Self::MSMContext<'_>) -> Self;
 }
 
 /// This implementation behaves in ways specific to the halo2curves suite of curves in:
