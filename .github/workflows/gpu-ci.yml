@@ -1,4 +1,4 @@
-# Runs the test suite on a self-hosted GPU machine with CUDA and OpenCL enabled
+# Runs the test suite on a self-hosted GPU machine with CUDA enabled
 name: GPU tests
 
 on:
@@ -33,25 +33,3 @@ jobs:
       - name: CUDA tests
         run: |
           cargo nextest run --profile ci --cargo-profile dev-ci --features cuda
-
-  opencl:
-    name: Rust tests on OpenCL
-    if: github.event_name != 'pull_request' || github.event.action == 'enqueued'
-    runs-on: [self-hosted, gpu-ci]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: lurk-lab/ci-workflows
-      - uses: ./.github/actions/gpu-setup
-        with:
-          gpu-framework: 'opencl'
-      - uses: ./.github/actions/ci-env
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-      - name: OpenCL tests
-        run: |
-          cargo nextest run --profile ci --cargo-profile dev-ci --features cuda,opencl
