@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use arecibo::{
-  provider::{PallasEngine, VestaEngine},
+  provider::{Bn256Engine, GrumpkinEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     snark::RelaxedR1CSSNARKTrait,
@@ -17,8 +17,8 @@ use std::time::Duration;
 mod common;
 use common::{noise_threshold_env, BenchParams};
 
-type E1 = PallasEngine;
-type E2 = VestaEngine;
+type E1 = Bn256Engine;
+type E2 = GrumpkinEngine;
 type EE1 = arecibo::provider::ipa_pc::EvaluationEngine<E1>;
 type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
 // SNARKs without computation commitmnets

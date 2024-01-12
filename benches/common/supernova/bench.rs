@@ -6,7 +6,7 @@ use crate::common::supernova::{
 };
 use crate::common::{noise_threshold_env, BenchParams};
 use arecibo::{
-  provider::{PallasEngine, VestaEngine},
+  provider::{Bn256Engine, GrumpkinEngine},
   supernova::NonUniformCircuit,
   supernova::TrivialTestCircuit,
   supernova::{snark::CompressedSNARK, PublicParams, RecursiveSNARK},
@@ -147,8 +147,8 @@ pub fn bench_snark_internal_with_arity<
           assert!(black_box(&mut recursive_snark.clone())
             .verify(
               black_box(&pp),
-              black_box(&[<PallasEngine as Engine>::Scalar::from(2u64)]),
-              black_box(&[<VestaEngine as Engine>::Scalar::from(2u64)]),
+              black_box(&[<Bn256Engine as Engine>::Scalar::from(2u64)]),
+              black_box(&[<GrumpkinEngine as Engine>::Scalar::from(2u64)]),
             )
             .is_ok());
         })

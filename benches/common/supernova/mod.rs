@@ -14,8 +14,8 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
 use ff::PrimeField;
 
-pub type E1 = arecibo::provider::PallasEngine;
-pub type E2 = arecibo::provider::VestaEngine;
+pub type E1 = arecibo::provider::Bn256Engine;
+pub type E2 = arecibo::provider::GrumpkinEngine;
 pub type EE1 = arecibo::provider::ipa_pc::EvaluationEngine<E1>;
 pub type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
 // SNARKs without computation commitments
