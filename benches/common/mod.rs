@@ -16,7 +16,7 @@ impl BenchParams {
     match output_type.as_ref() {
       "pr-comment" => BenchmarkId::new(name, format!("StepCircuitSize-{}", self.step_size)),
       "commit-comment" => BenchmarkId::new(
-        format!("ref={}", self.sha),
+        "Pasta",
         format!("{}-StepCircuitSize-{}", name, self.step_size),
       ),
       // TODO: refine "gh-pages"
