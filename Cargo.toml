@@ -99,6 +99,10 @@ name = "compressed-snark-supernova"
 harness = false
 
 [[bench]]
+name = "supernova-ci"
+harness = false
+
+[[bench]]
 name = "pcs"
 harness = false
 
