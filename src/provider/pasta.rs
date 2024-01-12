@@ -59,13 +59,13 @@ macro_rules! impl_traits {
         name = "<_ as Group>::vartime_multiscalar_mul"
       )]
       fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::Affine]) -> Self {
-        #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+        #[cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), feature = "cuda"))]
         if scalars.len() >= 128 {
           grumpkin_msm::pasta::$name(bases, scalars)
         } else {
           cpu_best_msm(bases, scalars)
         }
-        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        #[cfg(not(all(any(target_arch = "x86_64", target_arch = "aarch64"), feature = "cuda")))]
         cpu_best_msm(bases, scalars)
       }
 
