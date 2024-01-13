@@ -11,7 +11,10 @@ use rayon::prelude::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelI
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::{Group, TranscriptReprTrait};
+use crate::{
+  rlc,
+  traits::{Group, TranscriptReprTrait},
+};
 
 // ax^2 + bx + c stored as vec![c, b, a]
 // ax^3 + bx^2 + cx + d stored as vec![d, c, b, a]
@@ -131,13 +134,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
   }
 
   pub fn evaluate(&self, r: &Scalar) -> Scalar {
-    let mut eval = self.coeffs[0];
-    let mut power = *r;
-    for coeff in self.coeffs.iter().skip(1) {
-      eval += power * coeff;
-      power *= r;
-    }
-    eval
+    rlc(self.coeffs.iter(), r)
   }
 
   pub fn compress(&self) -> CompressedUniPoly<Scalar> {
