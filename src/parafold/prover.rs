@@ -4,7 +4,7 @@ use crate::bellpepper::r1cs::NovaWitness;
 use crate::bellpepper::solver::SatisfyingAssignment;
 use crate::parafold::circuit::StateTransitionCircuit;
 use crate::parafold::nifs::RelaxedR1CS;
-use crate::parafold::nivc::NIVCIO;
+use crate::parafold::nivc::{NIVCState, NIVCIO};
 use crate::parafold::ProvingKey;
 use crate::traits::{Engine, TranscriptEngineTrait};
 
@@ -13,11 +13,7 @@ pub mod cyclefold;
 pub struct RecursionState<E: Engine> {
   hash_inputs: Vec<E::Scalar>,
   self_acc_prev: RelaxedR1CS<E>,
-  nivc_acc_curr: Vec<Option<RelaxedR1CS<E>>>,
-  nivc_state: NIVCIO<E::Scalar>,
-  // self_input_hashes: Vec<E::Scalar>,
-  // scalar_mul_instances: Vec<ScalarMulInstance<E>>,
-  // self_proof_curr: R1CSProof<E>,
+  nivc_state: NIVCState<E>,
 }
 
 pub struct Prover<E: Engine> {

@@ -1,12 +1,15 @@
-use crate::parafold::circuit::transcript::AllocatedTranscript;
-use crate::traits::Engine;
-use crate::Commitment;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
-use neptune::sponge::api::SpongeAPI;
 
-///
+use crate::parafold::circuit::transcript::AllocatedTranscript;
+use crate::traits::Engine;
+use crate::Commitment;
+
+/// TODO:
+/// - This will be a non-native hash.
+/// - The 0 value will represent the identity
+/// - Should store the native value as well
 #[derive(Clone)]
 pub struct AllocatedCommitment<E: Engine> {
   x: AllocatedNum<E::Scalar>,
@@ -61,6 +64,43 @@ impl<E: Engine> AllocatedScalarMulInstance<E> {
   }
 }
 
-struct AllocatedScalarMulProof<E: Engine> {
+pub struct AllocatedScalarMulFoldProof<E: Engine> {
   //
+}
+pub struct AllocatedScalarMulMergeProof<E: Engine> {
+  //
+}
+
+pub struct AllocatedScalarMulAccumulator<E: Engine> {
+  //
+}
+
+impl<E: Engine> AllocatedScalarMulAccumulator<E> {
+  pub fn fold<CS>(
+    self,
+    /*mut*/ _cs: CS,
+    _instances: impl IntoIterator<Item = AllocatedScalarMulInstance<E>>,
+    _proofs: Vec<AllocatedScalarMulFoldProof<E>>,
+    _transcript: &mut AllocatedTranscript<E>,
+  ) -> Result<Self, SynthesisError>
+  where
+    CS: ConstraintSystem<E::Scalar>,
+  {
+    // We do not need to re-hash the instances here since the inputs are derived from previously hashed elements,
+    // and the outputs are automatically added
+    todo!()
+  }
+
+  pub fn merge<CS>(
+    self,
+    /*mut*/ _cs: CS,
+    _other: Self,
+    _proof: AllocatedScalarMulMergeProof<E>,
+    _transcript: &mut AllocatedTranscript<E>,
+  ) -> Result<Self, SynthesisError>
+  where
+    CS: ConstraintSystem<E::Scalar>,
+  {
+    todo!()
+  }
 }

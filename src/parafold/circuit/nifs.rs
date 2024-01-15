@@ -5,15 +5,17 @@ use itertools::zip_eq;
 
 use crate::parafold::circuit::scalar_mul::{AllocatedCommitment, AllocatedScalarMulInstance};
 use crate::parafold::circuit::transcript::AllocatedTranscript;
-use crate::parafold::nifs::{FoldProofInstance, RelaxedR1CSInstance};
+use crate::parafold::nifs::{FoldProof, RelaxedR1CSInstance};
 use crate::traits::Engine;
 
+/// Allocated [R1CSInstance] to be folded into an [AllocatedRelaxedR1CSInstance].
 #[derive(Debug, Clone)]
-pub(in parafold) struct AllocatedR1CSInstance<E: Engine> {
-  X: Vec<AllocatedNum<E::Scalar>>,
+pub(in parafold) struct AllocatedR1CSInstance<'a, E: Engine> {
+  X: Vec<&'a AllocatedNum<E::Scalar>>,
   W: AllocatedCommitment<E>,
 }
 
+/// Allocated [RelaxedR1CSInstance]
 #[derive(Debug, Clone)]
 pub(in parafold) struct AllocatedRelaxedR1CSInstance<E: Engine> {
   u: AllocatedNum<E::Scalar>,
@@ -22,39 +24,29 @@ pub(in parafold) struct AllocatedRelaxedR1CSInstance<E: Engine> {
   E: AllocatedCommitment<E>,
 }
 
+/// An allocated Nova folding proof, for either folding an [R1CSInstance] or a [RelaxedR1CSInstance] into
+/// another [RelaxedR1CSInstance]
 #[derive(Debug, Clone)]
-pub(in parafold) struct AllocatedFoldProofInstance<E: Engine> {
+pub(in parafold) struct AllocatedProof<E: Engine> {
   T: AllocatedCommitment<E>,
 }
 
-impl<E: Engine> AllocatedFoldProofInstance<E> {
+impl<E: Engine> AllocatedProof<E> {
   pub fn alloc_infallible<CS, F>(mut cs: CS, fold_proof: F) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> FoldProofInstance<E>,
+    F: FnOnce() -> FoldProof<E>,
   {
-    let FoldProofInstance { T } = fold_proof();
+    let FoldProof { T } = fold_proof();
     let T = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc T"), || T);
     Self { T }
   }
 }
 
-impl<E: Engine> AllocatedR1CSInstance<E> {
-  pub fn new(X: Vec<AllocatedNum<E::Scalar>>, W: AllocatedCommitment<E::Scalar>) -> Self {
+impl<'a, E: Engine> AllocatedR1CSInstance<'a, E> {
+  pub fn new(X: Vec<&AllocatedNum<E::Scalar>>, W: AllocatedCommitment<E::Scalar>) -> Self {
     Self { X, W }
   }
-  // pub fn alloc_infallible<CS, F>(mut cs: CS, instance: F) -> Self
-  // where
-  //   CS: ConstraintSystem<E::Scalar>,
-  //   F: FnOnce() -> R1CSInstance<E>,
-  // {
-  //   let R1CSInstance { io, W } = instance();
-  //
-  //   let io = AllocatedNIVCState::alloc_infallible(cs.namespace(|| "alloc io"), || io);
-  //   let W = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc W"), || W);
-  //
-  //   Self { io, W }
-  // }
 }
 
 impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
@@ -76,20 +68,19 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     Self { u, X, W, E }
   }
 
+  /// Folds an R1CSInstance into `self`
   pub fn fold<CS>(
+    self,
     mut cs: CS,
-    acc_curr: Self,
     circuit_new: AllocatedR1CSInstance<E>,
-    fold_proof: AllocatedFoldProofInstance<E>,
+    fold_proof: AllocatedProof<E>,
     transcript: &mut AllocatedTranscript<E>,
   ) -> Result<(Self, [AllocatedScalarMulInstance<E>; 2]), SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
     transcript.absorb(cs.namespace("absorb circuit_new"), &circuit_new)?;
-    transcript.absorb(cs.namespace("absorb fold_proofT"), &fold_proof)?;
-
-    let r = transcript.squeeze(cs.namespace("squeeze r"))?;
+    transcript.absorb(cs.namespace("absorb fold_proof"), &fold_proof)?;
 
     let AllocatedR1CSInstance { X: X_new, W: W_new } = circuit_new;
     let Self {
@@ -97,9 +88,19 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       E: E_curr,
       u: u_curr,
       X: X_curr,
-    } = acc_curr;
-    let AllocatedFoldProofInstance { T } = fold_proof;
+    } = self;
+    let AllocatedProof { T } = fold_proof;
 
+    let r = transcript.squeeze(cs.namespace("squeeze r"))?;
+
+    // Linear combination of acc with new
+    let u_next = u_curr.add(cs.namespace(|| "u_next"), &r)?;
+    let X_next = zip_eq(X_curr, &X_new)
+      .enumerate()
+      .map(|(i, (x_curr, x_new))| {
+        mul_add(cs.namespace(|| format!("X_next[{i}]")), &x_curr, x_new, &r)
+      })
+      .collect::<Result<Vec<_>, _>>()?;
     let (W_next, W_next_instance) = AllocatedScalarMulInstance::new(
       cs.namespace(|| "W_next"),
       W_curr.clone(),
@@ -115,29 +116,22 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       transcript,
     )?;
 
-    let u_next = u_curr.add(cs.namespace(|| "u_new"), &r)?;
-
-    let X_next = zip_eq(X_curr, X_new)
-      .enumerate()
-      .map(|(i, (x_curr, x_new))| mul_add(cs.namespace(|| format!("X_new[{i}]")), x_curr, x_new, r))
-      .collect::<Result<Vec<_>, _>>()?;
-
     Ok((
       Self {
-        W: W_next,
-        E: E_next,
         u: u_next,
         X: X_next,
+        W: W_next,
+        E: E_next,
       },
       [W_next_instance, E_next_instance],
     ))
   }
 
   pub fn merge<CS>(
+    self,
     mut cs: CS,
-    acc_curr: Self,
-    acc_new: Self,
-    fold_proof: AllocatedFoldProofInstance<E>,
+    acc_new: &Self,
+    fold_proof: AllocatedProof<E>,
     transcript: &mut AllocatedTranscript<E>,
   ) -> Result<(Self, [AllocatedScalarMulInstance<E>; 3]), SynthesisError>
   where
@@ -153,15 +147,22 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       E: E_curr,
       u: u_curr,
       X: X_curr,
-    } = acc_curr;
+    } = self;
     let Self {
       u: u_new,
       X: X_new,
       W: W_new,
       E: E_new,
     } = acc_new;
-    let AllocatedFoldProofInstance { T } = fold_proof;
+    let AllocatedProof { T } = fold_proof;
 
+    let u_next = mul_add(cs.namespace(|| "u_new"), &u_curr, u_new, &r)?;
+    let X_next = zip_eq(X_curr, X_new)
+      .enumerate()
+      .map(|(i, (x_curr, x_new))| {
+        mul_add(cs.namespace(|| format!("X_new[{i}]")), &x_curr, x_new, &r)
+      })
+      .collect::<Result<Vec<_>, _>>()?;
     let (W_next, W_next_instance) = AllocatedScalarMulInstance::new(
       cs.namespace(|| "W_next"),
       W_curr.clone(),
@@ -184,13 +185,6 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       transcript,
     )?;
 
-    let u_next = mul_add(cs.namespace(|| "u_new"), u_curr, u_new, r.clone())?;
-
-    let X_next = zip_eq(X_curr, X_new)
-      .enumerate()
-      .map(|(i, (x_curr, x_new))| mul_add(cs.namespace(|| format!("X_new[{i}]")), x_curr, x_new, r))
-      .collect::<Result<Vec<_>, _>>()?;
-
     Ok((
       Self {
         W: W_next,
@@ -201,49 +195,13 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       [W_next_instance, E1_next_instance, E_next_instance],
     ))
   }
-
-  //   pub fn fold_many<CS>(
-  //     mut cs: CS,
-  //     mut accs_curr: Vec<Self>,
-  //     circuit_new: AllocatedR1CSInstance<E>,
-  //     fold_proof: AllocatedFoldProofInstance<E>,
-  //     transcript: &mut AllocatedTranscript<E>,
-  //   ) -> Result<
-  //     (
-  //       Vec<Self>,
-  //       // AllocatedNIVCState<E::Scalar>,
-  //       [AllocatedScalarMulInstance<E>; 2],
-  //     ),
-  //     SynthesisError,
-  //   >
-  //   where
-  //     CS: ConstraintSystem<E::Scalar>,
-  //   {
-  //     let _index = circuit_new.io.program_counter();
-  //
-  //     // let selector = AllocatedSelector::new(index, accs_curr.len());
-  //     // let acc_curr = selector.get(accs)
-  //     let acc_curr = accs_curr[0].clone();
-  //     // let (acc_next, nivc_state_next, scalar_mul_instances) = Self::fold(
-  //     let (acc_next, scalar_mul_instances) = Self::fold(
-  //       cs.namespace(|| "fold_many"),
-  //       acc_curr,
-  //       circuit_new,
-  //       fold_proof,
-  //       transcript,
-  //     )?;
-  //
-  //     // let accs_next = selector.update(acc_curr);
-  //     accs_curr[0] = acc_next;
-  //     Ok((accs_curr, nivc_state_next, scalar_mul_instances))
-  //   }
 }
 
 fn mul_add<F, CS>(
   mut cs: CS,
-  a: AllocatedNum<F>,
-  b: AllocatedNum<F>,
-  r: AllocatedNum<F>,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  r: &AllocatedNum<F>,
 ) -> Result<AllocatedNum<F>, SynthesisError>
 where
   F: PrimeField,
@@ -261,7 +219,7 @@ where
     || "c = a + r * b",
     |lc| lc + r.get_variable(),
     |lc| lc + b.get_variable(),
-    |lc| lc - a.get_variable() + c.get_variable(),
+    |lc| lc + c.get_variable() - a.get_variable(),
   );
   Ok(c)
 }

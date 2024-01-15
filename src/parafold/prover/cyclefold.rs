@@ -30,7 +30,34 @@ impl<E: Engine> ScalarMulInstance<E> {
 /// # TODO
 /// - Implement conversion to R1CS instance
 /// - Implement mapping from non-native point representation to suitable public inputs.
-pub struct ScalarMulProof<E: Engine> {
-  // output
-  // witness
+pub struct ScalarMulFoldProof<E: Engine> {
+  // witness W
+  // fold proof T
+}
+
+pub struct ScalarMulMergeProof<E: Engine> {
+  // fold proof T
+}
+
+pub struct ScalarMulAccumulator<E: Engine> {
+  // instance ScalarMulAccumulatorInstance
+  // W
+  // E
+}
+
+impl<E: Engine> ScalarMulAccumulator<E> {
+  pub fn fold(self) -> (Self, Vec<ScalarMulFoldProof<E>>) {
+    todo!()
+  }
+
+  pub fn merge(self, other: Self) -> (Self, ScalarMulMergeProof<E>) {
+    todo!()
+  }
+}
+
+pub struct ScalarMulAccumulatorInstance<E: Engine> {
+  // u
+  // X
+  // W_comm
+  // E_comm
 }
