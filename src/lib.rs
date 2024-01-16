@@ -52,35 +52,12 @@ use r1cs::{
   CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use std::ops::{AddAssign, MulAssign};
 use traits::{
   circuit::StepCircuit,
   commitment::{CommitmentEngineTrait, CommitmentTrait},
   snark::RelaxedR1CSSNARKTrait,
   AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
 };
-
-/// This function employs Horner's scheme and core traits to create a combination of an iterator input with the powers
-/// of a provided coefficient.
-pub(crate) fn rlc<T: Clone, F, K: Borrow<T>>(
-  iter: impl DoubleEndedIterator<Item = K>,
-  coefficient: &F,
-) -> T
-where
-  T: for<'a> MulAssign<&'a F> + for<'r> AddAssign<&'r T>,
-{
-  let mut iter = iter.rev();
-  let Some(fst) = iter.next() else {
-    panic!("input iterator should not be empty")
-  };
-
-  iter.fold(fst.borrow().clone(), |mut acc, item| {
-    acc *= coefficient;
-    acc += item.borrow();
-    acc
-  })
-}
 
 /// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]

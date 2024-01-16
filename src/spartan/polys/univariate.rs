@@ -12,7 +12,7 @@ use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-  rlc,
+  provider::util::iterators::DoubleEndedIteratorExt as _,
   traits::{Group, TranscriptReprTrait},
 };
 
@@ -134,7 +134,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
   }
 
   pub fn evaluate(&self, r: &Scalar) -> Scalar {
-    rlc(self.coeffs.iter(), r)
+    self.coeffs.iter().rlc(r)
   }
 
   pub fn compress(&self) -> CompressedUniPoly<Scalar> {

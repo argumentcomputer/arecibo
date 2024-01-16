@@ -11,6 +11,35 @@ pub mod msm {
   }
 }
 
+pub mod iterators {
+  use std::borrow::Borrow;
+  use std::iter::DoubleEndedIterator;
+  use std::ops::{AddAssign, MulAssign};
+
+  pub trait DoubleEndedIteratorExt: DoubleEndedIterator {
+    /// This function employs Horner's scheme and core traits to create a combination of an iterator input with the powers
+    /// of a provided coefficient.
+    fn rlc<T, F>(&mut self, coefficient: &F) -> T
+    where
+      T: Clone + for<'a> MulAssign<&'a F> + for<'r> AddAssign<&'r T>,
+      Self::Item: Borrow<T>,
+    {
+      let mut iter = self.rev();
+      let Some(fst) = iter.next() else {
+        panic!("input iterator should not be empty")
+      };
+
+      iter.fold(fst.borrow().clone(), |mut acc, item| {
+        acc *= coefficient;
+        acc += item.borrow();
+        acc
+      })
+    }
+  }
+
+  impl<I: DoubleEndedIterator> DoubleEndedIteratorExt for I {}
+}
+
 #[cfg(test)]
 pub mod test_utils {
   //! Contains utilities for testing and benchmarking.

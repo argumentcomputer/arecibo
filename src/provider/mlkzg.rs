@@ -7,8 +7,8 @@ use crate::{
     non_hiding_kzg::{KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
+    util::iterators::DoubleEndedIteratorExt as _,
   },
-  rlc,
   spartan::polys::univariate::UniPoly,
   traits::{
     commitment::{CommitmentEngineTrait, Len},
@@ -171,7 +171,7 @@ where
      -> (Vec<E::G1Affine>, Vec<Vec<E::Fr>>) {
       let kzg_compute_batch_polynomial = |f: Vec<Vec<E::Fr>>, q: E::Fr| -> Vec<E::Fr> {
         // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
-        let B: UniPoly<E::Fr> = rlc(f.into_iter().map(UniPoly::new), &q);
+        let B: UniPoly<E::Fr> = f.into_iter().map(UniPoly::new).rlc(&q);
         B.coeffs
       };
       ///////// END kzg_open_batch closure helpers
