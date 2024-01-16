@@ -8,11 +8,10 @@
 // use crate::parafold::ProvingKey;
 // use crate::traits::{Engine, ROConstantsCircuit};
 //
-// mod nifs;
-// mod nivc;
-// mod scalar_mul;
-// mod transcript;
-//
+pub(in crate::parafold) mod nifs;
+pub(in crate::parafold) mod nivc;
+pub(in crate::parafold) mod scalar_mul;
+pub(in crate::parafold) mod transcript;
 // /// Given the state transition over the io
 // ///   `self_state = (vk_self, vk_nivc, self_acc, nivc_acc, nivc_io)`
 // /// self_io = {self_state_curr, self_state_next}

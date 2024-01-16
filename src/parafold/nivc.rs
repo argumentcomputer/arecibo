@@ -10,10 +10,10 @@ use crate::{Commitment, CommitmentKey};
 
 #[derive(Debug, Clone)]
 pub struct NIVCIO<F: PrimeField> {
-  pc_in: usize,
-  z_in: Vec<F>,
-  pc_out: usize,
-  z_out: Vec<F>,
+  pub pc_in: usize,
+  pub z_in: Vec<F>,
+  pub pc_out: usize,
+  pub z_out: Vec<F>,
 }
 
 #[derive(Debug)]
@@ -25,9 +25,9 @@ pub struct NIVCState<E: Engine> {
 
 #[derive(Debug)]
 pub struct NIVCStateInstance<E: Engine> {
-  io: NIVCIO<E::Scalar>,
-  accs: Vec<RelaxedR1CSInstance<E>>,
-  acc_sm: ScalarMulAccumulatorInstance<E>,
+  pub io: NIVCIO<E::Scalar>,
+  pub accs: Vec<RelaxedR1CSInstance<E>>,
+  pub acc_sm: ScalarMulAccumulatorInstance<E>,
 }
 
 pub struct NIVCStateUpdateProof<E: Engine> {
@@ -38,11 +38,11 @@ pub struct NIVCStateUpdateProof<E: Engine> {
 }
 
 pub struct NIVCStateProof<E: Engine> {
-  state: NIVCStateInstance<E>,
-  hash_input: [E::Scalar; 2],
-  W: Commitment<E>,
-  index: usize,
-  nifs_fold_proof: FoldProof<E>,
+  pub state: NIVCStateInstance<E>,
+  pub hash_input: [E::Scalar; 2],
+  pub W: Commitment<E>,
+  pub index: usize,
+  pub nifs_fold_proof: FoldProof<E>,
 }
 
 pub struct NIVCMergeProof<E: Engine> {

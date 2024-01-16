@@ -1,9 +1,8 @@
 use bellpepper_core::boolean::AllocatedBit;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
-use ff::PrimeField;
+use ff::{Field, PrimeField};
 use itertools::zip_eq;
-use pairing::Engine;
 
 use crate::gadgets::utils::{alloc_num_equals, alloc_zero};
 use crate::parafold::circuit::nifs::{
@@ -15,14 +14,14 @@ use crate::parafold::circuit::scalar_mul::{
 use crate::parafold::circuit::transcript::AllocatedTranscript;
 use crate::parafold::nivc::{NIVCStateInstance, NIVCStateProof, NIVCIO};
 use crate::traits::circuit_supernova::EnforcingStepCircuit;
-use crate::traits::ROConstantsCircuit;
+use crate::traits::{Engine, ROConstantsCircuit};
 
 /// The input and output of a NIVC computation over one or more steps.
 ///
 /// # Note
 /// - An IO result is trivial if {pc, z}_in == {pc, z}_out
 #[derive(Debug, Clone)]
-pub(crate) struct AllocatedNIVCIO<F: PrimeField> {
+pub struct AllocatedNIVCIO<F: PrimeField> {
   pc_in: AllocatedNum<F>,
   z_in: Vec<AllocatedNum<F>>,
   pc_out: AllocatedNum<F>,
@@ -131,7 +130,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
       hash: h_curr,
     } = state;
 
-    let X = vec![&h_init, &h_prev, &h_curr];
+    let X = vec![h_init.clone(), h_prev.clone(), h_curr];
 
     let is_init = {
       let h_init_is_zero = alloc_num_equals(cs.namespace(|| "h_init == 0"), &h_init, &zero)?;
@@ -164,12 +163,11 @@ impl<E: Engine> AllocatedNIVCState<E> {
       r1cs_new,
       acc_sm_prev,
       fold_proof,
-      is_init.into(),
       transcript,
     )?;
 
     // let accs_next = selector.update(acc_curr);
-    let accs_curr = accs_prev.clone();
+    let mut accs_curr = accs_prev.clone();
     accs_curr[index_prev] = acc_curr;
 
     Ok(Self::new(
@@ -209,10 +207,14 @@ impl<E: Engine> AllocatedNIVCState<E> {
       z_out: z_curr,
     } = io_curr;
 
-    let mut cs_step = cs.namespace(|| "synthesize");
+    let (pc_next, z_next) = {
+      let cs_step = &mut cs.namespace(|| "synthesize");
 
-    // Run the step circuit
-    let (Some(pc_next), z_next) = step_circuit.synthesize(&mut cs_step, Some(&pc_curr), &z_curr)?;
+      // Run the step circuit
+      let (pc_next, z_next) = step_circuit.synthesize(cs_step, Some(&pc_curr), &z_curr)?;
+      let pc_next = pc_next.ok_or(SynthesisError::AssignmentMissing)?;
+      (pc_next, z_next)
+    };
 
     // Set the new IO state
     let io_next = AllocatedNIVCIO {
@@ -233,7 +235,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
 
     // To ensure both step and merge circuits have the same IO, we inputize the previous output twice
     hash_curr.inputize(cs.namespace(|| "inputize hash_curr"))?;
-    nivc_curr.inputize(cs.namespace(|| "inputize hash_curr"))?;
+    hash_curr.inputize(cs.namespace(|| "inputize hash_curr"))?;
     nivc_next
       .hash
       .inputize(cs.namespace(|| "inputize hash_next"))?;
@@ -244,7 +246,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
   /// Circuit
   pub fn new_merge<CS>(
     mut cs: CS,
-    pp: &AllocatedNum<E::Scalar>,
+    hasher: &NIVCHasher<E>,
     proof_L: AllocatedNIVCStateProof<E>,
     proof_R: AllocatedNIVCStateProof<E>,
     merge_proof: AllocatedNIVCMergeProof<E>,
@@ -253,8 +255,18 @@ impl<E: Engine> AllocatedNIVCState<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let nivc_L = Self::from_proof(cs.namespace(|| "verify proof_L"), pp, proof_L, transcript)?;
-    let nivc_R = Self::from_proof(cs.namespace(|| "verify proof_R"), pp, proof_R, transcript)?;
+    let nivc_L = Self::from_proof(
+      cs.namespace(|| "verify proof_L"),
+      hasher,
+      proof_L,
+      transcript,
+    )?;
+    let nivc_R = Self::from_proof(
+      cs.namespace(|| "verify proof_R"),
+      hasher,
+      proof_R,
+      transcript,
+    )?;
 
     let AllocatedNIVCState {
       io: io_L,
@@ -295,7 +307,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
 
     let nivc_next = Self::new(
       cs.namespace(|| "state merge"),
-      pp,
+      hasher,
       io_next,
       accs_next,
       acc_sm,
@@ -361,7 +373,7 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
       || "self.pc_out = other.pc_in",
       |lc| lc,
       |lc| lc,
-      |lc| self.pc_out.get_variable() - other.pc_in.get_variable(),
+      |lc| lc + self.pc_out.get_variable() - other.pc_in.get_variable(),
     );
 
     // self.z_out = other.z_in
@@ -372,7 +384,7 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
           || format!("self.z_out[{i}] = other.z_in[{i}]"),
           |lc| lc,
           |lc| lc,
-          |lc| z_L_i.get_variable() - z_R_i.get_variable(),
+          |lc| lc + z_L_i.get_variable() - z_R_i.get_variable(),
         );
       });
 
@@ -411,11 +423,7 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
 }
 
 impl<E: Engine> AllocatedNIVCState<E> {
-  pub fn alloc<CS, F>(
-    mut cs: CS,
-    pp: &AllocatedNum<E::Scalar>,
-    state: F,
-  ) -> Result<Self, SynthesisError>
+  pub fn alloc<CS, F>(mut cs: CS, hasher: &NIVCHasher<E>, state: F) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
     F: FnOnce() -> NIVCStateInstance<E>,
@@ -437,12 +445,18 @@ impl<E: Engine> AllocatedNIVCState<E> {
       AllocatedScalarMulAccumulator::alloc_infallible(cs.namespace(|| "alloc W"), || acc_sm);
 
     // TODO: unwrap
-    Self::new(cs.namespace(|| "instance with hash"), pp, io, accs, acc_sm)
+    Self::new(
+      cs.namespace(|| "instance with hash"),
+      hasher,
+      io,
+      accs,
+      acc_sm,
+    )
   }
 }
 
 impl<E: Engine> AllocatedNIVCStateProof<E> {
-  pub fn alloc_infallible<CS, F>(mut cs: CS, proof: F) -> Self
+  pub fn alloc<CS, F>(mut cs: CS, hasher: &NIVCHasher<E>, proof: F) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
     F: FnOnce() -> NIVCStateProof<E>,
@@ -455,20 +469,20 @@ impl<E: Engine> AllocatedNIVCStateProof<E> {
       nifs_fold_proof,
     } = proof();
 
-    let state = AllocatedNIVCState::alloc_infallible(cs.namespace(|| "alloc state"), || state);
+    let state = AllocatedNIVCState::alloc(cs.namespace(|| "alloc state"), hasher, || state)?;
     let hash_input =
       hash_input.map(|h| AllocatedNum::alloc_infallible(cs.namespace(|| "alloc hash input"), || h));
     let W = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc W"), || W);
     let fold_proof =
       AllocatedFoldProof::alloc_infallible(cs.namespace(|| "alloc fold_proof"), || nifs_fold_proof);
 
-    Self {
+    Ok(Self {
       state,
       hash_input,
       W,
       index,
       fold_proof,
-    }
+    })
   }
 }
 

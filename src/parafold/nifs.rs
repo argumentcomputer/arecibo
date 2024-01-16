@@ -51,18 +51,18 @@ pub struct RelaxedR1CS<E: Engine> {
 /// Instance of a Relaxed-R1CS accumulator for a circuit
 #[derive(Debug, Clone)]
 pub struct RelaxedR1CSInstance<E: Engine> {
-  u: E::Scalar,
-  X: Vec<E::Scalar>,
-  W: Commitment<E>,
-  E: Commitment<E>,
+  pub u: E::Scalar,
+  pub X: Vec<E::Scalar>,
+  pub W: Commitment<E>,
+  pub E: Commitment<E>,
 }
 
 /// A Nova proof for merging two (Relaxed-)R1CS instances over the primary curve.
 #[derive(Debug, Clone)]
 pub struct FoldProof<E: Engine> {
-  T: Commitment<E>,
-  W_sm_proof: ScalarMulFoldProof<E>,
-  E_sm_proof: ScalarMulFoldProof<E>,
+  pub T: Commitment<E>,
+  pub W_sm_proof: ScalarMulFoldProof<E>,
+  pub E_sm_proof: ScalarMulFoldProof<E>,
 }
 
 #[derive(Debug, Clone)]
