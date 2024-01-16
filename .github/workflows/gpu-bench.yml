@@ -91,6 +91,7 @@ jobs:
         uses: peter-evans/commit-comment@v3
         with:
           body-path: BENCHMARKS.md
+      # TODO: Set `$ARECIBO_BENCH_NOISE_THRESHOLD` via `cardinalby/export-env-action` or hardcode to 1.3
       # Check for a slowdown >= `$ARECIBO_BENCH_NOISE_THRESHOLD` (fallback is 30%/1.3x). If so, open an issue but don't block merge
       # Since we are parsing for slowdowns, we simply add 1 to the noise threshold decimal to get the regression factor
       - name: Check for perf regression
@@ -104,6 +105,7 @@ jobs:
           else
             REGRESSION_FACTOR=1.3
           fi
+          echo "NOISE_THRESHOLD=$(echo "(REGRESSION_FACTOR-1)*100" | bc) | tee -a $GITHUB_ENV
 
           for r in $REGRESSIONS
           do
@@ -113,13 +115,13 @@ jobs:
             fi
           done
 
-          echo "NOISE_THRESHOLD=$("(REGRESSION_FACTOR-1)*100" | bc) | tee -a $GITHUB_ENV
         continue-on-error: true
       # Not possible to use ${{ github.event.number }} with the `merge_group` trigger
       - name: Get PR number from merge branch
         run: |
           echo "PR_NUMBER=$(echo ${{ github.event.merge_group.head_ref }} | sed -e 's/.*pr-\(.*\)-.*/\1/')" | tee -a $GITHUB_ENV
       - uses: JasonEtco/create-an-issue@v2
+        if: steps.regression-check.outcome == 'failure'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
