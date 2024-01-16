@@ -132,6 +132,35 @@
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Utilities for provider module.
 </span><span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) <span class="kw">mod </span>fb_msm;
 <span class="kw">pub mod </span>msm {
@@ -143,6 +172,35 @@
   </span><span class="kw">pub fn </span>cpu_best_msm&lt;C: CurveAffine&gt;(bases: <span class="kw-2">&amp;</span>[C], scalars: <span class="kw-2">&amp;</span>[C::Scalar]) -&gt; C::Curve {
     best_multiexp(scalars, bases)
   }
+}
+
+<span class="kw">pub mod </span>iterators {
+  <span class="kw">use </span>std::borrow::Borrow;
+  <span class="kw">use </span>std::iter::DoubleEndedIterator;
+  <span class="kw">use </span>std::ops::{AddAssign, MulAssign};
+
+  <span class="kw">pub trait </span>DoubleEndedIteratorExt: DoubleEndedIterator {
+    <span class="doccomment">/// This function employs Horner&#39;s scheme and core traits to create a combination of an iterator input with the powers
+    /// of a provided coefficient.
+    </span><span class="kw">fn </span>rlc&lt;T, F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, coefficient: <span class="kw-2">&amp;</span>F) -&gt; T
+    <span class="kw">where
+      </span>T: Clone + <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; MulAssign&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>F&gt; + <span class="kw">for</span>&lt;<span class="lifetime">&#39;r</span>&gt; AddAssign&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;r </span>T&gt;,
+      <span class="self">Self</span>::Item: Borrow&lt;T&gt;,
+    {
+      <span class="kw">let </span><span class="kw-2">mut </span>iter = <span class="self">self</span>.rev();
+      <span class="kw">let </span><span class="prelude-val">Some</span>(fst) = iter.next() <span class="kw">else </span>{
+        <span class="macro">panic!</span>(<span class="string">&quot;input iterator should not be empty&quot;</span>)
+      };
+
+      iter.fold(fst.borrow().clone(), |<span class="kw-2">mut </span>acc, item| {
+        acc <span class="kw-2">*</span>= coefficient;
+        acc += item.borrow();
+        acc
+      })
+    }
+  }
+
+  <span class="kw">impl</span>&lt;I: DoubleEndedIterator&gt; DoubleEndedIteratorExt <span class="kw">for </span>I {}
 }
 
 <span class="attr">#[cfg(test)]

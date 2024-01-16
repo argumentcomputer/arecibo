@@ -298,9 +298,6 @@
 <a href="#298" id="298">298</a>
 <a href="#299" id="299">299</a>
 <a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Main components:
 //! - `UniPoly`: an univariate dense polynomial in coefficient form (big endian),
 //! - `CompressedUniPoly`: a univariate dense polynomial, compressed (omitted linear term), in coefficient form (little endian),
@@ -314,7 +311,10 @@
 <span class="kw">use </span>ref_cast::RefCast;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::traits::{Group, TranscriptReprTrait};
+<span class="kw">use crate</span>::{
+  provider::util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>,
+  traits::{Group, TranscriptReprTrait},
+};
 
 <span class="comment">// ax^2 + bx + c stored as vec![c, b, a]
 // ax^3 + bx^2 + cx + d stored as vec![d, c, b, a]
@@ -434,13 +434,7 @@
   }
 
   <span class="kw">pub fn </span>evaluate(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Scalar) -&gt; Scalar {
-    <span class="kw">let </span><span class="kw-2">mut </span>eval = <span class="self">self</span>.coeffs[<span class="number">0</span>];
-    <span class="kw">let </span><span class="kw-2">mut </span>power = <span class="kw-2">*</span>r;
-    <span class="kw">for </span>coeff <span class="kw">in </span><span class="self">self</span>.coeffs.iter().skip(<span class="number">1</span>) {
-      eval += power * coeff;
-      power <span class="kw-2">*</span>= r;
-    }
-    eval
+    <span class="self">self</span>.coeffs.iter().rlc(r)
   }
 
   <span class="kw">pub fn </span>compress(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CompressedUniPoly&lt;Scalar&gt; {

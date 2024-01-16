@@ -576,21 +576,6 @@
 <a href="#576" id="576">576</a>
 <a href="#577" id="577">577</a>
 <a href="#578" id="578">578</a>
-<a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova&#39;s evaluation engine using multilinear KZG
 </span><span class="attr">#![allow(non_snake_case)]
 </span><span class="kw">use crate</span>::{
@@ -600,6 +585,7 @@
     non_hiding_kzg::{KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
+    util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>,
   },
   spartan::polys::univariate::UniPoly,
   traits::{
@@ -757,30 +743,14 @@
         .to_affine()
     };
 
-    <span class="kw">let </span>kzg_open_batch = |f: <span class="kw-2">&amp;</span>[Vec&lt;E::Fr&gt;],
+    <span class="kw">let </span>kzg_open_batch = |f: Vec&lt;Vec&lt;E::Fr&gt;&gt;,
                           u: <span class="kw-2">&amp;</span>[E::Fr],
                           transcript: <span class="kw-2">&amp;mut </span>&lt;NE <span class="kw">as </span>NovaEngine&gt;::TE|
      -&gt; (Vec&lt;E::G1Affine&gt;, Vec&lt;Vec&lt;E::Fr&gt;&gt;) {
-      <span class="kw">let </span>scalar_vector_muladd = |a: <span class="kw-2">&amp;mut </span>Vec&lt;E::Fr&gt;, v: <span class="kw-2">&amp;</span>Vec&lt;E::Fr&gt;, s: E::Fr| {
-        <span class="macro">assert!</span>(a.len() &gt;= v.len());
-        <span class="attr">#[allow(clippy::disallowed_methods)]
-        </span>a.par_iter_mut()
-          .zip(v.par_iter())
-          .for_each(|(c, v)| <span class="kw-2">*</span>c += s * v);
-      };
-
-      <span class="kw">let </span>kzg_compute_batch_polynomial = |f: <span class="kw-2">&amp;</span>[Vec&lt;E::Fr&gt;], q: E::Fr| -&gt; Vec&lt;E::Fr&gt; {
-        <span class="kw">let </span>k = f.len(); <span class="comment">// Number of polynomials we&#39;re batching
-
-        </span><span class="kw">let </span>q_powers = <span class="self">Self</span>::batch_challenge_powers(q, k);
-
-        <span class="comment">// Compute B(x) = f[0] + q*f[1] + q^2 * f[2] + ... q^(k-1) * f[k-1]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>B = f[<span class="number">0</span>].clone();
-        <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..k {
-          scalar_vector_muladd(<span class="kw-2">&amp;mut </span>B, <span class="kw-2">&amp;</span>f[i], q_powers[i]); <span class="comment">// B += q_powers[i] * f[i]
-        </span>}
-
-        B
+      <span class="kw">let </span>kzg_compute_batch_polynomial = |f: Vec&lt;Vec&lt;E::Fr&gt;&gt;, q: E::Fr| -&gt; Vec&lt;E::Fr&gt; {
+        <span class="comment">// Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
+        </span><span class="kw">let </span>B: UniPoly&lt;E::Fr&gt; = f.into_iter().map(UniPoly::new).rlc(<span class="kw-2">&amp;</span>q);
+        B.coeffs
       };
       <span class="comment">///////// END kzg_open_batch closure helpers
 
@@ -792,7 +762,7 @@
       </span><span class="kw">let </span><span class="kw-2">mut </span>v = <span class="macro">vec!</span>[<span class="macro">vec!</span>(E::Fr::ZERO; k); t];
       v.par_iter_mut().enumerate().for_each(|(i, v_i)| {
         <span class="comment">// for each point u
-        </span>v_i.par_iter_mut().zip_eq(f).for_each(|(v_ij, f)| {
+        </span>v_i.par_iter_mut().zip_eq(<span class="kw-2">&amp;</span>f).for_each(|(v_ij, f)| {
           <span class="comment">// for each poly f (except the last one - since it is constant)
           </span><span class="kw-2">*</span>v_ij = UniPoly::ref_cast(f).evaluate(<span class="kw-2">&amp;</span>u[i]);
         });
@@ -852,7 +822,7 @@
     <span class="kw">let </span>u = <span class="macro">vec!</span>[r, -r, r * r];
 
     <span class="comment">// Phase 3 -- create response
-    </span><span class="kw">let </span>(w, evals) = kzg_open_batch(<span class="kw-2">&amp;</span>polys, <span class="kw-2">&amp;</span>u, transcript);
+    </span><span class="kw">let </span>(w, evals) = kzg_open_batch(polys, <span class="kw-2">&amp;</span>u, transcript);
 
     <span class="prelude-val">Ok</span>(EvaluationArgument { comms, w, evals })
   }
