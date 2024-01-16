@@ -1,5 +1,4 @@
 use ff::PrimeField;
-use itertools::chain;
 
 use crate::parafold::nifs::{FoldProof, MergeProof, RelaxedR1CS, RelaxedR1CSInstance, R1CS};
 use crate::parafold::prover::cyclefold::{
@@ -7,7 +6,7 @@ use crate::parafold::prover::cyclefold::{
 };
 use crate::provider::pedersen::Commitment;
 use crate::r1cs::R1CSShape;
-use crate::traits::Engine;
+use crate::traits::{Engine, ROConstants};
 use crate::CommitmentKey;
 
 #[derive(Debug, Clone)]
@@ -56,13 +55,13 @@ impl<E: Engine> NIVCState<E> {
   pub fn update(
     mut self,
     ck: &CommitmentKey<E>,
-    pp: &E::Scalar,
+    hasher: &NIVCHasher<E>,
     shapes: &[R1CSShape<E>],
     proof: NIVCStateProof<E>,
     transcript: &mut E::TE,
   ) -> (Self, NIVCStateProof<E>) {
     let self_instance_curr = self.instance();
-    let hash_curr = self_instance_curr.hash(pp);
+    let hash_curr = self_instance_curr.hash(hasher);
 
     let NIVCState { io, accs, acc_sm } = self;
 
@@ -147,7 +146,7 @@ impl<E: Engine> NIVCState<E> {
 
 impl<E: Engine> NIVCStateInstance<E> {
   /// compute the hash of the state to be passed as public input/output
-  fn hash(&self, _pp: &E::Scalar) -> E::Scalar {
+  fn hash(&self, _hasher: &NIVCHasher<E>) -> E::Scalar {
     todo!()
   }
 }
@@ -163,4 +162,10 @@ impl<F: PrimeField> NIVCIO<F> {
       z_out: other.z_out,
     }
   }
+}
+
+pub struct NIVCHasher<E: Engine> {
+  ro_consts: ROConstants<E>,
+  pp: E::Scalar,
+  arity: usize,
 }
