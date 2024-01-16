@@ -62,7 +62,7 @@ impl<E: Engine> NIVCState<E> {
     let self_instance_curr = self.instance();
     let hash_curr = self_instance_curr.hash(hasher);
 
-    let NIVCState {
+    let Self {
       io,
       mut accs,
       acc_sm,

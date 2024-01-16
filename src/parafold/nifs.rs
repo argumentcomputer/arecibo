@@ -126,14 +126,14 @@ impl<E: Engine> RelaxedR1CS<E> {
 
       // For relaxed instances, u_new = 1
       let u_next = u_curr + r;
-      let X_next = zip_eq(X_curr.into_iter(), X_new.iter())
+      let X_next = zip_eq(X_curr, X_new)
         .map(|(x_curr, x_new)| x_curr + r * x_new)
         .collect::<Vec<_>>();
       // Compute scalar multiplications and resulting instances to be proved with the CycleFold circuit
       // W_next = W_curr + r * W_new
-      let (W_next, W_sm_proof) = acc_sm.scalar_mul(W_curr, W_new.clone(), r, transcript);
+      let (W_next, W_sm_proof) = acc_sm.scalar_mul(W_curr, *W_new, r, transcript);
       // E_comm_next = E_comm_curr + r * T
-      let (E_next, E_sm_proof) = acc_sm.scalar_mul(E_curr, T_comm.clone(), r, transcript);
+      let (E_next, E_sm_proof) = acc_sm.scalar_mul(E_curr, T_comm, r, transcript);
 
       let instance_next = RelaxedR1CSInstance {
         W: W_next,
