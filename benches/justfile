@@ -29,8 +29,8 @@ gpu-bench +benches:
 
 # Run CUDA benchmarks on GPU, tuned for CI on Linux x86_64
 gpu-bench-ci +benches:
-  printenv PATH
   #!/bin/sh
+  printenv PATH
   if [ $(uname -m) = "x86_64" ]; then
     FEATURES="cuda,asm"
   else
