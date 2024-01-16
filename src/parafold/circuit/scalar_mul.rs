@@ -5,6 +5,7 @@ use ff::Field;
 use crate::parafold::circuit::transcript::AllocatedTranscript;
 use crate::traits::Engine;
 use crate::Commitment;
+use crate::parafold::prover::cyclefold::{ScalarMulAccumulatorInstance, ScalarMulFoldProof, ScalarMulMergeProof};
 
 /// TODO:
 /// - This will be a non-native hash.
@@ -34,41 +35,32 @@ impl<E: Engine> AllocatedCommitment<E> {
   }
 }
 
-pub struct AllocatedScalarMulInstance<E: Engine> {
-  A: AllocatedCommitment<E>,
-  B: AllocatedCommitment<E>,
-  r: AllocatedNum<E::Scalar>,
-  C: AllocatedCommitment<E>,
-}
-
-impl<E: Engine> AllocatedScalarMulInstance<E> {
-  pub fn new<CS>(
-    mut cs: CS,
-    A: AllocatedCommitment<E>,
-    B: AllocatedCommitment<E>,
-    r: AllocatedNum<E::Scalar>,
-    transcript: &mut AllocatedTranscript<E>,
-  ) -> Result<(AllocatedCommitment<E>, Self), SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    let C_val = {
-      let A_val = A.get_value()?;
-      let B_val = B.get_value()?;
-      let r_val = r.get_value()?;
-      A_val + r_val * B_val
-    };
-    let C = AllocatedCommitment::alloc(cs.namespace(|| "alloc ScalarMulInstance"), || C_val)?;
-    transcript.absorb(cs.namespace(|| "absorb C"), &C)?;
-    Ok((C.clone(), Self { A, B, r, C }))
-  }
-}
-
 pub struct AllocatedScalarMulFoldProof<E: Engine> {
   //
 }
+
+impl<E: Engine> AllocatedScalarMulFoldProof<E> {
+  pub fn alloc_infallible<CS, F>(/*mut*/ _cs: CS, _proof: F) -> Self
+    where
+        CS: ConstraintSystem<E::Scalar>,
+        F: FnOnce() -> ScalarMulFoldProof<E>,
+  {
+    Self{}
+  }
+}
+
 pub struct AllocatedScalarMulMergeProof<E: Engine> {
   //
+}
+
+impl<E: Engine> AllocatedScalarMulMergeProof<E> {
+  pub fn alloc_infallible<CS, F>(/*mut*/ _cs: CS, _proof: F) -> Self
+    where
+        CS: ConstraintSystem<E::Scalar>,
+        F: FnOnce() -> ScalarMulMergeProof<E>,
+  {
+    Self{}
+  }
 }
 
 pub struct AllocatedScalarMulAccumulator<E: Engine> {
@@ -76,18 +68,26 @@ pub struct AllocatedScalarMulAccumulator<E: Engine> {
 }
 
 impl<E: Engine> AllocatedScalarMulAccumulator<E> {
-  pub fn fold<CS>(
-    self,
+  pub fn alloc_infallible<CS, F>(/*mut*/ _cs: CS, _acc: F) -> Self
+    where
+        CS: ConstraintSystem<E::Scalar>,
+        F: FnOnce() -> ScalarMulAccumulatorInstance<E>,
+  {
+    Self{}
+  }
+  
+  pub fn scalar_mul<CS>(
+    &mut self,
     /*mut*/ _cs: CS,
-    _instances: impl IntoIterator<Item = AllocatedScalarMulInstance<E>>,
-    _proofs: Vec<AllocatedScalarMulFoldProof<E>>,
+    _A: AllocatedCommitment<E>,
+    _B: AllocatedCommitment<E>,
+    _r: AllocatedNum<E::Scalar>,
+    _proof: AllocatedScalarMulFoldProof<E>,
     _transcript: &mut AllocatedTranscript<E>,
-  ) -> Result<Self, SynthesisError>
+  ) -> Result<AllocatedCommitment<E>, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    // We do not need to re-hash the instances here since the inputs are derived from previously hashed elements,
-    // and the outputs are automatically added
     todo!()
   }
 

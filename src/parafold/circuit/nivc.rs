@@ -7,16 +7,14 @@ use pairing::Engine;
 
 use crate::gadgets::utils::{alloc_num_equals, alloc_zero};
 use crate::parafold::circuit::nifs::{
-  AllocatedProof, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
+  AllocatedFoldProof, AllocatedMergeProof, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
 };
 use crate::parafold::circuit::scalar_mul::{
-  AllocatedCommitment, AllocatedScalarMulAccumulator, AllocatedScalarMulFoldProof,
-  AllocatedScalarMulInstance, AllocatedScalarMulMergeProof,
+  AllocatedCommitment, AllocatedScalarMulAccumulator, AllocatedScalarMulMergeProof,
 };
 use crate::parafold::circuit::transcript::AllocatedTranscript;
-use crate::parafold::nivc::NIVCIO;
+use crate::parafold::nivc::{NIVCStateInstance, NIVCStateProof, NIVCIO};
 use crate::traits::circuit_supernova::EnforcingStepCircuit;
-use crate::zip_with;
 
 /// The input and output of a NIVC computation over one or more steps.
 ///
@@ -47,27 +45,28 @@ pub struct AllocatedNIVCStateProof<E: Engine> {
   /// Output of the previous step
   state: AllocatedNIVCState<E>,
   /// Inputs of the previous step
-  hash_input_prev: [AllocatedNum<E::Scalar>; 2],
+  hash_input: [AllocatedNum<E::Scalar>; 2],
   /// Proof of circuit that produced `state`
   W: AllocatedCommitment<E>,
   /// Index of the circuits that produced `state`
-  index_prev: usize,
+  index: usize,
   /// Proof for folding the previous circuit into `state.accs[index_prev]`
-  fold_proof: AllocatedProof<E>,
+  fold_proof: AllocatedFoldProof<E>,
 }
 
 /// A proved NIVC step for a particular step function. Can be folded into an existing [`AllocatedNIVCState'].
 #[derive(Debug, Clone)]
 pub struct AllocatedNIVCMergeProof<E: Engine> {
-  /// Proofs for merging each accumulator in [AllocatedNIVCState.accs] from two different states
-  nivc_merge_proofs: Vec<AllocatedProof<E>>,
   /// Proof for merging the scalar multiplication accumulators from two different states.
   sm_merge_proof: AllocatedScalarMulMergeProof<E>,
+  /// Proofs for merging each accumulator in [AllocatedNIVCState.accs] from two different states
+  nivc_merge_proofs: Vec<AllocatedMergeProof<E>>,
 }
 
 impl<E: Engine> AllocatedNIVCState<E> {
   fn new<CS>(
     mut cs: CS,
+    pp: &AllocatedNum<E::Scalar>,
     io: AllocatedNIVCIO<E::Scalar>,
     accs: Vec<AllocatedRelaxedR1CSInstance<E>>,
     acc_sm: AllocatedScalarMulAccumulator<E>,
@@ -75,7 +74,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let hash = Self::hash(cs.namespace(|| "hash"), &io, &accs, &acc_sm)?;
+    let hash = Self::hash(cs.namespace(|| "hash"), pp, &io, &accs, &acc_sm)?;
     Ok(Self {
       io,
       accs,
@@ -87,6 +86,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
   /// Compute the hash of the parts of the state
   fn hash<CS>(
     mut cs: CS,
+    _pp: &AllocatedNum<E::Scalar>,
     _io: &AllocatedNIVCIO<E::Scalar>,
     _accs: &[AllocatedRelaxedR1CSInstance<E>],
     _acc_sm: &AllocatedScalarMulAccumulator<E>,
@@ -101,28 +101,21 @@ impl<E: Engine> AllocatedNIVCState<E> {
     ))
   }
 
-  /// Make this state part of the circuit's IO by inputizing the hash.
-  fn inputize<CS>(&self, mut cs: CS) -> Result<(), SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    self.hash.inputize(cs.namespace(|| "inputize hash"))
-  }
-
   /// Loads a previously proved state from a proof of its correctness
   fn from_proof<CS>(
     mut cs: CS,
+    pp: &AllocatedNum<E::Scalar>,
     proof: AllocatedNIVCStateProof<E>,
     transcript: &mut AllocatedTranscript<E>,
-  ) -> Result<(Self, [AllocatedScalarMulInstance<E>; 2]), SynthesisError>
+  ) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
     let AllocatedNIVCStateProof {
       state,
-      hash_input_prev,
+      hash_input: hash_input_prev,
       W,
-      index_prev,
+      index: index_prev,
       fold_proof,
     } = proof;
 
@@ -133,7 +126,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
     let AllocatedNIVCState {
       io: io_curr,
       accs: accs_prev,
-      acc_sm: acc_sm_curr,
+      acc_sm: acc_sm_prev,
       hash: h_curr,
     } = state;
 
@@ -165,9 +158,10 @@ impl<E: Engine> AllocatedNIVCState<E> {
     // let acc_curr = selector.get(accs)
     let acc_prev = accs_prev[index_prev].clone();
 
-    let (acc_curr, scalar_mul_instances) = acc_prev.fold(
+    let (acc_curr, acc_sm_curr) = acc_prev.fold(
       cs.namespace(|| "fold"),
       r1cs_new,
+      acc_sm_prev,
       fold_proof,
       is_init.into(),
       transcript,
@@ -177,22 +171,20 @@ impl<E: Engine> AllocatedNIVCState<E> {
     let accs_curr = accs_prev.clone();
     accs_curr[index_prev] = acc_curr;
 
-    Ok((
-      Self::new(
-        cs.namespace(|| "state curr"),
-        io_curr,
-        accs_curr,
-        acc_sm_curr,
-      )?,
-      scalar_mul_instances,
-    ))
+    Ok(Self::new(
+      cs.namespace(|| "state curr"),
+      pp,
+      io_curr,
+      accs_curr,
+      acc_sm_curr,
+    )?)
   }
 
   pub fn new_step<CS, SF>(
     mut cs: CS,
+    pp: &AllocatedNum<E::Scalar>,
     proof: AllocatedNIVCStateProof<E>,
     step_circuit: SF,
-    sm_fold_proofs: Vec<AllocatedScalarMulFoldProof<E>>,
     transcript: &mut AllocatedTranscript<E>,
   ) -> Result<Self, SynthesisError>
   where
@@ -200,18 +192,13 @@ impl<E: Engine> AllocatedNIVCState<E> {
     SF: EnforcingStepCircuit<E::Scalar>,
   {
     // Fold proof for previous state
-    let (nivc_curr, scalar_mul_instances) =
-      Self::from_proof(cs.namespace(|| "verify self"), proof, transcript)?;
-
-    // To ensure both step and merge circuits have the same IO, we inputize the previous output twice
-    nivc_curr.inputize(cs.namespace(|| "inputize nivc_curr 0"))?;
-    nivc_curr.inputize(cs.namespace(|| "inputize nivc_curr 1"))?;
+    let nivc_curr = Self::from_proof(cs.namespace(|| "verify self"), pp, proof, transcript)?;
 
     let AllocatedNIVCState {
       io: io_curr,
       accs: accs_curr,
       acc_sm: acc_sm_curr,
-      ..
+      hash: hash_curr,
     } = nivc_curr;
 
     let AllocatedNIVCIO {
@@ -234,23 +221,21 @@ impl<E: Engine> AllocatedNIVCState<E> {
       z_out: z_next,
     };
 
-    // Prove all scalar multiplications
-    let acc_sm_next = acc_sm_curr.fold(
-      cs.namespace(|| "fold scalar mul proofs"),
-      scalar_mul_instances,
-      sm_fold_proofs,
-    )?;
-
     // Define output state
     let nivc_next = AllocatedNIVCState::new(
       cs.namespace(|| "state next"),
+      pp,
       io_next,
       accs_curr,
-      acc_sm_next,
+      acc_sm_curr,
     )?;
 
-    // Set public output to be `nivc_next`
-    nivc_next.inputize(cs.namespace(|| "inputize hash_curr"))?;
+    // To ensure both step and merge circuits have the same IO, we inputize the previous output twice
+    hash_curr.inputize(cs.namespace(|| "inputize hash_curr"))?;
+    nivc_curr.inputize(cs.namespace(|| "inputize hash_curr"))?;
+    nivc_next
+      .hash
+      .inputize(cs.namespace(|| "inputize hash_next"))?;
 
     Ok(nivc_next)
   }
@@ -258,93 +243,69 @@ impl<E: Engine> AllocatedNIVCState<E> {
   /// Circuit
   pub fn new_merge<CS>(
     mut cs: CS,
+    pp: &AllocatedNum<E::Scalar>,
     proof_L: AllocatedNIVCStateProof<E>,
     proof_R: AllocatedNIVCStateProof<E>,
-    // one proof for each accumulator
     merge_proof: AllocatedNIVCMergeProof<E>,
-    sm_fold_proofs: Vec<AllocatedScalarMulFoldProof<E>>,
     transcript: &mut AllocatedTranscript<E>,
   ) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let (nivc_L, scalar_mul_instances_L) =
-      Self::from_proof(cs.namespace(|| "verify proof_L"), proof_L, transcript)?;
-    nivc_L.inputize(cs.namespace(|| "inputize nivc_L"))?;
-    let (nivc_R, scalar_mul_instances_R) =
-      Self::from_proof(cs.namespace(|| "verify proof_R"), proof_R, transcript)?;
-    nivc_R.inputize(cs.namespace(|| "inputize nivc_R"))?;
+    let nivc_L = Self::from_proof(cs.namespace(|| "verify proof_L"), pp, proof_L, transcript)?;
+    let nivc_R = Self::from_proof(cs.namespace(|| "verify proof_R"), pp, proof_R, transcript)?;
 
     let AllocatedNIVCState {
       io: io_L,
       accs: accs_L,
       acc_sm: acc_sm_L,
-      ..
+      hash: hash_L,
     } = nivc_L;
     let AllocatedNIVCState {
       io: io_R,
       accs: accs_R,
       acc_sm: acc_sm_R,
-      ..
+      hash: hash_R,
     } = nivc_R;
 
     let AllocatedNIVCMergeProof {
-      nivc_merge_proofs,
       sm_merge_proof,
+      nivc_merge_proofs,
     } = merge_proof;
 
-    let num_accs = nivc_merge_proofs.len();
-
-    let mut scalar_mul_instances_merge = Vec::with_capacity(3 * num_accs);
-
-    // merge the accumulators from both states.
-    let accs_next = zip_with!(
-      (accs_L, accs_R, nivc_merge_proofs.into_iter().enumerate()),
-      |acc_L, acc_R, fold_proof_i| {
-        let (i, fold_proof) = fold_proof_i;
-        let (acc_next, scalar_mul_instances) = acc_L.merge(
-          cs.namespace(|| format!("merge acc_L[{i}] acc_R[{i}]")),
-          acc_R,
-          fold_proof,
-          transcript,
-        )?;
-
-        scalar_mul_instances_merge.extend(scalar_mul_instances);
-
-        Ok(acc_next)
-      }
-    )
-    .collect::<Result<Vec<_>, _>>()?;
-
-    let acc_sm_merge = acc_sm_L.merge(
+    let acc_sm = acc_sm_L.merge(
       cs.namespace(|| "merge acc_sm_L acc_sm_R"),
       acc_sm_R,
       sm_merge_proof,
       transcript,
     )?;
 
-    let io_next = io_L.merge(cs.namespace(|| "merge io"), io_R)?;
-
-    let scalar_mul_instances = chain!(
-      scalar_mul_instances_L,
-      scalar_mul_instances_R,
-      scalar_mul_instances_merge
-    );
-
-    let acc_sm_next = acc_sm_merge.fold(
-      cs.namespace(|| "fold scalar_mul_instances"),
-      scalar_mul_instances,
-      sm_fold_proofs,
+    // merge the accumulators from both states.
+    let (accs_next, acc_sm) = AllocatedRelaxedR1CSInstance::merge_many(
+      cs.namespace(|| "merge many"),
+      accs_L,
+      accs_R,
+      acc_sm,
+      nivc_merge_proofs,
       transcript,
     )?;
 
+    let io_next = io_L.merge(cs.namespace(|| "merge io"), io_R)?;
+
     let nivc_next = Self::new(
       cs.namespace(|| "state merge"),
+      pp,
       io_next,
       accs_next,
-      acc_sm_next,
+      acc_sm,
     )?;
-    nivc_next.inputize(cs.namespace(|| "inputize nivc_next"))?;
+
+    // Set public IO to be the hashes of the two input states, and the hash of the next state
+    hash_L.inputize(cs.namespace(|| "inputize hash_L"))?;
+    hash_R.inputize(cs.namespace(|| "inputize hash_R"))?;
+    nivc_next
+      .hash
+      .inputize(cs.namespace(|| "inputize hash_next"))?;
 
     Ok(nivc_next)
   }
@@ -460,5 +421,67 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
 
   pub fn program_counter(&self) -> AllocatedNum<F> {
     self.pc_in.clone()
+  }
+}
+
+impl<E: Engine> AllocatedNIVCState<E> {
+  pub fn alloc<CS, F>(
+    mut cs: CS,
+    pp: &AllocatedNum<E::Scalar>,
+    state: F,
+  ) -> Result<Self, SynthesisError>
+  where
+    CS: ConstraintSystem<E::Scalar>,
+    F: FnOnce() -> NIVCStateInstance<E>,
+  {
+    let NIVCStateInstance { io, accs, acc_sm } = state();
+
+    let io = AllocatedNIVCIO::alloc_infallible(cs.namespace(|| "alloc io"), || io);
+    let accs = accs
+      .into_iter()
+      .enumerate()
+      .map(|(i, acc)| {
+        AllocatedRelaxedR1CSInstance::alloc_infallible(
+          cs.namespace(|| format!("alloc acc[{i}]")),
+          || acc,
+        )
+      })
+      .collect();
+    let acc_sm =
+      AllocatedScalarMulAccumulator::alloc_infallible(cs.namespace(|| "alloc W"), || acc_sm);
+
+    // TODO: unwrap
+    Self::new(cs.namespace(|| "instance with hash"), pp, io, accs, acc_sm)
+  }
+}
+
+impl<E: Engine> AllocatedNIVCStateProof<E> {
+  pub fn alloc_infallible<CS, F>(mut cs: CS, proof: F) -> Self
+  where
+    CS: ConstraintSystem<E::Scalar>,
+    F: FnOnce() -> NIVCStateProof<E>,
+  {
+    let NIVCStateProof {
+      state,
+      hash_input,
+      W,
+      index,
+      nifs_fold_proof,
+    } = proof();
+
+    let state = AllocatedNIVCState::alloc_infallible(cs.namespace(|| "alloc state"), || state);
+    let hash_input =
+      hash_input.map(|h| AllocatedNum::alloc_infallible(cs.namespace(|| "alloc hash input"), || h));
+    let W = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc W"), || W);
+    let fold_proof =
+      AllocatedFoldProof::alloc_infallible(cs.namespace(|| "alloc fold_proof"), || nifs_fold_proof);
+
+    Self {
+      state,
+      hash_input,
+      W,
+      index,
+      fold_proof,
+    }
   }
 }

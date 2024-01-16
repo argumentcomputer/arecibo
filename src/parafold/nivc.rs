@@ -1,12 +1,14 @@
 use ff::PrimeField;
-use itertools::{chain, Itertools};
+use itertools::chain;
 
-use crate::parafold::nifs::{FoldProof, RelaxedR1CS, R1CS};
-use crate::parafold::prover::cyclefold::{ScalarMulAccumulator, ScalarMulInstance};
+use crate::parafold::nifs::{FoldProof, MergeProof, RelaxedR1CS, RelaxedR1CSInstance, R1CS};
+use crate::parafold::prover::cyclefold::{
+  ScalarMulAccumulator, ScalarMulAccumulatorInstance, ScalarMulMergeProof,
+};
 use crate::provider::pedersen::Commitment;
 use crate::r1cs::R1CSShape;
 use crate::traits::Engine;
-use crate::{zip_with, CommitmentKey};
+use crate::CommitmentKey;
 
 #[derive(Debug, Clone)]
 pub struct NIVCIO<F: PrimeField> {
@@ -19,103 +21,135 @@ pub struct NIVCIO<F: PrimeField> {
 #[derive(Debug)]
 pub struct NIVCState<E: Engine> {
   io: NIVCIO<E::Scalar>,
-  accs: Vec<Option<RelaxedR1CS<E>>>,
+  accs: Vec<RelaxedR1CS<E>>,
   acc_sm: ScalarMulAccumulator<E>,
 }
 
-pub struct NIVCStateProof<E: Engine> {
-  state: NIVCState<E>,
-  hash_input_prev: [E::Scalar; 2],
-  W: Vec<E::Scalar>,
-  W_comm: Commitment<E>,
-  index_prev: usize,
-}
-
 #[derive(Debug)]
-pub struct NIVCStep<E: Engine> {
+pub struct NIVCStateInstance<E: Engine> {
   io: NIVCIO<E::Scalar>,
+  accs: Vec<RelaxedR1CSInstance<E>>,
+  acc_sm: ScalarMulAccumulatorInstance<E>,
+}
+
+pub struct NIVCStateUpdateProof<E: Engine> {
+  index: usize,
+  hash_input: [E::Scalar; 2],
   W: Vec<E::Scalar>,
   W_comm: Commitment<E>,
 }
 
-pub struct NIVCFoldProof<E: Engine> {
+pub struct NIVCStateProof<E: Engine> {
+  state: NIVCStateInstance<E>,
+  hash_input: [E::Scalar; 2],
   W: Commitment<E>,
-  T: Commitment<E>,
+  index: usize,
+  nifs_fold_proof: FoldProof<E>,
 }
 
 pub struct NIVCMergeProof<E: Engine> {
-  Ts: Vec<Commitment<E>>,
+  sm_merge_proof: ScalarMulMergeProof<E>,
+  nivc_merge_proof: Vec<MergeProof<E>>,
 }
 
 impl<E: Engine> NIVCState<E> {
-  pub fn fold(
+  pub fn update(
+    mut self,
+    ck: &CommitmentKey<E>,
+    pp: &E::Scalar,
+    shapes: &[R1CSShape<E>],
+    proof: NIVCStateProof<E>,
+    transcript: &mut E::TE,
+  ) -> (Self, NIVCStateProof<E>) {
+    let self_instance_curr = self.instance();
+    let hash_curr = self_instance_curr.hash(pp);
+
+    let NIVCState { io, accs, acc_sm } = self;
+
+    let NIVCStateUpdateProof {
+      index,
+      hash_input,
+      W,
+      W_comm,
+    } = proof;
+
+    let [hash_init, hash_prev] = &hash_input;
+    let X = vec![*hash_init, *hash_prev, hash_curr];
+
+    let circuit_new = R1CS::new(X, W_comm.clone(), W);
+
+    let shape_new = &shapes[index];
+    // TODO: remove clone
+    let acc = accs[index].clone();
+
+    let (acc_curr, acc_sm, nifs_fold_proof) =
+      acc.fold(ck, shape_new, &circuit_new, acc_sm, transcript);
+
+    accs[index] = acc_curr;
+
+    let self_next = Self { io, accs, acc_sm };
+
+    let nivc_fold_proof = NIVCStateProof {
+      state: self_instance_curr,
+      hash_input,
+      W: W_comm,
+      index,
+      nifs_fold_proof,
+    };
+
+    (self_next, nivc_fold_proof)
+  }
+
+  fn merge(
+    mut self,
+    other: Self,
     ck: &CommitmentKey<E>,
     shapes: &[R1CSShape<E>],
-    mut nivc_curr: Self,
-    // TODO: This should be a reference to not release the memory
-    nivc_new: NIVCStep<E>,
     transcript: &mut E::TE,
-  ) -> (Self, FoldProof<E>, [ScalarMulInstance<E>; 2]) {
+  ) -> (Self, NIVCMergeProof<E>) {
     let Self {
-      io: io_curr,
-      accs: mut accs,
-    } = nivc_curr;
-    let NIVCStep {
-      io: io_new,
-      W: W_new,
-      W_comm: W_comm_new,
-    } = nivc_new;
+      io: io_L,
+      accs: accs_L,
+      acc_sm: acc_sm_L,
+    } = self;
+    let Self {
+      io: io_R,
+      accs: accs_R,
+      acc_sm: acc_sm_R,
+    } = other;
 
-    let circuit_new = R1CS::new(io_new.X(), W_comm_new, W_new);
+    let (acc_sm_merged, sm_merge_proof) = acc_sm_L.merge(acc_sm_R, transcript);
 
-    let index = io_new.program_counter();
-    let shape = &shapes[index];
-    let acc_curr = accs[index].unwrap_or_else(|| RelaxedR1CS::default(shape));
+    let (accs_next, acc_sm_next, nivc_merge_proof) =
+      RelaxedR1CS::merge_many(ck, shapes, accs_L, accs_R, acc_sm_merged, transcript);
 
-    let (acc_next, fold_proof, scalar_mul_instances) =
-      acc_curr.fold(ck, shape, &circuit_new, transcript);
-
-    let io_next = io_curr.merge(io_new);
-
-    accs[index] = Some(acc_next);
-
-    (Self { io: io_next, accs }, fold_proof, scalar_mul_instances)
+    let io_next = io_L.merge(io_R);
+    let self_next = Self {
+      io: io_next,
+      accs: accs_next,
+      acc_sm: acc_sm_next,
+    };
+    let merge_proof = NIVCMergeProof {
+      sm_merge_proof,
+      nivc_merge_proof,
+    };
+    (self_next, merge_proof)
   }
-  //
-  // pub fn merge(
-  //   ck: &CommitmentKey<E>,
-  //   shapes: &[R1CSShape<E>],
-  //   mut nivc_curr: Self,
-  //   nivc_new: &Self,
-  //   transcript: &mut E::TE,
-  // ) -> (Self, Vec<FoldProof<E>>, Vec<ScalarMulInstance<E>>) {
-  //   let Self {
-  //     io: io_curr,
-  //     accs: mut accs_curr,
-  //   } = nivc_curr;
-  //   let Self {
-  //     io: io_new,
-  //     accs: accs_new,
-  //   } = nivc_new;
-  //
-  //   let io_next = io_curr.merge(io_new.clone());
-  //
-  //   let (accs_new, merge_proofs, scalar_mul_instances): (Vec<_>, Vec<_>, Vec<_>) =
-  //     zip_with!((accs_curr, accs_new, shapes), |acc_curr, acc_new, shape| {
-  //       acc_curr.merge(ck, shape, acc_new, transcript)
-  //     })
-  //     .multiunzip();
-  //   let scalar_mul_instances = scalar_mul_instances.into_iter().flatten().collect();
-  //
-  //   (
-  //     Self {
-  //       io: io_next,
-  //       accs: accs_new,
-  //     },
-  //     merge_proofs,
-  //     scalar_mul_instances,
-  //   )
-  // }
+
+  fn instance(&self) -> NIVCStateInstance<E> {
+    NIVCStateInstance {
+      io: self.io.clone(),
+      accs: self.accs.iter().map(|acc| acc.instance().clone()).collect(),
+      acc_sm: self.acc_sm.instance(),
+    }
+  }
+}
+
+impl<E: Engine> NIVCStateInstance<E> {
+  /// compute the hash of the state to be passed as public input/output
+  fn hash(&self, _pp: &E::Scalar) -> E::Scalar {
+    todo!()
+  }
 }
 
 impl<F: PrimeField> NIVCIO<F> {

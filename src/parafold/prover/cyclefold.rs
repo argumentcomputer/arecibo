@@ -1,26 +1,5 @@
-use crate::traits::{Engine, TranscriptEngineTrait};
+use crate::traits::Engine;
 use crate::Commitment;
-
-pub struct ScalarMulInstance<E: Engine> {
-  A: Commitment<E>,
-  B: Commitment<E>,
-  r: E::Scalar,
-  // C = A + r * B
-  C: Commitment<E>,
-}
-
-impl<E: Engine> ScalarMulInstance<E> {
-  pub fn new(
-    A: Commitment<E>,
-    B: Commitment<E>,
-    r: E::Scalar,
-    transcript: &mut E::TE,
-  ) -> (Commitment<E>, Self) {
-    let C = A + r * B;
-    transcript.absorb(b"C", &C);
-    (C.clone(), Self { A, B, r, C })
-  }
-}
 
 /// A proof containing the result of a non-native scalar multiplication performed on the cycle curve.
 ///
@@ -46,11 +25,23 @@ pub struct ScalarMulAccumulator<E: Engine> {
 }
 
 impl<E: Engine> ScalarMulAccumulator<E> {
-  pub fn fold(self) -> (Self, Vec<ScalarMulFoldProof<E>>) {
+  pub(crate) fn instance(&self) -> ScalarMulAccumulatorInstance<E> {
+    todo!()
+  }
+}
+
+impl<E: Engine> ScalarMulAccumulator<E> {
+  pub fn scalar_mul(
+    &mut self,
+    _A: Commitment<E>,
+    _B: Commitment<E>,
+    _r: E::Scalar,
+    _transcript: &mut E::TE,
+  ) -> (Commitment<E>, ScalarMulFoldProof<E>) {
     todo!()
   }
 
-  pub fn merge(self, other: Self) -> (Self, ScalarMulMergeProof<E>) {
+  pub fn merge(self, _other: Self, _transcript: &mut E::TE) -> (Self, ScalarMulMergeProof<E>) {
     todo!()
   }
 }
