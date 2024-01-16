@@ -86,7 +86,7 @@ jobs:
       # Create a `criterion-table` and write in commit comment
       - name: Run `criterion-table`
         run: |
-          cat supernova-ci-${{ env.BASE_COMMIT }}.json | criterion-table > BENCHMARKS.md
+          cat supernova-ci-${{ env.BASE_COMMIT }}.json supernova-ci-${{ github.sha }}.json | criterion-table > BENCHMARKS.md
       - name: Write bench on commit comment
         uses: peter-evans/commit-comment@v3
         with:

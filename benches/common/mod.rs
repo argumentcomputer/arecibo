@@ -15,10 +15,14 @@ impl BenchParams {
     let output_type = output_type_env().unwrap_or("stdout".into());
     match output_type.as_ref() {
       "pr-comment" => BenchmarkId::new(name, format!("StepCircuitSize-{}", self.step_size)),
-      "commit-comment" => BenchmarkId::new(
-        format!("ref={}", self.sha),
-        format!("{}-StepCircuitSize-{}", name, self.step_size),
-      ),
+      "commit-comment" => {
+        let mut short_sha = self.sha.to_owned();
+        short_sha.truncate(7);
+        BenchmarkId::new(
+          format!("ref={}", short_sha),
+          format!("{}-NumCons-{}", name, self.step_size),
+        )
+      }
       // TODO: refine "gh-pages"
       _ => BenchmarkId::new(
         name,
