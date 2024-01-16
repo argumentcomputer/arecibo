@@ -1,13 +1,12 @@
 use ff::PrimeField;
 
 use crate::parafold::nifs::{FoldProof, MergeProof, RelaxedR1CS, RelaxedR1CSInstance, R1CS};
-use crate::parafold::prover::cyclefold::{
+use crate::parafold::scalar_mul::{
   ScalarMulAccumulator, ScalarMulAccumulatorInstance, ScalarMulMergeProof,
 };
-use crate::provider::pedersen::Commitment;
 use crate::r1cs::R1CSShape;
 use crate::traits::{Engine, ROConstants};
-use crate::CommitmentKey;
+use crate::{Commitment, CommitmentKey};
 
 #[derive(Debug, Clone)]
 pub struct NIVCIO<F: PrimeField> {
@@ -53,17 +52,21 @@ pub struct NIVCMergeProof<E: Engine> {
 
 impl<E: Engine> NIVCState<E> {
   pub fn update(
-    mut self,
+    self,
     ck: &CommitmentKey<E>,
     hasher: &NIVCHasher<E>,
     shapes: &[R1CSShape<E>],
-    proof: NIVCStateProof<E>,
+    proof: NIVCStateUpdateProof<E>,
     transcript: &mut E::TE,
   ) -> (Self, NIVCStateProof<E>) {
     let self_instance_curr = self.instance();
     let hash_curr = self_instance_curr.hash(hasher);
 
-    let NIVCState { io, accs, acc_sm } = self;
+    let NIVCState {
+      io,
+      mut accs,
+      acc_sm,
+    } = self;
 
     let NIVCStateUpdateProof {
       index,
@@ -75,7 +78,7 @@ impl<E: Engine> NIVCState<E> {
     let [hash_init, hash_prev] = &hash_input;
     let X = vec![*hash_init, *hash_prev, hash_curr];
 
-    let circuit_new = R1CS::new(X, W_comm.clone(), W);
+    let circuit_new = R1CS::new(X, W_comm, W);
 
     let shape_new = &shapes[index];
     // TODO: remove clone
@@ -100,7 +103,7 @@ impl<E: Engine> NIVCState<E> {
   }
 
   fn merge(
-    mut self,
+    self,
     other: Self,
     ck: &CommitmentKey<E>,
     shapes: &[R1CSShape<E>],

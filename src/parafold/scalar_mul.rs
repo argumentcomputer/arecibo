@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::traits::Engine;
 use crate::Commitment;
 
@@ -9,25 +11,25 @@ use crate::Commitment;
 /// # TODO
 /// - Implement conversion to R1CS instance
 /// - Implement mapping from non-native point representation to suitable public inputs.
+#[derive(Debug, Clone)]
 pub struct ScalarMulFoldProof<E: Engine> {
   // witness W
   // fold proof T
+  _marker: PhantomData<E>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ScalarMulMergeProof<E: Engine> {
   // fold proof T
+  _marker: PhantomData<E>,
 }
 
+#[derive(Debug)]
 pub struct ScalarMulAccumulator<E: Engine> {
   // instance ScalarMulAccumulatorInstance
   // W
   // E
-}
-
-impl<E: Engine> ScalarMulAccumulator<E> {
-  pub(crate) fn instance(&self) -> ScalarMulAccumulatorInstance<E> {
-    todo!()
-  }
+  _marker: PhantomData<E>,
 }
 
 impl<E: Engine> ScalarMulAccumulator<E> {
@@ -44,9 +46,15 @@ impl<E: Engine> ScalarMulAccumulator<E> {
   pub fn merge(self, _other: Self, _transcript: &mut E::TE) -> (Self, ScalarMulMergeProof<E>) {
     todo!()
   }
+
+  pub(crate) fn instance(&self) -> ScalarMulAccumulatorInstance<E> {
+    todo!()
+  }
 }
 
+#[derive(Debug, Clone)]
 pub struct ScalarMulAccumulatorInstance<E: Engine> {
+  _marker: PhantomData<E>,
   // u
   // X
   // W_comm

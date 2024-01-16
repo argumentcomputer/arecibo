@@ -1,34 +1,32 @@
-use ff::{Field, PrimeField};
-
-use crate::parafold::prover::SelfState;
-use crate::r1cs::R1CSShape;
-use crate::traits::commitment::CommitmentEngineTrait;
-use crate::traits::{Engine, ROConstants, TranscriptEngineTrait};
-use crate::CommitmentKey;
-
+#[allow(dead_code)]
 mod circuit;
+#[allow(dead_code)]
 mod nifs;
+#[allow(dead_code)]
 mod nivc;
+#[allow(dead_code)]
 mod prover;
+#[allow(dead_code)]
+mod scalar_mul;
 
-pub struct ProvingKey<E: Engine> {
-  /// Commitment Key
-  ck: CommitmentKey<E>,
-  /// Random oracle constants used for hashing io of the self verification circuit.
-  ro_consts: ROConstants<E>,
+// pub struct ProvingKey<E: Engine> {
+//   /// Commitment Key
+//   ck: CommitmentKey<E>,
+//   /// Random oracle constants used for hashing io of the self verification circuit.
+//   ro_consts: ROConstants<E>,
 
-  /// Public Parameter digest
-  pp: E::Scalar,
-  /// Shape of the self verification circuit
-  shape: R1CSShape<E>,
-  /// Proving keys for each NIVC [StepCircuit]s
-  nivc: Vec<IVCProvingKey<E>>,
-}
+//   /// Public Parameter digest
+//   pp: E::Scalar,
+//   /// Shape of the self verification circuit
+//   shape: R1CSShape<E>,
+//   /// Proving keys for each NIVC [StepCircuit]s
+//   nivc: Vec<IVCProvingKey<E>>,
+// }
 
-pub struct IVCProvingKey<E: Engine> {
-  pp: E::Scalar,
-  shape: R1CSShape<E>,
-}
+// pub struct IVCProvingKey<E: Engine> {
+//   pp: E::Scalar,
+//   shape: R1CSShape<E>,
+// }
 //
 // #[derive(Clone)]
 // pub struct NIVCProof<E: Engine> {

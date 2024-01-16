@@ -13,14 +13,14 @@ use crate::zip_with;
 
 /// Allocated [R1CSInstance] to be folded into an [AllocatedRelaxedR1CSInstance].
 #[derive(Debug, Clone)]
-pub(in parafold) struct AllocatedR1CSInstance<'a, E: Engine> {
+pub(in crate::parafold) struct AllocatedR1CSInstance<'a, E: Engine> {
   X: Vec<&'a AllocatedNum<E::Scalar>>,
   W: AllocatedCommitment<E>,
 }
 
 /// Allocated [RelaxedR1CSInstance]
 #[derive(Debug, Clone)]
-pub(in parafold) struct AllocatedRelaxedR1CSInstance<E: Engine> {
+pub(in crate::parafold) struct AllocatedRelaxedR1CSInstance<E: Engine> {
   u: AllocatedNum<E::Scalar>,
   X: Vec<AllocatedNum<E::Scalar>>,
   W: AllocatedCommitment<E>,
@@ -30,14 +30,14 @@ pub(in parafold) struct AllocatedRelaxedR1CSInstance<E: Engine> {
 /// An allocated Nova folding proof, for either folding an [R1CSInstance] or a [RelaxedR1CSInstance] into
 /// another [RelaxedR1CSInstance]
 #[derive(Debug, Clone)]
-pub(in parafold) struct AllocatedFoldProof<E: Engine> {
+pub(in crate::parafold) struct AllocatedFoldProof<E: Engine> {
   T: AllocatedCommitment<E>,
   W_sm_proof: AllocatedScalarMulFoldProof<E>,
   E_sm_proof: AllocatedScalarMulFoldProof<E>,
 }
 
 #[derive(Debug, Clone)]
-pub(in parafold) struct AllocatedMergeProof<E: Engine> {
+pub(in crate::parafold) struct AllocatedMergeProof<E: Engine> {
   T: AllocatedCommitment<E>,
   W_sm_proof: AllocatedScalarMulFoldProof<E>,
   E1_sm_proof: AllocatedScalarMulFoldProof<E>,

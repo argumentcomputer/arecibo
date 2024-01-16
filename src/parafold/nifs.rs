@@ -1,11 +1,10 @@
 use ff::Field;
-use itertools::zip_eq;
+use itertools::*;
 use rayon::prelude::*;
 
-use crate::parafold::prover::cyclefold::{ScalarMulAccumulator, ScalarMulFoldProof};
+use crate::parafold::scalar_mul::{ScalarMulAccumulator, ScalarMulFoldProof};
 use crate::r1cs::R1CSShape;
-use crate::traits::commitment::CommitmentEngineTrait;
-use crate::traits::{Engine, TranscriptEngineTrait};
+use crate::traits::{Engine, TranscriptEngineTrait, TranscriptReprTrait};
 use crate::{zip_with, Commitment, CommitmentKey};
 
 /// A full R1CS accumulator for a circuit
@@ -23,6 +22,12 @@ impl<E: Engine> R1CS<E> {
       instance: R1CSInstance { X, W: W_comm },
       W,
     }
+  }
+}
+
+impl<E: Engine> TranscriptReprTrait<E::GE> for &R1CS<E> {
+  fn to_transcript_bytes(&self) -> Vec<u8> {
+    vec![]
   }
 }
 
@@ -84,7 +89,7 @@ impl<E: Engine> RelaxedR1CS<E> {
   /// Fold the proof for the previous state transition, producing an accumulator for the current state,
   /// and a proof to be consumed by the verifier.
   pub fn fold(
-    mut self,
+    self,
     ck: &CommitmentKey<E>,
     shape: &R1CSShape<E>,
     circuit_new: &R1CS<E>,
@@ -128,7 +133,7 @@ impl<E: Engine> RelaxedR1CS<E> {
       // W_next = W_curr + r * W_new
       let (W_next, W_sm_proof) = acc_sm.scalar_mul(W_curr, W_new.clone(), r, transcript);
       // E_comm_next = E_comm_curr + r * T
-      let (E_next, E_sm_proof) = acc_sm.scalar_mul(E_curr, T.clone(), r, transcript);
+      let (E_next, E_sm_proof) = acc_sm.scalar_mul(E_curr, T_comm.clone(), r, transcript);
 
       let instance_next = RelaxedR1CSInstance {
         W: W_next,
@@ -139,12 +144,16 @@ impl<E: Engine> RelaxedR1CS<E> {
       (instance_next, W_sm_proof, E_sm_proof)
     };
 
-    let W_next = zip_eq(W_curr.into_par_iter(), W_new.par_iter())
-      .map(|(w_curr, w_new)| w_curr + r * w_new)
-      .collect::<Vec<_>>();
-    let E_next = zip_eq(E_curr.into_par_iter(), T.par_iter())
-      .map(|(e_curr, e_new)| e_curr + r * e_new)
-      .collect::<Vec<_>>();
+    let W_next = zip_with!(
+      (W_curr.into_par_iter(), W_new.par_iter()),
+      |w_curr, w_new| w_curr + r * w_new
+    )
+    .collect::<Vec<_>>();
+    let E_next = zip_with!(
+      (E_curr.into_par_iter(), T.par_iter()),
+      |e_curr, e_new| e_curr + r * e_new
+    )
+    .collect::<Vec<_>>();
 
     let acc_next = Self {
       instance: instance_next,
@@ -185,11 +194,19 @@ impl<E: Engine> RelaxedR1CS<E> {
       }
     )
     .unzip();
-    transcript.absorb(b"T", &T_comms);
+    for T_comm in &T_comms {
+      transcript.absorb(b"T", T_comm);
+    }
     let r = transcript.squeeze(b"r").unwrap();
 
-    let (accs_next, merge_proofs): (Vec<_>, Vec<_>) =
-      zip_with!((accs_L, accs_R, Ts, T_comms), |acc_L, acc_R, T, T_comm| {
+    let (accs_next, merge_proofs): (Vec<_>, Vec<_>) = zip_with!(
+      (
+        accs_L.into_iter(),
+        accs_R.into_iter(),
+        Ts.iter(),
+        T_comms.into_iter()
+      ),
+      |acc_L, acc_R, T, T_comm| {
         let Self {
           instance: instance_L,
           W: W_L,
@@ -201,9 +218,9 @@ impl<E: Engine> RelaxedR1CS<E> {
           E: E_R,
         } = acc_R;
 
-        let W_next = zip_eq(W_L.into_par_iter(), W_R.par_iter())
-          .map(|(w_L, w_R)| w_L + r * w_R)
-          .collect::<Vec<_>>();
+        let W_next = zip_with!((W_L.into_par_iter(), W_R.par_iter()), |w_L, w_R| w_L
+          + r * w_R)
+        .collect::<Vec<_>>();
         let E_next = zip_with!(
           (E_L.into_par_iter(), T.par_iter(), E_R.par_iter()),
           |e_L, t, e_R| {
@@ -257,26 +274,27 @@ impl<E: Engine> RelaxedR1CS<E> {
         };
 
         let merge_proof = MergeProof {
-          T,
+          T: T_comm,
           W_sm_proof,
           E1_sm_proof,
           E2_sm_proof,
         };
         (acc_next, merge_proof)
-      })
-      .unzip();
+      }
+    )
+    .unzip();
 
     (accs_next, acc_sm, merge_proofs)
   }
 
-  fn compute_fold_proof<E: Engine>(
-    &mut self,
+  fn compute_fold_proof(
+    &self,
     _ck: &CommitmentKey<E>,
     _shape: &R1CSShape<E>,
     _u_new: Option<E::Scalar>,
     _X_new: &[E::Scalar],
     _W_new: &[E::Scalar],
-  ) -> (&[E::Scalar], FoldProof<E>) {
+  ) -> (Vec<E::Scalar>, Commitment<E>) {
     // let T_comm = CE::<E>::commit(ck, &T);
     todo!()
   }
