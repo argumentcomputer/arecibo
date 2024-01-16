@@ -2,7 +2,7 @@ use bellpepper_core::boolean::AllocatedBit;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
-use itertools::{chain, zip_eq};
+use itertools::zip_eq;
 use pairing::Engine;
 
 use crate::gadgets::utils::{alloc_num_equals, alloc_zero};
@@ -15,6 +15,7 @@ use crate::parafold::circuit::scalar_mul::{
 use crate::parafold::circuit::transcript::AllocatedTranscript;
 use crate::parafold::nivc::{NIVCStateInstance, NIVCStateProof, NIVCIO};
 use crate::traits::circuit_supernova::EnforcingStepCircuit;
+use crate::traits::ROConstantsCircuit;
 
 /// The input and output of a NIVC computation over one or more steps.
 ///
@@ -66,7 +67,7 @@ pub struct AllocatedNIVCMergeProof<E: Engine> {
 impl<E: Engine> AllocatedNIVCState<E> {
   fn new<CS>(
     mut cs: CS,
-    pp: &AllocatedNum<E::Scalar>,
+    hasher: &NIVCHasher<E>,
     io: AllocatedNIVCIO<E::Scalar>,
     accs: Vec<AllocatedRelaxedR1CSInstance<E>>,
     acc_sm: AllocatedScalarMulAccumulator<E>,
@@ -74,7 +75,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let hash = Self::hash(cs.namespace(|| "hash"), pp, &io, &accs, &acc_sm)?;
+    let hash = Self::hash(cs.namespace(|| "hash"), hasher, &io, &accs, &acc_sm)?;
     Ok(Self {
       io,
       accs,
@@ -86,7 +87,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
   /// Compute the hash of the parts of the state
   fn hash<CS>(
     mut cs: CS,
-    _pp: &AllocatedNum<E::Scalar>,
+    _hasher: &NIVCHasher<E>,
     _io: &AllocatedNIVCIO<E::Scalar>,
     _accs: &[AllocatedRelaxedR1CSInstance<E>],
     _acc_sm: &AllocatedScalarMulAccumulator<E>,
@@ -104,7 +105,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
   /// Loads a previously proved state from a proof of its correctness
   fn from_proof<CS>(
     mut cs: CS,
-    pp: &AllocatedNum<E::Scalar>,
+    hasher: &NIVCHasher<E>,
     proof: AllocatedNIVCStateProof<E>,
     transcript: &mut AllocatedTranscript<E>,
   ) -> Result<Self, SynthesisError>
@@ -173,7 +174,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
 
     Ok(Self::new(
       cs.namespace(|| "state curr"),
-      pp,
+      hasher,
       io_curr,
       accs_curr,
       acc_sm_curr,
@@ -182,7 +183,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
 
   pub fn new_step<CS, SF>(
     mut cs: CS,
-    pp: &AllocatedNum<E::Scalar>,
+    hasher: &NIVCHasher<E>,
     proof: AllocatedNIVCStateProof<E>,
     step_circuit: SF,
     transcript: &mut AllocatedTranscript<E>,
@@ -192,7 +193,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
     SF: EnforcingStepCircuit<E::Scalar>,
   {
     // Fold proof for previous state
-    let nivc_curr = Self::from_proof(cs.namespace(|| "verify self"), pp, proof, transcript)?;
+    let nivc_curr = Self::from_proof(cs.namespace(|| "verify self"), hasher, proof, transcript)?;
 
     let AllocatedNIVCState {
       io: io_curr,
@@ -224,7 +225,7 @@ impl<E: Engine> AllocatedNIVCState<E> {
     // Define output state
     let nivc_next = AllocatedNIVCState::new(
       cs.namespace(|| "state next"),
-      pp,
+      hasher,
       io_next,
       accs_curr,
       acc_sm_curr,
@@ -407,21 +408,6 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
         );
       });
   }
-
-  pub fn X(&self) -> Vec<&AllocatedNum<F>> {
-    let AllocatedNIVCIO {
-      pc_in,
-      z_in,
-      pc_out,
-      z_out,
-    } = self;
-
-    chain!([pc_in], z_in.iter(), [pc_out], z_out.iter()).collect()
-  }
-
-  pub fn program_counter(&self) -> AllocatedNum<F> {
-    self.pc_in.clone()
-  }
 }
 
 impl<E: Engine> AllocatedNIVCState<E> {
@@ -484,4 +470,10 @@ impl<E: Engine> AllocatedNIVCStateProof<E> {
       fold_proof,
     }
   }
+}
+
+pub struct NIVCHasher<E: Engine> {
+  ro_consts: ROConstantsCircuit<E>,
+  pp: AllocatedNum<E::Scalar>,
+  arity: usize,
 }

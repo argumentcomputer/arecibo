@@ -153,26 +153,6 @@ impl<E: Engine> NIVCStateInstance<E> {
 }
 
 impl<F: PrimeField> NIVCIO<F> {
-  pub fn program_counter(&self) -> usize {
-    self.pc_in
-  }
-  pub fn X(&self) -> Vec<F> {
-    let Self {
-      pc_in,
-      z_in,
-      pc_out,
-      z_out,
-    } = self;
-
-    chain!(
-      [F::from(*pc_in as u64)],
-      z_in.iter().cloned(),
-      [F::from(*pc_out as u64)],
-      z_out.iter().cloned()
-    )
-    .collect()
-  }
-
   pub fn merge(self, other: Self) -> Self {
     assert_eq!(self.pc_out, other.pc_in);
     assert_eq!(self.z_out, other.z_in);
