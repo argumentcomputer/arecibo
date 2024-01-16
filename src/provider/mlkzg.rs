@@ -7,6 +7,7 @@ use crate::{
     non_hiding_kzg::{KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
+    util::iterators::DoubleEndedIteratorExt as _,
   },
   spartan::polys::univariate::UniPoly,
   traits::{
@@ -164,30 +165,14 @@ where
         .to_affine()
     };
 
-    let kzg_open_batch = |f: &[Vec<E::Fr>],
+    let kzg_open_batch = |f: Vec<Vec<E::Fr>>,
                           u: &[E::Fr],
                           transcript: &mut <NE as NovaEngine>::TE|
      -> (Vec<E::G1Affine>, Vec<Vec<E::Fr>>) {
-      let scalar_vector_muladd = |a: &mut Vec<E::Fr>, v: &Vec<E::Fr>, s: E::Fr| {
-        assert!(a.len() >= v.len());
-        #[allow(clippy::disallowed_methods)]
-        a.par_iter_mut()
-          .zip(v.par_iter())
-          .for_each(|(c, v)| *c += s * v);
-      };
-
-      let kzg_compute_batch_polynomial = |f: &[Vec<E::Fr>], q: E::Fr| -> Vec<E::Fr> {
-        let k = f.len(); // Number of polynomials we're batching
-
-        let q_powers = Self::batch_challenge_powers(q, k);
-
-        // Compute B(x) = f[0] + q*f[1] + q^2 * f[2] + ... q^(k-1) * f[k-1]
-        let mut B = f[0].clone();
-        for i in 1..k {
-          scalar_vector_muladd(&mut B, &f[i], q_powers[i]); // B += q_powers[i] * f[i]
-        }
-
-        B
+      let kzg_compute_batch_polynomial = |f: Vec<Vec<E::Fr>>, q: E::Fr| -> Vec<E::Fr> {
+        // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
+        let B: UniPoly<E::Fr> = f.into_iter().map(UniPoly::new).rlc(&q);
+        B.coeffs
       };
       ///////// END kzg_open_batch closure helpers
 
@@ -199,7 +184,7 @@ where
       let mut v = vec![vec!(E::Fr::ZERO; k); t];
       v.par_iter_mut().enumerate().for_each(|(i, v_i)| {
         // for each point u
-        v_i.par_iter_mut().zip_eq(f).for_each(|(v_ij, f)| {
+        v_i.par_iter_mut().zip_eq(&f).for_each(|(v_ij, f)| {
           // for each poly f (except the last one - since it is constant)
           *v_ij = UniPoly::ref_cast(f).evaluate(&u[i]);
         });
@@ -259,7 +244,7 @@ where
     let u = vec![r, -r, r * r];
 
     // Phase 3 -- create response
-    let (w, evals) = kzg_open_batch(&polys, &u, transcript);
+    let (w, evals) = kzg_open_batch(polys, &u, transcript);
 
     Ok(EvaluationArgument { comms, w, evals })
   }
