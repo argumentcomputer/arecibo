@@ -4,6 +4,7 @@ use ff::{Field, PrimeField, PrimeFieldBits};
 use group::{prime::PrimeCurveAffine, Curve, Group as _};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rand_core::{CryptoRng, RngCore};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, marker::PhantomData, ops::Mul};
 
@@ -278,6 +279,20 @@ where
     Ok(UVKZGCommitment(C.to_affine()))
   }
 
+  /// Generate a commitment for a list of polynomials
+  #[allow(dead_code)]
+  pub fn batch_commit(
+    prover_param: impl Borrow<KZGProverKey<E>>,
+    polys: &[UVKZGPoly<E::Fr>],
+  ) -> Result<Vec<UVKZGCommitment<E>>, NovaError> {
+    let prover_param = prover_param.borrow();
+
+    polys
+      .into_par_iter()
+      .map(|poly| Self::commit(prover_param, poly))
+      .collect::<Result<Vec<UVKZGCommitment<E>>, NovaError>>()
+  }
+
   /// On input a polynomial `p` and a point `point`, outputs a proof for the
   /// same.
   pub fn open(
@@ -307,6 +322,31 @@ where
     ))
   }
 
+  /// Input a list of polynomials, and a same number of points,
+  /// compute a multi-opening for all the polynomials.
+  // This is a naive approach
+  // TODO: to implement a more efficient batch opening algorithm
+  #[allow(dead_code)]
+  pub fn batch_open(
+    prover_param: impl Borrow<KZGProverKey<E>>,
+    polynomials: &[UVKZGPoly<E::Fr>],
+    points: &[E::Fr],
+  ) -> Result<(Vec<UVKZGProof<E>>, Vec<UVKZGEvaluation<E>>), NovaError> {
+    if polynomials.len() != points.len() {
+      // TODO: a better Error
+      return Err(NovaError::PCSError(PCSError::LengthError));
+    }
+    let mut batch_proof = vec![];
+    let mut evals = vec![];
+    for (poly, point) in polynomials.iter().zip_eq(points.iter()) {
+      let (proof, eval) = Self::open(prover_param.borrow(), poly, point)?;
+      batch_proof.push(proof);
+      evals.push(eval);
+    }
+
+    Ok((batch_proof, evals))
+  }
+
   /// Verifies that `value` is the evaluation at `x` of the polynomial
   /// committed inside `comm`.
   #[allow(dead_code, clippy::unnecessary_wraps)]
@@ -333,6 +373,62 @@ where
       .collect::<Vec<_>>();
     let pairing_result = E::multi_miller_loop(pairing_input_refs.as_slice()).final_exponentiation();
     Ok(pairing_result.is_identity().into())
+  }
+
+  /// Verifies that `value_i` is the evaluation at `x_i` of the polynomial
+  /// `poly_i` committed inside `comm`.
+  // This is a naive approach
+  // TODO: to implement the more efficient batch verification algorithm
+  #[allow(dead_code, clippy::unnecessary_wraps)]
+  pub fn batch_verify<R: RngCore + CryptoRng>(
+    verifier_params: impl Borrow<KZGVerifierKey<E>>,
+    multi_commitment: &[UVKZGCommitment<E>],
+    points: &[E::Fr],
+    values: &[UVKZGEvaluation<E>],
+    batch_proof: &[UVKZGProof<E>],
+    rng: &mut R,
+  ) -> Result<bool, NovaError> {
+    let verifier_params = verifier_params.borrow();
+
+    let mut total_c = <E::G1>::identity();
+    let mut total_w = <E::G1>::identity();
+
+    let mut randomizer = E::Fr::ONE;
+    // Instead of multiplying g and gamma_g in each turn, we simply accumulate
+    // their coefficients and perform a final multiplication at the end.
+    let mut g_multiplier = E::Fr::ZERO;
+    for (((c, z), v), proof) in multi_commitment
+      .iter()
+      .zip(points)
+      .zip(values)
+      .zip(batch_proof)
+    {
+      let w = proof.proof;
+      let mut temp = w.mul(*z);
+      temp += &c.0;
+      let c = temp;
+      g_multiplier += &(randomizer * v.0);
+      total_c += &c.mul(randomizer);
+      total_w += &w.mul(randomizer);
+      // We don't need to sample randomizers from the full field,
+      // only from 128-bit strings.
+      randomizer = E::Fr::from_u128(rand::Rng::gen::<u128>(rng));
+    }
+    total_c -= &verifier_params.g.mul(g_multiplier);
+
+    let mut affine_points = vec![E::G1Affine::identity(); 2];
+    E::G1::batch_normalize(&[-total_w, total_c], &mut affine_points);
+    let (total_w, total_c) = (affine_points[0], affine_points[1]);
+
+    let result = E::multi_miller_loop(&[
+      (&total_w, &verifier_params.beta_h.into()),
+      (&total_c, &verifier_params.h.into()),
+    ])
+    .final_exponentiation()
+    .is_identity()
+    .into();
+
+    Ok(result)
   }
 }
 
@@ -377,5 +473,48 @@ mod tests {
   #[test]
   fn end_to_end_test() {
     end_to_end_test_template::<halo2curves::bn256::Bn256>().expect("test failed for Bn256");
+  }
+
+  fn batch_check_test_template<E>() -> Result<(), NovaError>
+  where
+    E: MultiMillerLoop,
+    E::Fr: PrimeFieldBits,
+    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  {
+    for _ in 0..10 {
+      let mut rng = &mut thread_rng();
+
+      let degree = rng.gen_range(2..20);
+
+      let pp = UniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, degree);
+      let (ck, vk) = pp.trim(degree);
+
+      let mut comms = Vec::new();
+      let mut values = Vec::new();
+      let mut points = Vec::new();
+      let mut proofs = Vec::new();
+      for _ in 0..10 {
+        let mut rng = rng.clone();
+        let p = random(degree, &mut rng);
+        let comm = UVKZGPCS::<E>::commit(&ck, &p)?;
+        let point = E::Fr::random(rng);
+        let (proof, value) = UVKZGPCS::<E>::open(&ck, &p, &point)?;
+
+        assert!(UVKZGPCS::<E>::verify(&vk, &comm, &point, &proof, &value)?);
+        comms.push(comm);
+        values.push(value);
+        points.push(point);
+        proofs.push(proof);
+      }
+      assert!(UVKZGPCS::<E>::batch_verify(
+        &vk, &comms, &points, &values, &proofs, &mut rng
+      )?);
+    }
+    Ok(())
+  }
+
+  #[test]
+  fn batch_check_test() {
+    batch_check_test_template::<halo2curves::bn256::Bn256>().expect("test failed for Bn256");
   }
 }
