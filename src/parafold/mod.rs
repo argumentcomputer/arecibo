@@ -1,13 +1,19 @@
 #[allow(dead_code)]
 mod circuit;
 #[allow(dead_code)]
-mod nifs;
+mod cycle_fold;
+// #[allow(dead_code)]
+// mod ecc;
+#[allow(dead_code)]
+mod nifs_primary;
+// #[allow(dead_code)]
+// mod nifs_secondary;
 #[allow(dead_code)]
 mod nivc;
 #[allow(dead_code)]
 mod prover;
 #[allow(dead_code)]
-mod scalar_mul;
+mod transcript;
 
 // pub struct ProvingKey<E: Engine> {
 //   /// Commitment Key

@@ -1,44 +1,37 @@
+use crate::parafold::cycle_fold::circuit::{
+  AllocatedGroupElement, AllocatedScalarMulAccumulator, AllocatedScalarMulFoldProof,
+};
+use crate::parafold::nifs_primary::prover::{FoldProof, RelaxedR1CSInstance};
+use crate::parafold::transcript::circuit::AllocatedTranscript;
+use crate::traits::Engine;
+use crate::zip_with;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use itertools::*;
-
-use crate::parafold::circuit::scalar_mul::{
-  AllocatedCommitment, AllocatedScalarMulAccumulator, AllocatedScalarMulFoldProof,
-};
-use crate::parafold::circuit::transcript::AllocatedTranscript;
-use crate::parafold::nifs::{FoldProof, RelaxedR1CSInstance};
-use crate::traits::Engine;
-use crate::zip_with;
-
-/// Allocated [R1CSInstance] to be folded into an [AllocatedRelaxedR1CSInstance].
-#[derive(Debug, Clone)]
-pub struct AllocatedR1CSInstance<E: Engine> {
-  X: Vec<AllocatedNum<E::Scalar>>,
-  W: AllocatedCommitment<E>,
-}
 
 /// Allocated [RelaxedR1CSInstance]
 #[derive(Debug, Clone)]
 pub struct AllocatedRelaxedR1CSInstance<E: Engine> {
   u: AllocatedNum<E::Scalar>,
   X: Vec<AllocatedNum<E::Scalar>>,
-  W: AllocatedCommitment<E>,
-  E: AllocatedCommitment<E>,
+  W: AllocatedGroupElement<E>,
+  E: AllocatedGroupElement<E>,
 }
 
 /// An allocated Nova folding proof, for either folding an [R1CSInstance] or a [RelaxedR1CSInstance] into
 /// another [RelaxedR1CSInstance]
 #[derive(Debug, Clone)]
 pub struct AllocatedFoldProof<E: Engine> {
-  T: AllocatedCommitment<E>,
+  W: AllocatedGroupElement<E>,
+  T: AllocatedGroupElement<E>,
   W_sm_proof: AllocatedScalarMulFoldProof<E>,
   E_sm_proof: AllocatedScalarMulFoldProof<E>,
 }
 
 #[derive(Debug, Clone)]
 pub struct AllocatedMergeProof<E: Engine> {
-  T: AllocatedCommitment<E>,
+  T: AllocatedGroupElement<E>,
   W_sm_proof: AllocatedScalarMulFoldProof<E>,
   E1_sm_proof: AllocatedScalarMulFoldProof<E>,
   E2_sm_proof: AllocatedScalarMulFoldProof<E>,
@@ -51,11 +44,13 @@ impl<E: Engine> AllocatedFoldProof<E> {
     F: FnOnce() -> FoldProof<E>,
   {
     let FoldProof {
+      W,
       T,
       W_sm_proof,
       E_sm_proof,
     } = fold_proof();
-    let T = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc T"), || T);
+    let W = AllocatedGroupElement::alloc_infallible(cs.namespace(|| "alloc W"), || W);
+    let T = AllocatedGroupElement::alloc_infallible(cs.namespace(|| "alloc T"), || T);
     let W_sm_proof =
       AllocatedScalarMulFoldProof::alloc_infallible(cs.namespace(|| "alloc W_sm_proof"), || {
         W_sm_proof
@@ -65,16 +60,11 @@ impl<E: Engine> AllocatedFoldProof<E> {
         E_sm_proof
       });
     Self {
+      W,
       T,
       W_sm_proof,
       E_sm_proof,
     }
-  }
-}
-
-impl<E: Engine> AllocatedR1CSInstance<E> {
-  pub fn new(X: Vec<AllocatedNum<E::Scalar>>, W: AllocatedCommitment<E>) -> Self {
-    Self { X, W }
   }
 }
 
@@ -91,8 +81,8 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       .enumerate()
       .map(|(i, X)| AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc X[{i}]")), || X))
       .collect();
-    let W = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc W"), || W);
-    let E = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc E"), || E);
+    let W = AllocatedGroupElement::alloc_infallible(cs.namespace(|| "alloc W"), || W);
+    let E = AllocatedGroupElement::alloc_infallible(cs.namespace(|| "alloc E"), || E);
 
     Self { u, X, W, E }
   }
@@ -101,7 +91,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
   pub fn fold<CS>(
     self,
     mut cs: CS,
-    circuit_new: AllocatedR1CSInstance<E>,
+    X_new: Vec<AllocatedNum<E::Scalar>>,
     mut acc_sm: AllocatedScalarMulAccumulator<E>,
     fold_proof: AllocatedFoldProof<E>,
     transcript: &mut AllocatedTranscript<E>,
@@ -109,15 +99,17 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    transcript.absorb(cs.namespace(|| "absorb circuit_new"), &circuit_new)?;
-    let AllocatedR1CSInstance { X: X_new, W: W_new } = circuit_new;
-
     let AllocatedFoldProof {
+      W: W_new,
       T,
       W_sm_proof,
       E_sm_proof,
     } = fold_proof;
+
+    transcript.absorb(cs.namespace(|| "absorb W_new"), &W_new)?;
     transcript.absorb(cs.namespace(|| "absorb T"), &T)?;
+
+    let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
 
     let Self {
       W: W_curr,
@@ -125,7 +117,6 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       u: u_curr,
       X: X_curr,
     } = self;
-    let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
 
     // Linear combination of acc with new
     let u_next = u_curr.add(cs.namespace(|| "u_next"), &r)?;
@@ -186,7 +177,12 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       })
       .unzip();
 
-    transcript.absorb(cs.namespace(|| "absorb nifs_proofs"), &nifs_proofs)?;
+    for (i, nifs_proof) in nifs_proofs.iter().enumerate() {
+      transcript.absorb(
+        cs.namespace(|| format!("absorb nifs_proof[{i}]")),
+        nifs_proof,
+      )?;
+    }
 
     let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
 

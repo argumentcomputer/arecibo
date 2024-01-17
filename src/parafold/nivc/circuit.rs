@@ -5,14 +5,14 @@ use ff::{Field, PrimeField};
 use itertools::zip_eq;
 
 use crate::gadgets::utils::{alloc_num_equals, alloc_zero};
-use crate::parafold::circuit::nifs::{
-  AllocatedFoldProof, AllocatedMergeProof, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
+use crate::parafold::cycle_fold::circuit::{
+  AllocatedScalarMulAccumulator, AllocatedScalarMulMergeProof,
 };
-use crate::parafold::circuit::scalar_mul::{
-  AllocatedCommitment, AllocatedScalarMulAccumulator, AllocatedScalarMulMergeProof,
+use crate::parafold::nifs_primary::circuit::{
+  AllocatedFoldProof, AllocatedMergeProof, AllocatedRelaxedR1CSInstance,
 };
-use crate::parafold::circuit::transcript::AllocatedTranscript;
-use crate::parafold::nivc::{NIVCStateInstance, NIVCStateProof, NIVCIO};
+use crate::parafold::nivc::prover::{NIVCStateInstance, NIVCStateProof, NIVCIO};
+use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::circuit_supernova::EnforcingStepCircuit;
 use crate::traits::{Engine, ROConstantsCircuit};
 
@@ -46,8 +46,6 @@ pub struct AllocatedNIVCStateProof<E: Engine> {
   state: AllocatedNIVCState<E>,
   /// Inputs of the previous step
   hash_input: [AllocatedNum<E::Scalar>; 2],
-  /// Proof of circuit that produced `state`
-  W: AllocatedCommitment<E>,
   /// Index of the circuits that produced `state`
   index: usize,
   /// Proof for folding the previous circuit into `state.accs[index_prev]`
@@ -113,15 +111,10 @@ impl<E: Engine> AllocatedNIVCState<E> {
   {
     let AllocatedNIVCStateProof {
       state,
-      hash_input: hash_input_prev,
-      W,
+      hash_input: [h_init, h_prev],
       index: index_prev,
       fold_proof,
     } = proof;
-
-    let zero = alloc_zero(cs.namespace(|| "alloc zero"));
-
-    let [h_init, h_prev] = hash_input_prev;
 
     let AllocatedNIVCState {
       io: io_curr,
@@ -130,27 +123,25 @@ impl<E: Engine> AllocatedNIVCState<E> {
       hash: h_curr,
     } = state;
 
-    let X = vec![h_init.clone(), h_prev.clone(), h_curr];
+    // Handle base case
+    {
+      let zero = alloc_zero(cs.namespace(|| "alloc zero"));
 
-    let is_init = {
-      let h_init_is_zero = alloc_num_equals(cs.namespace(|| "h_init == 0"), &h_init, &zero)?;
-      let h_prev_is_zero = alloc_num_equals(cs.namespace(|| "h_prev == 0"), &h_prev, &zero)?;
-      AllocatedBit::and(
-        cs.namespace(|| "is_init = (h_init == 0) & (h_prev == 0)"),
-        &h_init_is_zero,
-        &h_prev_is_zero,
-      )?
-    };
+      let is_init = {
+        let h_init_is_zero = alloc_num_equals(cs.namespace(|| "h_init == 0"), &h_init, &zero)?;
+        let h_prev_is_zero = alloc_num_equals(cs.namespace(|| "h_prev == 0"), &h_prev, &zero)?;
+        AllocatedBit::and(
+          cs.namespace(|| "is_init = (h_init == 0) & (h_prev == 0)"),
+          &h_init_is_zero,
+          &h_prev_is_zero,
+        )?
+      };
 
-    io_curr.enforce_trivial(
-      cs.namespace(|| "is_init => (io_curr.in == io_curr.out)"),
-      &is_init,
-    );
-
-    // FIXME: replace with actual logic
-    // If base-case, then there isn't any proof for the previous iteration,
-    // so we enforce
-    let r1cs_new = AllocatedR1CSInstance::new(X, W);
+      io_curr.enforce_trivial(
+        cs.namespace(|| "is_init => (io_curr.in == io_curr.out)"),
+        &is_init,
+      );
+    }
 
     // FIXME: Use selector
     // let index = io_new.program_counter();
@@ -158,9 +149,14 @@ impl<E: Engine> AllocatedNIVCState<E> {
     // let acc_curr = selector.get(accs)
     let acc_prev = accs_prev[index_prev].clone();
 
+    let X_curr = vec![h_init.clone(), h_prev.clone(), h_curr];
+    for (i, x_curr) in X_curr.iter().enumerate() {
+      transcript.absorb(cs.namespace(|| format!("absorb X_curr[{i}]")), x_curr)?;
+    }
+
     let (acc_curr, acc_sm_curr) = acc_prev.fold(
       cs.namespace(|| "fold"),
-      r1cs_new,
+      X_curr,
       acc_sm_prev,
       fold_proof,
       transcript,
@@ -464,7 +460,6 @@ impl<E: Engine> AllocatedNIVCStateProof<E> {
     let NIVCStateProof {
       state,
       hash_input,
-      W,
       index,
       nifs_fold_proof,
     } = proof();
@@ -472,14 +467,12 @@ impl<E: Engine> AllocatedNIVCStateProof<E> {
     let state = AllocatedNIVCState::alloc(cs.namespace(|| "alloc state"), hasher, || state)?;
     let hash_input =
       hash_input.map(|h| AllocatedNum::alloc_infallible(cs.namespace(|| "alloc hash input"), || h));
-    let W = AllocatedCommitment::alloc_infallible(cs.namespace(|| "alloc W"), || W);
     let fold_proof =
       AllocatedFoldProof::alloc_infallible(cs.namespace(|| "alloc fold_proof"), || nifs_fold_proof);
 
     Ok(Self {
       state,
       hash_input,
-      W,
       index,
       fold_proof,
     })

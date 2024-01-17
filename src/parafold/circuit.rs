@@ -1,17 +1,3 @@
-// use bellpepper_core::num::AllocatedNum;
-// use bellpepper_core::{ConstraintSystem, SynthesisError};
-// use ff::{Field, PrimeField};
-//
-// use crate::gadgets::r1cs::AllocatedRelaxedR1CSInstance;
-// use crate::parafold::circuit::nivc::AllocatedNIVCIO;
-// use crate::parafold::circuit::transcript::AllocatedTranscript;
-// use crate::parafold::ProvingKey;
-// use crate::traits::{Engine, ROConstantsCircuit};
-//
-pub(in crate::parafold) mod nifs;
-pub(in crate::parafold) mod nivc;
-pub(in crate::parafold) mod scalar_mul;
-pub(in crate::parafold) mod transcript;
 // /// Given the state transition over the io
 // ///   `self_state = (vk_self, vk_nivc, self_acc, nivc_acc, nivc_io)`
 // /// self_io = {self_state_curr, self_state_next}

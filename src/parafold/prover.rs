@@ -1,3 +1,18 @@
+use crate::Engine;
+use crate::parafold::cycle_fold::prover::GroupElement;
+
+pub struct CommitmentKey<E: Engine> {
+  // ro for secondary circuit to compute the hash of the point
+  // ro_secondary 
+  ck: crate::CommitmentKey<E>,
+}
+
+impl<E: Engine> CommitmentKey<E> {
+  pub fn commit(&self, _elements: &[E::Scalar]) -> GroupElement<E> {
+    todo!()
+  }
+}
+
 // use bellpepper_core::ConstraintSystem;
 //
 // use crate::bellpepper::r1cs::NovaWitness;

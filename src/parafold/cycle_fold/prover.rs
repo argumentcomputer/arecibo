@@ -1,7 +1,19 @@
 use std::marker::PhantomData;
 
+use crate::parafold::transcript::prover::{Transcript, TranscriptRepresentable};
 use crate::traits::Engine;
-use crate::Commitment;
+
+#[derive(Debug, Clone)]
+pub struct GroupElement<E: Engine> {
+  point: E::GE,
+  hash: E::Base,
+}
+
+impl<E: Engine> TranscriptRepresentable<E::Scalar> for GroupElement<E> {
+  fn to_field_vec(&self) -> Vec<E::Scalar> {
+    todo!()
+  }
+}
 
 /// A proof for a non-native group operation C = A + x * B, where x is a native scalar
 /// and A, B, C, are non-native group elements
@@ -21,6 +33,8 @@ pub struct ScalarMulMergeProof<E: Engine> {
 
 #[derive(Debug)]
 pub struct ScalarMulAccumulator<E: Engine> {
+  // used to hash the incoming point
+  // ro_secondary
   // instance ScalarMulAccumulatorInstance
   // W: Vec<E::Base>
   // E: Vec<E::Base>
@@ -31,11 +45,11 @@ impl<E: Engine> ScalarMulAccumulator<E> {
   ///
   pub fn scalar_mul(
     &mut self,
-    _A: Commitment<E>,
-    _B: Commitment<E>,
-    _x: E::Scalar,
-    _transcript: &mut E::TE,
-  ) -> (Commitment<E>, ScalarMulFoldProof<E>) {
+    _A: &GroupElement<E>,
+    _B: &GroupElement<E>,
+    _x: &E::Scalar,
+    _transcript: &mut Transcript<E>,
+  ) -> (GroupElement<E>, ScalarMulFoldProof<E>) {
     // Compute C = A + x * B
     // Compute W proof of this operation
     // compute H(C) as the circuit representation of C, where H is Poseidon on the secondary curve
@@ -46,7 +60,11 @@ impl<E: Engine> ScalarMulAccumulator<E> {
   }
 
   /// Compute
-  pub fn merge(self, _other: Self, _transcript: &mut E::TE) -> (Self, ScalarMulMergeProof<E>) {
+  pub fn merge(
+    self,
+    _other: Self,
+    _transcript: &mut Transcript<E>,
+  ) -> (Self, ScalarMulMergeProof<E>) {
     // self and other will not need to be added to the transcript since they are obtained from an accumulator
     // we need to compute the T cross term vector
     // add T to transcript
