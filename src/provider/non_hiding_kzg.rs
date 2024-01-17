@@ -1,7 +1,9 @@
 //! Non-hiding variant of KZG10 scheme for univariate polynomials.
+use crate::zip_with_for_each;
 use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField, PrimeFieldBits};
 use group::{prime::PrimeCurveAffine, Curve, Group as _};
+use itertools::Itertools as _;
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rand_core::{CryptoRng, RngCore};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -397,23 +399,22 @@ where
     // Instead of multiplying g and gamma_g in each turn, we simply accumulate
     // their coefficients and perform a final multiplication at the end.
     let mut g_multiplier = E::Fr::ZERO;
-    for (((c, z), v), proof) in multi_commitment
-      .iter()
-      .zip(points)
-      .zip(values)
-      .zip(batch_proof)
-    {
-      let w = proof.proof;
-      let mut temp = w.mul(*z);
-      temp += &c.0;
-      let c = temp;
-      g_multiplier += &(randomizer * v.0);
-      total_c += &c.mul(randomizer);
-      total_w += &w.mul(randomizer);
-      // We don't need to sample randomizers from the full field,
-      // only from 128-bit strings.
-      randomizer = E::Fr::from_u128(rand::Rng::gen::<u128>(rng));
-    }
+    zip_with_for_each!(
+      into_iter,
+      (multi_commitment, points, values, batch_proof),
+      |c, z, v, proof| {
+        let w = proof.proof;
+        let mut temp = w.mul(*z);
+        temp += &c.0;
+        let c = temp;
+        g_multiplier += &(randomizer * v.0);
+        total_c += &c.mul(randomizer);
+        total_w += &w.mul(randomizer);
+        // We don't need to sample randomizers from the full field,
+        // only from 128-bit strings.
+        randomizer = E::Fr::from_u128(rand::Rng::gen::<u128>(rng));
+      }
+    );
     total_c -= &verifier_params.g.mul(g_multiplier);
 
     let mut affine_points = vec![E::G1Affine::identity(); 2];
