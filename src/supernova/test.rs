@@ -464,8 +464,8 @@ fn test_recursive_circuit_with<E1, E2>(
   secondary_params: &SuperNovaAugmentedCircuitParams,
   ro_consts1: ROConstantsCircuit<E2>,
   ro_consts2: ROConstantsCircuit<E1>,
-  num_constraints_primary: usize,
-  num_constraints_secondary: usize,
+  num_constraints_primary: &Expect,
+  num_constraints_secondary: &Expect,
 ) where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -480,7 +480,7 @@ fn test_recursive_circuit_with<E1, E2>(
     panic!("{}", e)
   }
   let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint());
-  assert_eq!(cs.num_constraints(), num_constraints_primary);
+  num_constraints_primary.assert_eq(&cs.num_constraints().to_string());
 
   // Initialize the shape and ck for the secondary
   let step_circuit2 = TrivialSecondaryCircuit::default();
@@ -498,7 +498,7 @@ fn test_recursive_circuit_with<E1, E2>(
     panic!("{}", e)
   }
   let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint());
-  assert_eq!(cs.num_constraints(), num_constraints_secondary);
+  num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
   // Execute the base case for the primary
   let zero1 = <<E2 as Engine>::Base as Field>::ZERO;
@@ -565,7 +565,12 @@ fn test_recursive_circuit() {
   let ro_consts2: ROConstantsCircuit<PallasEngine> = PoseidonConstantsCircuit::default();
 
   test_recursive_circuit_with::<PallasEngine, VestaEngine>(
-    &params1, &params2, ro_consts1, ro_consts2, 9844, 12025,
+    &params1,
+    &params2,
+    ro_consts1,
+    ro_consts2,
+    &expect!["9836"],
+    &expect!["12017"],
   );
 }
 
@@ -613,7 +618,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<PallasEngine, VestaEngine, _, _, _>(
     &test_rom,
-    &expect!["7e203fdfeab0ee8f56f8948497f8de73539d52e64cef89e44fff84711cf8b100"],
+    &expect!["95f57227c5d62d13b9fe55deac13b8bd099b068bcc785d7b3a054bf376f68e00"],
   );
 
   let rom = vec![
@@ -628,7 +633,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, _>(
     &test_rom_grumpkin,
-    &expect!["5caf6efbdb5a928b44a6eb4ff597e2b5f6764450ceb86b7065aac6cf965c0203"],
+    &expect!["d439e957618eb071360f9c87c0014fd0cfa21f1271813004d18f967355912a01"],
   );
 
   let rom = vec![
@@ -643,7 +648,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, _>(
     &test_rom_secp,
-    &expect!["e955513a59f75c63bc0649425045e6e472bddf4490a558e95bfcab14b4911a00"],
+    &expect!["5dfc2cc21f0a29a67ec3b3cbb7fbff535c876ef51e655f4abf4c00e058175103"],
   );
 }
 
