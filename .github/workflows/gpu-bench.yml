@@ -128,4 +128,5 @@ jobs:
           WORKFLOW_URL: ${{ env.WORKFLOW_URL }}
           NOISE_THRESHOLD: ${{ env.NOISE_THRESHOLD }}
         with:
+          update_existing: true
           filename: .github/PERF_REGRESSION.md
