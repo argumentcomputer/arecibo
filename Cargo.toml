@@ -44,6 +44,7 @@ itertools = "0.12.0"
 rand = "0.8.5"
 ref-cast = "1.0.20"
 derive_more = "0.99.17"
+static_assertions = "1.1.0"
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
 # grumpkin-msm has been patched to support MSMs for the pasta curve cycle

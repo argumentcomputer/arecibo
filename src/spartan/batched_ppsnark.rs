@@ -43,7 +43,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A type that represents the prover's key
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where < E::Scalar as PrimeField >::Repr: Abomonation)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
@@ -55,7 +55,7 @@ pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
 }
 
 /// A type that represents the verifier's key
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where < E::Scalar as PrimeField >::Repr: Abomonation)]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
@@ -99,7 +99,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
 /// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   // commitment to oracles: the first three are for Az, Bz, Cz,
@@ -1359,5 +1359,20 @@ where
       .iter()
       .map(|claim| scaling * claim)
       .collect()
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{BatchedRelaxedR1CSSNARK, ProverKey, VerifierKey};
+  use static_assertions::assert_not_impl_any;
+
+  use crate::provider::{ipa_pc::EvaluationEngine, PallasEngine};
+
+  #[test]
+  fn test_keys_and_snarks_should_not_be_cloned() {
+    assert_not_impl_any!(ProverKey<PallasEngine, EvaluationEngine<PallasEngine>>: Clone);
+    assert_not_impl_any!(VerifierKey<PallasEngine, EvaluationEngine<PallasEngine>>: Clone);
+    assert_not_impl_any!(BatchedRelaxedR1CSSNARK<PallasEngine, EvaluationEngine<PallasEngine>>: Clone);
   }
 }

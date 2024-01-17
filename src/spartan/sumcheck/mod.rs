@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 pub(in crate::spartan) mod engine;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub(crate) struct SumcheckProof<E: Engine> {
   compressed_polys: Vec<CompressedUniPoly<E::Scalar>>,

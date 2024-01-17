@@ -26,7 +26,7 @@ pub struct UniPoly<Scalar> {
 
 // ax^2 + bx + c stored as vec![c, a]
 // ax^3 + bx^2 + cx + d stored as vec![d, c, a]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CompressedUniPoly<Scalar> {
   coeffs_except_linear_term: Vec<Scalar>,
 }
