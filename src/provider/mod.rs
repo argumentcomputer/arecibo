@@ -14,6 +14,7 @@ pub(crate) mod secp_secq;
 pub(crate) mod traits;
 // a non-hiding variant of {kzg, zeromorph}
 mod kzg_commitment;
+mod kzg_impl;
 mod non_hiding_kzg;
 pub(crate) mod util;
 
