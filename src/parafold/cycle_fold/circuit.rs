@@ -1,10 +1,12 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 
-use crate::parafold::cycle_fold::prover::{
-  GroupElement, ScalarMulAccumulatorInstance, ScalarMulFoldProof, ScalarMulMergeProof,
+use crate::gadgets::nonnative::bignat::BigNat;
+use crate::parafold::nifs_secondary::circuit::{
+  AllocatedSecondaryFoldProof, AllocatedSecondaryMergeProof, AllocatedSecondaryRelaxedR1CSInstance,
 };
 use crate::parafold::transcript::circuit::{AllocatedTranscript, TranscriptRepresentable};
 use crate::traits::Engine;
@@ -42,15 +44,15 @@ use crate::traits::Engine;
 /// # TODO:
 /// - Move the above details (or a portion of it) to the module documentation
 #[derive(Debug, Clone)]
-pub struct AllocatedGroupElement<E: Engine> {
+pub struct AllocatedHashedCommitment<E1: Engine> {
   // hash = if let Some(point) = value { H_secondary(point) } else { 0 }
-  // hash: AllocatedBigNum<E>
-  // value: Option<E::GE>
-  _marker: PhantomData<E>,
+  value: Option<(E1::Base, E1::Base)>,
+  hash: BigNat<E1::Scalar>,
 }
 
-impl<E: Engine> TranscriptRepresentable<E::Scalar> for AllocatedGroupElement<E> {
-  fn to_field_vec(&self) -> Vec<AllocatedNum<E::Scalar>> {
+impl<E1: Engine> TranscriptRepresentable<E1::Scalar> for AllocatedHashedCommitment<E1> {
+  fn to_field_vec(&self) -> Vec<AllocatedNum<E1::Scalar>> {
+    //
     todo!()
   }
 }
@@ -74,106 +76,77 @@ impl<E: Engine> TranscriptRepresentable<E::Scalar> for AllocatedGroupElement<E> 
 /// The `merge` operation can simply compute the actual merged folding accumulators, while concatenating the two lists
 /// of deferred instances.  
 #[derive(Debug, Clone)]
-pub struct AllocatedScalarMulAccumulator<E: Engine> {
-  // acc: AllocatedSecondaryRelaxedR1CSAccumulate (mouth-full)
-  _marker: PhantomData<E>,
-  //
+pub struct AllocatedScalarMulAccumulator<E1: Engine, E2: Engine> {
+  acc: AllocatedSecondaryRelaxedR1CSInstance<E2>,
+  _marker: PhantomData<E1>,
 }
 
-impl<E: Engine> AllocatedScalarMulAccumulator<E> {
-  pub fn alloc_infallible<CS, F>(/*mut*/ _cs: CS, _acc: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> ScalarMulAccumulatorInstance<E>,
-  {
-    todo!()
-  }
-
+impl<E1: Engine, E2: Engine<Base = E1::Scalar>> AllocatedScalarMulAccumulator<E1, E2> {
   /// Compute the result `C <- A + x * B` by folding a proof over the secondary curve.
   pub fn scalar_mul<CS>(
-    &mut self,
-    mut cs: CS,
-    _A: AllocatedGroupElement<E>,
-    _B: AllocatedGroupElement<E>,
-    _x: AllocatedNum<E::Scalar>,
-    proof: AllocatedScalarMulFoldProof<E>,
-    transcript: &mut AllocatedTranscript<E>,
-  ) -> Result<AllocatedGroupElement<E>, SynthesisError>
+    self,
+    /*mut*/ cs: CS,
+    A: AllocatedHashedCommitment<E1>,
+    B: AllocatedHashedCommitment<E1>,
+    _x: AllocatedNum<E1::Scalar>,
+    proof: AllocatedScalarMulFoldProof<E1, E2>,
+    transcript: &mut AllocatedTranscript<E1>,
+  ) -> Result<(Self, AllocatedHashedCommitment<E1>), SynthesisError>
   where
-    CS: ConstraintSystem<E::Scalar>,
+    CS: ConstraintSystem<E1::Scalar>,
   {
-    let AllocatedScalarMulFoldProof { output, .. } = proof;
-    transcript.absorb(cs.namespace(|| "absorb output C"), &output)?;
+    let AllocatedScalarMulFoldProof { output, proof } = proof;
+    transcript.absorb(&output);
 
-    // unpack (C, W, T) = proof
-    // add C to transcript (A, B, x are assumed to be already derived from elements added to transcript)
-    // define instance X = [A,B,C,x] and folding proof pi = (W,T)
-    // fold (X,pi) into self.acc, passing the transcript to which pi will be added
-    // return C
+    let X_new = vec![
+      A.hash,
+      B.hash,
+      // TODO: alloc x as big nat
+      // BigNat::(cs.namespace(|| "alloc x"), Some(x))?,
+      output.hash.clone(),
+    ];
 
-    todo!()
+    let acc_next = self.acc.fold(cs, X_new, proof, transcript)?;
+
+    Ok((
+      Self {
+        acc: acc_next,
+        _marker: PhantomData::default(),
+      },
+      output,
+    ))
   }
 
   /// Merges another existing [AllocatedScalarMulAccumulator] into `self`
   pub fn merge<CS>(
     self,
-    /*mut*/ _cs: CS,
-    _other: Self,
-    _proof: AllocatedScalarMulMergeProof<E>,
-    _transcript: &mut AllocatedTranscript<E>,
+    cs: CS,
+    other: Self,
+    proof: AllocatedScalarMulMergeProof<E1, E2>,
+    transcript: &mut AllocatedTranscript<E1>,
   ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<E::Scalar>,
+    CS: ConstraintSystem<E1::Scalar>,
   {
-    // Merge the two SecondaryRelaxedR1CSInstances using the proof pi = T
-    todo!()
+    let Self { acc: acc_L, .. } = self;
+    let Self { acc: acc_R, .. } = other;
+    let proof = proof.proof;
+    let acc_next = acc_L.merge(cs, acc_R, proof, transcript)?;
+    Ok(Self {
+      acc: acc_next,
+      _marker: PhantomData::default(),
+    })
   }
 }
 
 #[derive(Debug, Clone)]
-pub struct AllocatedScalarMulFoldProof<E: Engine> {
-  output: AllocatedGroupElement<E>,
-  // W: AllocatedPoint<E>
-  // T: AllocatedPoint<E>
-  _marker: PhantomData<E>,
+pub struct AllocatedScalarMulFoldProof<E1: Engine, E2: Engine> {
+  output: AllocatedHashedCommitment<E1>,
+  proof: AllocatedSecondaryFoldProof<E2>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AllocatedScalarMulMergeProof<E: Engine> {
-  _marker: PhantomData<E>,
-  // T: AllocatedPoint<E>
-}
-
-impl<E: Engine> AllocatedGroupElement<E> {
-  pub fn alloc_infallible<CS, F>(/*mut*/ _cs: CS, _group_element: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> GroupElement<E>,
-  {
-    todo!()
-  }
-
-  pub fn get_value(&self) -> Option<E::GE> {
-    todo!()
-  }
-}
-
-impl<E: Engine> AllocatedScalarMulFoldProof<E> {
-  pub fn alloc_infallible<CS, F>(/*mut*/ _cs: CS, _proof: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> ScalarMulFoldProof<E>,
-  {
-    todo!()
-  }
-}
-
-impl<E: Engine> AllocatedScalarMulMergeProof<E> {
-  pub fn alloc_infallible<CS, F>(/*mut*/ _cs: CS, _proof: F) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-    F: FnOnce() -> ScalarMulMergeProof<E>,
-  {
-    todo!()
-  }
+pub struct AllocatedScalarMulMergeProof<E1: Engine, E2: Engine> {
+  proof: AllocatedSecondaryMergeProof<E2>,
+  _marker: PhantomData<E1>,
 }

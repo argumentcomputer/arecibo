@@ -12,57 +12,73 @@ use crate::r1cs::R1CSShape;
 use crate::traits::{Engine, ROConstants};
 
 #[derive(Debug, Clone)]
-pub struct NIVCIO<F: PrimeField> {
+pub struct NIVCIO<F> {
   pub pc_in: usize,
   pub z_in: Vec<F>,
   pub pc_out: usize,
   pub z_out: Vec<F>,
 }
 
+impl<F: PrimeField> NIVCIO<F> {
+  pub fn default(arity: usize) -> Self {
+    Self {
+      pc_in: 0,
+      z_in: vec![F::default(); arity],
+      pc_out: 0,
+      z_out: vec![F::default(); arity],
+    }
+  }
+}
+
 #[derive(Debug, Clone)]
-pub struct NIVCStateProof<E: Engine> {
-  pub state: NIVCStateInstance<E>,
-  pub hash_input: [E::Scalar; 2],
+pub struct NIVCStateProof<E1: Engine, E2: Engine> {
+  pub state: NIVCStateInstance<E1, E2>,
+  pub hash_input: [E1::Scalar; 2],
   pub index: usize,
-  pub nifs_fold_proof: FoldProof<E>,
+  pub nifs_fold_proof: FoldProof<E1, E2>,
 }
 
 #[derive(Debug, Clone)]
-pub struct NIVCMergeProof<E: Engine> {
-  sm_merge_proof: ScalarMulMergeProof<E>,
-  nivc_merge_proof: Vec<MergeProof<E>>,
+pub struct NIVCMergeProof<E1: Engine, E2: Engine> {
+  sm_merge_proof: ScalarMulMergeProof<E1, E2>,
+  nivc_merge_proof: Vec<MergeProof<E1, E2>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct NIVCStateInstance<E: Engine> {
-  pub io: NIVCIO<E::Scalar>,
-  pub accs: Vec<RelaxedR1CSInstance<E>>,
-  pub acc_sm: ScalarMulAccumulatorInstance<E>,
+pub struct NIVCStateInstance<E1: Engine, E2: Engine> {
+  pub io: NIVCIO<E1::Scalar>,
+  pub accs: Vec<RelaxedR1CSInstance<E1>>,
+  pub acc_sm: ScalarMulAccumulatorInstance<E1, E2>,
 }
 
 #[derive(Debug)]
-pub struct NIVCState<E: Engine> {
-  io: NIVCIO<E::Scalar>,
-  accs: Vec<RelaxedR1CS<E>>,
-  acc_sm: ScalarMulAccumulator<E>,
+pub struct NIVCState<E1: Engine, E2: Engine> {
+  io: NIVCIO<E1::Scalar>,
+  accs: Vec<RelaxedR1CS<E1>>,
+  acc_sm: ScalarMulAccumulator<E1, E2>,
 }
 
 #[derive(Debug)]
-pub struct NIVCStateUpdateProof<E: Engine> {
+pub struct NIVCStateUpdateProof<E1: Engine> {
   index: usize,
-  hash_input: [E::Scalar; 2],
-  W: Vec<E::Scalar>,
+  hash_input: [E1::Scalar; 2],
+  W: Vec<E1::Scalar>,
 }
 
-impl<E: Engine> NIVCState<E> {
+impl<E1, E2> NIVCState<E1, E2>
+where
+  E1: Engine,
+  E2: Engine<Base = E1::Scalar>,
+{
   pub fn update(
     self,
-    ck: &CommitmentKey<E>,
-    hasher: &NIVCHasher<E>,
-    shapes: &[R1CSShape<E>],
-    proof: NIVCStateUpdateProof<E>,
-    transcript: &mut Transcript<E>,
-  ) -> (Self, NIVCStateProof<E>) {
+    ck: &CommitmentKey<E1>,
+    hasher: &NIVCHasher<E1>,
+    shapes: &[R1CSShape<E1>],
+    proof: NIVCStateUpdateProof<E1>,
+    transcript: &mut Transcript<E1>,
+  ) -> (Self, NIVCStateProof<E1, E2>)
+where {
     let self_instance_curr = self.instance();
     let hash_curr = self_instance_curr.hash(hasher);
 
@@ -109,10 +125,10 @@ impl<E: Engine> NIVCState<E> {
   fn merge(
     self,
     other: Self,
-    ck: &CommitmentKey<E>,
-    shapes: &[R1CSShape<E>],
-    transcript: &mut Transcript<E>,
-  ) -> (Self, NIVCMergeProof<E>) {
+    ck: &CommitmentKey<E1>,
+    shapes: &[R1CSShape<E1>],
+    transcript: &mut Transcript<E1>,
+  ) -> (Self, NIVCMergeProof<E1, E2>) {
     let Self {
       io: io_L,
       accs: accs_L,
@@ -142,7 +158,7 @@ impl<E: Engine> NIVCState<E> {
     (self_next, merge_proof)
   }
 
-  fn instance(&self) -> NIVCStateInstance<E> {
+  fn instance(&self) -> NIVCStateInstance<E1, E2> {
     NIVCStateInstance {
       io: self.io.clone(),
       accs: self.accs.iter().map(|acc| acc.instance().clone()).collect(),
@@ -151,9 +167,9 @@ impl<E: Engine> NIVCState<E> {
   }
 }
 
-impl<E: Engine> NIVCStateInstance<E> {
+impl<E1: Engine, E2: Engine> NIVCStateInstance<E1, E2> {
   /// compute the hash of the state to be passed as public input/output
-  fn hash(&self, _hasher: &NIVCHasher<E>) -> E::Scalar {
+  fn hash(&self, _hasher: &NIVCHasher<E1>) -> E1::Scalar {
     todo!()
   }
 }

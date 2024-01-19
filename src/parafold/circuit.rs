@@ -1,3 +1,40 @@
+use bellpepper_core::num::AllocatedNum;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
+
+use crate::parafold::nivc::circuit::{AllocatedNIVCState, AllocatedNIVCStateProof, NIVCHasher};
+use crate::parafold::nivc::prover::NIVCStateProof;
+use crate::parafold::transcript::circuit::AllocatedTranscript;
+use crate::traits::circuit_supernova::StepCircuit;
+use crate::traits::{Engine, ROConstantsCircuit};
+
+pub fn step<
+  C: StepCircuit<E1::Scalar>,
+  E1: Engine,
+  E2: Engine<Base = E1::Scalar>,
+  CS: ConstraintSystem<E1::Scalar>,
+>(
+  cs: &mut CS,
+  pp: E1::Scalar,
+  ro_consts: ROConstantsCircuit<E1>,
+  circuit: C,
+  proof: NIVCStateProof<E1, E2>,
+) -> Result<(), SynthesisError> {
+  let arity = circuit.arity();
+  let pp = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pp"), || pp);
+  let hasher = NIVCHasher::new(ro_consts.clone(), pp, arity);
+  let mut transcript = AllocatedTranscript::new(ro_consts);
+  let proof = AllocatedNIVCStateProof::alloc_infallible(cs.namespace(|| "alloc proof"), || proof);
+  let _state = AllocatedNIVCState::new_step(
+    cs.namespace(|| ""),
+    &hasher,
+    proof,
+    circuit,
+    &mut transcript,
+  )?;
+  Ok(())
+  // state.
+}
+
 // /// Given the state transition over the io
 // ///   `self_state = (vk_self, vk_nivc, self_acc, nivc_acc, nivc_io)`
 // /// self_io = {self_state_curr, self_state_next}

@@ -1,2 +1,2 @@
-mod circuit;
+pub mod circuit;
 mod prover;

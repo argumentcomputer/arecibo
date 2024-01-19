@@ -1,29 +1,35 @@
+use crate::parafold::cycle_fold::prover::HashedCommitment;
+use crate::traits::commitment::CommitmentEngineTrait;
 use crate::Engine;
-use crate::parafold::cycle_fold::prover::GroupElement;
 
 pub struct CommitmentKey<E: Engine> {
   // ro for secondary circuit to compute the hash of the point
-  // ro_secondary 
+  // ro_secondary
   ck: crate::CommitmentKey<E>,
 }
 
 impl<E: Engine> CommitmentKey<E> {
-  pub fn commit(&self, _elements: &[E::Scalar]) -> GroupElement<E> {
-    todo!()
+  pub fn commit(&self, elements: &[E::Scalar]) -> HashedCommitment<E> {
+    let c = E::CE::commit(&self.ck, elements);
+    HashedCommitment::new(c)
   }
 }
 
-// use bellpepper_core::ConstraintSystem;
+// pub struct ProvingKey<E:Engine> {
 //
-// use crate::bellpepper::r1cs::NovaWitness;
-// use crate::bellpepper::solver::SatisfyingAssignment;
-// use crate::parafold::circuit::StateTransitionCircuit;
-// use crate::parafold::nifs::RelaxedR1CS;
-// use crate::parafold::nivc::{NIVCState, NIVCIO};
-// use crate::parafold::ProvingKey;
-// use crate::traits::{Engine, TranscriptEngineTrait};
+// }
 //
-// pub mod cyclefold;
+// pub struct RecursiveSNARK<E: Engine> {
+//
+// }
+//
+// impl<E: Engine> RecursiveSNARK<E> {
+//
+//   pub fn new(pk: &ProvingKey<E>, ) -> Self {
+//
+//   }
+// }
+
 //
 // pub struct RecursionState<E: Engine> {
 //   hash_inputs: Vec<E::Scalar>,
