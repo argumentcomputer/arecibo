@@ -33,6 +33,20 @@ impl AugmentedCircuitParams {
   }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct FoldingData<E: Engine> {
+  U: RelaxedR1CSInstance<E>,
+  u: R1CSInstance<E>,
+  T: Commitment<E>,
+}
+
+impl<E: Engine> FoldingData<E> {
+  pub fn new(U: RelaxedR1CSInstance<E>, u: R1CSInstance<E>, T: Commitment<E>) -> Self {
+    Self { U, u, T }
+  }
+}
+
 /// TODO: Docs
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -43,23 +57,16 @@ where
 {
   pp_digest: E1::Scalar,
   i: E1::Base,
-  z0: Vec<E1::Base>,
+  z0: Vec<E1::Scalar>,
 
-  zi: Option<Vec<E1::Base>>,
-  U_p: Option<RelaxedR1CSInstance<E2>>,
-  u_p: Option<R1CSInstance<E2>>,
-  T_p: Option<Commitment<E2>>,
+  zi: Option<Vec<E1::Scalar>>,
+  data_p: Option<FoldingData<E1>>,
 
-  U_c: Option<RelaxedR1CSInstance<E1>>,
-  u_c_1: Option<R1CSInstance<E1>>,
-  T_c_1: Option<Commitment<E1>>,
+  data_c_1: Option<FoldingData<E2>>,
+  data_c_2: Option<FoldingData<E2>>,
 
-  U_c_1: Option<RelaxedR1CSInstance<E1>>,
-  u_c_2: Option<R1CSInstance<E1>>,
-  T_c_2: Option<Commitment<E1>>,
-
-  E_new: Option<Commitment<E2>>,
-  W_new: Option<Commitment<E2>>,
+  E_new: Option<Commitment<E1>>,
+  W_new: Option<Commitment<E1>>,
 }
 
 impl<E1, E2> AugmentedCircuitInputs<E1, E2>
@@ -70,34 +77,22 @@ where
   pub fn new(
     pp_digest: E1::Scalar,
     i: E1::Base,
-    z0: Vec<E1::Base>,
-    zi: Option<Vec<E1::Base>>,
-    U_p: Option<RelaxedR1CSInstance<E2>>,
-    u_p: Option<R1CSInstance<E2>>,
-    T_p: Option<Commitment<E2>>,
-    U_c: Option<RelaxedR1CSInstance<E1>>,
-    u_c_1: Option<R1CSInstance<E1>>,
-    T_c_1: Option<Commitment<E1>>,
-    U_c_1: Option<RelaxedR1CSInstance<E1>>,
-    u_c_2: Option<R1CSInstance<E1>>,
-    T_c_2: Option<Commitment<E1>>,
-    E_new: Option<Commitment<E2>>,
-    W_new: Option<Commitment<E2>>,
+    z0: Vec<E1::Scalar>,
+    zi: Option<Vec<E1::Scalar>>,
+    data_p: Option<FoldingData<E1>>,
+    data_c_1: Option<FoldingData<E2>>,
+    data_c_2: Option<FoldingData<E2>>,
+    E_new: Option<Commitment<E1>>,
+    W_new: Option<Commitment<E1>>,
   ) -> Self {
     Self {
       pp_digest,
       i,
       z0,
       zi,
-      U_p,
-      u_p,
-      T_p,
-      U_c,
-      u_c_1,
-      T_c_1,
-      U_c_1,
-      u_c_2,
-      T_c_2,
+      data_p,
+      data_c_1,
+      data_c_2,
       E_new,
       W_new,
     }
@@ -108,7 +103,7 @@ pub struct AugmentedCircuit<'a, E1, E2, SC>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  SC: StepCircuit<E1::Base>,
+  SC: StepCircuit<E1::Scalar>,
 {
   params: &'a AugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<E1>,
@@ -120,7 +115,7 @@ impl<'a, E1, E2, SC> AugmentedCircuit<'a, E1, E2, SC>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  SC: StepCircuit<E1::Base>,
+  SC: StepCircuit<E1::Scalar>,
 {
   pub const fn new(
     params: &'a AugmentedCircuitParams,
@@ -164,10 +159,10 @@ where
     todo!()
   }
 
-  fn synthesize<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+  pub fn synthesize<CS: ConstraintSystem<<E1 as Engine>::Base>>(
     self,
     cs: &mut CS,
-  ) -> Result<Vec<AllocatedNum<E1::Base>>, SynthesisError> {
+  ) -> Result<Vec<AllocatedNum<E1::Scalar>>, SynthesisError> {
     // TODO: It's written down here https://hackmd.io/@mpenciak/HybHrnNFT
     todo!()
   }

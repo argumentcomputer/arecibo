@@ -15,10 +15,13 @@ use crate::{
   SimpleDigestible,
 };
 
-use super::nova_circuit::{AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams};
+use super::nova_circuit::{
+  AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams, FoldingData,
+};
 
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
+use bellpepper_core::SynthesisError;
 use ff::{PrimeField, PrimeFieldBits};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -249,9 +252,48 @@ where
       pp.circuit_shape_primary.r1cs_shape.num_vars,
     );
 
-    // TODO: Finish this method
+    let data_p = FoldingData::new(self.r_U_primary.clone(), self.l_u_primary.clone(), comm_T);
+    let data_c_E = FoldingData::new(r_U_cyclefold_E, l_u_cyclefold_E, comm_T_E);
+    let data_c_W = FoldingData::new(r_U_cyclefold_W, l_u_cyclefold_W, comm_T_W);
 
-    todo!()
+    let inputs_primary = AugmentedCircuitInputs::new(
+      pp.digest(),
+      <E2 as Engine>::Scalar::from(self.i as u64),
+      self.z0_primary.clone(),
+      Some(self.zi_primary.clone()),
+      Some(data_p),
+      Some(data_c_E),
+      Some(data_c_W),
+      Some(E_new),
+      Some(W_new),
+    );
+
+    let circuit_primary: AugmentedCircuit<'_, E2, E1, C1> = AugmentedCircuit::new(
+      &pp.augmented_circuit_params_primary,
+      pp.ro_consts_circuit_primary.clone(),
+      Some(inputs_primary),
+      c_primary,
+    );
+
+    let zi_primary = circuit_primary.synthesize(&mut cs_primary)?;
+
+    let (l_u_primary, l_w_primary) = cs_primary
+      .r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)
+      .map_err(|_| NovaError::UnSat)?;
+
+    self.zi_primary = zi_primary
+      .iter()
+      .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
+      .collect::<Result<Vec<_>, _>>()?;
+
+    self.l_u_primary = l_u_primary;
+    self.l_w_primary = l_w_primary;
+    self.r_U_cyclefold = r_U_cyclefold_W;
+    self.r_W_cyclefold = r_W_cyclefold_W;
+
+    self.i += 1;
+
+    Ok(())
   }
 
   /// TODO: docs
