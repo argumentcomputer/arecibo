@@ -52,14 +52,13 @@ mod tests {
     /// commitment over quotient polynomial: Q(x)=F(x) - c / x - b that "proves" poly(b) = c claim.
     ///
     /// Verifier on its side performs pairing checks that e(Cq, a⋅G2 − b⋅G2) == e(Cf − G1⋅c, G2),
-    /// which actually verifies that poly(b) = c claim
+    /// which actually verifies a claim that poly(b) = c
     ///
     let mut rng = OsRng;
 
     // SETUP
     let n = 4;
     let srs = UniversalKZGParam::<Bn256>::gen_srs_for_testing(&mut rng, n);
-    let eval = Fr::from(100);
 
     // PROVE
     let poly = vec![Fr::from(1), Fr::from(2), Fr::from(1), Fr::from(4)]; // poly = [1, 2, 1, 4]
@@ -88,5 +87,12 @@ mod tests {
     );
     let right = pairing(&(Cf.to_affine() - (g1 * c).to_affine()).to_affine(), &g2);
     assert_eq!(left, right);
+
+
+    // Alternatively (more optimal as it doesn't require executing final_exponentiation twice)
+    let term1 = (&(srs.powers_of_g[0] * c - Cq * b - Cf).to_affine(), &G2Prepared::from_affine(srs.powers_of_h[0]));
+    let term2 = (&Cq.to_affine(), &G2Prepared::from_affine(srs.powers_of_h[1]));
+    let result = multi_miller_loop(&[term1, term2]).final_exponentiation();
+    assert_eq!(result.is_identity().unwrap_u8(), 0x01);
   }
 }
