@@ -327,6 +327,7 @@ where
       ),
       (proof.proof, verifier_param.beta_h.into()),
     ];
+    #[allow(clippy::map_identity)] // this does by_ref() on a tuple
     let pairing_input_refs = pairing_inputs
       .iter()
       .map(|(a, b)| (a, b))
