@@ -14,6 +14,7 @@ use crate::{
   scalar_as_base,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
+    recursive::RecursiveSNARKTrait,
     AbsorbInROTrait, CurveCycleEquipped, Dual, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
   Commitment, CommitmentKey, R1CSWithArity,
@@ -749,7 +750,7 @@ where
     assert_eq!(self.program_counter, E1::Scalar::from(circuit_index as u64));
 
     // fold the secondary circuit's instance
-    let nifs_secondary = NIFS::prove_mut(
+    let (nifs_secondary, _) = NIFS::prove_mut(
       &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(self.pp_digest),
@@ -823,7 +824,7 @@ where
       )
     };
 
-    let nifs_primary = NIFS::prove_mut(
+    let (nifs_primary, _) = NIFS::prove_mut(
       &*pp.ck_primary,
       &pp.ro_consts_primary,
       &self.pp_digest,
@@ -1109,6 +1110,136 @@ where
     })?;
 
     Ok((self.zi_primary.clone(), self.zi_secondary.clone()))
+  }
+}
+
+/// TODO: docs
+pub struct PublicParamsWithNonUniformCircuit<E1, E2, C0, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C0: NonUniformCircuit<E1, E2, C1, C2>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  pp: PublicParams<E1, E2, C1, C2>,
+  non_uniform_circuit: C0,
+}
+
+impl<E1, E2, C> RecursiveSNARKTrait<E1, E2, C> for RecursiveSNARK<E1, E2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C: NonUniformCircuit<E1, E2, C, TrivialSecondaryCircuit<E2::Scalar>>,
+  C: StepCircuit<E1::Scalar>,
+{
+  type PublicParams =
+    PublicParamsWithNonUniformCircuit<E1, E2, C, C, TrivialSecondaryCircuit<E2::Scalar>>;
+
+  type Proof = Self;
+
+  fn new(
+    pp: &Self::PublicParams,
+    c_primary: &C,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Self::Proof, NovaError> {
+    let c_secondary = TrivialSecondaryCircuit::default();
+    let z0_secondary = vec![E2::Scalar::ZERO; pp.pp.circuit_shape_secondary.F_arity];
+    Self::Proof::new(
+      &pp.pp,
+      &pp.non_uniform_circuit,
+      c_primary,
+      &c_secondary,
+      z0_primary,
+      &z0_secondary,
+    )
+    .map_err(|_| NovaError::InternalError) // TODO: better error
+  }
+
+  fn prove_step(
+    proof: &mut Self::Proof,
+    pp: &Self::PublicParams,
+    c_primary: &C,
+  ) -> Result<(), NovaError> {
+    proof
+      .prove_step(&pp.pp, c_primary, &TrivialSecondaryCircuit::default())
+      .map_err(|_| NovaError::InternalError) // TODO: better error
+  }
+
+  fn verify(
+    proof: &Self::Proof,
+    pp: &Self::PublicParams,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Vec<<E1 as Engine>::Scalar>, NovaError> {
+    proof
+      .verify(&pp.pp, z0_primary, &vec![E2::Scalar::ZERO])
+      .map(|(zi_primary, _)| zi_primary)
+      .map_err(|_| NovaError::InternalError) // TODO: better error
+  }
+}
+
+/// TODO: docs
+pub struct PublicParamsWithNonUniformCircuit<E1, E2, C0, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C0: NonUniformCircuit<E1, E2, C1, C2>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  pp: PublicParams<E1, E2, C1, C2>,
+  non_uniform_circuit: C0,
+}
+
+impl<E1, E2, C> RecursiveSNARKTrait<E1, E2, C> for RecursiveSNARK<E1, E2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C: NonUniformCircuit<E1, E2, C, TrivialSecondaryCircuit<E2::Scalar>>,
+  C: StepCircuit<E1::Scalar>,
+{
+  type PublicParams =
+    PublicParamsWithNonUniformCircuit<E1, E2, C, C, TrivialSecondaryCircuit<E2::Scalar>>;
+
+  type Proof = Self;
+
+  fn new(
+    pp: &Self::PublicParams,
+    c_primary: &C,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Self::Proof, NovaError> {
+    let c_secondary = TrivialSecondaryCircuit::default();
+    let z0_secondary = vec![E2::Scalar::ZERO; pp.pp.circuit_shape_secondary.F_arity];
+    Self::Proof::new(
+      &pp.pp,
+      &pp.non_uniform_circuit,
+      c_primary,
+      &c_secondary,
+      z0_primary,
+      &z0_secondary,
+    )
+    .map_err(|_| NovaError::InternalError) // TODO: better error
+  }
+
+  fn prove_step(
+    proof: &mut Self::Proof,
+    pp: &Self::PublicParams,
+    c_primary: &C,
+  ) -> Result<(), NovaError> {
+    proof
+      .prove_step(&pp.pp, c_primary, &TrivialSecondaryCircuit::default())
+      .map_err(|_| NovaError::InternalError) // TODO: better error
+  }
+
+  fn verify(
+    proof: &Self::Proof,
+    pp: &Self::PublicParams,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Vec<<E1 as Engine>::Scalar>, NovaError> {
+    proof
+      .verify(&pp.pp, z0_primary, &vec![E2::Scalar::ZERO])
+      .map(|(zi_primary, _)| zi_primary)
+      .map_err(|_| NovaError::InternalError) // TODO: better error
   }
 }
 

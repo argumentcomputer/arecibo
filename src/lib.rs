@@ -25,9 +25,12 @@ pub mod r1cs;
 pub mod spartan;
 pub mod traits;
 
+pub mod cyclefold;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
+use traits::circuit::TrivialCircuit;
+use traits::recursive::RecursiveSNARKTrait;
 use traits::{CurveCycleEquipped, Dual};
 
 use crate::digest::{DigestComputer, SimpleDigestible};
@@ -538,7 +541,7 @@ where
     let l_u_secondary_i = self.l_u_secondary.clone();
 
     // fold the secondary circuit's instance
-    let nifs_secondary = NIFS::prove_mut(
+    let (nifs_secondary, _) = NIFS::prove_mut(
       &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
@@ -579,7 +582,7 @@ where
       cs_primary.r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)?;
 
     // fold the primary circuit's instance
-    let nifs_primary = NIFS::prove_mut(
+    let (nifs_primary, _) = NIFS::prove_mut(
       &*pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
@@ -757,6 +760,92 @@ where
   }
 }
 
+impl<E1, E2, C> RecursiveSNARKTrait<E1, E2, C>
+  for RecursiveSNARK<E1, E2, C, TrivialCircuit<E2::Scalar>>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C: StepCircuit<E1::Scalar>,
+{
+  type PublicParams = PublicParams<E1, E2, C, TrivialCircuit<E2::Scalar>>;
+
+  type Proof = Self;
+
+  fn new(
+    pp: &Self::PublicParams,
+    c_primary: &C,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Self::Proof, NovaError> {
+    let c_secondary = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
+    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
+
+    Self::Proof::new(&pp, c_primary, &c_secondary, z0_primary, &z0_secondary)
+  }
+
+  fn prove_step(
+    proof: &mut Self::Proof,
+    pp: &Self::PublicParams,
+    c_primary: &C,
+  ) -> Result<(), NovaError> {
+    let c_secondary = TrivialCircuit::default();
+    proof.prove_step(&pp, c_primary, &c_secondary)
+  }
+
+  fn verify(
+    proof: &Self::Proof,
+    pp: &Self::PublicParams,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Vec<<E1 as Engine>::Scalar>, NovaError> {
+    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
+    proof
+      .verify(&pp, proof.num_steps(), z0_primary, &z0_secondary)
+      .map(|(zi_primary, _)| zi_primary)
+  }
+}
+
+impl<E1, E2, C> RecursiveSNARKTrait<E1, E2, C>
+  for RecursiveSNARK<E1, E2, C, TrivialCircuit<E2::Scalar>>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C: StepCircuit<E1::Scalar>,
+{
+  type PublicParams = PublicParams<E1, E2, C, TrivialCircuit<E2::Scalar>>;
+
+  type Proof = Self;
+
+  fn new(
+    pp: &Self::PublicParams,
+    c_primary: &C,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Self::Proof, NovaError> {
+    let c_secondary = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
+    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
+
+    Self::Proof::new(&pp, c_primary, &c_secondary, z0_primary, &z0_secondary)
+  }
+
+  fn prove_step(
+    proof: &mut Self::Proof,
+    pp: &Self::PublicParams,
+    c_primary: &C,
+  ) -> Result<(), NovaError> {
+    let c_secondary = TrivialCircuit::default();
+    proof.prove_step(&pp, c_primary, &c_secondary)
+  }
+
+  fn verify(
+    proof: &Self::Proof,
+    pp: &Self::PublicParams,
+    z0_primary: &[<E1 as Engine>::Scalar],
+  ) -> Result<Vec<<E1 as Engine>::Scalar>, NovaError> {
+    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
+    proof
+      .verify(&pp, proof.num_steps(), z0_primary, &z0_secondary)
+      .map(|(zi_primary, _)| zi_primary)
+  }
+}
+
 /// A type that holds the prover key for `CompressedSNARK`
 #[derive(Clone, Debug)]
 pub struct ProverKey<E1, S1, S2>
@@ -850,7 +939,7 @@ where
     recursive_snark: &RecursiveSNARK<E1>,
   ) -> Result<Self, NovaError> {
     // fold the secondary circuit's instance with its running instance
-    let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
+    let (nifs_secondary, (f_U_secondary, f_W_secondary), _) = NIFS::prove(
       &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
