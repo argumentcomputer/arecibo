@@ -4,6 +4,7 @@ This repository incorporates material as listed below or described in the code.
 
 ------------------------------------------------------------
 https://github.com/microsoft/Nova
+https://github.com/microsoft/Spartan2
 
 Licensed under MIT
 
@@ -31,8 +32,8 @@ SOFTWARE
 
 ------------------------------------------------------------
 https://github.com/espressosystems/jellyfish
-https://github.com/han0110/plonkish/
 https://github.com/espressosystems/hyperplonk
+https://github.com/han0110/plonkish/
 
 Licensed under MIT
 

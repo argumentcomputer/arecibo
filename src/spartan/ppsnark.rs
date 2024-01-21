@@ -99,13 +99,13 @@ pub struct R1CSShapeSparkCommitment<E: Engine> {
 impl<E: Engine> TranscriptReprTrait<E::GE> for R1CSShapeSparkCommitment<E> {
   fn to_transcript_bytes(&self) -> Vec<u8> {
     [
-      self.comm_row,
-      self.comm_col,
-      self.comm_val_A,
-      self.comm_val_B,
-      self.comm_val_C,
-      self.comm_ts_row,
-      self.comm_ts_col,
+      self.comm_row.clone(),
+      self.comm_col.clone(),
+      self.comm_val_A.clone(),
+      self.comm_val_B.clone(),
+      self.comm_val_C.clone(),
+      self.comm_ts_row.clone(),
+      self.comm_ts_col.clone(),
     ]
     .as_slice()
     .to_transcript_bytes()
@@ -207,13 +207,13 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
 
     R1CSShapeSparkCommitment {
       N: self.row.len(),
-      comm_row: comm_vec[0],
-      comm_col: comm_vec[1],
-      comm_val_A: comm_vec[2],
-      comm_val_B: comm_vec[3],
-      comm_val_C: comm_vec[4],
-      comm_ts_row: comm_vec[5],
-      comm_ts_col: comm_vec[6],
+      comm_row: comm_vec[0].clone(),
+      comm_col: comm_vec[1].clone(),
+      comm_val_A: comm_vec[2].clone(),
+      comm_val_B: comm_vec[3].clone(),
+      comm_val_C: comm_vec[4].clone(),
+      comm_ts_row: comm_vec[5].clone(),
+      comm_ts_col: comm_vec[6].clone(),
     }
   }
 
@@ -554,7 +554,10 @@ where
       || rayon::join(|| E::CE::commit(ck, &Bz), || E::CE::commit(ck, &Cz)),
     );
 
-    transcript.absorb(b"c", &[comm_Az, comm_Bz, comm_Cz].as_slice());
+    transcript.absorb(
+      b"c",
+      &[comm_Az.clone(), comm_Bz.clone(), comm_Cz.clone()].as_slice(),
+    );
 
     // number of rounds of sum-check
     let num_rounds_sc = pk.S_repr.N.log_2();
@@ -593,8 +596,11 @@ where
     // absorb the claimed evaluations into the transcript
     transcript.absorb(b"e", &eval_vec.as_slice());
     // absorb commitments to L_row and L_col in the transcript
-    transcript.absorb(b"e", &vec![comm_L_row, comm_L_col].as_slice());
-    let comm_vec = vec![comm_Az, comm_Bz, comm_Cz];
+    transcript.absorb(
+      b"e",
+      &vec![comm_L_row.clone(), comm_L_col.clone()].as_slice(),
+    );
+    let comm_vec = vec![comm_Az.clone(), comm_Bz.clone(), comm_Cz.clone()];
     let poly_vec = vec![&Az, &Bz, &Cz];
     let c = transcript.squeeze(b"c")?;
     let w: PolyEvalWitness<E> = PolyEvalWitness::batch(&poly_vec, &c);
@@ -747,24 +753,24 @@ where
     ];
 
     let comm_vec = [
-      U.comm_W,
-      comm_Az,
-      comm_Bz,
-      comm_Cz,
-      U.comm_E,
-      comm_L_row,
-      comm_L_col,
-      pk.S_comm.comm_val_A,
-      pk.S_comm.comm_val_B,
-      pk.S_comm.comm_val_C,
-      comm_mem_oracles[0],
-      pk.S_comm.comm_row,
-      comm_mem_oracles[1],
-      pk.S_comm.comm_ts_row,
-      comm_mem_oracles[2],
-      pk.S_comm.comm_col,
-      comm_mem_oracles[3],
-      pk.S_comm.comm_ts_col,
+      U.comm_W.clone(),
+      comm_Az.clone(),
+      comm_Bz.clone(),
+      comm_Cz.clone(),
+      U.comm_E.clone(),
+      comm_L_row.clone(),
+      comm_L_col.clone(),
+      pk.S_comm.comm_val_A.clone(),
+      pk.S_comm.comm_val_B.clone(),
+      pk.S_comm.comm_val_C.clone(),
+      comm_mem_oracles[0].clone(),
+      pk.S_comm.comm_row.clone(),
+      comm_mem_oracles[1].clone(),
+      pk.S_comm.comm_ts_row.clone(),
+      comm_mem_oracles[2].clone(),
+      pk.S_comm.comm_col.clone(),
+      comm_mem_oracles[3].clone(),
+      pk.S_comm.comm_ts_col.clone(),
     ];
     let poly_vec = [
       &W,
@@ -855,7 +861,10 @@ where
     let comm_t_plus_r_inv_col = Commitment::<E>::decompress(&self.comm_t_plus_r_inv_col)?;
     let comm_w_plus_r_inv_col = Commitment::<E>::decompress(&self.comm_w_plus_r_inv_col)?;
 
-    transcript.absorb(b"c", &[comm_Az, comm_Bz, comm_Cz].as_slice());
+    transcript.absorb(
+      b"c",
+      &[comm_Az.clone(), comm_Bz.clone(), comm_Cz.clone()].as_slice(),
+    );
 
     let num_rounds_sc = vk.S_comm.N.log_2();
     let tau = transcript.squeeze(b"t")?;
@@ -872,8 +881,11 @@ where
 
     transcript.absorb(b"e", &eval_vec.as_slice());
 
-    transcript.absorb(b"e", &vec![comm_L_row, comm_L_col].as_slice());
-    let comm_vec = vec![comm_Az, comm_Bz, comm_Cz];
+    transcript.absorb(
+      b"e",
+      &vec![comm_L_row.clone(), comm_L_col.clone()].as_slice(),
+    );
+    let comm_vec = vec![comm_Az.clone(), comm_Bz.clone(), comm_Cz.clone()];
     let c = transcript.squeeze(b"c")?;
     let u: PolyEvalInstance<E> = PolyEvalInstance::batch(&comm_vec, &tau_coords, &eval_vec, &c);
     let claim = u.e;
@@ -885,10 +897,10 @@ where
     transcript.absorb(
       b"l",
       &vec![
-        comm_t_plus_r_inv_row,
-        comm_w_plus_r_inv_row,
-        comm_t_plus_r_inv_col,
-        comm_w_plus_r_inv_col,
+        comm_t_plus_r_inv_row.clone(),
+        comm_w_plus_r_inv_row.clone(),
+        comm_t_plus_r_inv_col.clone(),
+        comm_w_plus_r_inv_col.clone(),
       ]
       .as_slice(),
     );
@@ -1033,24 +1045,24 @@ where
     ];
 
     let comm_vec = [
-      U.comm_W,
-      comm_Az,
-      comm_Bz,
-      comm_Cz,
-      U.comm_E,
-      comm_L_row,
-      comm_L_col,
-      vk.S_comm.comm_val_A,
-      vk.S_comm.comm_val_B,
-      vk.S_comm.comm_val_C,
-      comm_t_plus_r_inv_row,
-      vk.S_comm.comm_row,
-      comm_w_plus_r_inv_row,
-      vk.S_comm.comm_ts_row,
-      comm_t_plus_r_inv_col,
-      vk.S_comm.comm_col,
-      comm_w_plus_r_inv_col,
-      vk.S_comm.comm_ts_col,
+      U.comm_W.clone(),
+      comm_Az.clone(),
+      comm_Bz.clone(),
+      comm_Cz.clone(),
+      U.comm_E.clone(),
+      comm_L_row.clone(),
+      comm_L_col.clone(),
+      vk.S_comm.comm_val_A.clone(),
+      vk.S_comm.comm_val_B.clone(),
+      vk.S_comm.comm_val_C.clone(),
+      comm_t_plus_r_inv_row.clone(),
+      vk.S_comm.comm_row.clone(),
+      comm_w_plus_r_inv_row.clone(),
+      vk.S_comm.comm_ts_row.clone(),
+      comm_t_plus_r_inv_col.clone(),
+      vk.S_comm.comm_col.clone(),
+      comm_w_plus_r_inv_col.clone(),
+      vk.S_comm.comm_ts_col.clone(),
     ];
     transcript.absorb(b"e", &eval_vec.as_slice()); // comm_vec is already in the transcript
     let c = transcript.squeeze(b"c")?;

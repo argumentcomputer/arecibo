@@ -152,7 +152,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     .collect::<Vec<_>>();
 
     // C = ∑ᵢ γⁱ⋅Cᵢ
-    let comm_joint = zip_with!(iter, (c_vec, powers), |c, g_i| *c * *g_i)
+    let comm_joint = zip_with!(iter, (c_vec, powers), |c, g_i| c.clone() * *g_i)
       .fold(Commitment::<E>::default(), |acc, item| acc + item);
 
     // v = ∑ᵢ γⁱ⋅vᵢ
@@ -173,7 +173,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     // Weighted sum of evaluations
     let e = zip_with!(par_iter, (e_vec, powers_of_s), |e, p| *e * p).sum();
     // Weighted sum of commitments
-    let c = zip_with!(par_iter, (c_vec, powers_of_s), |c, p| *c * *p)
+    let c = zip_with!(par_iter, (c_vec, powers_of_s), |c, p| c.clone() * *p)
       .reduce(Commitment::<E>::default, |acc, item| acc + item);
 
     Self {

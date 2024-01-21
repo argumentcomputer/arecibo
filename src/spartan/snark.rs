@@ -243,12 +243,12 @@ where
     let w_vec = vec![PolyEvalWitness { p: W.W }, PolyEvalWitness { p: W.E }];
     let u_vec = vec![
       PolyEvalInstance {
-        c: U.comm_W,
+        c: U.comm_W.clone(),
         x: r_y[1..].to_vec(),
         e: eval_W,
       },
       PolyEvalInstance {
-        c: U.comm_E,
+        c: U.comm_E.clone(),
         x: r_x,
         e: eval_E,
       },
@@ -388,12 +388,12 @@ where
     // add claims about W and E polynomials
     let u_vec: Vec<PolyEvalInstance<E>> = vec![
       PolyEvalInstance {
-        c: U.comm_W,
+        c: U.comm_W.clone(),
         x: r_y[1..].to_vec(),
         e: self.eval_W,
       },
       PolyEvalInstance {
-        c: U.comm_E,
+        c: U.comm_E.clone(),
         x: r_x,
         e: self.eval_E,
       },

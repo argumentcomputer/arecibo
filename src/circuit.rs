@@ -171,7 +171,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       self
         .inputs
         .as_ref()
-        .and_then(|inputs| inputs.T.map(|T| T.to_coordinates())),
+        .and_then(|inputs| inputs.T.as_ref().map(|T| T.to_coordinates())),
     )?;
     T.check_on_curve(cs.namespace(|| "check T on curve"))?;
 

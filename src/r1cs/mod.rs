@@ -743,7 +743,7 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
   /// Initializes a new `RelaxedR1CSInstance` from an `R1CSInstance`
   pub fn from_r1cs_instance_unchecked(comm_W: &Commitment<E>, X: &[E::Scalar]) -> Self {
     Self {
-      comm_W: *comm_W,
+      comm_W: comm_W.clone(),
       comm_E: Commitment::<E>::default(),
       u: E::Scalar::ONE,
       X: X.to_vec(),
@@ -762,8 +762,8 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
       .zip_eq(X2)
       .map(|(a, b)| *a + *r * *b)
       .collect::<Vec<E::Scalar>>();
-    let comm_W = *comm_W_1 + *comm_W_2 * *r;
-    let comm_E = *comm_E_1 + *comm_T * *r;
+    let comm_W = comm_W_2.clone() * *r + comm_W_1.clone();
+    let comm_E = comm_T.clone() * *r + comm_E_1.clone();
     let u = *u1 + *r;
 
     Self {
@@ -782,8 +782,8 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
     self.X.par_iter_mut().zip_eq(X2).for_each(|(a, b)| {
       *a += *r * *b;
     });
-    self.comm_W = self.comm_W + *comm_W_2 * *r;
-    self.comm_E = self.comm_E + *comm_T * *r;
+    self.comm_W = self.comm_W.clone() + comm_W_2.clone() * *r;
+    self.comm_E = self.comm_E.clone() + comm_T.clone() * *r;
     self.u += *r;
   }
 }

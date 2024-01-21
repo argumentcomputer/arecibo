@@ -77,6 +77,18 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     )
   }
 
+  /// Binds to a scalar sequence
+  pub fn bind(&self, L: &[Scalar]) -> Vec<Scalar> {
+    let (left_num_vars, right_num_vars) =
+      EqPolynomial::<Scalar>::compute_factored_lens(self.num_vars);
+    let L_size = (2_usize).pow(left_num_vars as u32);
+    let R_size = (2_usize).pow(right_num_vars as u32);
+
+    (0..R_size)
+      .map(|i| (0..L_size).map(|j| L[j] * self.Z[j * R_size + i]).sum())
+      .collect()
+  }
+
   /// Binds the polynomial's top variable using the given scalar.
   ///
   /// This operation modifies the polynomial in-place.

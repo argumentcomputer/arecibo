@@ -348,7 +348,7 @@ where
       w_vec.extend(polys_W.into_iter().map(|poly| PolyEvalWitness { p: poly }));
       u_vec.extend(zip_with!(iter, (evals_W, U, r_y), |eval, u, r_y| {
         PolyEvalInstance {
-          c: u.comm_W,
+          c: u.comm_W.clone(),
           x: r_y[1..].to_vec(),
           e: *eval,
         }
@@ -358,7 +358,7 @@ where
       u_vec.extend(zip_with!(
         (evals_E.iter(), U.iter(), r_x),
         |eval_E, u, r_x| PolyEvalInstance {
-          c: u.comm_E,
+          c: u.comm_E.clone(),
           x: r_x,
           e: *eval_E,
         }
@@ -589,7 +589,7 @@ where
       let mut u_vec = Vec::with_capacity(2 * num_instances);
       u_vec.extend(zip_with!(iter, (self.evals_W, U, r_y), |eval, u, r_y| {
         PolyEvalInstance {
-          c: u.comm_W,
+          c: u.comm_W.clone(),
           x: r_y[1..].to_vec(),
           e: *eval,
         }
@@ -597,7 +597,7 @@ where
 
       u_vec.extend(zip_with!(iter, (self.evals_E, U, r_x), |eval, u, r_x| {
         PolyEvalInstance {
-          c: u.comm_E,
+          c: u.comm_E.clone(),
           x: r_x.to_vec(),
           e: *eval,
         }

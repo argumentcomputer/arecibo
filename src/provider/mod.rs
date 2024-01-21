@@ -1,6 +1,7 @@
 //! This module implements Nova's traits using the following several different combinations
 
 // public modules to be used as an evaluation engine with Spartan
+pub mod hyrax_pcs;
 pub mod ipa_pc;
 pub mod mlkzg;
 pub mod non_hiding_zeromorph;

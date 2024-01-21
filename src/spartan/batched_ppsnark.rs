@@ -229,7 +229,10 @@ where
     .collect::<Vec<Vec<E::Scalar>>>();
 
     // Move polys_W and polys_E, as well as U.u out of U
-    let (comms_W_E, us): (Vec<_>, Vec<_>) = U.iter().map(|U| ([U.comm_W, U.comm_E], U.u)).unzip();
+    let (comms_W_E, us): (Vec<_>, Vec<_>) = U
+      .iter()
+      .map(|U| ([U.comm_W.clone(), U.comm_E.clone()], U.u))
+      .unzip();
     let (polys_W, polys_E): (Vec<_>, Vec<_>) = W.into_iter().map(|w| (w.W, w.E)).unzip();
 
     // Compute [Az, Bz, Cz]
@@ -1064,17 +1067,17 @@ where
         |Az_Bz_Cz, U, L_row_col, mem_oracles, S_comm| {
           chain![
             Az_Bz_Cz,
-            [U.comm_W, U.comm_E],
+            [U.comm_W.clone(), U.comm_E.clone()],
             L_row_col,
             mem_oracles,
             [
-              S_comm.comm_val_A,
-              S_comm.comm_val_B,
-              S_comm.comm_val_C,
-              S_comm.comm_row,
-              S_comm.comm_col,
-              S_comm.comm_ts_row,
-              S_comm.comm_ts_col,
+              S_comm.comm_val_A.clone(),
+              S_comm.comm_val_B.clone(),
+              S_comm.comm_val_C.clone(),
+              S_comm.comm_row.clone(),
+              S_comm.comm_col.clone(),
+              S_comm.comm_ts_row.clone(),
+              S_comm.comm_ts_col.clone(),
             ]
           ]
         }
