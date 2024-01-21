@@ -34,7 +34,7 @@ use crate::{
 use halo2curves::bn256::Bn256;
 use pasta_curves::{pallas, vesta};
 
-use self::kzg_commitment::KZGCommitmentEngine;
+use self::{hyrax_pcs::HyraxCommitmentEngine, kzg_commitment::KZGCommitmentEngine};
 
 /// An implementation of the Nova `Engine` trait with BN254 curve and Pedersen commitment scheme
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,6 +62,20 @@ impl Engine for GrumpkinEngine {
   type ROCircuit = PoseidonROCircuit<Self::Base>;
   type TE = Keccak256Transcript<Self>;
   type CE = PedersenCommitmentEngine<Self>;
+}
+
+/// An implementation of the Nova `Engine` trait with Grumpkin curve and Hyrax commitment scheme
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GrumpkinEngineHyrax;
+
+impl Engine for GrumpkinEngineHyrax {
+  type Base = grumpkin::Base;
+  type Scalar = grumpkin::Scalar;
+  type GE = grumpkin::Point;
+  type RO = PoseidonRO<Self::Base, Self::Scalar>;
+  type ROCircuit = PoseidonROCircuit<Self::Base>;
+  type TE = Keccak256Transcript<Self>;
+  type CE = HyraxCommitmentEngine<Self>;
 }
 
 /// An implementation of the Nova `Engine` trait with BN254 curve and Zeromorph commitment scheme

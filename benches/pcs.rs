@@ -1,3 +1,5 @@
+use arecibo::provider::hyrax_pcs::HyraxEvaluationEngine;
+use arecibo::provider::GrumpkinEngineHyrax;
 use arecibo::provider::{
   ipa_pc::EvaluationEngine as IPAEvaluationEngine, mlkzg::EvaluationEngine as MLEvaluationEngine,
   non_hiding_zeromorph::ZMPCS, Bn256EngineKZG, Bn256EngineZM, GrumpkinEngine,
@@ -156,7 +158,8 @@ fn bench_pcs(c: &mut Criterion) {
     bench_pcs_verifying_internal,
     (ipa_assets, IPAEvaluationEngine<GrumpkinEngine>),
     (mlkzg_assets, MLEvaluationEngine<Bn256, Bn256EngineKZG>),
-    (zm_assets, ZMPCS<Bn256, Bn256EngineZM>)
+    (zm_assets, ZMPCS<Bn256, Bn256EngineZM>),
+    (hyrax_assets, HyraxEvaluationEngine<GrumpkinEngineHyrax>)
   );
 }
 
