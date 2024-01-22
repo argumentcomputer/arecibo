@@ -1,9 +1,9 @@
 use itertools::*;
 use rayon::prelude::*;
 
-use crate::parafold::cycle_fold::prover::{
-  HashedCommitment, ScalarMulAccumulator, ScalarMulFoldProof,
-};
+use crate::parafold::cycle_fold::prover::ScalarMulAccumulator;
+use crate::parafold::cycle_fold::HashedCommitment;
+use crate::parafold::nifs_primary::{FoldProof, MergeProof, RelaxedR1CSInstance};
 use crate::parafold::prover::CommitmentKey;
 use crate::parafold::transcript::prover::Transcript;
 use crate::r1cs::R1CSShape;
@@ -11,39 +11,12 @@ use crate::traits::Engine;
 use crate::zip_with;
 
 /// A full Relaxed-R1CS accumulator for a circuit
-/// FIXME: We should not need to clone this, but required in circuit
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RelaxedR1CS<E1: Engine> {
   instance: RelaxedR1CSInstance<E1>,
   W: Vec<E1::Scalar>,
   E: Vec<E1::Scalar>,
   // TODO: store cache for Folding T
-}
-
-/// Instance of a Relaxed-R1CS accumulator for a circuit
-#[derive(Debug, Clone)]
-pub struct RelaxedR1CSInstance<E1: Engine> {
-  pub u: E1::Scalar,
-  pub X: Vec<E1::Scalar>,
-  pub W: HashedCommitment<E1>,
-  pub E: HashedCommitment<E1>,
-}
-
-/// A Nova proof for merging two (Relaxed-)R1CS instances over the primary curve.
-#[derive(Debug, Clone, Default)]
-pub struct FoldProof<E1: Engine, E2: Engine> {
-  pub W: HashedCommitment<E1>,
-  pub T: HashedCommitment<E1>,
-  pub W_sm_proof: ScalarMulFoldProof<E1, E2>,
-  pub E_sm_proof: ScalarMulFoldProof<E1, E2>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MergeProof<E1: Engine, E2: Engine> {
-  T: HashedCommitment<E1>,
-  W_sm_proof: ScalarMulFoldProof<E1, E2>,
-  E1_sm_proof: ScalarMulFoldProof<E1, E2>,
-  E2_sm_proof: ScalarMulFoldProof<E1, E2>,
 }
 
 impl<E1: Engine> RelaxedR1CS<E1> {
@@ -66,15 +39,14 @@ impl<E1: Engine> RelaxedR1CS<E1> {
   /// We assume the R1CS IO `X_new` has already been absorbed in some form into the transcript in order to avoid
   /// unnecessary hashing. The caller is responsible for ensuring this assumption is valid.
   pub fn fold<E2>(
-    self,
+    &mut self,
     ck: &CommitmentKey<E1>,
     shape: &R1CSShape<E1>,
     X_new: Vec<E1::Scalar>,
-    // TODO: Reference?
-    W_new: Vec<E1::Scalar>,
-    mut acc_sm: ScalarMulAccumulator<E1, E2>,
+    W_new: &[E1::Scalar],
+    acc_sm: &mut ScalarMulAccumulator<E2>,
     transcript: &mut Transcript<E1>,
-  ) -> (Self, ScalarMulAccumulator<E1, E2>, FoldProof<E1, E2>)
+  ) -> FoldProof<E1, E2>
   where
     E2: Engine<Base = E1::Scalar>,
   {
@@ -102,9 +74,9 @@ impl<E1: Engine> RelaxedR1CS<E1> {
       } = instance_curr;
 
       // For relaxed instances, u_new = 1
-      let u_next = u_curr + r;
+      let u_next = *u_curr + r;
       let X_next = zip_eq(X_curr, X_new)
-        .map(|(x_curr, x_new)| x_curr + r * x_new)
+        .map(|(x_curr, x_new)| *x_curr + r * x_new)
         .collect::<Vec<_>>();
       // Compute scalar multiplications and resulting instances to be proved with the CycleFold circuit
       // W_comm_next = W_comm_curr + r * W_comm_new
@@ -123,20 +95,14 @@ impl<E1: Engine> RelaxedR1CS<E1> {
 
     let W_next = zip_with!(
       (W_curr.into_par_iter(), W_new.par_iter()),
-      |w_curr, w_new| w_curr + r * w_new
+      |w_curr, w_new| *w_curr + r * w_new
     )
     .collect::<Vec<_>>();
     let E_next = zip_with!(
       (E_curr.into_par_iter(), T.par_iter()),
-      |e_curr, e_new| e_curr + r * e_new
+      |e_curr, e_new| *e_curr + r * e_new
     )
     .collect::<Vec<_>>();
-
-    let acc_next = Self {
-      instance: instance_next,
-      W: W_next,
-      E: E_next,
-    };
 
     let fold_proof = FoldProof {
       W: W_comm_new,
@@ -145,7 +111,13 @@ impl<E1: Engine> RelaxedR1CS<E1> {
       E_sm_proof,
     };
 
-    (acc_next, acc_sm, fold_proof)
+    *self = Self {
+      instance: instance_next,
+      W: W_next,
+      E: E_next,
+    };
+
+    fold_proof
   }
 
   /// Fold the proof for the previous state transition, producing an accumulator for the current state,
@@ -155,13 +127,9 @@ impl<E1: Engine> RelaxedR1CS<E1> {
     shapes: &[R1CSShape<E1>],
     mut accs_L: Vec<Self>,
     accs_R: Vec<Self>,
-    mut acc_sm: ScalarMulAccumulator<E1, E2>,
+    acc_sm: &mut ScalarMulAccumulator<E2>,
     transcript: &mut Transcript<E1>,
-  ) -> (
-    Vec<Self>,
-    ScalarMulAccumulator<E1, E2>,
-    Vec<MergeProof<E1, E2>>,
-  )
+  ) -> (Vec<Self>, Vec<MergeProof<E1, E2>>)
   where
     E2: Engine<Base = E1::Scalar>,
   {
@@ -239,10 +207,10 @@ impl<E1: Engine> RelaxedR1CS<E1> {
             .collect::<Vec<_>>();
           // Compute scalar multiplications and resulting instances to be proved with the CycleFold circuit
           // W_next = W_L + r * W_R
-          let (W_next, W_sm_proof) = acc_sm.scalar_mul(&W_L, &W_R, &r, transcript);
-          let (E1_next, E1_sm_proof) = acc_sm.scalar_mul(&T_comm, &E_R, &r, transcript);
+          let (W_next, W_sm_proof) = acc_sm.scalar_mul::<E1>(&W_L, &W_R, &r, transcript);
+          let (E1_next, E1_sm_proof) = acc_sm.scalar_mul::<E1>(&T_comm, &E_R, &r, transcript);
           // E_next = E_curr + r * E1_next = E_curr + r * T + r^2 * E_new
-          let (E_next, E2_sm_proof) = acc_sm.scalar_mul(&E_L, &E1_next, &r, transcript);
+          let (E_next, E2_sm_proof) = acc_sm.scalar_mul::<E1>(&E_L, &E1_next, &r, transcript);
 
           let instance_next = RelaxedR1CSInstance {
             u: u_next,
@@ -270,7 +238,7 @@ impl<E1: Engine> RelaxedR1CS<E1> {
     )
     .unzip();
 
-    (accs_next, acc_sm, merge_proofs)
+    (accs_next, merge_proofs)
   }
 
   fn compute_fold_proof(
@@ -285,14 +253,3 @@ impl<E1: Engine> RelaxedR1CS<E1> {
     todo!()
   }
 }
-
-// impl<E: Engine> RelaxedR1CSInstance<E> {
-//   pub fn default(shape: &R1CSShape<E>) -> Self {
-//     Self {
-//       u: E::Scalar::ZERO,
-//       X: vec![E::Scalar::ZERO; shape.num_io],
-//       W: Commitment::<E>::default(),
-//       E: Commitment::<E>::default(),
-//     }
-//   }
-// }

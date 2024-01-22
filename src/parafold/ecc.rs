@@ -23,7 +23,7 @@ pub struct AllocatedPoint<F: PrimeField, G: Group> {
   _marker: PhantomData<G>,
 }
 
-impl<F: PrimeField, G: Group<Base = F>> TranscriptRepresentable<F> for AllocatedPoint<F, G> {
+impl<F: PrimeField, G: Group> TranscriptRepresentable<F> for AllocatedPoint<F, G> {
   fn to_field_vec(&self) -> Vec<AllocatedNum<F>> {
     todo!()
   }
@@ -32,6 +32,7 @@ impl<F: PrimeField, G: Group<Base = F>> TranscriptRepresentable<F> for Allocated
 impl<F, G> AllocatedPoint<F, G>
 where
   F: PrimeField,
+  // G: Group,
   G: Group<Base = F>,
 {
   /// Allocates a new point on the curve using coordinates provided by `coords`.

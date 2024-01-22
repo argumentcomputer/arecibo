@@ -3,49 +3,23 @@ use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use itertools::*;
 
-use crate::parafold::cycle_fold::circuit::{
-  AllocatedHashedCommitment, AllocatedScalarMulAccumulator, AllocatedScalarMulFoldProof,
+use crate::parafold::cycle_fold::AllocatedScalarMulAccumulator;
+use crate::parafold::nifs_primary::{
+  AllocatedFoldProof, AllocatedMergeProof, AllocatedRelaxedR1CSInstance,
 };
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::Engine;
 
-/// Allocated [RelaxedR1CSInstance]
-#[derive(Debug, Clone)]
-pub struct AllocatedRelaxedR1CSInstance<E1: Engine> {
-  pub u: AllocatedNum<E1::Scalar>,
-  pub X: Vec<AllocatedNum<E1::Scalar>>,
-  pub W: AllocatedHashedCommitment<E1>,
-  pub E: AllocatedHashedCommitment<E1>,
-}
-
-/// An allocated Nova folding proof, for either folding an [R1CSInstance] or a [RelaxedR1CSInstance] into
-/// another [RelaxedR1CSInstance]
-#[derive(Debug, Clone)]
-pub struct AllocatedFoldProof<E1: Engine, E2: Engine> {
-  pub W: AllocatedHashedCommitment<E1>,
-  pub T: AllocatedHashedCommitment<E1>,
-  pub W_sm_proof: AllocatedScalarMulFoldProof<E1, E2>,
-  pub E_sm_proof: AllocatedScalarMulFoldProof<E1, E2>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AllocatedMergeProof<E1: Engine, E2: Engine> {
-  T: AllocatedHashedCommitment<E1>,
-  W_sm_proof: AllocatedScalarMulFoldProof<E1, E2>,
-  E1_sm_proof: AllocatedScalarMulFoldProof<E1, E2>,
-  E2_sm_proof: AllocatedScalarMulFoldProof<E1, E2>,
-}
-
 impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
   /// Folds an R1CSInstance into `self`
   pub fn fold<CS, E2: Engine<Base = E1::Scalar>>(
-    self,
+    &mut self,
     mut cs: CS,
     X_new: Vec<AllocatedNum<E1::Scalar>>,
-    acc_sm: AllocatedScalarMulAccumulator<E1, E2>,
+    acc_sm: &mut AllocatedScalarMulAccumulator<E1, E2>,
     fold_proof: AllocatedFoldProof<E1, E2>,
     transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<(Self, AllocatedScalarMulAccumulator<E1, E2>), SynthesisError>
+  ) -> Result<(), SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
@@ -76,7 +50,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
         mul_add(cs.namespace(|| format!("X_next[{i}]")), &x_curr, x_new, &r)
       })
       .collect::<Result<Vec<_>, _>>()?;
-    let (acc_sm, W_next) = acc_sm.scalar_mul(
+    let W_next = acc_sm.scalar_mul(
       cs.namespace(|| "W_next"),
       W_curr.clone(),
       W_new.clone(),
@@ -84,7 +58,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
       W_sm_proof,
       transcript,
     )?;
-    let (acc_sm, E_next) = acc_sm.scalar_mul(
+    let E_next = acc_sm.scalar_mul(
       cs.namespace(|| "E_next"),
       E_curr.clone(),
       T.clone(),
@@ -93,24 +67,24 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
       transcript,
     )?;
 
-    let acc_next = Self {
+    *self = Self {
       u: u_next,
       X: X_next,
       W: W_next,
       E: E_next,
     };
 
-    Ok((acc_next, acc_sm))
+    Ok(())
   }
 
   pub fn merge_many<CS, E2: Engine<Base = E1::Scalar>>(
     mut cs: CS,
     accs_L: Vec<Self>,
     accs_R: Vec<Self>,
-    acc_sm: AllocatedScalarMulAccumulator<E1, E2>,
+    acc_sm: &mut AllocatedScalarMulAccumulator<E1, E2>,
     merge_proofs: Vec<AllocatedMergeProof<E1, E2>>,
     transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<(Vec<Self>, AllocatedScalarMulAccumulator<E1, E2>), SynthesisError>
+  ) -> Result<Vec<Self>, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
@@ -133,8 +107,6 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
 
     let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
 
-    let mut acc_sm_next = acc_sm;
-
     let accs_next = zip_eq(accs_L, accs_R)
       .zip_eq(zip_eq(nifs_proofs, sm_proofs))
       .map(|((acc_L, acc_R), (T, sm_proof))| {
@@ -150,7 +122,6 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
           W: W_R,
           E: E_R,
         } = acc_R;
-        let acc_sm = acc_sm_next.clone();
 
         let [W_sm_proof, E1_sm_proof, E2_sm_proof] = sm_proof;
 
@@ -159,7 +130,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
           .enumerate()
           .map(|(i, (x_L, x_R))| mul_add(cs.namespace(|| format!("X_new[{i}]")), &x_L, &x_R, &r))
           .collect::<Result<Vec<_>, _>>()?;
-        let (acc_sm, W_next) = acc_sm.scalar_mul(
+        let W_next = acc_sm.scalar_mul(
           cs.namespace(|| "W_next"),
           W_L.clone(),
           W_R.clone(),
@@ -167,7 +138,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
           W_sm_proof,
           transcript,
         )?;
-        let (acc_sm, E1_next) = acc_sm.scalar_mul(
+        let E1_next = acc_sm.scalar_mul(
           cs.namespace(|| "E1_next"),
           T.clone(),
           E_R.clone(),
@@ -175,7 +146,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
           E1_sm_proof,
           transcript,
         )?;
-        let (acc_sm, E_next) = acc_sm.scalar_mul(
+        let E_next = acc_sm.scalar_mul(
           cs.namespace(|| "E2_next"),
           E_L.clone(),
           E1_next.clone(),
@@ -183,8 +154,6 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
           E2_sm_proof,
           transcript,
         )?;
-
-        acc_sm_next = acc_sm;
 
         Ok::<Self, SynthesisError>(Self {
           W: W_next,
@@ -195,7 +164,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
       })
       .collect::<Result<Vec<_>, _>>()?;
 
-    Ok((accs_next, acc_sm_next))
+    Ok(accs_next)
   }
 }
 

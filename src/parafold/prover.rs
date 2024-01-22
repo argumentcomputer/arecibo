@@ -1,4 +1,5 @@
-use crate::parafold::cycle_fold::prover::HashedCommitment;
+use crate::parafold::cycle_fold::HashedCommitment;
+use crate::parafold::nivc::prover::{NIVCState, NIVCUpdateWitness};
 use crate::traits::commitment::CommitmentEngineTrait;
 use crate::Engine;
 
@@ -19,9 +20,6 @@ impl<E: Engine> CommitmentKey<E> {
 //
 // }
 //
-// pub struct RecursiveSNARK<E: Engine> {
-//
-// }
 //
 // impl<E: Engine> RecursiveSNARK<E> {
 //
@@ -29,6 +27,11 @@ impl<E: Engine> CommitmentKey<E> {
 //
 //   }
 // }
+
+pub struct RecursiveSNARK<E1: Engine, E2: Engine> {
+  witness_prev: NIVCUpdateWitness<E1, E2>,
+  state_curr: NIVCState<E1, E2>,
+}
 
 //
 // pub struct RecursionState<E: Engine> {

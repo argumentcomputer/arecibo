@@ -1,63 +1,21 @@
-use std::marker::PhantomData;
-
-use crate::parafold::transcript::prover::{Transcript, TranscriptRepresentable};
+use crate::parafold::cycle_fold::{
+  HashedCommitment, ScalarMulAccumulatorInstance, ScalarMulFoldProof, ScalarMulMergeProof,
+};
+use crate::parafold::transcript::prover::Transcript;
 use crate::traits::Engine;
-use crate::Commitment;
-
-/// A native group element for the [Engine] is given by `point = (x, y)` where the coordinates are over the base field.
-/// Inside a circuit, it is represented only as the hash `h = H(x, y)`, where `H` is a hash function with
-/// efficient arithmetization over the base field. The identity element is represented by the zero `hash`.   
-#[derive(Debug, Clone, Default)]
-pub struct HashedCommitment<E1: Engine> {
-  point: Commitment<E1>,
-  hash: E1::Base,
-  hash_limbs: Vec<E1::Scalar>,
-}
-
-impl<E1: Engine> HashedCommitment<E1> {
-  pub fn new(_C: Commitment<E1>) -> Self {
-    todo!()
-  }
-}
-
-impl<E1: Engine> TranscriptRepresentable<E1::Scalar> for HashedCommitment<E1> {
-  fn to_field_vec(&self) -> Vec<E1::Scalar> {
-    // Since the scalar field F_r is smaller than the base field F_q, the circuit needs to decompose
-    // `hash` into the appropriate number of limbs.
-    // Decompose `hash` into `n` limbs over F_r
-
-    todo!()
-  }
-}
-
-/// A proof for a non-native group operation C = A + x * B, where x is a native scalar
-/// and A, B, C, are non-native group elements
-///
-#[derive(Debug, Clone, Default)]
-pub struct ScalarMulFoldProof<E1: Engine, E2: Engine> {
-  output: HashedCommitment<E1>,
-  W: Commitment<E2>,
-  T: Commitment<E2>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ScalarMulMergeProof<E1: Engine, E2: Engine> {
-  T: Commitment<E2>,
-  _marker: PhantomData<E1>,
-}
 
 #[derive(Debug)]
-pub struct ScalarMulAccumulator<E1: Engine, E2: Engine> {
+pub struct ScalarMulAccumulator<E2: Engine> {
   // ro consts secondary?
   // used to hash the incoming point
-  instance: ScalarMulAccumulatorInstance<E1, E2>,
+  instance: ScalarMulAccumulatorInstance<E2>,
   W: Vec<E2::Scalar>,
   E: Vec<E2::Scalar>,
 }
 
-impl<E1: Engine, E2: Engine> ScalarMulAccumulator<E1, E2> {
+impl<E2: Engine> ScalarMulAccumulator<E2> {
   ///
-  pub fn scalar_mul(
+  pub fn scalar_mul<E1: Engine<Scalar = E2::Base>>(
     &mut self,
     _A: &HashedCommitment<E1>,
     _B: &HashedCommitment<E1>,
@@ -74,7 +32,7 @@ impl<E1: Engine, E2: Engine> ScalarMulAccumulator<E1, E2> {
   }
 
   /// Compute
-  pub fn merge(
+  pub fn merge<E1: Engine<Scalar = E2::Base>>(
     self,
     _other: Self,
     _transcript: &mut Transcript<E1>,
@@ -87,16 +45,7 @@ impl<E1: Engine, E2: Engine> ScalarMulAccumulator<E1, E2> {
   }
 
   /// Return the succinct instance of the accumulator
-  pub(crate) fn instance(&self) -> ScalarMulAccumulatorInstance<E1, E2> {
+  pub(crate) fn instance(&self) -> ScalarMulAccumulatorInstance<E2> {
     self.instance.clone()
   }
-}
-
-#[derive(Debug, Clone)]
-pub struct ScalarMulAccumulatorInstance<E1: Engine, E2: Engine> {
-  u: E2::Scalar,
-  X: Vec<E2::Scalar>,
-  W_comm: Commitment<E2>,
-  E_comm: Commitment<E2>,
-  _marker: PhantomData<E1>,
 }

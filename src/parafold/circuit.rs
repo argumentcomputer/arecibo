@@ -1,8 +1,9 @@
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 
-use crate::parafold::nivc::circuit::{AllocatedNIVCState, AllocatedNIVCStateProof, NIVCHasher};
-use crate::parafold::nivc::prover::NIVCStateProof;
+use crate::parafold::nivc::circuit::NIVCHasher;
+use crate::parafold::nivc::NIVCUpdateProof;
+use crate::parafold::nivc::{AllocatedNIVCState, AllocatedNIVCStateProof};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::circuit_supernova::StepCircuit;
 use crate::traits::{Engine, ROConstantsCircuit};
@@ -17,7 +18,7 @@ pub fn step<
   pp: E1::Scalar,
   ro_consts: ROConstantsCircuit<E1>,
   circuit: C,
-  proof: NIVCStateProof<E1, E2>,
+  proof: NIVCUpdateProof<E1, E2>,
 ) -> Result<(), SynthesisError> {
   let arity = circuit.arity();
   let pp = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pp"), || pp);

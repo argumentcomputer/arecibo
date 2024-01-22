@@ -8,39 +8,25 @@ use crate::constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS};
 use crate::gadgets::nonnative::bignat::BigNat;
 use crate::gadgets::nonnative::util::Num;
 use crate::gadgets::utils::{alloc_bignat_constant, le_bits_to_num};
-use crate::parafold::ecc::AllocatedPoint;
+use crate::parafold::nifs_secondary::{
+  AllocatedSecondaryFoldProof, AllocatedSecondaryMergeProof, AllocatedSecondaryRelaxedR1CSInstance,
+};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::Engine;
 
-#[derive(Debug, Clone)]
-pub struct AllocatedSecondaryRelaxedR1CSInstance<E2: Engine> {
-  u: BigNat<E2::Base>,
-  X: Vec<BigNat<E2::Base>>,
-  W: AllocatedPoint<E2::Base, E2::GE>,
-  E: AllocatedPoint<E2::Base, E2::GE>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AllocatedSecondaryFoldProof<E2: Engine> {
-  W: AllocatedPoint<E2::Base, E2::GE>,
-  T: AllocatedPoint<E2::Base, E2::GE>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AllocatedSecondaryMergeProof<E2: Engine> {
-  T: AllocatedPoint<E2::Base, E2::GE>,
-}
-
-impl<E2: Engine> AllocatedSecondaryRelaxedR1CSInstance<E2> {
-  pub fn fold<CS, E1>(
-    self,
+impl<E1, E2> AllocatedSecondaryRelaxedR1CSInstance<E1, E2>
+where
+  E1: Engine,
+  E2: Engine<Base = E1::Scalar>,
+{
+  pub fn fold<CS>(
+    &mut self,
     mut cs: CS,
     X_new: Vec<BigNat<E1::Scalar>>,
-    fold_proof: AllocatedSecondaryFoldProof<E2>,
+    fold_proof: AllocatedSecondaryFoldProof<E1, E2>,
     transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<Self, SynthesisError>
+  ) -> Result<(), SynthesisError>
   where
-    E1: Engine<Scalar = E2::Base>,
     CS: ConstraintSystem<E1::Scalar>,
   {
     // Allocate the order of the non-native field as a constant
@@ -93,22 +79,23 @@ impl<E2: Engine> AllocatedSecondaryRelaxedR1CSInstance<E2> {
       .scalar_mul(cs.namespace(|| "r * T"), &r_bits)?
       .add(cs.namespace(|| "W_curr + r * T"), &E_curr)?;
 
-    Ok(Self {
+    *self = Self {
       u: u_next,
       X: X_next,
       W: W_next,
       E: E_next,
-    })
+    };
+
+    Ok(())
   }
-  pub fn merge<CS, E1>(
-    self,
+  pub fn merge<CS>(
     mut cs: CS,
-    other: Self,
-    merge_proof: AllocatedSecondaryMergeProof<E2>,
+    self_L: Self,
+    self_R: Self,
+    merge_proof: AllocatedSecondaryMergeProof<E1, E2>,
     transcript: &mut AllocatedTranscript<E1>,
   ) -> Result<Self, SynthesisError>
   where
-    E1: Engine<Scalar = E2::Base>,
     CS: ConstraintSystem<E1::Scalar>,
   {
     // Allocate the order of the non-native field as a constant
@@ -136,13 +123,13 @@ impl<E2: Engine> AllocatedSecondaryRelaxedR1CSInstance<E2> {
       X: X_L,
       W: W_L,
       E: E_L,
-    } = self;
+    } = self_L;
     let Self {
       u: u_R,
       X: X_R,
       W: W_R,
       E: E_R,
-    } = other;
+    } = self_R;
 
     let u_next = add_mul_bn(cs.namespace(|| "u_next"), &u_L, &u_R, &r_bn, &q_bn)?;
     let X_next = zip_eq(X_L, X_R)
