@@ -179,7 +179,7 @@ where
     let comm_T = Commitment::<E1>::decompress(&nifs_primary.comm_T)?;
     let E_new = self.r_U_primary.comm_E + comm_T * r;
 
-    let W_new = self.l_u_primary.comm_W + self.r_U_primary.comm_W * r;
+    let W_new = self.r_U_primary.comm_W + self.l_u_primary.comm_W * r;
 
     let mut cs_cyclefold_E = SatisfyingAssignment::<E2>::with_capacity(
       pp.circuit_shape_cyclefold.r1cs_shape.num_io + 1,
