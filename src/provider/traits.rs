@@ -29,7 +29,7 @@ pub trait DlogGroup:
   /// Produce a vector of group elements using a static label
   fn from_label(label: &'static [u8], n: usize) -> Vec<Self::Affine>;
 
-  /// Returns the affine coordinates (x, y, infinty) for the point
+  /// Returns the affine coordinates (x, y, infinity) for the point
   fn to_coordinates(&self) -> (<Self as Group>::Base, <Self as Group>::Base, bool);
 }
 
