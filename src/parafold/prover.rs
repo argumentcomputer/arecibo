@@ -1,11 +1,19 @@
+use bellpepper_core::ConstraintSystem;
+
+use crate::bellpepper::solver::SatisfyingAssignment;
 use crate::parafold::cycle_fold::HashedCommitment;
+use crate::parafold::nivc::hash::NIVCHasher;
 use crate::parafold::nivc::prover::{NIVCState, NIVCUpdateWitness};
+use crate::parafold::nivc::{AllocatedNIVCState, NIVCUpdateProof};
+use crate::parafold::transcript::prover::Transcript;
+use crate::r1cs::R1CSShape;
+use crate::traits::circuit_supernova::StepCircuit;
 use crate::traits::commitment::CommitmentEngineTrait;
 use crate::Engine;
 
 pub struct CommitmentKey<E: Engine> {
-  // ro for secondary circuit to compute the hash of the point
-  // ro_secondary
+  // TODO: ro for secondary circuit to compute the hash of the point
+  // this should only be a 2-to-1 hash since we are hashing the coordinates
   ck: crate::CommitmentKey<E>,
 }
 
@@ -16,174 +24,108 @@ impl<E: Engine> CommitmentKey<E> {
   }
 }
 
-// pub struct ProvingKey<E:Engine> {
-//
-// }
-//
-//
-// impl<E: Engine> RecursiveSNARK<E> {
-//
-//   pub fn new(pk: &ProvingKey<E>, ) -> Self {
-//
-//   }
-// }
-
-pub struct RecursiveSNARK<E1: Engine, E2: Engine> {
-  witness_prev: NIVCUpdateWitness<E1, E2>,
-  state_curr: NIVCState<E1, E2>,
+pub struct ProvingKey<E1: Engine> {
+  // public params
+  ck: CommitmentKey<E1>,
+  nivc_hasher: NIVCHasher<E1>,
+  shapes: Vec<R1CSShape<E1>>,
 }
 
-//
-// pub struct RecursionState<E: Engine> {
-//   hash_inputs: Vec<E::Scalar>,
-//   self_acc_prev: RelaxedR1CS<E>,
-//   nivc_state: NIVCState<E>,
-// }
-//
-// pub struct Prover<E: Engine> {
-//   state: RecursionState<E>,
-// }
-//
-// impl<E: Engine> RecursionState<E> {
-//   pub fn new(_pk: &ProvingKey<E>) -> Self {
-//     todo!()
-//   }
-//
-//   fn fold_proofs(self, pk: &ProvingKey<E>, nivc_witnesses: &[NIVCWitness<E>]) -> Self {
-//     let mut transcript = E::TE::new(b"fold");
-//     let self_io_hash_curr = self.io_hash();
-//
-//     // Destructure current state
-//     let Self {
-//       self_acc_prev,
-//       nivc_acc_curr,
-//       nivc_state: nivc_state_curr,
-//       self_proof_curr,
-//     } = self;
-//
-//     // sanity check
-//     assert_eq!(self_proof_curr.instance.X.len(), 2);
-//     assert_eq!(self_proof_curr.instance.X[1], self_io_hash_curr);
-//
-//     let mut cs = SatisfyingAssignment::<E>::with_capacity(pk.shape.num_io + 1, pk.shape.num_vars);
-//
-//     let circuit = StateTransitionCircuit::new(
-//       cs.namespace(|| "circuit init"),
-//       pk,
-//       self_acc_prev.instance.clone(),
-//       nivc_acc_curr
-//         .iter()
-//         .map(|acc| acc.as_ref().map(|acc| acc.instance.clone())),
-//       nivc_state_curr.clone(),
-//     );
-//
-//     // Fold the proof of the current state into the accumulator for `Self`
-//     // Generate a proof adding the witness of the current accumulator
-//     let (self_acc_curr, self_fold_proof_curr, self_fold_scalar_mul_instances) =
-//       RelaxedR1CSAccumulator::nifs_fold(
-//         &pk.ck,
-//         &pk.shape,
-//         self_acc_prev,
-//         &self_proof_curr,
-//         &mut transcript,
-//       );
-//     let circuit = circuit
-//       .fold_self(cs.namespace(|| "circuit fold self"), self_fold_proof_curr)
-//       .unwrap();
-//
-//     // Fold a list of `m` proofs into the current NIVC accumulator.
-//     // Generate the outputs of each NIVC circuit, and a folding proof
-//     let (nivc_acc_next, nivc_state_next, nivc_folding_proofs) =
-//       Self::fold_many_nivc(pk, nivc_acc_curr, nivc_state_curr, nivc_witnesses);
-//
-//     let circuit = circuit
-//       .fold_many_nivc(cs.namespace(|| "circuit fold nivc"), nivc_folding_proofs)
-//       .unwrap();
-//
-//     circuit
-//       .finalize(cs.namespace(|| "circuit finalize"))
-//       .unwrap();
-//
-//     let self_proof_next: R1CSProof<E> = Self::prove_transition(pk, cs);
-//
-//     Self {
-//       self_acc_prev: self_acc_curr,
-//       nivc_acc_curr: nivc_acc_next,
-//       nivc_state: nivc_state_next,
-//       self_proof_curr: self_proof_next,
-//     }
-//   }
-//
-//   /// Compute a collision-resistant hash of the circuit's state.
-//   fn io_hash(&self) -> E::Scalar {
-//     todo!()
-//   }
-//
-//   /// Given a list NIVC accumulators `accs_init` that resulted in the computation of `state_init`,
-//   /// and a list of NIVC proofs of `m` sequential iterations, this function folds all the proofs into an `accs_init`,
-//   /// and returns proofs of this folding.
-//   fn fold_many_nivc(
-//     pk: &ProvingKey<E>,
-//     accs_init: Vec<Option<RelaxedR1CSAccumulator<E>>>,
-//     nivc_state_init: NIVCIO<E::Scalar>,
-//     nivc_witnesses: &[NIVCWitness<E>],
-//   ) -> (
-//     Vec<Option<RelaxedR1CSAccumulator<E>>>,
-//     NIVCIO<E::Scalar>,
-//     Vec<NIVCProof<E>>,
-//   ) {
-//     let num_iters = nivc_witnesses.len();
-//
-//     let mut fold_proofs = Vec::with_capacity(num_iters);
-//
-//     let (accs_next, nivc_state_next) = nivc_witnesses.iter().fold(
-//       (accs_init, nivc_state_init),
-//       |(accs_curr, nivc_state_curr), witness| {
-//         let NIVCWitness { io, proof } = witness;
-//
-//         // assert_eq!(nivc_state_curr, input);
-//
-//         let pc = nivc_state_curr.pc;
-//
-//         let (accs_next, proof) = RelaxedR1CSAccumulator::nifs_fold_many(
-//           &pk.ck,
-//           &pk.ro_consts,
-//           &pk.nivc[pc].shape,
-//           &pk.nivc[pc].pp,
-//           accs_curr,
-//           pc,
-//           proof,
-//         );
-//
-//         let nifs_state_next = output.clone();
-//
-//         fold_proofs.push(NIVCProof {
-//           input,
-//           output,
-//           proof,
-//         });
-//
-//         (accs_next, nifs_state_next)
-//       },
-//     );
-//     (accs_next, nivc_state_next, fold_proofs)
-//   }
-//
-//   // /// Create a proof for the circuit verifying the current state transition.
-//   // fn prove_transition<CS: ConstraintSystem<E::Scalar> + NovaWitness<E>>(
-//   //   pk: &ProvingKey<E>,
-//   //   cs: CS,
-//   // ) -> R1CSProof<E> {
-//   //   let (instance, witness) = cs
-//   //     .r1cs_instance_and_witness(&pk.shape, &pk.ck)
-//   //     .map_err(|_e| NovaError::UnSat)
-//   //     .expect("Nova error unsat");
-//   //   let instance = R1CSInstance {
-//   //     W: instance.comm_W,
-//   //     X: instance.X,
-//   //   };
-//   //   let witness = R1CSWitness { W: witness.W };
-//   //
-//   //   R1CSProof { instance, witness }
-//   // }
-// }
+pub struct RecursiveSNARK<E1: Engine, E2: Engine> {
+  // state
+  state: NIVCState<E1, E2>,
+  proof: NIVCUpdateProof<E1, E2>,
+}
+
+impl<E1, E2> RecursiveSNARK<E1, E2>
+where
+  E1: Engine,
+  E2: Engine<Base = E1::Scalar>,
+{
+  // pub fn new(pc_init: usize, shapes: &[R1CSShape<E1::Scalar>]) -> Self {
+  //   let num_circuits = shapes.len();
+  //   let arity = assert!(pc_init < num_circuits);
+  // }
+
+  pub fn prove_step<C: StepCircuit<E1::Scalar>>(
+    mut self,
+    pk: &ProvingKey<E1>,
+    step_circuit: C,
+  ) -> Self {
+    let Self { mut state, proof } = self;
+    let circuit_index = step_circuit.circuit_index();
+    let mut cs = SatisfyingAssignment::<E1>::new();
+    let state_instance =
+      AllocatedNIVCState::new_step(&mut cs, &pk.nivc_hasher, proof, step_circuit).unwrap();
+    let W = cs.aux_assignment();
+    // assert state_instance == state.instance
+    let witness = NIVCUpdateWitness {
+      state: state_instance,
+      index: circuit_index,
+      W: W.to_vec(),
+    };
+
+    let mut transcript = Transcript::new();
+
+    let proof = state.update(
+      &pk.ck,
+      &pk.shapes,
+      &pk.nivc_hasher,
+      &witness,
+      &mut transcript,
+    );
+
+    Self { state, proof }
+  }
+  // pub fn merge<C: StepCircuit<E1::Scalar>>(
+  //   pk: &ProvingKey<E1>,
+  //   self_L: Self,
+  //   self_R: &Self,
+  // ) -> Self {
+  //   let Self {
+  //     state: state_L,
+  //     proof: proof_L,
+  //   } = self_L;
+  //   let Self {
+  //     state: state_R,
+  //     proof: proof_R,
+  //   } = self_R;
+  //
+  //   let mut transcript = Transcript::new();
+  //
+  //   let (state, proof) = NIVCState::merge(
+  //     &pk.ck,
+  //     &pk.shapes,
+  //     state_L,
+  //     state_R,
+  //     proof_L,
+  //     proof_R.clone(),
+  //     &mut transcript,
+  //   );
+  //
+  //   let circuit_index = pk.shapes.len();
+  //   let mut cs = SatisfyingAssignment::<E1>::new();
+  //   let state_instance = AllocatedNIVCState::new_merge(&mut cs, &pk.nivc_hasher, proof).unwrap();
+  //   let W = cs.aux_assignment();
+  //   // assert state_instance == state.instance
+  //   let witness = NIVCUpdateWitness {
+  //     state: state_instance,
+  //     index: circuit_index,
+  //     W: W.to_vec(),
+  //   };
+  //
+  //   let mut transcript = Transcript::new();
+  //
+  //   let proof = state.update(
+  //     &pk.ck,
+  //     &pk.shapes,
+  //     &pk.nivc_hasher,
+  //     &witness,
+  //     &mut transcript,
+  //   );
+  //
+  //   Self { state, proof }
+  // }
+}
+
+pub struct CompressedSNARK<E1: Engine, E2: Engine> {}

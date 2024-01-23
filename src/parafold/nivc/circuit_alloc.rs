@@ -4,7 +4,7 @@ use ff::PrimeField;
 
 use crate::parafold::cycle_fold::AllocatedScalarMulAccumulator;
 use crate::parafold::nifs_primary::{AllocatedFoldProof, AllocatedRelaxedR1CSInstance};
-use crate::parafold::nivc::{AllocatedNIVCIO, AllocatedNIVCState, AllocatedNIVCStateProof};
+use crate::parafold::nivc::{AllocatedNIVCIO, AllocatedNIVCState, AllocatedNIVCUpdateProof};
 use crate::parafold::nivc::{NIVCStateInstance, NIVCUpdateProof, NIVCIO};
 use crate::traits::Engine;
 
@@ -140,7 +140,7 @@ where
   }
 }
 
-impl<E1, E2> AllocatedNIVCStateProof<E1, E2>
+impl<E1, E2> AllocatedNIVCUpdateProof<E1, E2>
 where
   E1: Engine,
   E2: Engine<Base = E1::Scalar>,

@@ -1,6 +1,4 @@
 #[allow(dead_code)]
-mod circuit;
-#[allow(dead_code)]
 mod cycle_fold;
 #[allow(dead_code)]
 mod ecc;

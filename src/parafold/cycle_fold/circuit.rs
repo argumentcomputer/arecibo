@@ -9,7 +9,11 @@ use crate::parafold::nifs_secondary::AllocatedSecondaryRelaxedR1CSInstance;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::Engine;
 
-impl<E1: Engine, E2: Engine<Base = E1::Scalar>> AllocatedScalarMulAccumulator<E1, E2> {
+impl<E1, E2> AllocatedScalarMulAccumulator<E1, E2>
+where
+  E1: Engine,
+  E2: Engine<Base = E1::Scalar>,
+{
   /// Compute the result `C <- A + x * B` by folding a proof over the secondary curve.
   pub fn scalar_mul<CS>(
     &mut self,

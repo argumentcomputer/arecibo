@@ -34,7 +34,7 @@ impl<E2: Engine> ScalarMulAccumulator<E2> {
   /// Compute
   pub fn merge<E1: Engine<Scalar = E2::Base>>(
     self,
-    _other: Self,
+    _other: &Self,
     _transcript: &mut Transcript<E1>,
   ) -> (Self, ScalarMulMergeProof<E1, E2>) {
     // self and other will not need to be added to the transcript since they are obtained from an accumulator

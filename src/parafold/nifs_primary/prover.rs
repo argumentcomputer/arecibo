@@ -32,8 +32,10 @@ impl<E1: Engine> RelaxedR1CS<E1> {
     &self.instance
   }
 
-  /// Fold the proof for the previous state transition, producing an accumulator for the current state,
-  /// and a proof to be consumed by the verifier.
+  /// Given the public IO `X_new` for a circuit with R1CS representation `shape`,
+  /// along with a satisfying witness vector `W_new`, and assuming `self` is a valid accumulator for the same circuit,
+  /// this function will fold the statement into `self` and return a [FoldProof] that will allow the verifier to perform
+  /// the same transformation over the corresponding [RelaxedR1CSInstance] of the input `self`.  
   ///
   /// # Warning
   /// We assume the R1CS IO `X_new` has already been absorbed in some form into the transcript in order to avoid
@@ -58,75 +60,30 @@ impl<E1: Engine> RelaxedR1CS<E1> {
     transcript.absorb(&T_comm);
     let r = transcript.squeeze();
 
-    let Self {
-      instance: instance_curr,
-      W: W_curr,
-      E: E_curr,
-    } = self;
+    self
+      .W
+      .par_iter_mut()
+      .zip_eq(W_new.par_iter())
+      .for_each(|(w, w_new)| *w += r * w_new);
 
-    let (instance_next, W_sm_proof, E_sm_proof) = {
-      // Unpack accumulator
-      let RelaxedR1CSInstance {
-        u: u_curr,
-        X: X_curr,
-        W: W_comm_curr,
-        E: E_comm_curr,
-      } = instance_curr;
+    self
+      .E
+      .par_iter_mut()
+      .zip_eq(T.par_iter())
+      .for_each(|(e, t)| *e += r * t);
 
-      // For relaxed instances, u_new = 1
-      let u_next = *u_curr + r;
-      let X_next = zip_eq(X_curr, X_new)
-        .map(|(x_curr, x_new)| *x_curr + r * x_new)
-        .collect::<Vec<_>>();
-      // Compute scalar multiplications and resulting instances to be proved with the CycleFold circuit
-      // W_comm_next = W_comm_curr + r * W_comm_new
-      let (W_comm_next, W_sm_proof) = acc_sm.scalar_mul(&W_comm_curr, &W_comm_new, &r, transcript);
-      // E_comm_next = E_comm_curr + r * T
-      let (E_comm_next, E_sm_proof) = acc_sm.scalar_mul(&E_comm_curr, &T_comm, &r, transcript);
-
-      let instance_next = RelaxedR1CSInstance {
-        u: u_next,
-        X: X_next,
-        W: W_comm_next,
-        E: E_comm_next,
-      };
-      (instance_next, W_sm_proof, E_sm_proof)
-    };
-
-    let W_next = zip_with!(
-      (W_curr.into_par_iter(), W_new.par_iter()),
-      |w_curr, w_new| *w_curr + r * w_new
-    )
-    .collect::<Vec<_>>();
-    let E_next = zip_with!(
-      (E_curr.into_par_iter(), T.par_iter()),
-      |e_curr, e_new| *e_curr + r * e_new
-    )
-    .collect::<Vec<_>>();
-
-    let fold_proof = FoldProof {
-      W: W_comm_new,
-      T: T_comm,
-      W_sm_proof,
-      E_sm_proof,
-    };
-
-    *self = Self {
-      instance: instance_next,
-      W: W_next,
-      E: E_next,
-    };
-
+    let fold_proof = self
+      .instance
+      .fold_aux(acc_sm, X_new, W_comm_new, T_comm, r, transcript);
     fold_proof
   }
 
-  /// Fold the proof for the previous state transition, producing an accumulator for the current state,
-  /// and a proof to be consumed by the verifier.
+  /// Given two lists of [RelaxedR1CS] accumulators,
   pub fn merge_many<E2>(
     ck: &CommitmentKey<E1>,
     shapes: &[R1CSShape<E1>],
     mut accs_L: Vec<Self>,
-    accs_R: Vec<Self>,
+    accs_R: &[Self],
     acc_sm: &mut ScalarMulAccumulator<E2>,
     transcript: &mut Transcript<E1>,
   ) -> (Vec<Self>, Vec<MergeProof<E1, E2>>)
@@ -153,92 +110,41 @@ impl<E1: Engine> RelaxedR1CS<E1> {
     }
     let r = transcript.squeeze();
 
-    let (accs_next, merge_proofs): (Vec<_>, Vec<_>) = zip_with!(
+    zip_with!(
       (
         accs_L.into_iter(),
-        accs_R.into_iter(),
+        accs_R.iter(),
         Ts.iter(),
         T_comms.into_iter()
       ),
       |acc_L, acc_R, T, T_comm| {
-        let Self {
-          instance: instance_L,
-          W: W_L,
-          E: E_L,
-        } = acc_L;
-        let Self {
-          instance: instance_R,
-          W: W_R,
-          E: E_R,
-        } = acc_R;
-
-        let W_next = zip_with!((W_L.into_par_iter(), W_R.par_iter()), |w_L, w_R| w_L
-          + r * w_R)
-        .collect::<Vec<_>>();
-        let E_next = zip_with!(
-          (E_L.into_par_iter(), T.par_iter(), E_R.par_iter()),
-          |e_L, t, e_R| {
-            let e_tmp = *t + r * e_R;
-            e_L + r * e_tmp
-          }
+        let W = zip_with!(
+          (acc_L.W.into_par_iter(), acc_R.W.par_iter()),
+          |w_L, w_R| w_L + r * w_R
         )
-        .collect::<Vec<_>>();
+        .collect();
 
-        let (instance_next, W_sm_proof, E1_sm_proof, E2_sm_proof) = {
-          // Unpack accumulator
-          let RelaxedR1CSInstance {
-            u: u_L,
-            X: X_L,
-            W: W_L,
-            E: E_L,
-          } = instance_L;
+        let E = zip_with!(
+          (acc_L.E.into_par_iter(), T.par_iter(), acc_R.E.par_iter()),
+          |e_L, t, e_R| e_L + r * (*t + r * e_R)
+        )
+        .collect();
 
-          // Unpack fresh proof
-          let RelaxedR1CSInstance {
-            u: u_R,
-            X: X_R,
-            W: W_R,
-            E: E_R,
-          } = instance_R;
+        let (instance, merge_proof) = RelaxedR1CSInstance::merge_aux(
+          acc_L.instance,
+          &acc_R.instance,
+          acc_sm,
+          T_comm,
+          r,
+          transcript,
+        );
 
-          let u_next = u_L + r * u_R;
-          let X_next = zip_eq(X_L.into_iter(), X_R.iter())
-            .map(|(x_L, x_R)| x_L + r * x_R)
-            .collect::<Vec<_>>();
-          // Compute scalar multiplications and resulting instances to be proved with the CycleFold circuit
-          // W_next = W_L + r * W_R
-          let (W_next, W_sm_proof) = acc_sm.scalar_mul::<E1>(&W_L, &W_R, &r, transcript);
-          let (E1_next, E1_sm_proof) = acc_sm.scalar_mul::<E1>(&T_comm, &E_R, &r, transcript);
-          // E_next = E_curr + r * E1_next = E_curr + r * T + r^2 * E_new
-          let (E_next, E2_sm_proof) = acc_sm.scalar_mul::<E1>(&E_L, &E1_next, &r, transcript);
+        let acc = Self { instance, W, E };
 
-          let instance_next = RelaxedR1CSInstance {
-            u: u_next,
-            X: X_next,
-            W: W_next,
-            E: E_next,
-          };
-          (instance_next, W_sm_proof, E1_sm_proof, E2_sm_proof)
-        };
-
-        let acc_next = Self {
-          instance: instance_next,
-          W: W_next,
-          E: E_next,
-        };
-
-        let merge_proof = MergeProof {
-          T: T_comm,
-          W_sm_proof,
-          E1_sm_proof,
-          E2_sm_proof,
-        };
-        (acc_next, merge_proof)
+        (acc, merge_proof)
       }
     )
-    .unzip();
-
-    (accs_next, merge_proofs)
+    .unzip()
   }
 
   fn compute_fold_proof(
@@ -251,5 +157,78 @@ impl<E1: Engine> RelaxedR1CS<E1> {
   ) -> (Vec<E1::Scalar>, HashedCommitment<E1>) {
     // let T_comm = CE::<E>::commit(ck, &T);
     todo!()
+  }
+}
+
+impl<E1: Engine> RelaxedR1CSInstance<E1> {
+  pub fn fold_aux<E2>(
+    &mut self,
+    acc_sm: &mut ScalarMulAccumulator<E2>,
+    X_new: Vec<E1::Scalar>,
+    W_new: HashedCommitment<E1>,
+    T: HashedCommitment<E1>,
+    r: E1::Scalar,
+    transcript: &mut Transcript<E1>,
+  ) -> FoldProof<E1, E2>
+  where
+    E2: Engine<Base = E1::Scalar>,
+  {
+    // For non-relaxed instances, u_new = 1
+    self.u += r;
+    self
+      .X
+      .iter_mut()
+      .zip_eq(X_new)
+      .for_each(|(x, x_new)| *x += r * x_new);
+
+    // Compute scalar multiplications and resulting instances to be proved with the CycleFold circuit
+    // W_comm_next = W_comm_curr + r * W_comm_new
+    let (W, W_sm_proof) = acc_sm.scalar_mul(&self.W, &W_new, &r, transcript);
+    self.W = W;
+
+    // E_comm_next = E_comm_curr + r * T
+    let (E, E_sm_proof) = acc_sm.scalar_mul(&self.E, &T, &r, transcript);
+    self.E = E;
+
+    FoldProof {
+      W: W_new,
+      T,
+      W_sm_proof,
+      E_sm_proof,
+    }
+  }
+
+  pub fn merge_aux<E2>(
+    acc_L: Self,
+    acc_R: &Self,
+    acc_sm: &mut ScalarMulAccumulator<E2>,
+    T: HashedCommitment<E1>,
+    r: E1::Scalar,
+    transcript: &mut Transcript<E1>,
+  ) -> (Self, MergeProof<E1, E2>)
+  where
+    E2: Engine<Base = E1::Scalar>,
+  {
+    let u = acc_L.u + r * &acc_R.u;
+    let X = zip_eq(acc_L.X.into_iter(), acc_R.X.iter())
+      .map(|(x_L, x_R)| x_L + r * x_R)
+      .collect();
+
+    // Compute scalar multiplications and resulting instances to be proved with the CycleFold circuit
+    // W_next = W_L + r * W_R
+    let (W, W_sm_proof) = acc_sm.scalar_mul::<E1>(&acc_L.W, &acc_R.W, &r, transcript);
+
+    let (E1_next, E1_sm_proof) = acc_sm.scalar_mul::<E1>(&T, &acc_R.E, &r, transcript);
+    // E_next = E_L + r * E1_next = E_L + r * T + r^2 * E_R
+    let (E, E2_sm_proof) = acc_sm.scalar_mul::<E1>(&acc_L.E, &E1_next, &r, transcript);
+    let instance = Self { u, X, W, E };
+
+    let merge_proof = MergeProof {
+      T,
+      W_sm_proof,
+      E1_sm_proof,
+      E2_sm_proof,
+    };
+    (instance, merge_proof)
   }
 }

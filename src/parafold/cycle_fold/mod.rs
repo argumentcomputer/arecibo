@@ -10,10 +10,10 @@ use crate::parafold::nifs_secondary::{
   AllocatedSecondaryFoldProof, AllocatedSecondaryMergeProof, AllocatedSecondaryRelaxedR1CSInstance,
 };
 use crate::parafold::nifs_secondary::{SecondaryFoldProof, SecondaryMergeProof};
-use crate::parafold::transcript::prover::TranscriptRepresentable;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::Engine;
 use crate::Commitment;
+use crate::parafold::transcript;
 
 pub mod circuit;
 mod circuit_alloc;
@@ -70,7 +70,7 @@ pub struct AllocatedHashedCommitment<E1: Engine> {
   hash: BigNat<E1::Scalar>,
 }
 
-impl<E1: Engine> crate::parafold::transcript::circuit::TranscriptRepresentable<E1::Scalar>
+impl<E1: Engine> transcript::circuit::TranscriptRepresentable<E1::Scalar>
   for AllocatedHashedCommitment<E1>
 {
   fn to_field_vec(&self) -> Vec<AllocatedNum<E1::Scalar>> {
@@ -101,10 +101,15 @@ impl<E1: Engine> HashedCommitment<E1> {
   }
 }
 
-impl<E1: Engine> TranscriptRepresentable<E1::Scalar> for HashedCommitment<E1> {
+impl<E1: Engine> transcript::prover::TranscriptRepresentable<E1::Scalar> for HashedCommitment<E1> {
   fn to_field_vec(&self) -> Vec<E1::Scalar> {
     self.hash_limbs.clone()
   }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScalarMulAccumulatorInstance<E2: Engine> {
+  acc: SecondaryRelaxedR1CSInstance<E2>,
 }
 
 /// Circuit representation of a RelaxedR1CS accumulator of the non-native scalar multiplication circuit.
@@ -127,12 +132,7 @@ impl<E1: Engine> TranscriptRepresentable<E1::Scalar> for HashedCommitment<E1> {
 /// of deferred instances.  
 #[derive(Debug, Clone)]
 pub struct AllocatedScalarMulAccumulator<E1: Engine, E2: Engine> {
-  pub acc: AllocatedSecondaryRelaxedR1CSInstance<E1, E2>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScalarMulAccumulatorInstance<E2: Engine> {
-  acc: SecondaryRelaxedR1CSInstance<E2>,
+  acc: AllocatedSecondaryRelaxedR1CSInstance<E1, E2>,
 }
 
 /// A proof for a non-native group operation C = A + x * B, where x is a native scalar
@@ -145,10 +145,11 @@ pub struct ScalarMulFoldProof<E1: Engine, E2: Engine> {
 
 #[derive(Debug, Clone)]
 pub struct AllocatedScalarMulFoldProof<E1: Engine, E2: Engine> {
-  pub output: AllocatedHashedCommitment<E1>,
-  pub proof: AllocatedSecondaryFoldProof<E1, E2>,
+  output: AllocatedHashedCommitment<E1>,
+  proof: AllocatedSecondaryFoldProof<E1, E2>,
 }
 
+///
 #[derive(Debug, Clone)]
 pub struct ScalarMulMergeProof<E1: Engine, E2: Engine> {
   proof: SecondaryMergeProof<E2>,

@@ -26,6 +26,7 @@ pub struct AllocatedRelaxedR1CSInstance<E1: Engine> {
   E: AllocatedHashedCommitment<E1>,
 }
 
+
 /// A proof for folding a statement X of a circuit C into a Relaxed-R1CS circuit for the same circuit C
 #[derive(Debug, Clone, Default)]
 pub struct FoldProof<E1: Engine, E2: Engine> {
@@ -35,8 +36,7 @@ pub struct FoldProof<E1: Engine, E2: Engine> {
   E_sm_proof: ScalarMulFoldProof<E1, E2>,
 }
 
-/// An allocated Nova folding proof, for either folding an [R1CSInstance] or a [RelaxedR1CSInstance] into
-/// another [RelaxedR1CSInstance]
+/// Allocated [FoldProof]
 #[derive(Debug, Clone)]
 pub struct AllocatedFoldProof<E1: Engine, E2: Engine> {
   pub W: AllocatedHashedCommitment<E1>,
@@ -54,6 +54,7 @@ pub struct MergeProof<E1: Engine, E2: Engine> {
   E2_sm_proof: ScalarMulFoldProof<E1, E2>,
 }
 
+/// Allocated [MergeProof]
 #[derive(Debug, Clone)]
 pub struct AllocatedMergeProof<E1: Engine, E2: Engine> {
   T: AllocatedHashedCommitment<E1>,

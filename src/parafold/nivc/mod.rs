@@ -12,6 +12,7 @@ use ff::PrimeField;
 
 pub mod circuit;
 mod circuit_alloc;
+pub mod hash;
 pub mod prover;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,7 +62,7 @@ pub struct NIVCUpdateProof<E1: Engine, E2: Engine> {
 
 /// A proved NIVC step for a particular step function. Can be folded into an existing [`AllocatedNIVCState'].
 #[derive(Debug, Clone)]
-pub struct AllocatedNIVCStateProof<E1: Engine, E2: Engine> {
+pub struct AllocatedNIVCUpdateProof<E1: Engine, E2: Engine> {
   /// Output of the previous step
   state: AllocatedNIVCState<E1, E2>,
   /// Index of the circuits that produced `state`
@@ -72,8 +73,8 @@ pub struct AllocatedNIVCStateProof<E1: Engine, E2: Engine> {
 
 #[derive(Debug, Clone)]
 pub struct NIVCMergeProof<E1: Engine, E2: Engine> {
-  nivc_update_proof_L: NIVCUpdateProof<E1, E2>,
-  nivc_update_proof_R: NIVCUpdateProof<E1, E2>,
+  proof_L: NIVCUpdateProof<E1, E2>,
+  proof_R: NIVCUpdateProof<E1, E2>,
   sm_merge_proof: ScalarMulMergeProof<E1, E2>,
   nivc_merge_proof: Vec<MergeProof<E1, E2>>,
 }
@@ -81,8 +82,8 @@ pub struct NIVCMergeProof<E1: Engine, E2: Engine> {
 /// A proved NIVC step for a particular step function. Can be folded into an existing [`AllocatedNIVCState'].
 #[derive(Debug, Clone)]
 pub struct AllocatedNIVCMergeProof<E1: Engine, E2: Engine> {
-  proof_L: AllocatedNIVCStateProof<E1, E2>,
-  proof_R: AllocatedNIVCStateProof<E1, E2>,
+  proof_L: AllocatedNIVCUpdateProof<E1, E2>,
+  proof_R: AllocatedNIVCUpdateProof<E1, E2>,
   /// Proof for merging the scalar multiplication accumulators from two different states.
   sm_merge_proof: AllocatedScalarMulMergeProof<E1, E2>,
   /// Proofs for merging each accumulator in [AllocatedNIVCState.accs] from two different states

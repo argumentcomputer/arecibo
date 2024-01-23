@@ -7,12 +7,14 @@ use itertools::zip_eq;
 use crate::gadgets::utils::{alloc_num_equals, alloc_zero};
 use crate::parafold::cycle_fold::AllocatedScalarMulAccumulator;
 use crate::parafold::nifs_primary::AllocatedRelaxedR1CSInstance;
+use crate::parafold::nivc::hash::{AllocatedNIVCHasher, NIVCHasher};
 use crate::parafold::nivc::{
-  AllocatedNIVCIO, AllocatedNIVCMergeProof, AllocatedNIVCState, AllocatedNIVCStateProof,
+  AllocatedNIVCIO, AllocatedNIVCMergeProof, AllocatedNIVCState, AllocatedNIVCUpdateProof,
+  NIVCMergeProof, NIVCStateInstance, NIVCUpdateProof,
 };
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::circuit_supernova::EnforcingStepCircuit;
-use crate::traits::{Engine, ROConstantsCircuit};
+use crate::traits::Engine;
 
 impl<E1, E2> AllocatedNIVCState<E1, E2>
 where
@@ -23,7 +25,7 @@ where
   fn hash<CS>(
     &self,
     mut cs: CS,
-    _hasher: &NIVCHasher<E1>,
+    _hasher: &AllocatedNIVCHasher<E1>,
   ) -> Result<AllocatedNum<E1::Scalar>, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
@@ -43,7 +45,7 @@ where
   fn from_proof<CS>(
     mut cs: CS,
     hasher: &NIVCHasher<E1>,
-    proof: AllocatedNIVCStateProof<E1, E2>,
+    proof: AllocatedNIVCUpdateProof<E1, E2>,
     transcript: &mut AllocatedTranscript<E1>,
   ) -> Result<
     (
@@ -61,7 +63,7 @@ where
     // at index `index_prev`, where the inputs were `h_L, h_R`.
     // `fold_proof` proves this computation, but also includes auxiliary proof data to update the accumulators
     // in `state_prev`.
-    let AllocatedNIVCStateProof {
+    let AllocatedNIVCUpdateProof {
       state: state_prev,
       index: index_prev,
       fold_proof,
@@ -128,17 +130,23 @@ where
   pub fn new_step<CS, SF>(
     mut cs: CS,
     hasher: &NIVCHasher<E1>,
-    proof: AllocatedNIVCStateProof<E1, E2>,
+    proof: NIVCUpdateProof<E1, E2>,
     step_circuit: SF,
-    transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<Self, SynthesisError>
+  ) -> Result<NIVCStateInstance<E1, E2>, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
     SF: EnforcingStepCircuit<E1::Scalar>,
   {
+    let mut transcript = AllocatedTranscript::new();
+    let proof =
+      AllocatedNIVCUpdateProof::alloc_infallible(cs.namespace(|| "alloc proof"), || proof);
     // Fold proof for previous state
-    let (io_prev, accs_next, acc_sm_next, hash_prev) =
-      Self::from_proof(cs.namespace(|| "verify self"), hasher, proof, transcript)?;
+    let (io_prev, accs_next, acc_sm_next, hash_prev) = Self::from_proof(
+      cs.namespace(|| "verify self"),
+      hasher,
+      proof,
+      &mut transcript,
+    )?;
 
     let AllocatedNIVCIO {
       pc_in: pc_init,
@@ -178,19 +186,21 @@ where
     // To ensure both step and merge circuits have the same IO, we inputize the previous output twice
     hash_next.inputize(cs.namespace(|| "inputize hash_next"))?;
 
-    Ok(nivc_next)
+    nivc_next.to_native()
   }
 
   /// Circuit
   pub fn new_merge<CS>(
     mut cs: CS,
     hasher: &NIVCHasher<E1>,
-    proof: AllocatedNIVCMergeProof<E1, E2>,
-    transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<Self, SynthesisError>
+    proof: NIVCMergeProof<E1, E2>,
+  ) -> Result<NIVCStateInstance<E1, E2>, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
+    let mut transcript = AllocatedTranscript::new();
+
+    let proof = AllocatedNIVCMergeProof::alloc_infallible(cs.namespace(|| "alloc proof"), || proof);
     let AllocatedNIVCMergeProof {
       proof_L,
       proof_R,
@@ -203,13 +213,13 @@ where
       cs.namespace(|| "verify proof_L"),
       hasher,
       proof_L,
-      transcript,
+      &mut transcript,
     )?;
     let (io_R_prev, accs_R_next, acc_sm_R_next, hash_R_prev) = Self::from_proof(
       cs.namespace(|| "verify proof_R"),
       hasher,
       proof_R,
-      transcript,
+      &mut transcript,
     )?;
 
     let mut acc_sm_next = AllocatedScalarMulAccumulator::merge(
@@ -217,7 +227,7 @@ where
       acc_sm_L_next,
       acc_sm_R_next,
       sm_merge_proof,
-      transcript,
+      &mut transcript,
     )?;
 
     // merge the accumulators from both states.
@@ -227,7 +237,7 @@ where
       accs_R_next,
       &mut acc_sm_next,
       nivc_merge_proofs,
-      transcript,
+      &mut transcript,
     )?;
 
     let io_next = io_L_prev.merge(cs.namespace(|| "merge io"), io_R_prev)?;
@@ -242,7 +252,7 @@ where
 
     hash_next.inputize(cs.namespace(|| "inputize hash_next"))?;
 
-    Ok(nivc_next)
+    nivc_next.to_native()
   }
 }
 
@@ -302,21 +312,5 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
           |lc| lc,
         );
       });
-  }
-}
-
-pub struct NIVCHasher<E: Engine> {
-  ro_consts: ROConstantsCircuit<E>,
-  pp: AllocatedNum<E::Scalar>,
-  arity: usize,
-}
-
-impl<E: Engine> NIVCHasher<E> {
-  pub fn new(ro_consts: ROConstantsCircuit<E>, pp: AllocatedNum<E::Scalar>, arity: usize) -> Self {
-    Self {
-      ro_consts,
-      pp,
-      arity,
-    }
   }
 }
