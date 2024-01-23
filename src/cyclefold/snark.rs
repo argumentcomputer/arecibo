@@ -254,11 +254,11 @@ where
 
     let data_p = FoldingData::new(self.r_U_primary.clone(), self.l_u_primary.clone(), comm_T);
     let data_c_E = FoldingData::new(r_U_cyclefold_E, l_u_cyclefold_E, comm_T_E);
-    let data_c_W = FoldingData::new(r_U_cyclefold_W, l_u_cyclefold_W, comm_T_W);
+    let data_c_W = FoldingData::new(r_U_cyclefold_W.clone(), l_u_cyclefold_W, comm_T_W);
 
-    let inputs_primary = AugmentedCircuitInputs::new(
-      pp.digest(),
-      <E2 as Engine>::Scalar::from(self.i as u64),
+    let inputs_primary: AugmentedCircuitInputs<E2, E1> = AugmentedCircuitInputs::new(
+      scalar_as_base::<E1>(pp.digest()),
+      <E2 as Engine>::Base::from(self.i as u64),
       self.z0_primary.clone(),
       Some(self.zi_primary.clone()),
       Some(data_p),
