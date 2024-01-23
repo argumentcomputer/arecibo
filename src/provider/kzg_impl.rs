@@ -5,7 +5,9 @@
 mod tests {
   use crate::provider::non_hiding_kzg::{UVKZGPoly, UniversalKZGParam};
   use crate::provider::traits::DlogGroup;
+  use crate::provider::util::iterators::DoubleEndedIteratorExt;
   use crate::spartan::polys::univariate::UniPoly;
+  use crate::zip_with;
   use ff::Field;
   use group::{Curve, Group};
   use halo2curves::bn256::{multi_miller_loop, pairing, Bn256, Fr, G1Affine, G2Prepared, G1, G2};
@@ -280,5 +282,186 @@ mod tests {
     let left = pairing(&Ch.to_affine(), &(aG - zG).to_affine());
     let right = pairing(&(F - v).to_affine(), &srs.powers_of_h[0]);
     assert_eq!(left, right);
+  }
+
+  #[test]
+  fn e2e_test_pcs_mlkzg_flow() {
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+    let eval = Fr::from(57);
+
+    // SETUP
+    let mut rng = OsRng;
+    let n = poly.len();
+    let srs = UniversalKZGParam::<Bn256>::gen_srs_for_testing(&mut rng, n);
+
+    //let C = <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()]);
+    // PROVE
+    assert_eq!(n, 1 << point.len());
+
+    fn construct_next_Pi(pi: &[Fr], point: Fr) -> Vec<Fr> {
+      let Pi_len = pi.len() / 2;
+      let mut Pi = vec![Fr::ZERO; Pi_len];
+      for j in 0..Pi_len {
+        Pi[j] = point * (pi[2 * j + 1] - pi[2 * j]) + pi[2 * j];
+      }
+      Pi
+    }
+
+    // Phase 1 (constructing Pi polynomials and computing commitments to them)
+    let Pi_0 = poly.clone();
+    let Pi_1 = construct_next_Pi(Pi_0.as_slice(), point[2]);
+    let Pi_2 = construct_next_Pi(Pi_1.as_slice(), point[1]);
+    let Pi_3 = construct_next_Pi(Pi_2.as_slice(), point[0]);
+    let Pi = vec![Pi_0, Pi_1, Pi_2, Pi_3];
+    assert_eq!(Pi.len(), 4);
+    assert_eq!(Pi[3].len(), 1);
+    assert_eq!(Pi[3][0], eval);
+
+    let pi_commitments = Pi
+      .clone()
+      .into_iter()
+      .map(|poly| {
+        <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()])
+          .to_affine()
+      })
+      .collect::<Vec<G1Affine>>();
+
+    // Phase 2 (simplified for this flow)
+    let r = Fr::from(182345);
+    let minus_r = -r;
+    let r_squared = r * r;
+
+    // Phase 3
+
+    // Compute evals at r, -r, r^2 for each Pi polynomial
+    let evals_at_r = Pi
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&r))
+      .collect::<Vec<Fr>>();
+
+    let evals_at_minus_r = Pi
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&minus_r))
+      .collect::<Vec<Fr>>();
+
+    let evals_at_r_squared = Pi
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&r_squared))
+      .collect::<Vec<Fr>>();
+
+    // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
+    let q = Fr::from(1983758);
+    let batched_Pi: UniPoly<Fr> = Pi.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    // Compute openings (commitments to quotient polynomial) at r, -r, r^2
+    let compute_witness_polynomial = |f: &[Fr], r: Fr| -> Vec<Fr> {
+      let d = f.len();
+      // Compute h(x) = f(x)/(x - r)
+      let mut h = vec![Fr::ZERO; d];
+      for i in (1..d).rev() {
+        h[i - 1] = f[i] + h[i] * r;
+      }
+      h
+    };
+
+    let h_at_r = compute_witness_polynomial(batched_Pi.coeffs.as_slice(), r);
+    let h_at_minus_r = compute_witness_polynomial(batched_Pi.coeffs.as_slice(), minus_r);
+    let h_at_r_squared = compute_witness_polynomial(batched_Pi.coeffs.as_slice(), r_squared);
+
+    /*
+    /// 'compute_witness_polynomial' is equivalent to 'divide_with_q_and_r'
+
+    let divident = UVKZGPoly::new(batched_Pi.coeffs.clone());
+    let divisor = vec![minus_r, Fr::one()];
+    let (Q_x, _) = divident
+        .divide_with_q_and_r(&UVKZGPoly::new(divisor.clone()))
+        .unwrap();
+
+    assert_eq!(&h_at_r[..h_at_r.len()-1], Q_x.coeffs.as_slice());
+    */
+
+    let w0 = <G1 as DlogGroup>::vartime_multiscalar_mul(&h_at_r, &srs.powers_of_g[..h_at_r.len()])
+      .to_affine();
+    let w1 = <G1 as DlogGroup>::vartime_multiscalar_mul(
+      &h_at_minus_r,
+      &srs.powers_of_g[..h_at_minus_r.len()],
+    )
+    .to_affine();
+    let w2 = <G1 as DlogGroup>::vartime_multiscalar_mul(
+      &h_at_r_squared,
+      &srs.powers_of_g[..h_at_r_squared.len()],
+    )
+    .to_affine();
+
+    // VERIFY
+    // Compute powers of q : (1, q, q^2, ..., q^(k-1))
+    let q_powers = std::iter::successors(Some(Fr::one()), |&x| Some(x * q))
+      .take(pi_commitments.len())
+      .collect::<Vec<Fr>>();
+
+    let d_0 = Fr::from(187465);
+    let d_1 = d_0 * d_0;
+    let q_power_multiplier = Fr::one() + d_0 + d_1;
+    let q_powers_multiplied: Vec<Fr> = q_powers
+      .iter()
+      .map(|q_power| *q_power * q_power_multiplier)
+      .collect();
+
+    let B_u = [evals_at_r, evals_at_minus_r, evals_at_r_squared]
+      .into_iter()
+      .map(|evals| zip_with!(iter, (q_powers, evals), |a, b| *a * *b).sum())
+      .collect::<Vec<Fr>>();
+
+    let L_scalars = [
+      q_powers_multiplied,
+      vec![
+        r,
+        (minus_r * d_0),
+        (r_squared * d_1),
+        (B_u[0] + d_0 * B_u[1] + d_1 * B_u[2]),
+      ],
+    ]
+    .concat();
+
+    let L_bases = [
+      pi_commitments,
+      vec![
+        G1::from(w0).to_affine(),
+        G1::from(w1).to_affine(),
+        G1::from(w2).to_affine(),
+        (-G1::from(srs.powers_of_g[0])).to_affine(),
+      ],
+    ]
+    .concat();
+
+    let L = <G1 as DlogGroup>::vartime_multiscalar_mul(L_scalars.as_slice(), L_bases.as_slice());
+
+    let R0 = G1::from(w0);
+    let R1 = G1::from(w1);
+    let R2 = G1::from(w2);
+    let R = R0 + R1 * d_0 + R2 * d_1;
+
+    // Check that e(L, vk.H) == e(R, vk.tau_H)
+    let pairing_inputs = [
+      (&(-L).to_affine(), &G2Prepared::from(srs.powers_of_h[0])),
+      (&R.to_affine(), &G2Prepared::from(srs.powers_of_h[1])),
+    ];
+
+    let pairing_result = multi_miller_loop(&pairing_inputs).final_exponentiation();
+    assert_eq!(pairing_result.is_identity().unwrap_u8(), 0x01);
   }
 }
