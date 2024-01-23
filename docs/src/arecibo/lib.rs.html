@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-cb6f1f67f1bcd037.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.73.0 (cc66ad468 2023-10-03)" data-channel="1.73.0" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-1596385f77d47ef2.css" data-theme-dark-css="dark-0a43001d3fc2282c.css" data-theme-ayu-css="ayu-fd19013d6ce078bf.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-1596385f77d47ef2.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-0a43001d3fc2282c.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../arecibo/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2800,13 +2800,13 @@
     test_pp_digest_with::&lt;PallasEngine, VestaEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>trivial_circuit1,
       <span class="kw-2">&amp;</span>trivial_circuit2,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;f4a04841515b4721519e2671b7ee11e58e2d4a30bb183ded963b71ad2ec80d00&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;492fd902cd7174159bc9a6f827d92eb54ff25efa9d0673dffdb0efd02995df01&quot;</span>],
     );
 
     test_pp_digest_with::&lt;PallasEngine, VestaEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>cubic_circuit1,
       <span class="kw-2">&amp;</span>trivial_circuit2,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;dc1b7c40ab50c5c6877ad027769452870cc28f1d13f140de7ca3a00138c58502&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;9b0701d9422658e3f74a85ab3e485c06f3ecca9c2b1800aab80004034d754f01&quot;</span>],
     );
 
     <span class="kw">let </span>trivial_circuit1_grumpkin = TrivialCircuit::&lt;&lt;Bn256Engine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
@@ -2819,22 +2819,22 @@
     </span>test_pp_digest_with::&lt;Bn256Engine, GrumpkinEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>trivial_circuit1_grumpkin,
       <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;2af2a80ea8a0c21cfc4096e9b2d4822344a29174d88cd86239a99a363efe8702&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;1267235eb3d139e466dd9c814eaf73f01b063ccb4cad04848c0eb62f079a9601&quot;</span>],
     );
     test_pp_digest_with::&lt;Bn256Engine, GrumpkinEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>cubic_circuit1_grumpkin,
       <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;9273fd39ed6220ea28e60abca8bdb3180f90e37e6aaf3031e6d670d073e8a002&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;57afac2edd20d39b202151906e41154ba186c9dde497448d1332dc6de2f76302&quot;</span>],
     );
     test_pp_digest_with::&lt;Bn256EngineZM, GrumpkinEngine, <span class="kw">_</span>, <span class="kw">_</span>, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>trivial_circuit1_grumpkin,
       <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;eac63861dcbaa924a1bd9721f01528271385dd6ff182c77bc62e03448adc1902&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;070d247d83e17411d65c12260980ebcc59df88d3882d84eb62e6ab466e381503&quot;</span>],
     );
     test_pp_digest_with::&lt;Bn256EngineZM, GrumpkinEngine, <span class="kw">_</span>, <span class="kw">_</span>, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>cubic_circuit1_grumpkin,
       <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;21bd7e07175b23e3bd2bbc6a0c3b9efd8603815609dbe93f8df9c174e132de03&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;47c2caa008323b588b47ab8b6c0e94f980599188abe117c4d21ffff81494f303&quot;</span>],
     );
 
     <span class="kw">let </span>trivial_circuit1_secp = TrivialCircuit::&lt;&lt;Secp256k1Engine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
@@ -2844,12 +2844,12 @@
     test_pp_digest_with::&lt;Secp256k1Engine, Secq256k1Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>trivial_circuit1_secp,
       <span class="kw-2">&amp;</span>trivial_circuit2_secp,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;fd2ff9d03e5512c66014399352ce0a8d722fe9c95005067ca05fe5ce84aabb02&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;04b5d1798be6d74b3701390b87078e70ebf3ddaad80c375319f320cedf8bca00&quot;</span>],
     );
     test_pp_digest_with::&lt;Secp256k1Engine, Secq256k1Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>cubic_circuit1_secp,
       <span class="kw-2">&amp;</span>trivial_circuit2_secp,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;1e4526ea166c8cccb685bd065ba82438b3ba89e24612d3e071fd30a6065c2b03&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;346b5f27cf24c79386f4de7a8bfb58970181ae7f0de7d2e3f10ad5dfd8fc2302&quot;</span>],
     );
   }
 
