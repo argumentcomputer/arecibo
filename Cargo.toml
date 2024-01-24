@@ -111,7 +111,7 @@ abomonate = []
 asm = ["halo2curves/asm"]
 # Compiles in portable mode, w/o ISA extensions => binary can be executed on all systems.
 portable = ["grumpkin-msm/portable"]
-cuda = []
+cuda = ["grumpkin-msm/cuda"]
 flamegraph = ["pprof/flamegraph", "pprof/criterion"]
 
 # This is needed to ensure halo2curves, which imports pasta-curves, uses the *same* traits in bn256_grumpkin
