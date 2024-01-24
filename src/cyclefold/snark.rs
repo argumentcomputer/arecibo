@@ -160,6 +160,8 @@ where
       return Ok(());
     }
 
+    let r_U_primary_i = self.r_U_primary.clone();
+
     let (nifs_primary, r) = NIFS::prove_mut(
       &pp.ck_primary,
       &pp.ro_consts_primary,
@@ -201,6 +203,7 @@ where
       .r1cs_instance_and_witness(&pp.circuit_shape_cyclefold.r1cs_shape, &pp.ck_cyclefold)
       .map_err(|_| NovaError::UnSat)?;
 
+    // TODO: check if this is better or worse than `prove_mut` with a clone of `self.r_U_cyclefold`
     let (nifs_cyclefold_E, (r_U_cyclefold_E, r_W_cyclefold_E), _) = NIFS::prove(
       &pp.ck_cyclefold,
       &pp.ro_consts_cyclefold,
@@ -234,7 +237,8 @@ where
       .r1cs_instance_and_witness(&pp.circuit_shape_cyclefold.r1cs_shape, &pp.ck_cyclefold)
       .map_err(|_| NovaError::UnSat)?;
 
-    let (nifs_cyclefold_E, (r_U_cyclefold_W, r_W_cyclefold_W), _) = NIFS::prove(
+    // TODO: check if this is better or worse than `prove_mut` with a clone of r_U_cyclefold_E
+    let (nifs_cyclefold_W, (r_U_cyclefold_W, r_W_cyclefold_W), _) = NIFS::prove(
       &pp.ck_cyclefold,
       &pp.ro_consts_cyclefold,
       &scalar_as_base::<E1>(pp.digest()),
@@ -245,16 +249,16 @@ where
       &l_w_cyclefold_W,
     )?;
 
-    let comm_T_W = Commitment::<E2>::decompress(&nifs_cyclefold_E.comm_T)?;
+    let comm_T_W = Commitment::<E2>::decompress(&nifs_cyclefold_W.comm_T)?;
 
     let mut cs_primary = SatisfyingAssignment::<E1>::with_capacity(
       pp.circuit_shape_primary.r1cs_shape.num_io + 1,
       pp.circuit_shape_primary.r1cs_shape.num_vars,
     );
 
-    let data_p = FoldingData::new(self.r_U_primary.clone(), self.l_u_primary.clone(), comm_T);
-    let data_c_E = FoldingData::new(r_U_cyclefold_E, l_u_cyclefold_E, comm_T_E);
-    let data_c_W = FoldingData::new(r_U_cyclefold_W.clone(), l_u_cyclefold_W, comm_T_W);
+    let data_p = FoldingData::new(r_U_primary_i, self.l_u_primary.clone(), comm_T);
+    let data_c_E = FoldingData::new(self.r_U_cyclefold.clone(), l_u_cyclefold_E, comm_T_E);
+    let data_c_W = FoldingData::new(r_U_cyclefold_E, l_u_cyclefold_W, comm_T_W);
 
     let inputs_primary: AugmentedCircuitInputs<E2, E1> = AugmentedCircuitInputs::new(
       scalar_as_base::<E1>(pp.digest()),
