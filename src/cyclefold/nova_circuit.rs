@@ -1,21 +1,24 @@
 //! This module defines the Nova augmented circuit used for Cyclefold
 
-// FIXME: Make an NIFS instance/proof struct to reduce input and output sizes
-
 use crate::{
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
+    utils::alloc_scalar_as_base,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
-  traits::{circuit::StepCircuit, Engine, ROConstantsCircuit},
+  traits::{circuit::StepCircuit, commitment::CommitmentTrait, Engine, ROConstantsCircuit},
   Commitment,
 };
 
 use abomonation_derive::Abomonation;
-use bellpepper::gadgets::num::AllocatedNum;
+use bellpepper::gadgets::{num::AllocatedNum, Assignment};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
+use ff::Field;
 use serde::{Deserialize, Serialize};
+
+use super::gadgets::emulated;
+use super::gadgets::AllocatedFoldingData;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 pub struct AugmentedCircuitParams {
@@ -34,7 +37,7 @@ impl AugmentedCircuitParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct FoldingData<E: Engine> {
+pub(crate) struct FoldingData<E: Engine> {
   U: RelaxedR1CSInstance<E>,
   u: R1CSInstance<E>,
   T: Commitment<E>,
@@ -128,31 +131,116 @@ where
     }
   }
 
-  // FIXME: Need to actually figure out how to encode wrong-field points and instances
   fn alloc_witness<CS: ConstraintSystem<<E1 as Engine>::Base>>(
     &self,
     mut cs: CS,
     arity: usize,
   ) -> Result<
     (
-      AllocatedNum<E1::Base>,           // pp_digest
-      AllocatedNum<E1::Base>,           // i
-      Vec<AllocatedNum<E1::Base>>,      // z0
-      Vec<AllocatedNum<E1::Base>>,      // zi
-      AllocatedRelaxedR1CSInstance<E2>, // U_p
-      AllocatedR1CSInstance<E2>,        // u_p
-      AllocatedPoint<E2>,               // T_p
-      AllocatedRelaxedR1CSInstance<E1>, // U_c
-      AllocatedR1CSInstance<E1>,        // u_c_1
-      AllocatedPoint<E1>,               // T_c_1
-      AllocatedRelaxedR1CSInstance<E1>, // U_c_1
-      AllocatedR1CSInstance<E1>,        // u_c_2
-      AllocatedPoint<E1>,               // T_c_2
-      AllocatedPoint<E2>,               // E_new
-      AllocatedPoint<E2>,               // W_new
+      AllocatedNum<E1::Base>,                 // pp_digest
+      AllocatedNum<E1::Base>,                 // i
+      Vec<AllocatedNum<E1::Base>>,            // z0
+      Vec<AllocatedNum<E1::Base>>,            // zi
+      emulated::AllocatedFoldingData<E1, E2>, //data_p
+      AllocatedFoldingData<E1>,               // data_c_1
+      AllocatedFoldingData<E1>,               // data_c_2
+      emulated::AllocatedPoint<E1, E2>,       // E_new
+      emulated::AllocatedPoint<E1, E2>,       // W_new
     ),
     SynthesisError,
   > {
+    let pp_digest = alloc_scalar_as_base::<E1, _>(
+      cs.namespace(|| "params"),
+      self.inputs.as_ref().map(|inputs| inputs.pp_digest),
+    )?;
+
+    let i = AllocatedNum::alloc(cs.namespace(|| "i"), || {
+      Ok(
+        self
+          .inputs
+          .as_ref()
+          .ok_or(SynthesisError::AssignmentMissing)?
+          .i,
+      )
+    })?;
+
+    let z_0 = (0..arity)
+      .map(|i| {
+        AllocatedNum::alloc(cs.namespace(|| format!("z0_{i}")), || {
+          Ok(self.inputs.get()?.z0[i])
+        })
+      })
+      .collect::<Result<Vec<AllocatedNum<E1::Base>>, _>>()?;
+
+    // Allocate zi. If inputs.zi is not provided (base case) allocate default value 0
+    let zero = vec![E1::Base::ZERO; arity];
+    let z_i = (0..arity)
+      .map(|i| {
+        AllocatedNum::alloc(cs.namespace(|| format!("zi_{i}")), || {
+          Ok(self.inputs.get()?.zi.as_ref().unwrap_or(&zero)[i])
+        })
+      })
+      .collect::<Result<Vec<AllocatedNum<E1::Base>>, _>>()?;
+
+    let data_p = emulated::AllocatedFoldingData::alloc(
+      cs.namespace(|| "data_p"),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.data_p.as_ref()),
+    )?;
+
+    let data_c_1 = AllocatedFoldingData::alloc(
+      cs.namespace(|| "data_c_1"),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.data_c_1.as_ref()),
+    )?;
+
+    let data_c_2 = AllocatedFoldingData::alloc(
+      cs.namespace(|| "data_c_2"),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.data_c_2.as_ref()),
+    )?;
+
+    let E_new = emulated::AllocatedPoint::alloc(
+      cs.namespace(|| "E_new"),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.E_new.as_ref())
+        .map(|E_new| E_new.to_coordinates()),
+    )?;
+
+    let W_new = emulated::AllocatedPoint::alloc(
+      cs.namespace(|| "W_new"),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.W_new.as_ref())
+        .map(|W_new| W_new.to_coordinates()),
+    )?;
+
+    Ok((
+      pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new,
+    ))
+  }
+
+  pub fn synthesize_base_case<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+    self,
+    cs: &mut CS,
+  ) -> Result<(), SynthesisError> {
+    todo!()
+  }
+
+  pub fn synthesize_non_base_case<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+    self,
+    cs: &mut CS,
+  ) -> Result<(), SynthesisError> {
+    // TODO: It's written down here https://hackmd.io/@mpenciak/HybHrnNFT
     todo!()
   }
 
