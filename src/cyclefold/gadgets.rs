@@ -23,7 +23,7 @@ impl<E: Engine> AllocatedFoldingData<E> {
     todo!()
   }
 
-  pub fn absorb_in_ro(&self, ro: &mut E::ROCircuit) {
+  pub fn absorb_in_ro(&self, ro: &mut E::ROCircuit) -> Result<(), SynthesisError> {
     todo!()
   }
 }
@@ -66,7 +66,7 @@ pub mod emulated {
       todo!()
     }
 
-    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit)
+    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
     where
       CS: ConstraintSystem<<E1 as Engine>::Base>,
     {
@@ -172,7 +172,7 @@ pub mod emulated {
       todo!()
     }
 
-    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit)
+    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
     where
       CS: ConstraintSystem<<E1 as Engine>::Base>,
     {
