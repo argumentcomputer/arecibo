@@ -23,7 +23,7 @@ use neptune::{
 use serde::{Deserialize, Serialize};
 
 /// All Poseidon Constants that are used in Nova
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_bounds(where Scalar::Repr: Abomonation)]
 pub struct PoseidonConstantsCircuit<Scalar: PrimeField>(PoseidonConstants<Scalar, U24>);
 
@@ -35,7 +35,7 @@ impl<Scalar: PrimeField> Default for PoseidonConstantsCircuit<Scalar> {
 }
 
 /// A Poseidon-based RO to use outside circuits
-#[derive(Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Serialize, Deserialize, Abomonation)]
 #[abomonation_bounds(
   where
     Base: PrimeField,
@@ -115,7 +115,7 @@ where
 }
 
 /// A Poseidon-based RO gadget to use inside the verifier circuit.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PoseidonROCircuit<Scalar: PrimeField> {
   // Internal state
   state: Vec<AllocatedNum<Scalar>>,

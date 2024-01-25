@@ -17,7 +17,7 @@ use bellpepper_core::{
 use ff::{Field, PrimeField};
 
 /// `AllocatedPoint` provides an elliptic curve abstraction inside a circuit.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AllocatedPoint<E: Engine> {
   pub(crate) x: AllocatedNum<E::Base>,
   pub(crate) y: AllocatedNum<E::Base>,
@@ -590,7 +590,7 @@ where
   }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// `AllocatedPoint` but one that is guaranteed to be not infinity
 pub struct AllocatedPointNonInfinity<E: Engine> {
   x: AllocatedNum<E::Base>,

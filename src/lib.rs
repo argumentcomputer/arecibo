@@ -60,7 +60,7 @@ use traits::{
 };
 
 /// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSWithArity<E: Engine> {
@@ -87,7 +87,7 @@ impl<E: Engine> R1CSWithArity<E> {
 }
 
 /// A type that holds public parameters of Nova
-#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
 where
@@ -706,7 +706,7 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
   where
@@ -739,7 +739,7 @@ where
 }
 
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
 where

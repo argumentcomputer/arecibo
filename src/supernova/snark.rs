@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// A type that holds the prover key for `CompressedSNARK`
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
   where
@@ -46,7 +46,7 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
   where

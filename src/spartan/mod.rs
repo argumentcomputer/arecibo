@@ -35,6 +35,7 @@ fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
 }
 
 /// A type that holds a witness to a polynomial evaluation instance
+#[derive(Debug)]
 struct PolyEvalWitness<E: Engine> {
   p: Vec<E::Scalar>, // polynomial
 }
@@ -114,6 +115,7 @@ impl<E: Engine> PolyEvalWitness<E> {
 }
 
 /// A type that holds a polynomial evaluation instance
+#[derive(Debug)]
 struct PolyEvalInstance<E: Engine> {
   c: Commitment<E>,  // commitment to the polynomial
   x: Vec<E::Scalar>, // evaluation point
