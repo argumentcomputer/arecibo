@@ -536,11 +536,11 @@ pub(in crate::spartan) fn batch_eval_verify<E: Engine>(
       EqPolynomial::new(r_hi.to_vec()).evaluate(&u.x)
     });
 
-    evals_r
-      .zip_eq(evals_batch.iter())
-      .zip_eq(powers_of_rho.iter())
-      .map(|((e_i, p_i), rho_i)| e_i * *p_i * rho_i)
-      .sum()
+    zip_with!(
+      (evals_r, evals_batch.iter(), powers_of_rho.iter()),
+      |e_i, p_i, rho_i| e_i * *p_i * rho_i
+    )
+    .sum()
   };
 
   if claim_batch_final != claim_batch_final_expected {
