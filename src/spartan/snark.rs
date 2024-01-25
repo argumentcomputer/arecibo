@@ -33,7 +33,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A type that represents the prover's key
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
@@ -43,7 +43,7 @@ pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
 }
 
 /// A type that represents the verifier's key
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
@@ -189,7 +189,7 @@ where
     // claims from the end of sum-check
     let (claim_Az, claim_Bz): (E::Scalar, E::Scalar) = (claims_outer[1], claims_outer[2]);
     let claim_Cz = poly_Cz.evaluate(&r_x);
-    let eval_E = MultilinearPolynomial::new(W.E.clone()).evaluate(&r_x);
+    let eval_E = MultilinearPolynomial::evaluate_with(&W.E, &r_x);
     transcript.absorb(
       b"claims_outer",
       &[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),
@@ -536,11 +536,11 @@ pub(in crate::spartan) fn batch_eval_verify<E: Engine>(
       EqPolynomial::new(r_hi.to_vec()).evaluate(&u.x)
     });
 
-    evals_r
-      .zip_eq(evals_batch.iter())
-      .zip_eq(powers_of_rho.iter())
-      .map(|((e_i, p_i), rho_i)| e_i * *p_i * rho_i)
-      .sum()
+    zip_with!(
+      (evals_r, evals_batch.iter(), powers_of_rho.iter()),
+      |e_i, p_i, rho_i| e_i * *p_i * rho_i
+    )
+    .sum()
   };
 
   if claim_batch_final != claim_batch_final_expected {

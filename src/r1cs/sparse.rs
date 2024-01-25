@@ -223,6 +223,7 @@ impl<F: PrimeField> SparseMatrix<F> {
 }
 
 /// Iterator for sparse matrix
+#[derive(Debug)]
 pub struct Iter<'a, F: PrimeField> {
   matrix: &'a SparseMatrix<F>,
   row: usize,

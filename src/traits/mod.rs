@@ -67,7 +67,8 @@ pub trait ROTrait<Base: PrimeField, Scalar> {
   type CircuitRO: ROCircuitTrait<Base, Constants = Self::Constants>;
 
   /// A type representing constants/parameters associated with the hash function
-  type Constants: Default
+  type Constants: Debug
+    + Default
     + Clone
     + PartialEq
     + Send
@@ -92,7 +93,8 @@ pub trait ROCircuitTrait<Base: PrimeField> {
   type NativeRO<T: PrimeField>: ROTrait<Base, T, Constants = Self::Constants>;
 
   /// A type representing constants/parameters associated with the hash function on this Base field
-  type Constants: Default
+  type Constants: Debug
+    + Default
     + Clone
     + PartialEq
     + Send

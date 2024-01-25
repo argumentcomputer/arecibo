@@ -46,7 +46,7 @@ use circuit::{
 use error::SuperNovaError;
 
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CircuitDigests<E: Engine> {
   digests: Vec<E::Scalar>,
 }
@@ -75,7 +75,7 @@ impl<E: Engine> CircuitDigests<E> {
 }
 
 /// A vector of [R1CSWithArity] adjoined to a set of [PublicParams]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PublicParams<E1, E2, C1, C2>
 where
@@ -107,7 +107,7 @@ where
 /// Auxiliary [PublicParams] information about the commitment keys and
 /// secondary circuit. This is used as a helper struct when reconstructing
 /// [PublicParams] downstream in lurk.
-#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
 where

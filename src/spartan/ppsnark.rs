@@ -52,7 +52,7 @@ fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar>
 }
 
 /// A type that holds `R1CSShape` in a form amenable to memory checking
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkRepr<E: Engine> {
@@ -78,7 +78,7 @@ pub struct R1CSShapeSparkRepr<E: Engine> {
 }
 
 /// A type that holds a commitment to a sparse polynomial
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkCommitment<E: Engine> {
@@ -255,7 +255,7 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
 }
 
 /// A type that represents the prover's key
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
@@ -267,7 +267,7 @@ pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
 }
 
 /// A type that represents the verifier's key
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {

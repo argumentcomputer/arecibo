@@ -36,6 +36,7 @@ xclippy = [
     "-Wclippy::unnecessary_mut_passed",
     "-Wclippy::unnecessary_wraps",
     "-Wclippy::use_self",
+    "-Wmissing_debug_implementations",
     "-Wnonstandard_style",
     "-Wrust_2018_idioms",
     "-Wtrivial_numeric_casts",
