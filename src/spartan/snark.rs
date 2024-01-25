@@ -189,7 +189,7 @@ where
     // claims from the end of sum-check
     let (claim_Az, claim_Bz): (E::Scalar, E::Scalar) = (claims_outer[1], claims_outer[2]);
     let claim_Cz = poly_Cz.evaluate(&r_x);
-    let eval_E = MultilinearPolynomial::new(W.E.clone()).evaluate(&r_x);
+    let eval_E = MultilinearPolynomial::evaluate_with(&W.E, &r_x);
     transcript.absorb(
       b"claims_outer",
       &[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),
