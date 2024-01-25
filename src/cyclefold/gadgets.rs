@@ -10,9 +10,9 @@ use crate::{
 
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 pub struct AllocatedFoldingData<E: Engine> {
-  U: AllocatedRelaxedR1CSInstance<E>,
-  u: AllocatedR1CSInstance<E>,
-  T: AllocatedPoint<E>,
+  pub U: AllocatedRelaxedR1CSInstance<E>,
+  pub u: AllocatedR1CSInstance<E>,
+  pub T: AllocatedPoint<E>,
 }
 
 impl<E: Engine> AllocatedFoldingData<E> {
@@ -29,10 +29,13 @@ impl<E: Engine> AllocatedFoldingData<E> {
 }
 
 pub mod emulated {
+  use super::*;
+
   use std::marker::PhantomData;
 
-  use super::*;
   use crate::gadgets::nonnative::bignat::BigNat;
+  use crate::traits::ROConstantsCircuit;
+  use crate::RelaxedR1CSInstance;
 
   pub struct AllocatedPoint<E1, E2>
   where
@@ -60,7 +63,10 @@ pub mod emulated {
       todo!()
     }
 
-    pub fn absorb_in_ro(&self, ro: &mut E1::ROCircuit) {
+    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit)
+    where
+      CS: ConstraintSystem<<E1 as Engine>::Base>,
+    {
       todo!()
     }
 
@@ -72,20 +78,65 @@ pub mod emulated {
     }
   }
 
+  pub struct AllocatedRelaxedR1CSInstance<E1, E2>
+  where
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+  {
+    W: AllocatedPoint<E1, E2>,
+    E: AllocatedPoint<E1, E2>,
+    u: BigNat<E1::Base>,
+    x0: BigNat<E1::Base>,
+    x1: BigNat<E1::Base>,
+    pub _p: PhantomData<E2>,
+  }
+
+  impl<E1, E2> AllocatedRelaxedR1CSInstance<E1, E2>
+  where
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+  {
+    pub fn alloc<CS>(
+      mut cs: CS,
+      inst: Option<&RelaxedR1CSInstance<E2>>,
+    ) -> Result<Self, SynthesisError>
+    where
+      CS: ConstraintSystem<<E1 as Engine>::Base>,
+    {
+      todo!()
+    }
+
+    pub fn fold_with_r1cs<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+      &self,
+      mut cs: CS,
+      W_new: AllocatedPoint<E1, E2>,
+      E_new: AllocatedPoint<E1, E2>,
+      x0: BigNat<E1::Base>,
+      x1: BigNat<E1::Base>,
+      ro_consts: ROConstantsCircuit<E1>,
+      limb_width: usize,
+      n_limbs: usize,
+    ) -> Result<Self, SynthesisError> {
+      todo!()
+    }
+
+    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit)
+    where
+      CS: ConstraintSystem<<E1 as Engine>::Base>,
+    {
+      todo!()
+    }
+  }
   pub struct AllocatedFoldingData<E1, E2>
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
-    U_W: AllocatedPoint<E1, E2>,
-    U_E: AllocatedPoint<E1, E2>,
-    U_u: BigNat<E1::Base>,
-    U_X0: BigNat<E1::Base>,
-    U_X1: BigNat<E1::Base>,
-    u_W: AllocatedPoint<E1, E2>,
-    u_x0: BigNat<E1::Base>,
-    u_x1: BigNat<E1::Base>,
-    T: AllocatedPoint<E1, E2>,
+    pub U: AllocatedRelaxedR1CSInstance<E1, E2>,
+    pub u_W: AllocatedPoint<E1, E2>,
+    pub u_x0: BigNat<E1::Base>,
+    pub u_x1: BigNat<E1::Base>,
+    pub T: AllocatedPoint<E1, E2>,
     _p: PhantomData<E2>,
   }
 
@@ -101,7 +152,10 @@ pub mod emulated {
       todo!()
     }
 
-    pub fn absorb_in_ro(&self, ro: &mut E1::ROCircuit) {
+    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit)
+    where
+      CS: ConstraintSystem<<E1 as Engine>::Base>,
+    {
       todo!()
     }
   }

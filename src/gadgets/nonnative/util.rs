@@ -1,5 +1,6 @@
 use super::{BitAccess, OptionExt};
 use bellpepper_core::{
+  boolean::AllocatedBit,
   num::AllocatedNum,
   {ConstraintSystem, LinearCombination, SynthesisError, Variable},
 };

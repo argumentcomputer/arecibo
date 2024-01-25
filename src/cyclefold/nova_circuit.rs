@@ -1,10 +1,11 @@
 //! This module defines the Nova augmented circuit used for Cyclefold
 
 use crate::{
+  constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
-    utils::alloc_scalar_as_base,
+    utils::{alloc_num_equals, alloc_scalar_as_base, alloc_zero, le_bits_to_num},
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{circuit::StepCircuit, commitment::CommitmentTrait, Engine, ROConstantsCircuit},
@@ -13,7 +14,7 @@ use crate::{
 
 use abomonation_derive::Abomonation;
 use bellpepper::gadgets::{num::AllocatedNum, Assignment};
-use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, SynthesisError};
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +50,7 @@ impl<E: Engine> FoldingData<E> {
   }
 }
 
+// TODO: This needs to take in the initial cyclefold relaxed R1CS instance as well
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct AugmentedCircuitInputs<E1, E2>
@@ -232,16 +234,147 @@ where
   pub fn synthesize_base_case<CS: ConstraintSystem<<E1 as Engine>::Base>>(
     self,
     cs: &mut CS,
-  ) -> Result<(), SynthesisError> {
+  ) -> Result<
+    (
+      AllocatedRelaxedR1CSInstance<E1>,
+      emulated::AllocatedRelaxedR1CSInstance<E1, E2>,
+    ),
+    SynthesisError,
+  > {
     todo!()
   }
 
   pub fn synthesize_non_base_case<CS: ConstraintSystem<<E1 as Engine>::Base>>(
     self,
+    pp_digest: &AllocatedNum<E1::Base>,
+    i: &AllocatedNum<E1::Base>,
+    z_0: &[AllocatedNum<E1::Base>],
+    z_i: &[AllocatedNum<E1::Base>],
+    data_p: &emulated::AllocatedFoldingData<E1, E2>,
+    data_c_1: &AllocatedFoldingData<E1>,
+    data_c_2: &AllocatedFoldingData<E1>,
+    E_new: &emulated::AllocatedPoint<E1, E2>,
+    W_new: &emulated::AllocatedPoint<E1, E2>,
+    arity: usize,
     cs: &mut CS,
-  ) -> Result<(), SynthesisError> {
-    // TODO: It's written down here https://hackmd.io/@mpenciak/HybHrnNFT
-    todo!()
+  ) -> Result<
+    (
+      AllocatedRelaxedR1CSInstance<E1>,
+      emulated::AllocatedRelaxedR1CSInstance<E1, E2>,
+      AllocatedBit,
+    ),
+    SynthesisError,
+  > {
+    // Follows the outline written down here https://hackmd.io/@mpenciak/HybHrnNFT
+    let mut ro_p = E1::ROCircuit::new(
+      self.ro_consts.clone(),
+      NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * arity,
+    );
+
+    ro_p.absorb(pp_digest);
+    ro_p.absorb(i);
+    for e in z_0 {
+      ro_p.absorb(e)
+    }
+    for e in z_i {
+      ro_p.absorb(e)
+    }
+    data_p
+      .U
+      .absorb_in_ro(cs.namespace(|| "absorb U_p"), &mut ro_p);
+
+    let hash_bits_p = ro_p.squeeze(cs.namespace(|| "primary hash bits"), NUM_HASH_BITS);
+    let hash_p = le_bits_to_num(cs.namespace(|| "primary hash"), hash_bits_p)?;
+
+    let x_0 = data_p
+      .u_x0
+      .as_allocated_num(cs.namespace(|| "u.x[0] as AllocatedNum"))?;
+
+    let check_primary = alloc_num_equals(
+      cs.namespace(|| "u.X[0] = H(params, i, z0, zi, U_p)"),
+      &x_0,
+      &hash_p,
+    )?;
+
+    let mut ro_c = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+
+    ro_c.absorb(pp_digest);
+    data_c_1
+      .U
+      .absorb_in_ro(cs.namespace(|| "absorb U_c"), &mut ro_c);
+    let hash_c_bits = ro_c.squeeze(cs.namespace(|| "cyclefold hash bits"), NUM_HASH_BITS);
+    let hash_c = le_bits_to_num(cs.namespace(|| "cyclefold hash"), hash_c_bits)?;
+
+    let x_1 = data_p
+      .u_x1
+      .as_allocated_num(cs.namespace(|| "u.x[1] as AllocatedNum"))?;
+
+    let check_cyclefold =
+      alloc_num_equals(cs.namespace(|| "u.X[1] = H(params, U_c)"), &x_1, &hash_c)?;
+
+    let check_io = AllocatedBit::and(
+      cs.namespace(|| "both IOs match"),
+      &check_primary,
+      &check_cyclefold,
+    )?;
+
+    // Run NIVC.V on U_c, u_c_1, T_c_1
+    let U_int = data_c_1.U.fold_with_r1cs(
+      cs.namespace(|| "U_int = fold U_c with u_c_1"),
+      pp_digest,
+      &data_c_1.u,
+      &data_c_1.T,
+      self.ro_consts.clone(),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
+    // Calculate h_int = H(pp, U_c_int)
+    let mut ro_c_int = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+    ro_c_int.absorb(pp_digest);
+    U_int.absorb_in_ro(cs.namespace(|| "absorb U_c_int"), &mut ro_c_int);
+    let h_c_int_bits = ro_c_int.squeeze(cs.namespace(|| "intermediate hash bits"), NUM_HASH_BITS);
+    let h_c_int = le_bits_to_num(cs.namespace(|| "intermediate hash"), h_c_int_bits)?;
+
+    // Calculate h_1 = H(pp, U_c_1)
+    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+    ro_c_1.absorb(pp_digest);
+    data_c_2
+      .U
+      .absorb_in_ro(cs.namespace(|| "absorb U_c_1"), &mut ro_c_1);
+    let h_c_1_bits = ro_c_1.squeeze(cs.namespace(|| "cyclefold_1 hash bits"), NUM_HASH_BITS);
+    let h_c_1 = le_bits_to_num(cs.namespace(|| "cyclefold_1 hash"), h_c_1_bits)?;
+
+    let check_cyclefold_int = alloc_num_equals(cs.namespace(|| "h_int = h_c_1"), &h_c_int, &h_c_1)?;
+
+    let checks_pass = AllocatedBit::and(
+      cs.namespace(|| "all checks passed"),
+      &check_io,
+      &check_cyclefold_int,
+    )?;
+
+    let U_c = data_c_2.U.fold_with_r1cs(
+      cs.namespace(|| "U_c = fold U_c_1 with u_c_2"),
+      pp_digest,
+      &data_c_2.u,
+      &data_c_2.T,
+      self.ro_consts.clone(),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
+    let U_p = data_p.U.fold_with_r1cs(
+      cs.namespace(|| "fold u_p into U_p"),
+      *W_new,
+      *E_new,
+      data_p.u_x0,
+      data_p.u_x1,
+      self.ro_consts.clone(),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
+    Ok((U_c, U_p, checks_pass))
   }
 
   pub fn synthesize<CS: ConstraintSystem<<E1 as Engine>::Base>>(
@@ -249,6 +382,14 @@ where
     cs: &mut CS,
   ) -> Result<Vec<AllocatedNum<E1::Base>>, SynthesisError> {
     // TODO: It's written down here https://hackmd.io/@mpenciak/HybHrnNFT
+    let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new) =
+      self.alloc_witness(cs.namespace(|| "alloc_witness"), self.params.n_limbs)?;
+
+    let zero = alloc_zero(cs.namespace(|| "zero"));
+    let is_base_case = alloc_num_equals(cs.namespace(|| "is base case"), &i, &zero)?;
+
+    // TODO: Here we synthesize either the base case or non-base-case
+
     todo!()
   }
 }
