@@ -1,6 +1,7 @@
 use arecibo::provider::{
-  ipa_pc::EvaluationEngine as IPAEvaluationEngine, mlkzg::EvaluationEngine as MLEvaluationEngine,
-  non_hiding_zeromorph::ZMPCS, Bn256EngineKZG, Bn256EngineZM, GrumpkinEngine,
+  hyperkzg::EvaluationEngine as MLEvaluationEngine,
+  ipa_pc::EvaluationEngine as IPAEvaluationEngine, non_hiding_zeromorph::ZMPCS, Bn256EngineKZG,
+  Bn256EngineZM, GrumpkinEngine,
 };
 use arecibo::spartan::polys::multilinear::MultilinearPolynomial;
 use arecibo::traits::{
@@ -155,7 +156,7 @@ fn bench_pcs(c: &mut Criterion) {
     bench_pcs_proving_internal,
     bench_pcs_verifying_internal,
     (ipa_assets, IPAEvaluationEngine<GrumpkinEngine>),
-    (mlkzg_assets, MLEvaluationEngine<Bn256, Bn256EngineKZG>),
+    (hyperkzg_assets, MLEvaluationEngine<Bn256, Bn256EngineKZG>),
     (zm_assets, ZMPCS<Bn256, Bn256EngineZM>)
   );
 }

@@ -1383,7 +1383,7 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<
       Bn256EngineKZG,
       GrumpkinEngine,
-      provider::mlkzg::EvaluationEngine<Bn256, _>,
+      provider::hyperkzg::EvaluationEngine<Bn256, _>,
       EE<_>,
     >();
   }

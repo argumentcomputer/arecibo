@@ -282,7 +282,7 @@ where
       assert!(t == 3);
       assert!(W.len() == 3);
       // We write a special case for t=3, since this what is required for
-      // mlkzg. Following the paper directly, we must compute:
+      // hyperkzg. Following the paper directly, we must compute:
       // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
       // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
       // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
@@ -415,7 +415,7 @@ mod tests {
   type Fr = <NE as NovaEngine>::Scalar;
 
   #[test]
-  fn test_mlkzg_eval() {
+  fn test_hyperkzg_eval() {
     // Test with poly(X1, X2) = 1 + X1 + X2 + X1*X2
     let n = 4;
     let ck: CommitmentKey<NE> =
@@ -452,7 +452,7 @@ mod tests {
   }
 
   #[test]
-  fn test_mlkzg_alternative() {
+  fn test_hyperkzg_alternative() {
     fn test_inner(n: usize, poly: &[Fr], point: &[Fr], eval: Fr) -> Result<(), NovaError> {
       let ck: CommitmentKey<NE> =
         <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
@@ -500,7 +500,7 @@ mod tests {
   }
 
   #[test]
-  fn test_mlkzg() {
+  fn test_hyperkzg() {
     let n = 4;
 
     // poly = [1, 2, 1, 4]
@@ -569,8 +569,8 @@ mod tests {
   }
 
   #[test]
-  fn test_mlkzg_more() {
-    // test the mlkzg prover and verifier with random instances (derived from a seed)
+  fn test_hyperkzg_more() {
+    // test the hyperkzg prover and verifier with random instances (derived from a seed)
     for num_vars in [4, 5, 6] {
       prove_verify_from_num_vars::<_, EvaluationEngine<E, NE>>(num_vars);
     }
