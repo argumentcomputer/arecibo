@@ -352,7 +352,7 @@ where
     let h_c_int = le_bits_to_num(cs.namespace(|| "intermediate hash"), &h_c_int_bits)?;
 
     // Calculate h_1 = H(pp, U_c_1)
-    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts, NUM_FE_WITHOUT_IO_FOR_CRHF);
     ro_c_1.absorb(pp_digest);
     data_c_2
       .U

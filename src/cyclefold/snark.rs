@@ -162,6 +162,7 @@ where
 
     let r_U_primary_i = self.r_U_primary.clone();
 
+    // FIXME: This is wrong. The NIFS prover field needs to match the eventual NIFS verifier field
     let (nifs_primary, r) = NIFS::prove_mut(
       &pp.ck_primary,
       &pp.ro_consts_primary,
