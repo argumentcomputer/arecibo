@@ -3,6 +3,7 @@
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
 //! polynomial commitment scheme in which the verifier's costs is succinct.
 //! This code includes experimental optimizations to reduce runtimes and proof sizes.
+use crate::spartan::sumcheck::engine::NaturalNumVec;
 use crate::{
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
@@ -342,7 +343,8 @@ where
   <E::Scalar as PrimeField>::Repr: Abomonation,
 {
   fn prove_helper<T1, T2, T3, T4>(
-    mem: &mut T1,
+    mem_row: &mut T1,
+    mem_col: &mut T1,
     outer: &mut T2,
     inner: &mut T3,
     witness: &mut T4,
@@ -365,17 +367,20 @@ where
     T4: SumcheckEngine<E>,
   {
     // sanity checks
-    assert_eq!(mem.size(), outer.size());
-    assert_eq!(mem.size(), inner.size());
-    assert_eq!(mem.size(), witness.size());
-    assert_eq!(mem.degree(), outer.degree());
-    assert_eq!(mem.degree(), inner.degree());
-    assert_eq!(mem.degree(), witness.degree());
+    assert_eq!(mem_row.size(), outer.size());
+    assert_eq!(mem_row.size(), inner.size());
+    assert_eq!(mem_row.size(), witness.size());
+    assert_eq!(mem_row.size(), mem_col.size());
+    assert_eq!(mem_row.degree(), outer.degree());
+    assert_eq!(mem_row.degree(), inner.degree());
+    assert_eq!(mem_row.degree(), witness.degree());
+    assert_eq!(mem_row.degree(), mem_col.degree());
 
     // these claims are already added to the transcript, so we do not need to add
-    let claims = mem
+    let claims = mem_row
       .initial_claims()
       .into_iter()
+      .chain(mem_col.initial_claims())
       .chain(outer.initial_claims())
       .chain(inner.initial_claims())
       .chain(witness.initial_claims())
@@ -390,15 +395,27 @@ where
     let mut e = claim;
     let mut r: Vec<E::Scalar> = Vec::new();
     let mut cubic_polys: Vec<CompressedUniPoly<E::Scalar>> = Vec::new();
-    let num_rounds = mem.size().log_2();
+    let num_rounds = mem_row.size().log_2();
     for _ in 0..num_rounds {
-      let ((evals_mem, evals_outer), (evals_inner, evals_witness)) = rayon::join(
-        || rayon::join(|| mem.evaluation_points(), || outer.evaluation_points()),
-        || rayon::join(|| inner.evaluation_points(), || witness.evaluation_points()),
-      );
+      let (((evals_mem_row, evals_mem_col), evals_outer), (evals_inner, evals_witness)) =
+        rayon::join(
+          || {
+            rayon::join(
+              || {
+                rayon::join(
+                  || mem_row.evaluation_points(),
+                  || mem_col.evaluation_points(),
+                )
+              },
+              || outer.evaluation_points(),
+            )
+          },
+          || rayon::join(|| inner.evaluation_points(), || witness.evaluation_points()),
+        );
 
-      let evals: Vec<Vec<E::Scalar>> = evals_mem
+      let evals: Vec<Vec<E::Scalar>> = evals_mem_row
         .into_iter()
+        .chain(evals_mem_col.into_iter())
         .chain(evals_outer.into_iter())
         .chain(evals_inner.into_iter())
         .chain(evals_witness.into_iter())
@@ -425,7 +442,12 @@ where
       r.push(r_i);
 
       let _ = rayon::join(
-        || rayon::join(|| mem.bound(&r_i), || outer.bound(&r_i)),
+        || {
+          rayon::join(
+            || rayon::join(|| mem_row.bound(&r_i), || mem_col.bound(&r_i)),
+            || outer.bound(&r_i),
+          )
+        },
         || rayon::join(|| inner.bound(&r_i), || witness.bound(&r_i)),
       );
 
@@ -433,7 +455,7 @@ where
       cubic_polys.push(poly.compress());
     }
 
-    let mem_claims = mem.final_claims();
+    let mem_claims = vec![mem_row.final_claims(), mem_col.final_claims()].concat();
     let outer_claims = outer.final_claims();
     let inner_claims = inner.final_claims();
     let witness_claims = witness.final_claims();
@@ -643,48 +665,97 @@ where
         // a third sum-check instance to prove the read-only memory claim
         // we now need to prove that L_row and L_col are well-formed
 
-        // hash the tuples of (addr,val) memory contents and read responses into a single field element using `hash_func`
+        let mem_size = mem_row.len().try_into().unwrap();
+        let (mem_res_row, mem_res_col) = rayon::join(
+          // mem row
+          || {
+            MemorySumcheckInstance::<E>::compute_oracles(
+              ck,
+              &r,
+              &gamma,
+              vec![
+                Box::new(NaturalNumVec::<E>::new(mem_size)),
+                Box::new(mem_row.into_iter()),
+              ], // t set
+              vec![
+                Box::new(pk.S_repr.row.clone().into_iter()),
+                Box::new(L_row.clone().into_iter()),
+              ], // w set
+              &pk.S_repr.ts_row, // ts
+            )
+          },
+          // mem col
+          || {
+            MemorySumcheckInstance::<E>::compute_oracles(
+              ck,
+              &r,
+              &gamma,
+              vec![
+                Box::new(NaturalNumVec::<E>::new(mem_size)),
+                Box::new(mem_col.into_iter()),
+              ], // t set
+              vec![
+                Box::new(pk.S_repr.col.clone().into_iter()),
+                Box::new(L_col.clone().into_iter()),
+              ], // w set
+              &pk.S_repr.ts_col, // ts
+            )
+          },
+        );
 
-        let (comm_mem_oracles, mem_oracles, mem_aux) =
-          MemorySumcheckInstance::<E>::compute_oracles(
-            ck,
-            &r,
-            &gamma,
-            &mem_row,
-            &pk.S_repr.row,
-            &L_row,
-            &pk.S_repr.ts_row,
-            &mem_col,
-            &pk.S_repr.col,
-            &L_col,
-            &pk.S_repr.ts_col,
-          )?;
+        let (
+          (comm_mem_oracles_row, mem_oracles_row, mem_aux_row),
+          (comm_mem_oracles_col, mem_oracles_col, mem_aux_col),
+        ) = (mem_res_row?, mem_res_col?);
+
         // absorb the commitments
-        transcript.absorb(b"l", &comm_mem_oracles.as_slice());
+        transcript.absorb(
+          b"l",
+          &[comm_mem_oracles_row.clone(), comm_mem_oracles_col.clone()]
+            .concat()
+            .as_slice(),
+        );
 
         let rho = transcript.squeeze(b"r")?;
         let poly_eq = MultilinearPolynomial::new(PowPolynomial::new(&rho, num_rounds_sc).evals());
 
         Ok::<_, NovaError>((
           MemorySumcheckInstance::new(
-            mem_oracles.clone(),
-            mem_aux,
-            poly_eq.Z,
+            mem_oracles_row[0..2].to_vec().try_into().unwrap(),
+            mem_aux_row[0..2].to_vec().try_into().unwrap(),
+            poly_eq.Z.clone(),
             pk.S_repr.ts_row.clone(),
-            pk.S_repr.ts_col.clone(),
+            None,
           ),
-          comm_mem_oracles,
-          mem_oracles,
+          comm_mem_oracles_row,
+          mem_oracles_row,
+          MemorySumcheckInstance::new(
+            mem_oracles_col[0..2].to_vec().try_into().unwrap(),
+            mem_aux_col[0..2].to_vec().try_into().unwrap(),
+            poly_eq.Z,
+            pk.S_repr.ts_col.clone(),
+            None,
+          ),
+          comm_mem_oracles_col,
+          mem_oracles_col,
         ))
       },
     );
 
-    let (mut mem_sc_inst, comm_mem_oracles, mem_oracles) = mem_res?;
+    let (
+      mut mem_sc_inst_row,
+      comm_mem_oracles_row,
+      mem_oracles_row,
+      mut mem_sc_inst_col,
+      comm_mem_oracles_col,
+      mem_oracles_col,
+    ) = mem_res?;
 
     let mut witness_sc_inst = WitnessBoundSumcheck::new(tau, W.clone(), S.num_vars);
 
     let (sc, rand_sc, claims_mem, claims_outer, claims_inner, claims_witness) = Self::prove_helper(
-      &mut mem_sc_inst,
+      &mut mem_sc_inst_row,
+      &mut mem_sc_inst_col,
       &mut outer_sc_inst,
       &mut inner_sc_inst,
       &mut witness_sc_inst,
@@ -757,13 +828,13 @@ where
       pk.S_comm.comm_val_A,
       pk.S_comm.comm_val_B,
       pk.S_comm.comm_val_C,
-      comm_mem_oracles[0],
+      comm_mem_oracles_row[0],
       pk.S_comm.comm_row,
-      comm_mem_oracles[1],
+      comm_mem_oracles_row[1],
       pk.S_comm.comm_ts_row,
-      comm_mem_oracles[2],
+      comm_mem_oracles_col[0],
       pk.S_comm.comm_col,
-      comm_mem_oracles[3],
+      comm_mem_oracles_col[1],
       pk.S_comm.comm_ts_col,
     ];
     let poly_vec = [
@@ -777,13 +848,13 @@ where
       &pk.S_repr.val_A,
       &pk.S_repr.val_B,
       &pk.S_repr.val_C,
-      mem_oracles[0].as_ref(),
+      mem_oracles_row[0].as_ref(),
       &pk.S_repr.row,
-      mem_oracles[1].as_ref(),
+      mem_oracles_row[1].as_ref(),
       &pk.S_repr.ts_row,
-      mem_oracles[2].as_ref(),
+      mem_oracles_col[0].as_ref(),
       &pk.S_repr.col,
-      mem_oracles[3].as_ref(),
+      mem_oracles_col[1].as_ref(),
       &pk.S_repr.ts_col,
     ];
     transcript.absorb(b"e", &eval_vec.as_slice()); // comm_vec is already in the transcript
@@ -800,10 +871,10 @@ where
       comm_L_row: comm_L_row.compress(),
       comm_L_col: comm_L_col.compress(),
 
-      comm_t_plus_r_inv_row: comm_mem_oracles[0].compress(),
-      comm_w_plus_r_inv_row: comm_mem_oracles[1].compress(),
-      comm_t_plus_r_inv_col: comm_mem_oracles[2].compress(),
-      comm_w_plus_r_inv_col: comm_mem_oracles[3].compress(),
+      comm_t_plus_r_inv_row: comm_mem_oracles_row[0].compress(),
+      comm_w_plus_r_inv_row: comm_mem_oracles_row[1].compress(),
+      comm_t_plus_r_inv_col: comm_mem_oracles_col[0].compress(),
+      comm_w_plus_r_inv_col: comm_mem_oracles_col[1].compress(),
 
       eval_Az_at_tau,
       eval_Bz_at_tau,
@@ -976,13 +1047,13 @@ where
 
       let claim_mem_final_expected: E::Scalar = coeffs[0]
         * (self.eval_t_plus_r_inv_row - self.eval_w_plus_r_inv_row)
-        + coeffs[1] * (self.eval_t_plus_r_inv_col - self.eval_w_plus_r_inv_col)
-        + coeffs[2]
+        + coeffs[1]
           * (rand_eq_bound_rand_sc
             * (self.eval_t_plus_r_inv_row * eval_t_plus_r_row - self.eval_ts_row))
-        + coeffs[3]
+        + coeffs[2]
           * (rand_eq_bound_rand_sc
             * (self.eval_w_plus_r_inv_row * eval_w_plus_r_row - E::Scalar::ONE))
+        + coeffs[3] * (self.eval_t_plus_r_inv_col - self.eval_w_plus_r_inv_col)
         + coeffs[4]
           * (rand_eq_bound_rand_sc
             * (self.eval_t_plus_r_inv_col * eval_t_plus_r_col - self.eval_ts_col))
