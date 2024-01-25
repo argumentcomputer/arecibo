@@ -104,8 +104,8 @@ pub trait RelaxedR1CSSNARKTraitV2<E: Engine>:
     U: &RelaxedR1CSInstance<E>,
     W: &RelaxedR1CSWitness<E>,
     challenges: (E::Scalar, E::Scalar),
-    read_row: E::Scalar,
-    write_row: E::Scalar,
+    R_acc: E::Scalar,
+    W_acc: E::Scalar,
     initial_table: Lookup<E::Scalar>,
     final_table: Lookup<E::Scalar>,
   ) -> Result<Self, NovaError>;
@@ -115,9 +115,9 @@ pub trait RelaxedR1CSSNARKTraitV2<E: Engine>:
     &self,
     vk: &Self::VerifierKey,
     U: &RelaxedR1CSInstance<E>,
-    fingerprint_intermediate_gamma: E::Scalar,
-    read_row: E::Scalar,
-    write_row: E::Scalar,
+    lookup_intermediate_gamma: E::Scalar,
+    R_acc: E::Scalar,
+    W_acc: E::Scalar,
     challenges: (E::Scalar, E::Scalar),
   ) -> Result<(), NovaError>
   where

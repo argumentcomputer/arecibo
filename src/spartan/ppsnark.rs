@@ -1641,7 +1641,7 @@ where
   fn verify_challenge<E2: Engine>(
     comm_final_value: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
     comm_final_counter: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
-    fingerprint_intermediate_gamma: E::Scalar,
+    lookup_intermediate_gamma: E::Scalar,
     challenges: (E::Scalar, E::Scalar),
   ) -> Result<(), NovaError>
   where
@@ -1649,25 +1649,24 @@ where
     E2: Engine<Base = <E as Engine>::Scalar>,
   {
     // verify fingerprint challenge
-    let (fingerprint_alpha, fingerprint_gamma) = challenges;
+    let (lookup_r, lookup_gamma) = challenges;
 
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 
     let mut hasher = <E as Engine>::RO::new(ro_consts.clone(), 7);
-    let fingerprint_intermediate_gamma: E2::Scalar =
-      scalar_as_base::<E>(fingerprint_intermediate_gamma);
-    hasher.absorb(fingerprint_intermediate_gamma);
+    let lookup_intermediate_gamma: E2::Scalar = scalar_as_base::<E>(lookup_intermediate_gamma);
+    hasher.absorb(lookup_intermediate_gamma);
     comm_final_value.absorb_in_ro(&mut hasher);
     comm_final_counter.absorb_in_ro(&mut hasher);
     let computed_gamma = hasher.squeeze(NUM_CHALLENGE_BITS);
-    if fingerprint_gamma != computed_gamma {
+    if lookup_gamma != computed_gamma {
       return Err(NovaError::InvalidMultisetProof);
     }
     let mut hasher = <E as Engine>::RO::new(ro_consts, 1);
     hasher.absorb(scalar_as_base::<E>(computed_gamma));
-    let computed_alpha = hasher.squeeze(NUM_CHALLENGE_BITS);
-    if fingerprint_alpha != computed_alpha {
+    let computed_r = hasher.squeeze(NUM_CHALLENGE_BITS);
+    if lookup_r != computed_r {
       return Err(NovaError::InvalidMultisetProof);
     }
     Ok(())
@@ -1762,8 +1761,8 @@ where
     U: &RelaxedR1CSInstance<E>,
     W: &RelaxedR1CSWitness<E>,
     challenges: (E::Scalar, E::Scalar),
-    read_row: E::Scalar,
-    write_row: E::Scalar,
+    R_acc: E::Scalar,
+    W_acc: E::Scalar,
     mut initial_table: Lookup<E::Scalar>,
     mut final_table: Lookup<E::Scalar>,
   ) -> Result<Self, NovaError> {
@@ -1776,16 +1775,16 @@ where
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
 
     // process general table lookup
-    let (fingerprint_alpha, fingerprint_gamma) = challenges;
+    let (lookup_r, lookup_gamma) = challenges;
 
     // append the verifier key (which includes commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
     transcript.absorb(b"vk", &pk.vk_digest);
     transcript.absorb(b"U", U);
     // add lookup table to transcript
-    transcript.absorb(b"read_row", &read_row);
-    transcript.absorb(b"write_row", &write_row);
-    transcript.absorb(b"alpha", &fingerprint_alpha);
-    transcript.absorb(b"gamma", &fingerprint_gamma);
+    transcript.absorb(b"R_acc", &R_acc);
+    transcript.absorb(b"W_acc", &W_acc);
+    transcript.absorb(b"r", &lookup_r);
+    transcript.absorb(b"gamma", &lookup_gamma);
 
     // compute the full satisfying assignment by concatenating W.W, U.u, and U.X
     let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
@@ -1948,8 +1947,8 @@ where
               || {
                 MemorySumcheckInstance::<E>::compute_oracles(
                   ck,
-                  &fingerprint_alpha,
-                  &fingerprint_gamma,
+                  &lookup_r,
+                  &lookup_gamma,
                   vec![
                     Box::new(NaturalNumVec::<E>::new(table_size)), // address
                     Box::new(init_values.clone().into_iter()),
@@ -2015,7 +2014,7 @@ where
               lookup_aux[0..2].to_vec().try_into().unwrap(),
               poly_eq.Z,
               pk.S_repr.const_ts_lookup.clone(),
-              Some(read_row - write_row),
+              Some(R_acc - W_acc),
             ),
             comm_lookup_oracles,
             lookup_oracles,
@@ -2254,9 +2253,9 @@ where
     &self,
     vk: &Self::VerifierKey,
     U: &RelaxedR1CSInstance<E>,
-    fingerprint_intermediate_gamma: E::Scalar,
-    read_row: E::Scalar,
-    write_row: E::Scalar,
+    lookup_intermediate_gamma: E::Scalar,
+    R_acc: E::Scalar,
+    W_acc: E::Scalar,
     challenges: (E::Scalar, E::Scalar),
   ) -> Result<(), NovaError>
   where
@@ -2265,15 +2264,15 @@ where
   {
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
 
-    let (fingerprint_alpha, fingerprint_gamma) = challenges;
+    let (lookup_r, lookup_gamma) = challenges;
 
     // append the verifier key (including commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
     transcript.absorb(b"vk", &vk.digest());
     transcript.absorb(b"U", U);
-    transcript.absorb(b"read_row", &read_row);
-    transcript.absorb(b"write_row", &write_row);
-    transcript.absorb(b"alpha", &fingerprint_alpha);
-    transcript.absorb(b"gamma", &fingerprint_gamma);
+    transcript.absorb(b"R_acc", &R_acc);
+    transcript.absorb(b"W_acc", &W_acc);
+    transcript.absorb(b"r", &lookup_r);
+    transcript.absorb(b"gamma", &lookup_gamma);
 
     let comm_Az = Commitment::<E>::decompress(&self.comm_Az)?;
     let comm_Bz = Commitment::<E>::decompress(&self.comm_Bz)?;
@@ -2294,7 +2293,7 @@ where
     Self::verify_challenge::<E2>(
       comm_final_value,
       comm_final_counter,
-      fingerprint_intermediate_gamma,
+      lookup_intermediate_gamma,
       challenges,
     )?;
     transcript.absorb(b"c", &[comm_Az, comm_Bz, comm_Cz].as_slice());
@@ -2343,7 +2342,7 @@ where
     let num_claims = 13;
     let s = transcript.squeeze(b"r")?;
     let coeffs = powers::<E>(&s, num_claims);
-    let claim = (coeffs[7] + coeffs[8]) * claim + coeffs[10] * (read_row - write_row); // rest are zeros
+    let claim = (coeffs[7] + coeffs[8]) * claim + coeffs[10] * (R_acc - W_acc); // rest are zeros
 
     // verify sc
     let (claim_sc_final, rand_sc) = self.sc.verify(claim, num_rounds_sc, 3, &mut transcript)?;
@@ -2422,17 +2421,16 @@ where
       let eval_addr = IdentityPolynomial::new(num_rounds_sc).evaluate(&rand_sc);
       let eval_t_plus_r_lookup = {
         let eval_val = self.eval_init_value_lookup;
-        let eval_t = eval_addr + fingerprint_gamma * eval_val;
-        eval_t + fingerprint_alpha
+        let eval_t = eval_addr + lookup_gamma * eval_val;
+        eval_t + lookup_r
       };
 
       let eval_w_plus_r_lookup = {
         let eval_val = self.eval_final_value_lookup;
         let eval_counter = self.eval_final_counter_lookup;
-        let eval_w = eval_addr
-          + fingerprint_gamma * eval_val
-          + fingerprint_gamma * fingerprint_gamma * eval_counter;
-        eval_w + fingerprint_alpha
+        let eval_w =
+          eval_addr + lookup_gamma * eval_val + lookup_gamma * lookup_gamma * eval_counter;
+        eval_w + lookup_r
       };
 
       let claim_mem_final_expected: E::Scalar = coeffs[0]
