@@ -4,7 +4,7 @@ use super::{
   },
   OptionExt,
 };
-use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError};
 use ff::PrimeField;
 use itertools::Itertools as _;
 use num_bigint::BigInt;
@@ -255,6 +255,14 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       ));
     }
     limbs
+  }
+
+  /// explodes if it can't fit into an AllocatedNum
+  pub fn as_allocated_num<CS: ConstraintSystem<Scalar>>(
+    &self,
+    mut cs: CS,
+  ) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    todo!()
   }
 
   pub fn assert_well_formed<CS: ConstraintSystem<Scalar>>(
