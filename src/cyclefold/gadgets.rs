@@ -29,6 +29,8 @@ impl<E: Engine> AllocatedFoldingData<E> {
 }
 
 pub mod emulated {
+  use bellpepper_core::boolean::Boolean;
+
   use super::*;
 
   use std::marker::PhantomData;
@@ -37,6 +39,7 @@ pub mod emulated {
   use crate::traits::ROConstantsCircuit;
   use crate::RelaxedR1CSInstance;
 
+  #[derive(Clone)]
   pub struct AllocatedPoint<E1, E2>
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -111,8 +114,8 @@ pub mod emulated {
       mut cs: CS,
       W_new: AllocatedPoint<E1, E2>,
       E_new: AllocatedPoint<E1, E2>,
-      x0: BigNat<E1::Base>,
-      x1: BigNat<E1::Base>,
+      x0: &BigNat<E1::Base>,
+      x1: &BigNat<E1::Base>,
       ro_consts: ROConstantsCircuit<E1>,
       limb_width: usize,
       n_limbs: usize,
@@ -120,10 +123,19 @@ pub mod emulated {
       todo!()
     }
 
-    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit)
+    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
     where
       CS: ConstraintSystem<<E1 as Engine>::Base>,
     {
+      todo!()
+    }
+
+    pub fn conditionally_select<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+      &self,
+      cs: CS,
+      other: &Self,
+      condition: &Boolean,
+    ) -> Result<Self, SynthesisError> {
       todo!()
     }
   }
