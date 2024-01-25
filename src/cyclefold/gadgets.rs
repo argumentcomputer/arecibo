@@ -138,6 +138,14 @@ pub mod emulated {
     ) -> Result<Self, SynthesisError> {
       todo!()
     }
+
+    pub fn default<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+      mut cs: CS,
+      limb_width: usize,
+      n_limbs: usize,
+    ) -> Result<Self, SynthesisError> {
+      todo!()
+    }
   }
   pub struct AllocatedFoldingData<E1, E2>
   where
