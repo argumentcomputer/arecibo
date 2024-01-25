@@ -3,8 +3,7 @@
 use crate::{
   constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
-    ecc::AllocatedPoint,
-    r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
+    r1cs::AllocatedRelaxedR1CSInstance,
     utils::{
       alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     },
@@ -22,8 +21,7 @@ use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, SynthesisError};
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-use super::gadgets::emulated;
-use super::gadgets::AllocatedFoldingData;
+use super::gadgets::{emulated, AllocatedFoldingData};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 pub struct AugmentedCircuitParams {
@@ -245,7 +243,19 @@ where
     ),
     SynthesisError,
   > {
-    todo!()
+    let U_c_default = AllocatedRelaxedR1CSInstance::default(
+      cs.namespace(|| "Allocate U_c_default"),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
+    let U_p_default = emulated::AllocatedRelaxedR1CSInstance::default(
+      cs.namespace(|| "Allocated U_p_default"),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
+    Ok((U_c_default, U_p_default))
   }
 
   pub fn synthesize_non_base_case<CS: ConstraintSystem<<E1 as Engine>::Base>>(
