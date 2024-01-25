@@ -1145,7 +1145,7 @@
 }
 
 <span class="doccomment">/// A type that holds `R1CSShape` in a form amenable to memory checking
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>R1CSShapeSparkRepr&lt;E: Engine&gt; {
@@ -1171,7 +1171,7 @@
 }
 
 <span class="doccomment">/// A type that holds a commitment to a sparse polynomial
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>R1CSShapeSparkCommitment&lt;E: Engine&gt; {
@@ -1348,7 +1348,7 @@
 }
 
 <span class="doccomment">/// A type that represents the prover&#39;s key
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
@@ -1360,7 +1360,7 @@
 </span>}
 
 <span class="doccomment">/// A type that represents the verifier&#39;s key
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {

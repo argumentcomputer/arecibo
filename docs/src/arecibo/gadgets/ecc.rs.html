@@ -1206,7 +1206,7 @@
 <span class="kw">use </span>ff::{Field, PrimeField};
 
 <span class="doccomment">/// `AllocatedPoint` provides an elliptic curve abstraction inside a circuit.
-</span><span class="attr">#[derive(Clone)]
+</span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>AllocatedPoint&lt;E: Engine&gt; {
   <span class="kw">pub</span>(<span class="kw">crate</span>) x: AllocatedNum&lt;E::Base&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) y: AllocatedNum&lt;E::Base&gt;,
@@ -1779,7 +1779,7 @@
   }
 }
 
-<span class="attr">#[derive(Clone)]
+<span class="attr">#[derive(Clone, Debug)]
 </span><span class="doccomment">/// `AllocatedPoint` but one that is guaranteed to be not infinity
 </span><span class="kw">pub struct </span>AllocatedPointNonInfinity&lt;E: Engine&gt; {
   x: AllocatedNum&lt;E::Base&gt;,

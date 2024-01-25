@@ -1765,7 +1765,7 @@
 };
 
 <span class="doccomment">/// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>R1CSWithArity&lt;E: Engine&gt; {
@@ -1792,7 +1792,7 @@
 }
 
 <span class="doccomment">/// A type that holds public parameters of Nova
-</span><span class="attr">#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(
 <span class="kw">where
@@ -2411,7 +2411,7 @@
 }
 
 <span class="doccomment">/// A type that holds the verifier key for `CompressedSNARK`
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(
   <span class="kw">where
@@ -2444,7 +2444,7 @@
 }
 
 <span class="doccomment">/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 </span><span class="kw">pub struct </span>CompressedSNARK&lt;E1, E2, C1, C2, S1, S2&gt;
 <span class="kw">where

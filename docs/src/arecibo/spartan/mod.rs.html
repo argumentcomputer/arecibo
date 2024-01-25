@@ -223,6 +223,8 @@
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! We provide two implementations, one in snark.rs (which does not use any preprocessing)
@@ -260,6 +262,7 @@
 }
 
 <span class="doccomment">/// A type that holds a witness to a polynomial evaluation instance
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>PolyEvalWitness&lt;E: Engine&gt; {
   p: Vec&lt;E::Scalar&gt;, <span class="comment">// polynomial
 </span>}
@@ -339,6 +342,7 @@
 }
 
 <span class="doccomment">/// A type that holds a polynomial evaluation instance
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>PolyEvalInstance&lt;E: Engine&gt; {
   c: Commitment&lt;E&gt;,  <span class="comment">// commitment to the polynomial
   </span>x: Vec&lt;E::Scalar&gt;, <span class="comment">// evaluation point

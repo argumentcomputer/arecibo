@@ -593,7 +593,7 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// A type that represents the prover&#39;s key
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>ff::PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
@@ -603,7 +603,7 @@
 </span>}
 
 <span class="doccomment">/// A type that represents the verifier&#39;s key
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>ff::PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
@@ -749,7 +749,7 @@
     <span class="comment">// claims from the end of sum-check
     </span><span class="kw">let </span>(claim_Az, claim_Bz): (E::Scalar, E::Scalar) = (claims_outer[<span class="number">1</span>], claims_outer[<span class="number">2</span>]);
     <span class="kw">let </span>claim_Cz = poly_Cz.evaluate(<span class="kw-2">&amp;</span>r_x);
-    <span class="kw">let </span>eval_E = MultilinearPolynomial::new(W.E.clone()).evaluate(<span class="kw-2">&amp;</span>r_x);
+    <span class="kw">let </span>eval_E = MultilinearPolynomial::evaluate_with(<span class="kw-2">&amp;</span>W.E, <span class="kw-2">&amp;</span>r_x);
     transcript.absorb(
       <span class="string">b&quot;claims_outer&quot;</span>,
       <span class="kw-2">&amp;</span>[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),
@@ -1096,11 +1096,11 @@
       EqPolynomial::new(r_hi.to_vec()).evaluate(<span class="kw-2">&amp;</span>u.x)
     });
 
-    evals_r
-      .zip_eq(evals_batch.iter())
-      .zip_eq(powers_of_rho.iter())
-      .map(|((e_i, p_i), rho_i)| e_i * <span class="kw-2">*</span>p_i * rho_i)
-      .sum()
+    <span class="macro">zip_with!</span>(
+      (evals_r, evals_batch.iter(), powers_of_rho.iter()),
+      |e_i, p_i, rho_i| e_i * <span class="kw-2">*</span>p_i * rho_i
+    )
+    .sum()
   };
 
   <span class="kw">if </span>claim_batch_final != claim_batch_final_expected {

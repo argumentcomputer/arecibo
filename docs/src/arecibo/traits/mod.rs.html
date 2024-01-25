@@ -162,6 +162,8 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines various traits required by the users of the library to implement.
 </span><span class="kw">use </span><span class="kw">crate</span>::errors::NovaError;
 <span class="kw">use </span>abomonation::Abomonation;
@@ -231,7 +233,8 @@
   </span><span class="kw">type </span>CircuitRO: ROCircuitTrait&lt;Base, Constants = <span class="self">Self</span>::Constants&gt;;
 
   <span class="doccomment">/// A type representing constants/parameters associated with the hash function
-  </span><span class="kw">type </span>Constants: Default
+  </span><span class="kw">type </span>Constants: Debug
+    + Default
     + Clone
     + PartialEq
     + Send
@@ -256,7 +259,8 @@
   </span><span class="kw">type </span>NativeRO&lt;T: PrimeField&gt;: ROTrait&lt;Base, T, Constants = <span class="self">Self</span>::Constants&gt;;
 
   <span class="doccomment">/// A type representing constants/parameters associated with the hash function on this Base field
-  </span><span class="kw">type </span>Constants: Default
+  </span><span class="kw">type </span>Constants: Debug
+    + Default
     + Clone
     + PartialEq
     + Send

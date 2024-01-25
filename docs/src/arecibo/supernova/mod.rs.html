@@ -1200,7 +1200,7 @@
 <span class="kw">use </span>error::SuperNovaError;
 
 <span class="doccomment">/// A struct that manages all the digests of the primary circuits of a SuperNova instance
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>CircuitDigests&lt;E: Engine&gt; {
   digests: Vec&lt;E::Scalar&gt;,
 }
@@ -1229,7 +1229,7 @@
 }
 
 <span class="doccomment">/// A vector of [R1CSWithArity] adjoined to a set of [PublicParams]
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 </span><span class="kw">pub struct </span>PublicParams&lt;E1, E2, C1, C2&gt;
 <span class="kw">where
@@ -1261,7 +1261,7 @@
 <span class="doccomment">/// Auxiliary [PublicParams] information about the commitment keys and
 /// secondary circuit. This is used as a helper struct when reconstructing
 /// [PublicParams] downstream in lurk.
-</span><span class="attr">#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(
 <span class="kw">where

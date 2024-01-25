@@ -686,7 +686,7 @@
 }
 
 <span class="doccomment">/// A type that represents the prover&#39;s key
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>ff::PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
@@ -696,7 +696,7 @@
 </span>}
 
 <span class="doccomment">/// A type that represents the verifier&#39;s key
-</span><span class="attr">#[derive(Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>ff::PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
