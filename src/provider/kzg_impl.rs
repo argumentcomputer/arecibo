@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 #![allow(unused_doc_comments)]
+#![allow(unused_mut)]
 #[cfg(test)]
 mod tests {
   use crate::provider::non_hiding_kzg::{UVKZGPoly, UniversalKZGParam};
@@ -305,18 +306,8 @@ mod tests {
     let n = poly.len();
     let srs = UniversalKZGParam::<Bn256>::gen_srs_for_testing(&mut rng, n);
 
-    //let C = <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()]);
     // PROVE
     assert_eq!(n, 1 << point.len());
-
-    fn construct_next_Pi(pi: &[Fr], point: Fr) -> Vec<Fr> {
-      let Pi_len = pi.len() / 2;
-      let mut Pi = vec![Fr::ZERO; Pi_len];
-      for j in 0..Pi_len {
-        Pi[j] = point * (pi[2 * j + 1] - pi[2 * j]) + pi[2 * j];
-      }
-      Pi
-    }
 
     // Phase 1 (constructing Pi polynomials and computing commitments to them)
     let Pi_0 = poly.clone();
@@ -463,5 +454,283 @@ mod tests {
 
     let pairing_result = multi_miller_loop(&pairing_inputs).final_exponentiation();
     assert_eq!(pairing_result.is_identity().unwrap_u8(), 0x01);
+  }
+
+  #[test]
+  fn batching_property_unit_testing() {
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+
+    let Pi_0 = poly.clone();
+    let Pi_1 = construct_next_Pi(Pi_0.as_slice(), point[2]);
+    let Pi_2 = construct_next_Pi(Pi_1.as_slice(), point[1]);
+    let Pi_3 = construct_next_Pi(Pi_2.as_slice(), point[0]);
+    let Pi = vec![Pi_0, Pi_1, Pi_2, Pi_3];
+
+    let q = Fr::from(1983758);
+    let q_powers = std::iter::successors(Some(Fr::one()), |&x| Some(x * q))
+        .take(Pi.len())
+        .collect::<Vec<Fr>>();
+
+    let r = Fr::from(182345);
+
+    let evals_at_r = Pi
+        .clone()
+        .into_iter()
+        .map(|poly| UniPoly::new(poly).evaluate(&r))
+        .collect::<Vec<Fr>>();
+
+    // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
+    let batched_Pi: UniPoly<Fr> = Pi.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    let eval_r_1 = evals_at_r.iter().zip(q_powers.iter()).map(|(eval, q)| eval * q).collect::<Vec<Fr>>().into_iter().sum::<Fr>();
+    let eval_r_2 = batched_Pi.evaluate(&r);
+    assert_eq!(eval_r_1, eval_r_2);
+  }
+
+  fn construct_next_Pi(pi: &[Fr], point: Fr) -> Vec<Fr> {
+    let Pi_len = pi.len() / 2;
+    let mut Pi = vec![Fr::ZERO; Pi_len];
+    for j in 0..Pi_len {
+      Pi[j] = point * (pi[2 * j + 1] - pi[2 * j]) + pi[2 * j];
+    }
+    Pi
+  }
+
+  #[test]
+  fn shplonk_test_1() {
+    let mut rng = OsRng;
+    let n = 8;
+    let srs = UniversalKZGParam::<Bn256>::gen_srs_for_testing(&mut rng, n);
+
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+
+    let eval = Fr::from(57);
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+
+
+
+    // Phase 1 (constructing Pi polynomials and computing commitments to them)
+    let Pi_0 = poly.clone();
+    let Pi_1 = construct_next_Pi(Pi_0.as_slice(), point[2]);
+    let Pi_2 = construct_next_Pi(Pi_1.as_slice(), point[1]);
+    let Pi_3 = construct_next_Pi(Pi_2.as_slice(), point[0]);
+    let Pi = vec![Pi_0, Pi_1, Pi_2, Pi_3];
+    assert_eq!(Pi.len(), 4);
+    assert_eq!(Pi[3].len(), 1);
+    assert_eq!(Pi[3][0], eval);
+
+    let pi_commitments = Pi
+        .clone()
+        .into_iter()
+        .map(|poly| {
+          <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()])
+              .to_affine()
+        })
+        .collect::<Vec<G1Affine>>();
+
+
+    // Phase 2 (simplified for this flow)
+    let r = Fr::from(182345);
+    let minus_r = -r;
+    let r_squared = r * r;
+
+    // Phase 3
+
+    // Compute evals at r, -r, r^2 for each Pi polynomial
+    let evals_at_r = Pi
+        .clone()
+        .into_iter()
+        .map(|poly| UniPoly::new(poly).evaluate(&r))
+        .collect::<Vec<Fr>>();
+
+    let evals_at_minus_r = Pi
+        .clone()
+        .into_iter()
+        .map(|poly| UniPoly::new(poly).evaluate(&minus_r))
+        .collect::<Vec<Fr>>();
+
+    let evals_at_r_squared = Pi
+        .clone()
+        .into_iter()
+        .map(|poly| UniPoly::new(poly).evaluate(&r_squared))
+        .collect::<Vec<Fr>>();
+
+
+    let q = Fr::from(1983758);
+    let q_powers = std::iter::successors(Some(Fr::one()), |&x| Some(x * q))
+        .take(pi_commitments.len())
+        .collect::<Vec<Fr>>();
+
+    let mut v_0 = Fr::zero();
+    evals_at_r.iter().zip(q_powers.iter()).for_each(|(v_i_at_r, q_i)| {
+      v_0 = v_0 + (v_i_at_r * q_i)
+    });
+
+    let mut v_1 = Fr::zero();
+    evals_at_minus_r.iter().zip(q_powers.iter()).for_each(|(v_i_at_minus_r, q_i)| {
+      v_1 = v_1 + (v_i_at_minus_r * q_i)
+    });
+
+    let mut v_2 = Fr::zero();
+    evals_at_r_squared.iter().zip(q_powers.iter()).for_each(|(v_i_at_r_squared, q_i)| {
+      v_2 = v_2 + (v_i_at_r_squared * q_i)
+    });
+
+
+    // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
+    let batched_Pi: UniPoly<Fr> = Pi.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    let divident = batched_Pi;
+    let divisor = vec![-q, Fr::one()];
+    let (mut Q_x, R_x) = divident
+        .divide_with_q_and_r(&UVKZGPoly::new(divisor.clone()))
+        .unwrap();
+
+    assert_eq!(v_0, R_x.evaluate(&r));
+    assert_eq!(v_1, R_x.evaluate(&minus_r));
+    assert_eq!(v_2, R_x.evaluate(&r_squared));
+  }
+
+  #[test]
+  fn e2e_test_pcs_kzg_shplonk_flow() {
+    let mut rng = OsRng;
+    let n = 8;
+    let srs = UniversalKZGParam::<Bn256>::gen_srs_for_testing(&mut rng, n);
+
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+
+    let eval = Fr::from(57);
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+
+    // Phase 1 (constructing Pi polynomials and computing commitments to them)
+    let Pi_0 = poly.clone();
+    let Pi_1 = construct_next_Pi(Pi_0.as_slice(), point[2]);
+    let Pi_2 = construct_next_Pi(Pi_1.as_slice(), point[1]);
+    let Pi_3 = construct_next_Pi(Pi_2.as_slice(), point[0]);
+    let Pi = vec![Pi_0, Pi_1, Pi_2, Pi_3];
+    assert_eq!(Pi.len(), 4);
+    assert_eq!(Pi[3].len(), 1);
+    assert_eq!(Pi[3][0], eval);
+
+    let pi_commitments = Pi
+        .clone()
+        .into_iter()
+        .map(|poly| {
+          <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()])
+              .to_affine()
+        })
+        .collect::<Vec<G1Affine>>();
+
+
+    let q = Fr::from(1983758);
+    let q_powers = std::iter::successors(Some(Fr::one()), |&x| Some(x * q))
+        .take(pi_commitments.len())
+        .collect::<Vec<Fr>>();
+
+    // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
+    let batched_Pi: UniPoly<Fr> = Pi.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    let r = Fr::from(182345);
+    let minus_r = -r;
+    let r_squared = r * r;
+
+
+    /*let evals_at_r = Pi
+        .clone()
+        .into_iter()
+        .map(|poly| UniPoly::new(poly).evaluate(&r))
+        .collect::<Vec<Fr>>();
+
+
+    let eval_r_expected = evals_at_r.iter().zip(q_powers.iter()).map(|(eval, q)| eval * q).collect::<Vec<Fr>>().into_iter().sum::<Fr>();
+    assert_eq!(evals_at_r, eval_r_expected);
+    */
+
+    let eval_r = batched_Pi.evaluate(&r);
+    let eval_minus_r = batched_Pi.evaluate(&minus_r);
+    let eval_r_squared = batched_Pi.evaluate(&r_squared);
+
+    let mut C_P = G1Affine::default();
+    q_powers.iter().zip(pi_commitments.iter()).for_each(|(q_i, C_i)| {
+      C_P = (C_P + (C_i * q_i)).to_affine();
+    });
+
+    let C =  <G1 as DlogGroup>::vartime_multiscalar_mul(&batched_Pi.coeffs, &srs.powers_of_g[..batched_Pi.coeffs.len()])
+        .to_affine();
+
+    // D = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
+    let divident = batched_Pi.clone();
+    let D = UVKZGPoly::new(vec![r_squared * r_squared, -r_squared, -r_squared, Fr::one()]);
+    let (mut Q_x, R_x) = divident
+        .divide_with_q_and_r(&D)
+        .unwrap();
+
+    let C_Q = <G1 as DlogGroup>::vartime_multiscalar_mul(&Q_x.coeffs, &srs.powers_of_g[..Q_x.coeffs.len()])
+        .to_affine();
+
+    let a = Fr::from(241);
+
+    let mut K_x = batched_Pi.clone();
+    K_x += &(R_x.evaluate(&a));
+    let mut tmp = Q_x.clone();
+    tmp *= &(-D.evaluate(&a));
+    K_x += &tmp;
+
+
+    //let minus_batched_Pi = UniPoly::new(batched_Pi.coeffs.clone().into_iter().map(|coeff| -coeff).collect::<Vec<Fr>>());
+    //let minus_R_x = UniPoly::new(R_x.coeffs.clone().into_iter().map(|coeff| -coeff).collect::<Vec<Fr>>());
+    //let mut K_x = Q_x.clone();
+    //K_x *= &(R_x.evaluate(&a));
+    //K_x += &minus_batched_Pi;
+    //K_x += &minus_R_x;
+
+
+    let C_K = C_P - C_Q * D.evaluate(&a) + srs.powers_of_g[0] * R_x.evaluate(&a);
+
+    //let C_R = <G1 as DlogGroup>::vartime_multiscalar_mul(&R_x.coeffs, &srs.powers_of_g[..R_x.coeffs.len()])
+    //    .to_affine();
+    //let C_K = C_Q * R_x.evaluate(&a) - C_P - C_R;
+
+    let divident = K_x.clone();
+    let divisor = UVKZGPoly::new(vec![-a, Fr::one()]);
+    let (mut H_x, _) = divident
+        .divide_with_q_and_r(&divisor)
+        .unwrap();
+
+    let C_H = <G1 as DlogGroup>::vartime_multiscalar_mul(&H_x.coeffs, &srs.powers_of_g[..H_x.coeffs.len()])
+        .to_affine();
+
+    let left = pairing(&C_H, &(srs.powers_of_h[1] - srs.powers_of_h[0] * a).to_affine());
+    let right = pairing(&C_K.to_affine(), &srs.powers_of_h[0]);
+    assert_eq!(left, right);
   }
 }
