@@ -295,7 +295,7 @@ where
     }
     data_p
       .U
-      .absorb_in_ro(cs.namespace(|| "absorb U_p"), &mut ro_p);
+      .absorb_in_ro(cs.namespace(|| "absorb U_p"), &mut ro_p)?;
 
     let hash_bits_p = ro_p.squeeze(cs.namespace(|| "primary hash bits"), NUM_HASH_BITS)?;
     let hash_p = le_bits_to_num(cs.namespace(|| "primary hash"), &hash_bits_p)?;
@@ -315,7 +315,7 @@ where
     ro_c.absorb(pp_digest);
     data_c_1
       .U
-      .absorb_in_ro(cs.namespace(|| "absorb U_c"), &mut ro_c);
+      .absorb_in_ro(cs.namespace(|| "absorb U_c"), &mut ro_c)?;
     let hash_c_bits = ro_c.squeeze(cs.namespace(|| "cyclefold hash bits"), NUM_HASH_BITS)?;
     let hash_c = le_bits_to_num(cs.namespace(|| "cyclefold hash"), &hash_c_bits)?;
 
@@ -346,7 +346,7 @@ where
     // Calculate h_int = H(pp, U_c_int)
     let mut ro_c_int = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
     ro_c_int.absorb(pp_digest);
-    U_int.absorb_in_ro(cs.namespace(|| "absorb U_c_int"), &mut ro_c_int);
+    U_int.absorb_in_ro(cs.namespace(|| "absorb U_c_int"), &mut ro_c_int)?;
     let h_c_int_bits =
       ro_c_int.squeeze(cs.namespace(|| "intermediate hash bits"), NUM_HASH_BITS)?;
     let h_c_int = le_bits_to_num(cs.namespace(|| "intermediate hash"), &h_c_int_bits)?;
@@ -356,7 +356,7 @@ where
     ro_c_1.absorb(pp_digest);
     data_c_2
       .U
-      .absorb_in_ro(cs.namespace(|| "absorb U_c_1"), &mut ro_c_1);
+      .absorb_in_ro(cs.namespace(|| "absorb U_c_1"), &mut ro_c_1)?;
     let h_c_1_bits = ro_c_1.squeeze(cs.namespace(|| "cyclefold_1 hash bits"), NUM_HASH_BITS)?;
     let h_c_1 = le_bits_to_num(cs.namespace(|| "cyclefold_1 hash"), &h_c_1_bits)?;
 
@@ -476,7 +476,10 @@ where
       ));
     }
 
-    let mut ro_p = E1::ROCircuit::new(self.ro_consts, NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * arity);
+    let mut ro_p = E1::ROCircuit::new(
+      self.ro_consts.clone(),
+      NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * arity,
+    );
     ro_p.absorb(&pp_digest);
     ro_p.absorb(&i_new);
     for e in &z_0 {
