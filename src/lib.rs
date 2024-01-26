@@ -2400,8 +2400,8 @@ mod tests {
       zn_primary[4]
     ); // global ts = number_of_iterated_nodes * (3r + 4w) operations
 
-    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_cons, 12608);
-    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_vars, 12612);
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_cons, 13385);
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_vars, 13396);
     assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_cons, 10357);
     assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_vars, 10337);
 

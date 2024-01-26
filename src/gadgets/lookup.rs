@@ -43,9 +43,9 @@ pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(mut cs: CS, val: F) -
 #[derive(Clone, Debug)]
 pub enum RWTrace<T> {
   /// read
-  Read(T, T, T), // addr, read_value, read_ts
+  Read(T, T, T, T), // addr, read_value, read_ts, write_ts
   /// write
-  Write(T, T, T, T), // addr, read_value, write_value, read_ts
+  Write(T, T, T, T, T), // addr, read_value, write_value, read_ts, write_ts
 }
 
 /// Lookup in R1CS
@@ -83,7 +83,7 @@ impl<E: Engine> LookupTrace<E> {
       self.cursor,
       self.expected_rw_trace.len()
     );
-    let RWTrace::Read(expected_addr, expected_read_value, expected_read_ts) =
+    let RWTrace::Read(expected_addr, expected_read_value, expected_read_ts, expected_write_ts) =
       self.expected_rw_trace[self.cursor]
     else {
       Err(SynthesisError::AssignmentMissing)?
@@ -100,12 +100,14 @@ impl<E: Engine> LookupTrace<E> {
     let read_value =
       AllocatedNum::alloc(cs.namespace(|| "read_value"), || Ok(expected_read_value))?;
     let read_ts = AllocatedNum::alloc(cs.namespace(|| "read_ts"), || Ok(expected_read_ts))?;
+    let write_ts = AllocatedNum::alloc(cs.namespace(|| "write_ts"), || Ok(expected_write_ts))?;
     self
       .rw_trace_allocated_num
       .push(RWTrace::Read::<AllocatedNum<E::Scalar>>(
         addr.clone(),
         read_value.clone(),
         read_ts,
+        write_ts,
       )); // append read trace
 
     self.cursor += 1;
@@ -128,8 +130,13 @@ impl<E: Engine> LookupTrace<E> {
       self.cursor,
       self.expected_rw_trace.len()
     );
-    let RWTrace::Write(expected_addr, expected_read_value, expected_write_value, expected_read_ts) =
-      self.expected_rw_trace[self.cursor]
+    let RWTrace::Write(
+      expected_addr,
+      expected_read_value,
+      expected_write_value,
+      expected_read_ts,
+      expected_write_ts,
+    ) = self.expected_rw_trace[self.cursor]
     else {
       Err(SynthesisError::AssignmentMissing)?
     };
@@ -153,11 +160,14 @@ impl<E: Engine> LookupTrace<E> {
       AllocatedNum::alloc(cs.namespace(|| "read_value"), || Ok(expected_read_value))?;
     let expected_read_ts =
       AllocatedNum::alloc(cs.namespace(|| "read_ts"), || Ok(expected_read_ts))?;
+    let expected_write_ts =
+      AllocatedNum::alloc(cs.namespace(|| "write_ts"), || Ok(expected_write_ts))?;
     self.rw_trace_allocated_num.push(RWTrace::Write(
       addr.clone(),
       expected_read_value,
       value.clone(),
       expected_read_ts,
+      expected_write_ts,
     )); // append write trace
     self.cursor += 1;
     Ok(())
@@ -188,14 +198,14 @@ impl<E: Engine> LookupTrace<E> {
   {
     let mut ro = E2::ROCircuit::new(
       ro_const,
-      1 + 3 * self.expected_rw_trace.len(), // prev_challenge + [(address, value, ts)]
+      1 + 5 * self.expected_rw_trace.len(), // prev_challenge + [(address, read_value, read_ts, write_value, write_ts)]
     );
     ro.absorb(prev_intermediate_gamma);
     let rw_trace_allocated_num = &self.rw_trace_allocated_num;
     let (next_RW_acc, next_global_ts) = rw_trace_allocated_num.iter().enumerate().try_fold(
       (prev_RW_acc.clone(), prev_global_ts.clone()),
       |(prev_RW_acc, prev_global_ts), (i, rwtrace)| match rwtrace {
-        RWTrace::Read(addr, read_value, expected_read_ts) => {
+        RWTrace::Read(addr, read_value, expected_read_ts, _) => {
           let (next_RW_acc, next_global_ts) = self.rw_operation_circuit(
             cs.namespace(|| format!("{}th read ", i)),
             addr,
@@ -209,12 +219,14 @@ impl<E: Engine> LookupTrace<E> {
           ro.absorb(addr);
           ro.absorb(read_value);
           ro.absorb(expected_read_ts);
+          ro.absorb(read_value);
+          ro.absorb(&next_global_ts);
           Ok::<(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>), SynthesisError>((
             next_RW_acc,
             next_global_ts,
           ))
         }
-        RWTrace::Write(addr, read_value, write_value, read_ts) => {
+        RWTrace::Write(addr, read_value, write_value, read_ts, _) => {
           let (next_RW_acc, next_global_ts) = self.rw_operation_circuit(
             cs.namespace(|| format!("{}th write ", i)),
             addr,
@@ -228,6 +240,8 @@ impl<E: Engine> LookupTrace<E> {
           ro.absorb(addr);
           ro.absorb(read_value);
           ro.absorb(read_ts);
+          ro.absorb(write_value);
+          ro.absorb(&next_global_ts);
           Ok::<(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>), SynthesisError>((
             next_RW_acc,
             next_global_ts,
@@ -395,9 +409,12 @@ impl<'a, E: Engine> LookupTraceBuilder<'a, E> {
         .cloned()
         .unwrap_or((E::Scalar::ZERO, E::Scalar::ZERO))
     });
-    self
-      .rw_trace
-      .push(RWTrace::Read(addr, *value, E::Scalar::ZERO));
+    self.rw_trace.push(RWTrace::Read(
+      addr,
+      *value,
+      E::Scalar::ZERO,
+      E::Scalar::ZERO,
+    ));
     *value
   }
   /// write value to lookup table
@@ -417,6 +434,7 @@ impl<'a, E: Engine> LookupTraceBuilder<'a, E> {
       E::Scalar::ZERO,
       value,
       E::Scalar::ZERO,
+      E::Scalar::ZERO,
     )); // append read trace
   }
 
@@ -432,41 +450,48 @@ impl<'a, E: Engine> LookupTraceBuilder<'a, E> {
     E2: Engine<Base = <E as Engine>::Scalar>,
   {
     let mut hasher: <E2 as Engine>::RO =
-      <E2 as Engine>::RO::new(ro_consts, 1 + self.rw_trace.len() * 3);
+      <E2 as Engine>::RO::new(ro_consts, 1 + self.rw_trace.len() * 5);
     hasher.absorb(prev_intermediate_gamma);
 
     let rw_processed = self
       .rw_trace
       .drain(..)
       .map(|rwtrace| {
-        let (rw_trace_with_ts, addr, read_value, read_ts) = match rwtrace {
-          RWTrace::Read(addr, expected_read_value, _) => {
-            let (read_value, read_ts) = self.lookup.rw_operation(addr, None);
+        let (rw_trace_with_ts, addr, read_value, read_ts, write_value, write_ts) = match rwtrace {
+          RWTrace::Read(addr, expected_read_value, _, _) => {
+            let (read_value, read_ts, _, write_ts) = self.lookup.rw_operation(addr, None);
             assert_eq!(
               read_value, expected_read_value,
               "expected_read_value {:?} != read_value {:?}",
               expected_read_value, read_value
             );
             (
-              RWTrace::Read(addr, expected_read_value, read_ts),
+              RWTrace::Read(addr, expected_read_value, read_ts, write_ts),
               addr,
               expected_read_value,
               read_ts,
+              expected_read_value,
+              write_ts,
             )
           }
-          RWTrace::Write(addr, _, write_value, _) => {
-            let (read_value, read_ts) = self.lookup.rw_operation(addr, Some(write_value));
+          RWTrace::Write(addr, _, write_value, _, _) => {
+            let (read_value, read_ts, write_value, write_ts) =
+              self.lookup.rw_operation(addr, Some(write_value));
             (
-              RWTrace::Write(addr, read_value, write_value, read_ts),
+              RWTrace::Write(addr, read_value, write_value, read_ts, write_ts),
               addr,
               read_value,
               read_ts,
+              write_value,
+              write_ts,
             )
           }
         };
         hasher.absorb(addr);
         hasher.absorb(read_value);
         hasher.absorb(read_ts);
+        hasher.absorb(write_value);
+        hasher.absorb(write_ts);
 
         rw_trace_with_ts
       })
@@ -579,7 +604,7 @@ impl<F: PrimeField> Lookup<F> {
     self.map_aux.values()
   }
 
-  fn rw_operation(&mut self, addr: F, external_value: Option<F>) -> (F, F)
+  fn rw_operation(&mut self, addr: F, external_value: Option<F>) -> (F, F, F, F)
   where
     F: Ord,
   {
@@ -603,7 +628,7 @@ impl<F: PrimeField> Lookup<F> {
     );
     self.map_aux.insert(addr, (write_value, write_ts));
     self.global_ts = write_ts;
-    (read_value, read_ts)
+    (read_value, read_ts, write_value, write_ts)
   }
 }
 
@@ -728,20 +753,32 @@ mod test {
     let (next_intermediate_gamma, _) =
       lookup_trace_builder.snapshot::<E2>(ro_consts.clone(), prev_intermediate_gamma);
 
-    let mut hasher = <E2 as Engine>::RO::new(ro_consts, 1 + 3 * 4);
+    let mut hasher = <E2 as Engine>::RO::new(ro_consts, 1 + 5 * 4);
     hasher.absorb(prev_intermediate_gamma);
+
+    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // addr 0
+    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // read_value
+    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // read_ts
+    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // write_value
+    hasher.absorb(<E1 as Engine>::Scalar::ONE); // write_ts
+
+    hasher.absorb(<E1 as Engine>::Scalar::ONE); // addr 1
+    hasher.absorb(<E1 as Engine>::Scalar::ONE); // read_value
+    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // read_ts
+    hasher.absorb(<E1 as Engine>::Scalar::ONE); // write_value
+    hasher.absorb(<E1 as Engine>::Scalar::from(2)); // write_ts
+
+    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // addr 0
+    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // read_value
+    hasher.absorb(<E1 as Engine>::Scalar::ONE); // read_ts
+    hasher.absorb(<E1 as Engine>::Scalar::from(111)); // write_value
+    hasher.absorb(<E1 as Engine>::Scalar::from(3)); // write_ts
+
     hasher.absorb(<E1 as Engine>::Scalar::ZERO); // addr
-    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // value
-    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // ts
-    hasher.absorb(<E1 as Engine>::Scalar::ONE); // addr
-    hasher.absorb(<E1 as Engine>::Scalar::ONE); // value
-    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // ts
-    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // addr
-    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // value
-    hasher.absorb(<E1 as Engine>::Scalar::ONE); // ts
-    hasher.absorb(<E1 as Engine>::Scalar::ZERO); // addr
-    hasher.absorb(<E1 as Engine>::Scalar::from(111)); // value
-    hasher.absorb(<E1 as Engine>::Scalar::from(3)); // ts
+    hasher.absorb(<E1 as Engine>::Scalar::from(111)); // read_value
+    hasher.absorb(<E1 as Engine>::Scalar::from(3)); // read_ts
+    hasher.absorb(<E1 as Engine>::Scalar::from(111)); // write_value
+    hasher.absorb(<E1 as Engine>::Scalar::from(4)); // write_ts
     let res = hasher.squeeze(NUM_CHALLENGE_BITS);
     assert_eq!(scalar_as_base::<E2>(res), next_intermediate_gamma);
   }
@@ -843,14 +880,20 @@ mod test {
             .unwrap()
             .neg())
     );
-    let mut hasher = <E2 as Engine>::RO::new(ro_consts, 7);
+    let mut hasher = <E2 as Engine>::RO::new(ro_consts, 1 + 5 * 2);
     hasher.absorb(prev_intermediate_gamma.get_value().unwrap());
+
     hasher.absorb(addr.get_value().unwrap());
     hasher.absorb(read_value.get_value().unwrap());
     hasher.absorb(<E1 as Engine>::Scalar::ZERO);
+    hasher.absorb(read_value.get_value().unwrap());
+    hasher.absorb(<E1 as Engine>::Scalar::ONE);
+
     hasher.absorb(addr.get_value().unwrap());
     hasher.absorb(read_value.get_value().unwrap());
     hasher.absorb(<E1 as Engine>::Scalar::ONE);
+    hasher.absorb(read_value.get_value().unwrap());
+    hasher.absorb(<E1 as Engine>::Scalar::from(2));
     let res = hasher.squeeze(NUM_CHALLENGE_BITS);
     assert_eq!(
       scalar_as_base::<E2>(res),
@@ -956,14 +999,21 @@ mod test {
             .neg())
     );
 
-    let mut hasher = <E2 as Engine>::RO::new(ro_consts, 7);
+    let mut hasher = <E2 as Engine>::RO::new(ro_consts, 1 + 5 * 2);
     hasher.absorb(prev_intermediate_gamma.get_value().unwrap());
+
     hasher.absorb(addr.get_value().unwrap());
     hasher.absorb(<E1 as Engine>::Scalar::ZERO);
     hasher.absorb(<E1 as Engine>::Scalar::ZERO);
+    hasher.absorb(write_value_1.get_value().unwrap());
+    hasher.absorb(<E1 as Engine>::Scalar::ONE);
+
     hasher.absorb(addr.get_value().unwrap());
     hasher.absorb(read_value.get_value().unwrap());
     hasher.absorb(<E1 as Engine>::Scalar::ONE);
+    hasher.absorb(read_value.get_value().unwrap());
+    hasher.absorb(<E1 as Engine>::Scalar::from(2));
+
     let res = hasher.squeeze(NUM_CHALLENGE_BITS);
     assert_eq!(
       scalar_as_base::<E2>(res),
