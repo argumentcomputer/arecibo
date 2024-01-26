@@ -1093,8 +1093,7 @@ where
     pk: &ProverKeyV2<E1, E2, C1, C2, S1, S2>,
     recursive_snark: &RecursiveSNARK<E1, E2, C1, C2>,
     challenges: (E1::Scalar, E1::Scalar),
-    R_acc: E1::Scalar,
-    W_acc: E1::Scalar,
+    RW_acc: E1::Scalar,
     initial_table: &Lookup<E1::Scalar>,
     final_table: &Lookup<E1::Scalar>,
   ) -> Result<Self, NovaError> {
@@ -1120,8 +1119,7 @@ where
           &recursive_snark.r_U_primary,
           &recursive_snark.r_W_primary,
           challenges,
-          R_acc,
-          W_acc,
+          RW_acc,
           initial_table.clone(),
           final_table.clone(),
         )
@@ -1161,8 +1159,7 @@ where
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
     lookup_intermediate_gamma: E1::Scalar,
-    R_acc: E1::Scalar,
-    W_acc: E1::Scalar,
+    RW_acc: E1::Scalar,
     challenges: (E1::Scalar, E1::Scalar),
   ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), NovaError> {
     // the number of steps cannot be zero
@@ -1236,8 +1233,7 @@ where
           &vk.vk_primary,
           &self.r_U_primary,
           lookup_intermediate_gamma,
-          R_acc,
-          W_acc,
+          RW_acc,
           challenges.clone(),
         )
       },
@@ -2145,11 +2141,10 @@ mod tests {
       {
         let n = final_table.table_size();
         let initial_index = (n - 4) / 2;
-        let (initial_intermediate_gamma, init_prev_R, init_prev_W, init_rw_counter) = (
-          <E1 as Engine>::Scalar::from(1),
-          <E1 as Engine>::Scalar::from(1),
-          <E1 as Engine>::Scalar::from(1),
-          <E1 as Engine>::Scalar::from(0),
+        let (initial_intermediate_gamma, init_prev_RW_acc, init_global_ts) = (
+          <E1 as Engine>::Scalar::ONE,
+          <E1 as Engine>::Scalar::ZERO,
+          <E1 as Engine>::Scalar::ZERO,
         );
 
         let (alpha, gamma) =
@@ -2158,9 +2153,8 @@ mod tests {
           initial_intermediate_gamma,
           alpha,
           gamma,
-          init_prev_R,
-          init_prev_W,
-          init_rw_counter,
+          init_prev_RW_acc,
+          init_global_ts,
           E1::Scalar::from(initial_index as u64),
         ]
       }
@@ -2174,7 +2168,7 @@ mod tests {
       E2: Engine<Base = <E1 as Engine>::Scalar>,
     {
       fn arity(&self) -> usize {
-        7
+        6
       }
 
       fn synthesize<CS: ConstraintSystem<F>>(
@@ -2186,10 +2180,9 @@ mod tests {
         let prev_intermediate_gamma = &z[0];
         let alpha = &z[1];
         let gamma = &z[2];
-        let prev_R = &z[3];
-        let prev_W = &z[4];
-        let prev_rw_counter = &z[5];
-        let index = &z[6];
+        let prev_RW_acc = &z[3];
+        let prev_global_ts = &z[4];
+        let index = &z[5];
 
         let left_child_index = AllocatedNum::alloc(cs.namespace(|| "left_child_index"), || {
           index
@@ -2282,15 +2275,14 @@ mod tests {
         )?;
 
         // commit the rw change
-        let (next_R, next_W, next_rw_counter, next_intermediate_gamma) = lookup_trace
+        let (next_RW_acc, next_global_ts, next_intermediate_gamma) = lookup_trace
           .commit::<E2, Namespace<'_, F, <CS as ConstraintSystem<F>>::Root>>(
             cs.namespace(|| "commit"),
             self.ro_consts.clone(),
             prev_intermediate_gamma,
             &(alpha.clone(), gamma.clone()),
-            prev_W,
-            prev_R,
-            prev_rw_counter,
+            prev_RW_acc,
+            prev_global_ts,
           )?;
 
         let next_index = AllocatedNum::alloc(cs.namespace(|| "next_index"), || {
@@ -2309,9 +2301,8 @@ mod tests {
           next_intermediate_gamma,
           alpha.clone(),
           gamma.clone(),
-          next_R,
-          next_W,
-          next_rw_counter,
+          next_RW_acc,
+          next_global_ts,
           next_index,
         ])
       }
@@ -2401,16 +2392,16 @@ mod tests {
       })
       .unwrap();
 
-    assert_eq!(<E1 as Engine>::Scalar::from(1).neg(), zn_primary[6]);
+    assert_eq!(<E1 as Engine>::Scalar::from(1).neg(), zn_primary[5]);
 
     let number_of_iterated_nodes = (heap_size - 4) / 2 + 1;
     assert_eq!(
       <E1 as Engine>::Scalar::from((number_of_iterated_nodes * 7) as u64),
-      zn_primary[5]
-    ); // rw counter = number_of_iterated_nodes * (3r + 4w) operations
+      zn_primary[4]
+    ); // global ts = number_of_iterated_nodes * (3r + 4w) operations
 
-    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_cons, 12609);
-    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_vars, 12615);
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_cons, 12608);
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_vars, 12612);
     assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_cons, 10357);
     assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_vars, 10337);
 
@@ -2419,8 +2410,7 @@ mod tests {
     let intermediate_gamma = zn_primary[0];
     let alpha = zn_primary[1];
     let gamma = zn_primary[2];
-    let R_acc = zn_primary[3];
-    let W_acc = zn_primary[4];
+    let RW_acc = zn_primary[3];
     assert_eq!(
       expected_intermediate_gamma, intermediate_gamma,
       "expected_intermediate_gamma != intermediate_gamma"
@@ -2432,8 +2422,7 @@ mod tests {
       &pk,
       &recursive_snark,
       (alpha, gamma),
-      R_acc,
-      W_acc,
+      RW_acc,
       &initial_table,
       &final_table,
     );
@@ -2447,10 +2436,10 @@ mod tests {
       &z0_primary,
       &z0_secondary,
       expected_intermediate_gamma,
-      R_acc,
-      W_acc,
+      RW_acc,
       (alpha, gamma),
     );
+    println!("res {:?}", res);
     assert!(res.is_ok());
   }
 }

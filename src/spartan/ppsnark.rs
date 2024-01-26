@@ -1469,13 +1469,13 @@ pub struct RelaxedR1CSSNARKV2<E: Engine, EE: EvaluationEngineTrait<E>> {
   comm_t_plus_r_inv_lookup: CompressedCommitment<E>,
   comm_w_plus_r_inv_lookup: CompressedCommitment<E>,
   comm_final_value: CompressedCommitment<E>,
-  comm_final_counter: CompressedCommitment<E>,
+  comm_final_ts: CompressedCommitment<E>,
   eval_t_plus_r_inv_lookup: E::Scalar,
   eval_w_plus_r_inv_lookup: E::Scalar,
   eval_ts_lookup: E::Scalar,
   eval_init_value_lookup: E::Scalar,
   eval_final_value_lookup: E::Scalar,
-  eval_final_counter_lookup: E::Scalar,
+  eval_final_ts_lookup: E::Scalar,
 
   // a PCS evaluation argument
   eval_arg: EE::EvaluationArgument,
@@ -1640,7 +1640,7 @@ where
 
   fn verify_challenge<E2: Engine>(
     comm_final_value: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
-    comm_final_counter: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
+    comm_final_ts: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
     lookup_intermediate_gamma: E::Scalar,
     challenges: (E::Scalar, E::Scalar),
   ) -> Result<(), NovaError>
@@ -1658,7 +1658,7 @@ where
     let lookup_intermediate_gamma: E2::Scalar = scalar_as_base::<E>(lookup_intermediate_gamma);
     hasher.absorb(lookup_intermediate_gamma);
     comm_final_value.absorb_in_ro(&mut hasher);
-    comm_final_counter.absorb_in_ro(&mut hasher);
+    comm_final_ts.absorb_in_ro(&mut hasher);
     let computed_gamma = hasher.squeeze(NUM_CHALLENGE_BITS);
     if lookup_gamma != computed_gamma {
       return Err(NovaError::InvalidMultisetProof);
@@ -1761,8 +1761,7 @@ where
     U: &RelaxedR1CSInstance<E>,
     W: &RelaxedR1CSWitness<E>,
     challenges: (E::Scalar, E::Scalar),
-    R_acc: E::Scalar,
-    W_acc: E::Scalar,
+    RW_acc: E::Scalar,
     mut initial_table: Lookup<E::Scalar>,
     mut final_table: Lookup<E::Scalar>,
   ) -> Result<Self, NovaError> {
@@ -1781,8 +1780,7 @@ where
     transcript.absorb(b"vk", &pk.vk_digest);
     transcript.absorb(b"U", U);
     // add lookup table to transcript
-    transcript.absorb(b"R_acc", &R_acc);
-    transcript.absorb(b"W_acc", &W_acc);
+    transcript.absorb(b"RW_acc", &RW_acc);
     transcript.absorb(b"r", &lookup_r);
     transcript.absorb(b"gamma", &lookup_gamma);
 
@@ -1808,13 +1806,13 @@ where
       .into_iter()
       .map(|(_, (value, _))| *value)
       .collect();
-    let (final_values, final_counters): (Vec<_>, Vec<_>) = final_table.values().copied().unzip();
-    let (comm_final_value, comm_final_counter) = rayon::join(
+    let (final_values, final_ts): (Vec<_>, Vec<_>) = final_table.values().copied().unzip();
+    let (comm_final_value, comm_final_ts) = rayon::join(
       || E::CE::commit(ck, &final_values),
-      || E::CE::commit(ck, &final_counters),
+      || E::CE::commit(ck, &final_ts),
     );
-    // absorb lookup table value/counter commitment
-    transcript.absorb(b"c", &vec![comm_final_value, comm_final_counter].as_slice());
+    // absorb lookup table value/ts commitment
+    transcript.absorb(b"c", &vec![comm_final_value, comm_final_ts].as_slice());
 
     // number of rounds of sum-check
     let num_rounds_sc = pk.S_repr.N.log_2();
@@ -1952,12 +1950,12 @@ where
                   vec![
                     Box::new(NaturalNumVec::<E>::new(table_size)), // address
                     Box::new(init_values.clone().into_iter()),
-                    // init_counter is zero vector
+                    // init_ts is zero vector
                   ], // t set
                   vec![
                     Box::new(NaturalNumVec::<E>::new(table_size)), // address
                     Box::new(final_values.clone().into_iter()),
-                    Box::new(final_counters.clone().into_iter()),
+                    Box::new(final_ts.clone().into_iter()),
                   ], // w set
                   &const_one, // ts
                 )
@@ -2014,7 +2012,7 @@ where
               lookup_aux[0..2].to_vec().try_into().unwrap(),
               poly_eq.Z,
               pk.S_repr.const_ts_lookup.clone(),
-              Some(R_acc - W_acc),
+              Some(RW_acc),
             ),
             comm_lookup_oracles,
             lookup_oracles,
@@ -2080,7 +2078,7 @@ where
       // lookup
       eval_init_value_lookup,
       eval_final_value_lookup,
-      eval_final_counter_lookup,
+      eval_final_ts_lookup,
     ) = {
       let e = [
         &Cz,
@@ -2093,7 +2091,7 @@ where
         // lookup
         &init_values,
         &final_values,
-        &final_counters,
+        &final_ts,
       ]
       .into_par_iter()
       .map(|p| MultilinearPolynomial::evaluate_with(p, &rand_sc))
@@ -2128,7 +2126,7 @@ where
       eval_ts_lookup,
       eval_init_value_lookup,
       eval_final_value_lookup,
-      eval_final_counter_lookup,
+      eval_final_ts_lookup,
     ];
 
     let comm_vec = [
@@ -2156,7 +2154,7 @@ where
       pk.S_comm.comm_const_ts_lookup, // ts
       pk.S_comm.comm_init_values_lookup,
       comm_final_value,
-      comm_final_counter,
+      comm_final_ts,
     ];
     let poly_vec = [
       &W,
@@ -2183,7 +2181,7 @@ where
       &pk.S_repr.const_ts_lookup,
       &pk.S_repr.init_values_lookup,
       &final_values,
-      &final_counters,
+      &final_ts,
     ];
     transcript.absorb(b"e", &eval_vec.as_slice()); // comm_vec is already in the transcript
     let c = transcript.squeeze(b"c")?;
@@ -2236,13 +2234,13 @@ where
       comm_t_plus_r_inv_lookup: comm_lookup_oracles[0].compress(),
       comm_w_plus_r_inv_lookup: comm_lookup_oracles[1].compress(),
       comm_final_value: comm_final_value.compress(),
-      comm_final_counter: comm_final_counter.compress(),
+      comm_final_ts: comm_final_ts.compress(),
       eval_t_plus_r_inv_lookup,
       eval_w_plus_r_inv_lookup,
       eval_ts_lookup,
       eval_init_value_lookup,
       eval_final_value_lookup,
-      eval_final_counter_lookup,
+      eval_final_ts_lookup,
 
       eval_arg,
     })
@@ -2254,8 +2252,7 @@ where
     vk: &Self::VerifierKey,
     U: &RelaxedR1CSInstance<E>,
     lookup_intermediate_gamma: E::Scalar,
-    R_acc: E::Scalar,
-    W_acc: E::Scalar,
+    RW_acc: E::Scalar,
     challenges: (E::Scalar, E::Scalar),
   ) -> Result<(), NovaError>
   where
@@ -2269,8 +2266,7 @@ where
     // append the verifier key (including commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
     transcript.absorb(b"vk", &vk.digest());
     transcript.absorb(b"U", U);
-    transcript.absorb(b"R_acc", &R_acc);
-    transcript.absorb(b"W_acc", &W_acc);
+    transcript.absorb(b"RW_acc", &RW_acc);
     transcript.absorb(b"r", &lookup_r);
     transcript.absorb(b"gamma", &lookup_gamma);
 
@@ -2287,17 +2283,17 @@ where
     let comm_t_plus_r_inv_lookup = Commitment::<E>::decompress(&self.comm_t_plus_r_inv_lookup)?;
     let comm_w_plus_r_inv_lookup = Commitment::<E>::decompress(&self.comm_w_plus_r_inv_lookup)?;
     let comm_final_value = Commitment::<E>::decompress(&self.comm_final_value)?;
-    let comm_final_counter = Commitment::<E>::decompress(&self.comm_final_counter)?;
+    let comm_final_ts = Commitment::<E>::decompress(&self.comm_final_ts)?;
 
     // verify lookup challenge
     Self::verify_challenge::<E2>(
       comm_final_value,
-      comm_final_counter,
+      comm_final_ts,
       lookup_intermediate_gamma,
       challenges,
     )?;
     transcript.absorb(b"c", &[comm_Az, comm_Bz, comm_Cz].as_slice());
-    transcript.absorb(b"c", &[comm_final_value, comm_final_counter].as_slice());
+    transcript.absorb(b"c", &[comm_final_value, comm_final_ts].as_slice());
 
     let num_rounds_sc = vk.S_comm.N.log_2();
     let tau = transcript.squeeze(b"t")?;
@@ -2342,7 +2338,7 @@ where
     let num_claims = 13;
     let s = transcript.squeeze(b"r")?;
     let coeffs = powers::<E>(&s, num_claims);
-    let claim = (coeffs[7] + coeffs[8]) * claim + coeffs[10] * (R_acc - W_acc); // rest are zeros
+    let claim = (coeffs[7] + coeffs[8]) * claim + coeffs[10] * RW_acc; // rest are zeros
 
     // verify sc
     let (claim_sc_final, rand_sc) = self.sc.verify(claim, num_rounds_sc, 3, &mut transcript)?;
@@ -2427,9 +2423,8 @@ where
 
       let eval_w_plus_r_lookup = {
         let eval_val = self.eval_final_value_lookup;
-        let eval_counter = self.eval_final_counter_lookup;
-        let eval_w =
-          eval_addr + lookup_gamma * eval_val + lookup_gamma * lookup_gamma * eval_counter;
+        let eval_ts = self.eval_final_ts_lookup;
+        let eval_w = eval_addr + lookup_gamma * eval_val + lookup_gamma * lookup_gamma * eval_ts;
         eval_w + lookup_r
       };
 
@@ -2515,7 +2510,7 @@ where
       self.eval_ts_lookup,
       self.eval_init_value_lookup,
       self.eval_final_value_lookup,
-      self.eval_final_counter_lookup,
+      self.eval_final_ts_lookup,
     ];
 
     let comm_vec = [
@@ -2543,7 +2538,7 @@ where
       vk.S_comm.comm_const_ts_lookup, // ts
       vk.S_comm.comm_init_values_lookup,
       comm_final_value,
-      comm_final_counter,
+      comm_final_ts,
     ];
     transcript.absorb(b"e", &eval_vec.as_slice()); // comm_vec is already in the transcript
     let c = transcript.squeeze(b"c")?;
