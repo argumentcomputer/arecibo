@@ -1,4 +1,10 @@
-//! This module implements Nova's evaluation engine using multilinear KZG
+//! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
+//! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in https://eprint.iacr.org/2022/420.pdf).
+//! However, there are some key differences:
+//! (1) HyperKZG works with multilinear polynomials represented in evaluation form (rather than in coefficient form in Gemini's transformation).
+//! This means that Spartan's polynomial IOP can use commit to its polynomials as-is without incurring any interpolations or FFTs.
+//! (2) HyperKZG is specialized to use KZG as the univariate commitment scheme, so it includes several optimizations (both during the transformation of multilinear-to-univariate claims
+//! and within the KZG commitment scheme implementation itself).
 #![allow(non_snake_case)]
 use crate::{
   errors::NovaError,
@@ -209,6 +215,8 @@ where
     assert_eq!(n, 1 << ell); // Below we assume that n is a power of two
 
     // Phase 1  -- create commitments com_1, ..., com_\ell
+    // We do not compute final Pi (and its commitment) as it is constant and equals to 'eval'
+    // also known to verifier, so can be derived on its side as well
     let mut polys: Vec<Vec<E::Fr>> = Vec::new();
     polys.push(hat_P.to_vec());
 
@@ -238,8 +246,8 @@ where
       .collect();
 
     // Phase 2
-    // We do not need to add x to the transcript, because in our context x was
-    // obtained from the transcript.
+    // We do not need to add x to the transcript, because in our context x was obtained from the transcript.
+    // We also do not need to absorb `C` and `eval` as they are already absorbed by the transcript by the caller
     let r = Self::compute_challenge(&comms, transcript);
     let u = vec![r, -r, r * r];
 
@@ -282,7 +290,7 @@ where
       assert!(t == 3);
       assert!(W.len() == 3);
       // We write a special case for t=3, since this what is required for
-      // mlkzg. Following the paper directly, we must compute:
+      // hyperkzg. Following the paper directly, we must compute:
       // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
       // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
       // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
@@ -415,7 +423,7 @@ mod tests {
   type Fr = <NE as NovaEngine>::Scalar;
 
   #[test]
-  fn test_mlkzg_eval() {
+  fn test_hyperkzg_eval() {
     // Test with poly(X1, X2) = 1 + X1 + X2 + X1*X2
     let n = 4;
     let ck: CommitmentKey<NE> =
@@ -452,7 +460,7 @@ mod tests {
   }
 
   #[test]
-  fn test_mlkzg_alternative() {
+  fn test_hyperkzg_alternative() {
     fn test_inner(n: usize, poly: &[Fr], point: &[Fr], eval: Fr) -> Result<(), NovaError> {
       let ck: CommitmentKey<NE> =
         <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
@@ -500,7 +508,7 @@ mod tests {
   }
 
   #[test]
-  fn test_mlkzg() {
+  fn test_hyperkzg() {
     let n = 4;
 
     // poly = [1, 2, 1, 4]
@@ -569,8 +577,8 @@ mod tests {
   }
 
   #[test]
-  fn test_mlkzg_more() {
-    // test the mlkzg prover and verifier with random instances (derived from a seed)
+  fn test_hyperkzg_more() {
+    // test the hyperkzg prover and verifier with random instances (derived from a seed)
     for num_vars in [4, 5, 6] {
       prove_verify_from_num_vars::<_, EvaluationEngine<E, NE>>(num_vars);
     }
