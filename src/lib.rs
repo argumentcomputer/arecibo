@@ -2400,15 +2400,15 @@ mod tests {
       zn_primary[4]
     ); // global ts = number_of_iterated_nodes * (3r + 4w) operations
 
-    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_cons, 13385);
-    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_vars, 13396);
-    assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_cons, 10357);
-    assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_vars, 10337);
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_cons, 13377);
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_vars, 13388);
+    assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_cons, 10349);
+    assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_vars, 10329);
 
     println!("zn_primary {:?}", zn_primary);
 
     let intermediate_gamma = zn_primary[0];
-    let alpha = zn_primary[1];
+    let r = zn_primary[1];
     let gamma = zn_primary[2];
     let RW_acc = zn_primary[3];
     assert_eq!(
@@ -2421,7 +2421,7 @@ mod tests {
       &pp,
       &pk,
       &recursive_snark,
-      (alpha, gamma),
+      (r, gamma),
       RW_acc,
       &initial_table,
       &final_table,
@@ -2437,7 +2437,7 @@ mod tests {
       &z0_secondary,
       expected_intermediate_gamma,
       RW_acc,
-      (alpha, gamma),
+      (r, gamma),
     );
     println!("res {:?}", res);
     assert!(res.is_ok());

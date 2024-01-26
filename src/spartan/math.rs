@@ -1,6 +1,11 @@
+//! This module contains the math utils used in sparten
+/// Math trait
 pub trait Math {
+  /// pow2
   fn pow2(self) -> usize;
+  /// get_bits
   fn get_bits(self, num_bits: usize) -> Vec<bool>;
+  /// log_2
   fn log_2(self) -> usize;
 }
 
