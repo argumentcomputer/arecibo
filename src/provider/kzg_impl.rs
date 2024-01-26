@@ -479,21 +479,27 @@ mod tests {
 
     let q = Fr::from(1983758);
     let q_powers = std::iter::successors(Some(Fr::one()), |&x| Some(x * q))
-        .take(Pi.len())
-        .collect::<Vec<Fr>>();
+      .take(Pi.len())
+      .collect::<Vec<Fr>>();
 
     let r = Fr::from(182345);
 
     let evals_at_r = Pi
-        .clone()
-        .into_iter()
-        .map(|poly| UniPoly::new(poly).evaluate(&r))
-        .collect::<Vec<Fr>>();
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&r))
+      .collect::<Vec<Fr>>();
 
     // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
     let batched_Pi: UniPoly<Fr> = Pi.clone().into_iter().map(UniPoly::new).rlc(&q);
 
-    let eval_r_1 = evals_at_r.iter().zip(q_powers.iter()).map(|(eval, q)| eval * q).collect::<Vec<Fr>>().into_iter().sum::<Fr>();
+    let eval_r_1 = evals_at_r
+      .iter()
+      .zip(q_powers.iter())
+      .map(|(eval, q)| eval * q)
+      .collect::<Vec<Fr>>()
+      .into_iter()
+      .sum::<Fr>();
     let eval_r_2 = batched_Pi.evaluate(&r);
     assert_eq!(eval_r_1, eval_r_2);
   }
@@ -527,8 +533,6 @@ mod tests {
     let eval = Fr::from(57);
     let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
 
-
-
     // Phase 1 (constructing Pi polynomials and computing commitments to them)
     let Pi_0 = poly.clone();
     let Pi_1 = construct_next_Pi(Pi_0.as_slice(), point[2]);
@@ -540,14 +544,13 @@ mod tests {
     assert_eq!(Pi[3][0], eval);
 
     let pi_commitments = Pi
-        .clone()
-        .into_iter()
-        .map(|poly| {
-          <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()])
-              .to_affine()
-        })
-        .collect::<Vec<G1Affine>>();
-
+      .clone()
+      .into_iter()
+      .map(|poly| {
+        <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()])
+          .to_affine()
+      })
+      .collect::<Vec<G1Affine>>();
 
     // Phase 2 (simplified for this flow)
     let r = Fr::from(182345);
@@ -558,44 +561,45 @@ mod tests {
 
     // Compute evals at r, -r, r^2 for each Pi polynomial
     let evals_at_r = Pi
-        .clone()
-        .into_iter()
-        .map(|poly| UniPoly::new(poly).evaluate(&r))
-        .collect::<Vec<Fr>>();
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&r))
+      .collect::<Vec<Fr>>();
 
     let evals_at_minus_r = Pi
-        .clone()
-        .into_iter()
-        .map(|poly| UniPoly::new(poly).evaluate(&minus_r))
-        .collect::<Vec<Fr>>();
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&minus_r))
+      .collect::<Vec<Fr>>();
 
     let evals_at_r_squared = Pi
-        .clone()
-        .into_iter()
-        .map(|poly| UniPoly::new(poly).evaluate(&r_squared))
-        .collect::<Vec<Fr>>();
-
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&r_squared))
+      .collect::<Vec<Fr>>();
 
     let q = Fr::from(1983758);
     let q_powers = std::iter::successors(Some(Fr::one()), |&x| Some(x * q))
-        .take(pi_commitments.len())
-        .collect::<Vec<Fr>>();
+      .take(pi_commitments.len())
+      .collect::<Vec<Fr>>();
 
     let mut v_0 = Fr::zero();
-    evals_at_r.iter().zip(q_powers.iter()).for_each(|(v_i_at_r, q_i)| {
-      v_0 = v_0 + (v_i_at_r * q_i)
-    });
+    evals_at_r
+      .iter()
+      .zip(q_powers.iter())
+      .for_each(|(v_i_at_r, q_i)| v_0 = v_0 + (v_i_at_r * q_i));
 
     let mut v_1 = Fr::zero();
-    evals_at_minus_r.iter().zip(q_powers.iter()).for_each(|(v_i_at_minus_r, q_i)| {
-      v_1 = v_1 + (v_i_at_minus_r * q_i)
-    });
+    evals_at_minus_r
+      .iter()
+      .zip(q_powers.iter())
+      .for_each(|(v_i_at_minus_r, q_i)| v_1 = v_1 + (v_i_at_minus_r * q_i));
 
     let mut v_2 = Fr::zero();
-    evals_at_r_squared.iter().zip(q_powers.iter()).for_each(|(v_i_at_r_squared, q_i)| {
-      v_2 = v_2 + (v_i_at_r_squared * q_i)
-    });
-
+    evals_at_r_squared
+      .iter()
+      .zip(q_powers.iter())
+      .for_each(|(v_i_at_r_squared, q_i)| v_2 = v_2 + (v_i_at_r_squared * q_i));
 
     // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
     let batched_Pi: UniPoly<Fr> = Pi.clone().into_iter().map(UniPoly::new).rlc(&q);
@@ -603,8 +607,8 @@ mod tests {
     let divident = batched_Pi;
     let divisor = vec![-q, Fr::one()];
     let (mut Q_x, R_x) = divident
-        .divide_with_q_and_r(&UVKZGPoly::new(divisor.clone()))
-        .unwrap();
+      .divide_with_q_and_r(&UVKZGPoly::new(divisor.clone()))
+      .unwrap();
 
     assert_eq!(v_0, R_x.evaluate(&r));
     assert_eq!(v_1, R_x.evaluate(&minus_r));
@@ -642,19 +646,18 @@ mod tests {
     assert_eq!(Pi[3][0], eval);
 
     let pi_commitments = Pi
-        .clone()
-        .into_iter()
-        .map(|poly| {
-          <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()])
-              .to_affine()
-        })
-        .collect::<Vec<G1Affine>>();
-
+      .clone()
+      .into_iter()
+      .map(|poly| {
+        <G1 as DlogGroup>::vartime_multiscalar_mul(&poly, &srs.powers_of_g[..poly.len()])
+          .to_affine()
+      })
+      .collect::<Vec<G1Affine>>();
 
     let q = Fr::from(1983758);
     let q_powers = std::iter::successors(Some(Fr::one()), |&x| Some(x * q))
-        .take(pi_commitments.len())
-        .collect::<Vec<Fr>>();
+      .take(pi_commitments.len())
+      .collect::<Vec<Fr>>();
 
     // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
     let batched_Pi: UniPoly<Fr> = Pi.clone().into_iter().map(UniPoly::new).rlc(&q);
@@ -663,73 +666,118 @@ mod tests {
     let minus_r = -r;
     let r_squared = r * r;
 
+    /// UNIT-TEST
+    let evals_at_r = Pi
+      .clone()
+      .into_iter()
+      .map(|poly| UniPoly::new(poly).evaluate(&r))
+      .collect::<Vec<Fr>>();
 
-    /*let evals_at_r = Pi
-        .clone()
-        .into_iter()
-        .map(|poly| UniPoly::new(poly).evaluate(&r))
-        .collect::<Vec<Fr>>();
-
-
-    let eval_r_expected = evals_at_r.iter().zip(q_powers.iter()).map(|(eval, q)| eval * q).collect::<Vec<Fr>>().into_iter().sum::<Fr>();
+    let eval_r_expected = evals_at_r
+      .iter()
+      .zip(q_powers.iter())
+      .map(|(eval, q)| eval * q)
+      .collect::<Vec<Fr>>()
+      .into_iter()
+      .sum::<Fr>();
     assert_eq!(evals_at_r, eval_r_expected);
-    */
-
+    ///
     let eval_r = batched_Pi.evaluate(&r);
     let eval_minus_r = batched_Pi.evaluate(&minus_r);
     let eval_r_squared = batched_Pi.evaluate(&r_squared);
 
     let mut C_P = G1Affine::default();
-    q_powers.iter().zip(pi_commitments.iter()).for_each(|(q_i, C_i)| {
-      C_P = (C_P + (C_i * q_i)).to_affine();
-    });
+    q_powers
+      .iter()
+      .zip(pi_commitments.iter())
+      .for_each(|(q_i, C_i)| {
+        C_P = (C_P + (C_i * q_i)).to_affine();
+      });
 
-    let C =  <G1 as DlogGroup>::vartime_multiscalar_mul(&batched_Pi.coeffs, &srs.powers_of_g[..batched_Pi.coeffs.len()])
-        .to_affine();
+    let C = <G1 as DlogGroup>::vartime_multiscalar_mul(
+      &batched_Pi.coeffs,
+      &srs.powers_of_g[..batched_Pi.coeffs.len()],
+    )
+    .to_affine();
 
     // D = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
     let divident = batched_Pi.clone();
-    let D = UVKZGPoly::new(vec![r_squared * r_squared, -r_squared, -r_squared, Fr::one()]);
-    let (mut Q_x, R_x) = divident
-        .divide_with_q_and_r(&D)
-        .unwrap();
+    let mut D = UVKZGPoly::new(vec![
+      r_squared * r_squared,
+      -r_squared,
+      -r_squared,
+      Fr::one(),
+    ]);
+    let (mut Q_x, R_x) = divident.divide_with_q_and_r(&D).unwrap();
 
-    let C_Q = <G1 as DlogGroup>::vartime_multiscalar_mul(&Q_x.coeffs, &srs.powers_of_g[..Q_x.coeffs.len()])
+    /// UNIT-TEST
+    let ev = Fr::from(182746);
+    assert_eq!(
+      batched_Pi.evaluate(&ev),
+      D.evaluate(&ev) * Q_x.evaluate(&ev) + R_x.evaluate(&ev)
+    );
+    ///
+
+    /// UNIT-TEST
+    let mut P_x = batched_Pi.clone();
+    let minus_R_x = UVKZGPoly::new(
+      R_x
+        .coeffs
+        .into_iter()
+        .map(|coeff| -coeff)
+        .collect::<Vec<Fr>>(),
+    );
+    P_x += &minus_R_x;
+
+    let divident = P_x.clone();
+    let (mut Q_x_recomputed, _) = divident.divide_with_q_and_r(&D).unwrap();
+
+    assert_eq!(Q_x, Q_x_recomputed);
+    ///
+    let C_Q =
+      <G1 as DlogGroup>::vartime_multiscalar_mul(&Q_x.coeffs, &srs.powers_of_g[..Q_x.coeffs.len()])
         .to_affine();
 
     let a = Fr::from(241);
 
-    let mut K_x = batched_Pi.clone();
-    K_x += &(R_x.evaluate(&a));
     let mut tmp = Q_x.clone();
-    tmp *= &(-D.evaluate(&a));
+    tmp *= &D.evaluate(&a);
+    tmp[0] += &R_x.evaluate(&a);
+    tmp = UVKZGPoly::new(
+      tmp
+        .coeffs
+        .into_iter()
+        .map(|coeff| -coeff)
+        .collect::<Vec<Fr>>(),
+    );
+    let mut K_x = batched_Pi.clone();
     K_x += &tmp;
 
+    /// UNIT-TEST
+    assert_eq!(Fr::zero(), K_x.evaluate(&a));
+    ///
 
-    //let minus_batched_Pi = UniPoly::new(batched_Pi.coeffs.clone().into_iter().map(|coeff| -coeff).collect::<Vec<Fr>>());
-    //let minus_R_x = UniPoly::new(R_x.coeffs.clone().into_iter().map(|coeff| -coeff).collect::<Vec<Fr>>());
-    //let mut K_x = Q_x.clone();
-    //K_x *= &(R_x.evaluate(&a));
-    //K_x += &minus_batched_Pi;
-    //K_x += &minus_R_x;
-
-
-    let C_K = C_P - C_Q * D.evaluate(&a) + srs.powers_of_g[0] * R_x.evaluate(&a);
-
-    //let C_R = <G1 as DlogGroup>::vartime_multiscalar_mul(&R_x.coeffs, &srs.powers_of_g[..R_x.coeffs.len()])
-    //    .to_affine();
-    //let C_K = C_Q * R_x.evaluate(&a) - C_P - C_R;
-
-    let divident = K_x.clone();
-    let divisor = UVKZGPoly::new(vec![-a, Fr::one()]);
-    let (mut H_x, _) = divident
-        .divide_with_q_and_r(&divisor)
-        .unwrap();
-
-    let C_H = <G1 as DlogGroup>::vartime_multiscalar_mul(&H_x.coeffs, &srs.powers_of_g[..H_x.coeffs.len()])
+    /// UNIT-TEST
+    let C_K_expected =
+      <G1 as DlogGroup>::vartime_multiscalar_mul(&K_x.coeffs, &srs.powers_of_g[..K_x.coeffs.len()])
         .to_affine();
 
-    let left = pairing(&C_H, &(srs.powers_of_h[1] - srs.powers_of_h[0] * a).to_affine());
+    let C_K = C_P - C_Q * D.evaluate(&a) - srs.powers_of_g[0] * R_x.evaluate(&a);
+
+    assert_eq!(C_K_expected, C_K.to_affine());
+    ///
+    let divident = K_x.clone();
+    let divisor = UVKZGPoly::new(vec![-a, Fr::one()]);
+    let (mut H_x, _) = divident.divide_with_q_and_r(&divisor).unwrap();
+
+    let C_H =
+      <G1 as DlogGroup>::vartime_multiscalar_mul(&H_x.coeffs, &srs.powers_of_g[..H_x.coeffs.len()])
+        .to_affine();
+
+    let left = pairing(
+      &C_H,
+      &(srs.powers_of_h[1] - srs.powers_of_h[0] * a).to_affine(),
+    );
     let right = pairing(&C_K.to_affine(), &srs.powers_of_h[0]);
     assert_eq!(left, right);
   }
