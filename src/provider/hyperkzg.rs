@@ -9,8 +9,7 @@
 use crate::{
   errors::NovaError,
   provider::{
-    kzg_commitment::KZGCommitmentEngine,
-    non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
+    kzg_commitment::{KZGCommitmentEngine, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
     util::iterators::DoubleEndedIteratorExt as _,
@@ -127,7 +126,7 @@ where
 
   fn setup(ck: Arc<UniversalKZGParam<E>>) -> (Self::ProverKey, Self::VerifierKey) {
     let len = ck.length() - 1;
-    trim(ck, len)
+    UniversalKZGParam::trim(ck, len)
   }
 
   fn prove(
@@ -437,36 +436,52 @@ mod tests {
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
     let ck = Arc::new(ck);
-    let (pk, _vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
       EvaluationEngine::<E, NE>::setup(ck.clone());
 
     // poly is in eval. representation; evaluated at [(0,0), (0,1), (1,0), (1,1)]
     let poly = vec![Fr::from(1), Fr::from(2), Fr::from(2), Fr::from(4)];
 
     let C = <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::commit(&ck, &poly);
-    let mut tr = Keccak256Transcript::<NE>::new(b"TestEval");
 
-    // Call the prover with a (point, eval) pair. The prover recomputes
-    // poly(point) = eval', and fails if eval' != eval
+    let test_inner = |point: Vec<Fr>, eval: Fr| -> Result<(), NovaError> {
+      let mut tr = Keccak256Transcript::<NE>::new(b"TestEval");
+      let proof =
+        EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut tr, &C, &poly, &point, &eval).unwrap();
+      let mut tr = Keccak256Transcript::new(b"TestEval");
+      EvaluationEngine::<E, NE>::verify(&vk, &mut tr, &C, &point, &eval, &proof)
+    };
+
+    // Call the prover with a (point, eval) pair.
+    // The prover does not recompute so it may produce a proof, but it should not verify
     let point = vec![Fr::from(0), Fr::from(0)];
     let eval = Fr::ONE;
-    assert!(EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut tr, &C, &poly, &point, &eval).is_ok());
+    assert!(test_inner(point, eval).is_ok());
 
     let point = vec![Fr::from(0), Fr::from(1)];
     let eval = Fr::from(2);
-    assert!(EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut tr, &C, &poly, &point, &eval).is_ok());
+    assert!(test_inner(point, eval).is_ok());
 
     let point = vec![Fr::from(1), Fr::from(1)];
     let eval = Fr::from(4);
-    assert!(EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut tr, &C, &poly, &point, &eval).is_ok());
+    assert!(test_inner(point, eval).is_ok());
 
     let point = vec![Fr::from(0), Fr::from(2)];
     let eval = Fr::from(3);
-    assert!(EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut tr, &C, &poly, &point, &eval).is_ok());
+    assert!(test_inner(point, eval).is_ok());
 
     let point = vec![Fr::from(2), Fr::from(2)];
     let eval = Fr::from(9);
-    assert!(EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut tr, &C, &poly, &point, &eval).is_ok());
+    assert!(test_inner(point, eval).is_ok());
+
+    // Try a couple incorrect evaluations and expect failure
+    let point = vec![Fr::from(2), Fr::from(2)];
+    let eval = Fr::from(50);
+    assert!(test_inner(point, eval).is_err());
+
+    let point = vec![Fr::from(0), Fr::from(2)];
+    let eval = Fr::from(4);
+    assert!(test_inner(point, eval).is_err());
   }
 
   #[test]
