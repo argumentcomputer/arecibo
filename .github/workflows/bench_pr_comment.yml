@@ -27,7 +27,7 @@ jobs:
       - uses: xt0rted/pull-request-comment-branch@v2
         id: comment-branch
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v3
         id: filter
         with:
           ref: ${{ steps.comment-branch.outputs.head_ref }}
