@@ -1,6 +1,8 @@
 //! Demonstrates how to use Nova to produce a recursive proof of the correct execution of
 //! iterations of the `MinRoot` function, thereby realizing a Nova-based verifiable delay function (VDF).
 //! We execute a configurable number of iterations of the `MinRoot` function per step of Nova's recursion.
+#[cfg(feature = "abomonate")]
+use arecibo::FlatPublicParams;
 use arecibo::{
   provider::{Bn256EngineKZG, GrumpkinEngine},
   traits::{
@@ -232,14 +234,16 @@ fn main() {
     );
     println!("PublicParams::setup, took {:?} ", start.elapsed());
     #[cfg(feature = "abomonate")]
-    {
+    let pp = {
       use abomonation::encode;
       let mut file = std::fs::File::create(utils::FILEPATH).unwrap();
+      let flat_params = FlatPublicParams::try_from(pp).expect("error encoding pps!");
       unsafe {
-        encode(&pp, &mut file).unwrap();
+        encode(&flat_params, &mut file).unwrap();
       }
       println!("Encoded!");
-    }
+      PublicParams::from(flat_params)
+    };
 
     println!(
       "Number of constraints per step (primary circuit): {}",
@@ -270,7 +274,7 @@ fn main() {
       reader.read_to_end(&mut bytes).unwrap();
       if let Some((result, remaining)) = unsafe {
         decode::<
-          PublicParams<
+          FlatPublicParams<
             E1,
             E2,
             MinRootCircuit<<E1 as Engine>::GE>,
@@ -278,8 +282,10 @@ fn main() {
           >,
         >(&mut bytes)
       } {
-        assert!(*result == pp, "decoded parameters not equal to original!");
+        let result_pp = PublicParams::from(result.clone());
+        assert!(result_pp == pp, "decoded parameters not equal to original!");
         assert!(remaining.is_empty());
+        println!("Decoded!");
       } else {
         println!("Decoding failure!");
       }
@@ -352,8 +358,8 @@ fn main() {
     type E2 = GrumpkinEngine;
     type EE1 = arecibo::provider::hyperkzg::EvaluationEngine<Bn256, E1>;
     type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
-    type S1 = arecibo::spartan::snark::RelaxedR1CSSNARK<E1, EE1>; // non-preprocessing SNARK
-    type S2 = arecibo::spartan::snark::RelaxedR1CSSNARK<E2, EE2>; // non-preprocessing SNARK
+    type S1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>; // non-preprocessing SNARK
+    type S2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>; // non-preprocessing SNARK
 
     let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(

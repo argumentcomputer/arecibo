@@ -88,17 +88,8 @@ impl<E: Engine> R1CSWithArity<E> {
 }
 
 /// A type that holds public parameters of Nova
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-  <E1::Scalar as PrimeField>::Repr: Abomonation,
-  <E2::Scalar as PrimeField>::Repr: Abomonation,
-)]
 pub struct PublicParams<E1, E2, C1, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -110,20 +101,116 @@ where
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  #[abomonate_with(CommitmentKey<E1>)]
   ck_primary: Arc<CommitmentKey<E1>>,
   circuit_shape_primary: R1CSWithArity<E1>,
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  #[abomonate_with(CommitmentKey<E2>)]
   ck_secondary: Arc<CommitmentKey<E2>>,
   circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E1::Scalar>,
   _p: PhantomData<(C1, C2)>,
+}
+
+// Ensure to include necessary crates and features in your Cargo.toml
+// e.g., abomonation, serde, etc., with the appropriate feature flags.
+
+/// A version of [`crate::PublicParams`] that is amenable to fast ser/de using Abomonation
+#[cfg(feature = "abomonate")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[serde(bound = "")]
+#[abomonation_bounds(
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  <E1::Scalar as PrimeField>::Repr: Abomonation,
+  <E2::Scalar as PrimeField>::Repr: Abomonation,
+)]
+pub struct FlatPublicParams<E1, E2, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  F_arity_primary: usize,
+  F_arity_secondary: usize,
+  ro_consts_primary: ROConstants<E1>,
+  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  ck_primary: CommitmentKey<E1>,
+  circuit_shape_primary: R1CSWithArity<E1>,
+  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
+  ck_secondary: CommitmentKey<E2>,
+  circuit_shape_secondary: R1CSWithArity<E2>,
+  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
+  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
+  _p: PhantomData<(C1, C2)>,
+}
+
+#[cfg(feature = "abomonate")]
+impl<E1, E2, C1, C2> TryFrom<PublicParams<E1, E2, C1, C2>> for FlatPublicParams<E1, E2, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  type Error = &'static str;
+
+  fn try_from(value: PublicParams<E1, E2, C1, C2>) -> Result<Self, Self::Error> {
+    let ck_primary =
+      Arc::try_unwrap(value.ck_primary).map_err(|_| "Failed to unwrap Arc for ck_primary")?;
+    let ck_secondary =
+      Arc::try_unwrap(value.ck_secondary).map_err(|_| "Failed to unwrap Arc for ck_secondary")?;
+    Ok(Self {
+      F_arity_primary: value.F_arity_primary,
+      F_arity_secondary: value.F_arity_secondary,
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary,
+      circuit_shape_primary: value.circuit_shape_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary,
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      _p: PhantomData,
+    })
+  }
+}
+
+#[cfg(feature = "abomonate")]
+impl<E1, E2, C1, C2> From<FlatPublicParams<E1, E2, C1, C2>> for PublicParams<E1, E2, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  fn from(value: FlatPublicParams<E1, E2, C1, C2>) -> Self {
+    Self {
+      F_arity_primary: value.F_arity_primary,
+      F_arity_secondary: value.F_arity_secondary,
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary: Arc::new(value.ck_primary),
+      circuit_shape_primary: value.circuit_shape_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary: Arc::new(value.ck_secondary),
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      digest: OnceCell::new(),
+      _p: PhantomData,
+    }
+  }
 }
 
 impl<E1, E2, C1, C2> SimpleDigestible for PublicParams<E1, E2, C1, C2>
