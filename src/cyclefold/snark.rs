@@ -44,7 +44,7 @@ where
   C1: StepCircuit<E1::Scalar>,
 {
   F_arity_primary: usize,
-  ro_consts_primary: ROConstants<E1>,
+  ro_consts_primary: ROConstants<E2>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
   ck_primary: CommitmentKey<E1>,
   circuit_shape_primary: R1CSWithArity<E1>,
@@ -160,22 +160,32 @@ where
       return Ok(());
     }
 
-    let r_U_primary_i = self.r_U_primary.clone();
-
-    // FIXME: This is wrong. The NIFS prover field needs to match the eventual NIFS verifier field
-    let (nifs_primary, r) = NIFS::prove_mut(
+    let (nifs_primary, (r_U_primary, r_W_primary), r) = super::nifs::NIFS::<E1, E2>::prove(
       &pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
       &pp.circuit_shape_primary.r1cs_shape,
-      &mut self.r_U_primary,
-      &mut self.r_W_primary,
+      &self.r_U_primary,
+      &self.r_W_primary,
       &self.l_u_primary,
       &self.l_w_primary,
-      &mut self.buffer_primary.T,
-      &mut self.buffer_primary.ABC_Z_1,
-      &mut self.buffer_primary.ABC_Z_2,
     )?;
+
+    // TODO: Delete this
+    // NOTE: This replaces the following code:
+    // let (nifs_primary, r) = NIFS::prove_mut(
+    //   &pp.ck_primary,
+    //   &pp.ro_consts_primary,
+    //   &pp.digest(),
+    //   &pp.circuit_shape_primary.r1cs_shape,
+    //   &mut self.r_U_primary,
+    //   &mut self.r_W_primary,
+    //   &self.l_u_primary,
+    //   &self.l_w_primary,
+    //   &mut self.buffer_primary.T,
+    //   &mut self.buffer_primary.ABC_Z_1,
+    //   &mut self.buffer_primary.ABC_Z_2,
+    // )?;
 
     let r_bools = r.to_le_bits().iter().map(|b| Some(*b)).collect::<Vec<_>>();
 
@@ -257,7 +267,7 @@ where
       pp.circuit_shape_primary.r1cs_shape.num_vars,
     );
 
-    let data_p = FoldingData::new(r_U_primary_i, self.l_u_primary.clone(), comm_T);
+    let data_p = FoldingData::new(self.r_U_primary.clone(), self.l_u_primary.clone(), comm_T);
     let data_c_E = FoldingData::new(self.r_U_cyclefold.clone(), l_u_cyclefold_E, comm_T_E);
     let data_c_W = FoldingData::new(r_U_cyclefold_E, l_u_cyclefold_W, comm_T_W);
 
@@ -291,6 +301,8 @@ where
       .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
       .collect::<Result<Vec<_>, _>>()?;
 
+    self.r_U_primary = r_U_primary;
+    self.r_W_primary = r_W_primary;
     self.l_u_primary = l_u_primary;
     self.l_w_primary = l_w_primary;
     self.r_U_cyclefold = r_U_cyclefold_W;

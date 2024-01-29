@@ -8,7 +8,7 @@ use crate::{
     R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
   },
   scalar_as_base,
-  traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROTrait},
+  traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROConstants, ROTrait},
   Commitment, CommitmentKey, CompressedCommitment,
 };
 use serde::{Deserialize, Serialize};
@@ -20,9 +20,6 @@ use serde::{Deserialize, Serialize};
 pub struct NIFS<E: Engine> {
   pub(crate) comm_T: CompressedCommitment<E>,
 }
-
-type ROConstants<E> =
-  <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants;
 
 impl<E: Engine> NIFS<E> {
   /// Takes as input a Relaxed R1CS instance-witness tuple `(U1, W1)` and
