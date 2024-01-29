@@ -27,7 +27,9 @@ pub mod traits;
 
 pub mod supernova;
 
+use gadgets::lookup::Lookup;
 use once_cell::sync::OnceCell;
+use traits::snark::RelaxedR1CSSNARKTraitV2;
 
 use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::{
@@ -177,8 +179,8 @@ where
   /// let circuit2 = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
   /// // Only relevant for a SNARK using computation commitmnets, pass &(|_| 0)
   /// // or &*nova_snark::traits::snark::default_ck_hint() otherwise.
-  /// let ck_hint1 = &*SPrime::<E1>::ck_floor();
-  /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
+  /// let ck_hint1 = &*SPrime::<E1, EE<_>>::ck_floor();
+  /// let ck_hint2 = &*SPrime::<E2, EE<_>>::ck_floor();
   ///
   /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2);
   /// ```
@@ -956,6 +958,299 @@ where
   }
 }
 
+/// A type that holds the prover key for `CompressedSNARK`
+#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
+#[serde(bound = "")]
+#[abomonation_omit_bounds]
+pub struct ProverKeyV2<E1, E2, C1, C2, S1, S2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: RelaxedR1CSSNARKTraitV2<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
+{
+  pk_primary: S1::ProverKey,
+  pk_secondary: S2::ProverKey,
+  _p: PhantomData<(C1, C2)>,
+}
+
+/// A type that holds the verifier key for `CompressedSNARK`
+#[derive(Clone, Serialize, Deserialize, Abomonation)]
+#[serde(bound = "")]
+#[abomonation_bounds(
+  where
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    C1: StepCircuit<E1::Scalar>,
+    C2: StepCircuit<E2::Scalar>,
+    S1: RelaxedR1CSSNARKTraitV2<E1>,
+    S2: RelaxedR1CSSNARKTrait<E2>,
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+  )]
+pub struct VerifierKeyV2<E1, E2, C1, C2, S1, S2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: RelaxedR1CSSNARKTraitV2<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
+{
+  F_arity_primary: usize,
+  F_arity_secondary: usize,
+  ro_consts_primary: ROConstants<E1>,
+  ro_consts_secondary: ROConstants<E2>,
+  #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
+  pp_digest: E1::Scalar,
+  vk_primary: S1::VerifierKey,
+  vk_secondary: S2::VerifierKey,
+  _p: PhantomData<(C1, C2)>,
+}
+
+/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
+/// and support lookup argument
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct CompressedSNARKV2<E1, E2, C1, C2, S1, S2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: RelaxedR1CSSNARKTraitV2<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
+{
+  r_U_primary: RelaxedR1CSInstance<E1>,
+  r_W_snark_primary: S1,
+
+  r_U_secondary: RelaxedR1CSInstance<E2>,
+  l_u_secondary: R1CSInstance<E2>,
+  nifs_secondary: NIFS<E2>,
+  f_W_snark_secondary: S2,
+
+  zn_primary: Vec<E1::Scalar>,
+  zn_secondary: Vec<E2::Scalar>,
+
+  _p: PhantomData<(C1, C2)>,
+}
+
+impl<E1, E2, C1, C2, S1, S2> CompressedSNARKV2<E1, E2, C1, C2, S1, S2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  S1: RelaxedR1CSSNARKTraitV2<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
+{
+  /// Creates prover and verifier keys for `CompressedSNARK`
+  pub fn setup(
+    pp: &PublicParams<E1, E2, C1, C2>,
+    initial_table: &Lookup<E1::Scalar>,
+  ) -> Result<
+    (
+      ProverKeyV2<E1, E2, C1, C2, S1, S2>,
+      VerifierKeyV2<E1, E2, C1, C2, S1, S2>,
+    ),
+    NovaError,
+  >
+  where
+    <E1 as Engine>::Scalar: Ord,
+  {
+    let (pk_primary, vk_primary) = S1::setup(
+      &pp.ck_primary,
+      &pp.circuit_shape_primary.r1cs_shape,
+      initial_table,
+    )?;
+    let (pk_secondary, vk_secondary) =
+      S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
+
+    let pk = ProverKeyV2 {
+      pk_primary,
+      pk_secondary,
+      _p: Default::default(),
+    };
+
+    let vk = VerifierKeyV2 {
+      F_arity_primary: pp.F_arity_primary,
+      F_arity_secondary: pp.F_arity_secondary,
+      ro_consts_primary: pp.ro_consts_primary.clone(),
+      ro_consts_secondary: pp.ro_consts_secondary.clone(),
+      pp_digest: pp.digest(),
+      vk_primary,
+      vk_secondary,
+      _p: Default::default(),
+    };
+
+    Ok((pk, vk))
+  }
+
+  /// Create a new `CompressedSNARK`
+  pub fn prove(
+    pp: &PublicParams<E1, E2, C1, C2>,
+    pk: &ProverKeyV2<E1, E2, C1, C2, S1, S2>,
+    recursive_snark: &RecursiveSNARK<E1, E2, C1, C2>,
+    challenges: (E1::Scalar, E1::Scalar),
+    RW_acc: E1::Scalar,
+    initial_table: &Lookup<E1::Scalar>,
+    final_table: &Lookup<E1::Scalar>,
+  ) -> Result<Self, NovaError> {
+    // fold the secondary circuit's instance with its running instance
+    let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
+      &pp.ck_secondary,
+      &pp.ro_consts_secondary,
+      &scalar_as_base::<E1>(pp.digest()),
+      &pp.circuit_shape_secondary.r1cs_shape,
+      &recursive_snark.r_U_secondary,
+      &recursive_snark.r_W_secondary,
+      &recursive_snark.l_u_secondary,
+      &recursive_snark.l_w_secondary,
+    )?;
+
+    // create SNARKs proving the knowledge of f_W_primary and f_W_secondary
+    let (r_W_snark_primary, f_W_snark_secondary) = rayon::join(
+      || {
+        S1::prove(
+          &pp.ck_primary,
+          &pk.pk_primary,
+          &pp.circuit_shape_primary.r1cs_shape,
+          &recursive_snark.r_U_primary,
+          &recursive_snark.r_W_primary,
+          challenges,
+          RW_acc,
+          initial_table.clone(),
+          final_table.clone(),
+        )
+      },
+      || {
+        S2::prove(
+          &pp.ck_secondary,
+          &pk.pk_secondary,
+          &pp.circuit_shape_secondary.r1cs_shape,
+          &f_U_secondary,
+          &f_W_secondary,
+        )
+      },
+    );
+
+    Ok(Self {
+      r_U_primary: recursive_snark.r_U_primary.clone(),
+      r_W_snark_primary: r_W_snark_primary?,
+
+      r_U_secondary: recursive_snark.r_U_secondary.clone(),
+      l_u_secondary: recursive_snark.l_u_secondary.clone(),
+      nifs_secondary,
+      f_W_snark_secondary: f_W_snark_secondary?,
+
+      zn_primary: recursive_snark.zi_primary.clone(),
+      zn_secondary: recursive_snark.zi_secondary.clone(),
+
+      _p: Default::default(),
+    })
+  }
+
+  /// Verify the correctness of the `CompressedSNARK`
+  pub fn verify(
+    &self,
+    vk: &VerifierKeyV2<E1, E2, C1, C2, S1, S2>,
+    num_steps: usize,
+    z0_primary: &[E1::Scalar],
+    z0_secondary: &[E2::Scalar],
+    lookup_intermediate_gamma: E1::Scalar,
+    RW_acc: E1::Scalar,
+    challenges: (E1::Scalar, E1::Scalar),
+  ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), NovaError> {
+    // the number of steps cannot be zero
+    if num_steps == 0 {
+      return Err(NovaError::ProofVerifyError);
+    }
+
+    // check if the (relaxed) R1CS instances have two public outputs
+    if self.l_u_secondary.X.len() != 2
+      || self.r_U_primary.X.len() != 2
+      || self.r_U_secondary.X.len() != 2
+    {
+      return Err(NovaError::ProofVerifyError);
+    }
+
+    // check if the output hashes in R1CS instances point to the right running instances
+    let (hash_primary, hash_secondary) = {
+      let mut hasher = <E2 as Engine>::RO::new(
+        vk.ro_consts_secondary.clone(),
+        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_primary,
+      );
+      hasher.absorb(vk.pp_digest);
+      hasher.absorb(E1::Scalar::from(num_steps as u64));
+      for e in z0_primary {
+        hasher.absorb(*e);
+      }
+      for e in &self.zn_primary {
+        hasher.absorb(*e);
+      }
+      self.r_U_secondary.absorb_in_ro(&mut hasher);
+
+      let mut hasher2 = <E1 as Engine>::RO::new(
+        vk.ro_consts_primary.clone(),
+        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_secondary,
+      );
+      hasher2.absorb(scalar_as_base::<E1>(vk.pp_digest));
+      hasher2.absorb(E2::Scalar::from(num_steps as u64));
+      for e in z0_secondary {
+        hasher2.absorb(*e);
+      }
+      for e in &self.zn_secondary {
+        hasher2.absorb(*e);
+      }
+      self.r_U_primary.absorb_in_ro(&mut hasher2);
+
+      (
+        hasher.squeeze(NUM_HASH_BITS),
+        hasher2.squeeze(NUM_HASH_BITS),
+      )
+    };
+
+    if hash_primary != self.l_u_secondary.X[0]
+      || hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.X[1])
+    {
+      return Err(NovaError::ProofVerifyError);
+    }
+
+    // fold the secondary's running instance with the last instance to get a folded instance
+    let f_U_secondary = self.nifs_secondary.verify(
+      &vk.ro_consts_secondary,
+      &scalar_as_base::<E1>(vk.pp_digest),
+      &self.r_U_secondary,
+      &self.l_u_secondary,
+    )?;
+
+    // check the satisfiability of the folded instances using
+    // SNARKs proving the knowledge of their satisfying witnesses
+    let (res_primary, res_secondary) = rayon::join(
+      || {
+        self.r_W_snark_primary.verify::<E2>(
+          &vk.vk_primary,
+          &self.r_U_primary,
+          lookup_intermediate_gamma,
+          RW_acc,
+          challenges.clone(),
+        )
+      },
+      || {
+        self
+          .f_W_snark_secondary
+          .verify(&vk.vk_secondary, &f_U_secondary)
+      },
+    );
+
+    res_primary?;
+    res_secondary?;
+
+    Ok((self.zn_primary.clone(), self.zn_secondary.clone()))
+  }
+}
+
 /// Compute the circuit digest of a [StepCircuit].
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
@@ -987,19 +1282,30 @@ type CE<E> = <E as Engine>::CE;
 
 #[cfg(test)]
 mod tests {
+  use crate::bellpepper::test_shape_cs::TestShapeCS;
+  use crate::gadgets::lookup::{less_than, Lookup, LookupTrace, LookupTraceBuilder, TableType};
+  use crate::gadgets::utils::conditionally_select2;
+  use crate::provider::poseidon::PoseidonConstantsCircuit;
+  // use crate::spartan::lookupsnark::LookupSNARK;
+  use crate::spartan::math::Math;
+  use crate::traits::evaluation::EvaluationEngineTrait;
+  use core::fmt::Write;
+
   use super::*;
   use crate::{
     provider::{
       non_hiding_zeromorph::ZMPCS, traits::DlogGroup, Bn256Engine, Bn256EngineKZG, Bn256EngineZM,
       GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
-    traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
+    traits::snark::default_ck_hint,
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-  use core::{fmt::Write, marker::PhantomData};
+  use bellpepper_core::Namespace;
+  use core::marker::PhantomData;
   use expect_test::{expect, Expect};
   use ff::PrimeField;
   use halo2curves::bn256::Bn256;
+  use tap::TapOptional;
   use traits::circuit::TrivialCircuit;
 
   type EE<E> = provider::ipa_pc::EvaluationEngine<E>;
@@ -1701,5 +2007,439 @@ mod tests {
     test_ivc_base_with::<PallasEngine, VestaEngine>();
     test_ivc_base_with::<Bn256Engine, GrumpkinEngine>();
     test_ivc_base_with::<Secp256k1Engine, Secq256k1Engine>();
+  }
+
+  fn print_constraints_name_on_error_index<E1, E2, C1>(err: &NovaError, c_primary: &C1)
+  where
+    E1: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    C1: StepCircuit<E1::Scalar>,
+  {
+    match err {
+      NovaError::UnSatIndex(index) => {
+        let augmented_circuit_params_primary =
+          NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
+
+        // let (mut circuit_primary, z0_primary) = HeapifyCircuit::new(ro_consts);
+        let ro_consts_circuit_primary: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
+        let circuit_primary: NovaAugmentedCircuit<'_, E2, C1> = NovaAugmentedCircuit::new(
+          &augmented_circuit_params_primary,
+          None,
+          c_primary,
+          ro_consts_circuit_primary,
+        );
+        // let mut cs: ShapeCS<E1> = ShapeCS::new();
+        // let _ = circuit_primary.synthesize(&mut cs);
+        let mut cs: TestShapeCS<E1> = TestShapeCS::new();
+        let _ = circuit_primary.synthesize(&mut cs);
+        cs.constraints
+          .get(*index)
+          .tap_some(|constraint| println!("failed at constraint {}", constraint.3));
+      }
+      error => unimplemented!("{:?}", error),
+    }
+  }
+
+  #[test]
+  fn test_ivc_rwlookup() {
+    type S1<E, EE> = spartan::ppsnark::RelaxedR1CSSNARKV2<E, EE>;
+    type S2<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
+    type E1 = provider::PallasEngine;
+    type E2 = provider::VestaEngine;
+    type EE<E> = provider::ipa_pc::EvaluationEngine<E>;
+
+    // rw lookup to serve as a non-deterministic advices.
+    #[derive(Clone)]
+    struct HeapifyCircuit<E1: Engine, E2: Engine>
+    where
+      <E1 as Engine>::Scalar: Ord,
+      E1: Engine<Base = <E2 as Engine>::Scalar>,
+      E2: Engine<Base = <E1 as Engine>::Scalar>,
+    {
+      lookup_trace: LookupTrace<E1>,
+      ro_consts: ROConstantsCircuit<E2>,
+      max_value_bits: usize,
+      _phantom: PhantomData<E2>,
+    }
+
+    impl<E1: Engine, E2: Engine> HeapifyCircuit<E1, E2>
+    where
+      <E1 as Engine>::Scalar: Ord,
+      E1: Engine<Base = <E2 as Engine>::Scalar>,
+      E2: Engine<Base = <E1 as Engine>::Scalar>,
+    {
+      fn new(
+        initial_table: Lookup<E1::Scalar>,
+        ro_consts_circuit: ROConstantsCircuit<E2>,
+      ) -> (Vec<Self>, Lookup<E1::Scalar>, E1::Scalar) {
+        let n = initial_table.table_size();
+
+        let initial_index = (n - 4) / 2;
+        let max_value_bits = (n - 1).log_2() + 1; // + 1 as a buffer
+        let initial_intermediate_gamma = <E1 as Engine>::Scalar::from(1);
+
+        let mut lookup = initial_table;
+        let num_steps = initial_index;
+        let mut intermediate_gamma = initial_intermediate_gamma;
+        // simulate folding step lookup io
+        let mut primary_circuits = Vec::with_capacity(num_steps + 1);
+        let ro_consts = <<E2 as Engine>::RO as ROTrait<
+          <E2 as Engine>::Base,
+          <E2 as Engine>::Scalar,
+        >>::Constants::default();
+        for i in 0..num_steps + 1 {
+          let mut lookup_trace_builder = LookupTraceBuilder::<E1>::new(&mut lookup);
+          let addr = E1::Scalar::from((num_steps - i) as u64);
+          let parent = lookup_trace_builder.read(addr);
+          let left_child = lookup_trace_builder.read(E1::Scalar::from(2) * addr + E1::Scalar::ONE);
+          let right_child =
+            lookup_trace_builder.read(E1::Scalar::from(2) * addr + E1::Scalar::from(2));
+          // swap left pair
+          let (new_parent_left, new_left_child) = if left_child < parent {
+            (left_child, parent)
+          } else {
+            (parent, left_child)
+          };
+          lookup_trace_builder.write(addr, new_parent_left);
+          lookup_trace_builder.write(
+            E1::Scalar::from(2) * addr + E1::Scalar::from(1),
+            new_left_child,
+          );
+          // swap right pair
+          let (new_parent_right, new_right_child) = if right_child < new_parent_left {
+            (right_child, new_parent_left)
+          } else {
+            (new_parent_left, right_child)
+          };
+          lookup_trace_builder.write(addr, new_parent_right);
+          lookup_trace_builder.write(
+            E1::Scalar::from(2) * addr + E1::Scalar::from(2),
+            new_right_child,
+          );
+          let res = lookup_trace_builder.snapshot::<E2>(ro_consts.clone(), intermediate_gamma);
+          intermediate_gamma = res.0;
+          let (_, lookup_trace) = res;
+          primary_circuits.push(Self {
+            lookup_trace,
+            ro_consts: ro_consts_circuit.clone(),
+            max_value_bits,
+            _phantom: PhantomData::<E2> {},
+          });
+        }
+
+        (primary_circuits, lookup, intermediate_gamma)
+      }
+
+      fn get_z0(
+        ck: &CommitmentKey<E1>,
+        final_table: &Lookup<E1::Scalar>,
+        intermediate_gamma: E1::Scalar,
+      ) -> Vec<E1::Scalar>
+      where
+        E1: Engine<Base = <E2 as Engine>::Scalar>,
+        E2: Engine<Base = <E1 as Engine>::Scalar>,
+      {
+        let n = final_table.table_size();
+        let initial_index = (n - 4) / 2;
+        let (initial_intermediate_gamma, init_prev_RW_acc, init_global_ts) = (
+          <E1 as Engine>::Scalar::ONE,
+          <E1 as Engine>::Scalar::ZERO,
+          <E1 as Engine>::Scalar::ZERO,
+        );
+
+        let (alpha, gamma) =
+          LookupTraceBuilder::<E1>::get_challenge::<E2>(ck, final_table, intermediate_gamma);
+        vec![
+          initial_intermediate_gamma,
+          alpha,
+          gamma,
+          init_prev_RW_acc,
+          init_global_ts,
+          E1::Scalar::from(initial_index as u64),
+        ]
+      }
+    }
+
+    impl<F: PrimeField, E1: Engine + Engine<Scalar = F>, E2: Engine> StepCircuit<F>
+      for HeapifyCircuit<E1, E2>
+    where
+      E1::Scalar: Ord,
+      E1: Engine<Base = <E2 as Engine>::Scalar>,
+      E2: Engine<Base = <E1 as Engine>::Scalar>,
+    {
+      fn arity(&self) -> usize {
+        6
+      }
+
+      fn synthesize<CS: ConstraintSystem<F>>(
+        &self,
+        cs: &mut CS,
+        z: &[AllocatedNum<F>],
+      ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+        let mut lookup_trace = self.lookup_trace.clone();
+        let prev_intermediate_gamma = &z[0];
+        let alpha = &z[1];
+        let gamma = &z[2];
+        let prev_RW_acc = &z[3];
+        let prev_global_ts = &z[4];
+        let index = &z[5];
+
+        let left_child_index = AllocatedNum::alloc(cs.namespace(|| "left_child_index"), || {
+          index
+            .get_value()
+            .map(|i| i.mul(F::from(2)) + F::ONE)
+            .ok_or(SynthesisError::AssignmentMissing)
+        })?;
+        cs.enforce(
+          || "(2*index + 1) * 1 = left_child_index",
+          |lc| lc + (F::from(2), index.get_variable()) + CS::one(),
+          |lc| lc + CS::one(),
+          |lc| lc + left_child_index.get_variable(),
+        );
+        let right_child_index = AllocatedNum::alloc(cs.namespace(|| "right_child_index"), || {
+          left_child_index
+            .get_value()
+            .map(|i| i + F::ONE)
+            .ok_or(SynthesisError::AssignmentMissing)
+        })?;
+        cs.enforce(
+          || "(left_child_index + 1) * 1 = right_child_index",
+          |lc| lc + left_child_index.get_variable() + CS::one(),
+          |lc| lc + CS::one(),
+          |lc| lc + right_child_index.get_variable(),
+        );
+        let parent = lookup_trace.read(cs.namespace(|| "parent"), index)?;
+        let left_child = lookup_trace.read(cs.namespace(|| "left_child"), &left_child_index)?;
+        let right_child = lookup_trace.read(cs.namespace(|| "right_child"), &right_child_index)?;
+
+        let is_left_child_smaller = less_than(
+          cs.namespace(|| "left_child < parent"),
+          &left_child,
+          &parent,
+          self.max_value_bits,
+        )?;
+
+        let new_parent_left = conditionally_select2(
+          cs.namespace(|| "new_left_pair_parent"),
+          &left_child,
+          &parent,
+          &is_left_child_smaller,
+        )?;
+
+        let new_left_child = conditionally_select2(
+          cs.namespace(|| "new_left_pair_child"),
+          &parent,
+          &left_child,
+          &is_left_child_smaller,
+        )?;
+
+        lookup_trace.write(
+          cs.namespace(|| "write_left_pair_parent"),
+          index,
+          &new_parent_left,
+        )?;
+        lookup_trace.write(
+          cs.namespace(|| "write_left_pair_child"),
+          &left_child_index,
+          &new_left_child,
+        )?;
+
+        let is_right_child_smaller = less_than(
+          cs.namespace(|| "right_child < parent"),
+          &right_child,
+          &new_parent_left,
+          self.max_value_bits,
+        )?;
+
+        let new_parent_right = conditionally_select2(
+          cs.namespace(|| "new_right_pair_parent"),
+          &right_child,
+          &new_parent_left,
+          &is_right_child_smaller,
+        )?;
+        let new_right_child = conditionally_select2(
+          cs.namespace(|| "new_right_pair_child"),
+          &new_parent_left,
+          &right_child,
+          &is_right_child_smaller,
+        )?;
+        lookup_trace.write(
+          cs.namespace(|| "write_right_pair_parent"),
+          index,
+          &new_parent_right,
+        )?;
+        lookup_trace.write(
+          cs.namespace(|| "write_right_pair_child"),
+          &right_child_index,
+          &new_right_child,
+        )?;
+
+        // commit the rw change
+        let (next_RW_acc, next_global_ts, next_intermediate_gamma) = lookup_trace
+          .commit::<E2, Namespace<'_, F, <CS as ConstraintSystem<F>>::Root>>(
+            cs.namespace(|| "commit"),
+            self.ro_consts.clone(),
+            prev_intermediate_gamma,
+            &(alpha.clone(), gamma.clone()),
+            prev_RW_acc,
+            prev_global_ts,
+          )?;
+
+        let next_index = AllocatedNum::alloc(cs.namespace(|| "next_index"), || {
+          index
+            .get_value()
+            .map(|index| index - E1::Scalar::from(1))
+            .ok_or(SynthesisError::AssignmentMissing)
+        })?;
+        cs.enforce(
+          || "(next_index + 1) * 1 = index",
+          |lc| lc + next_index.get_variable() + CS::one(),
+          |lc| lc + CS::one(),
+          |lc| lc + index.get_variable(),
+        );
+        Ok(vec![
+          next_intermediate_gamma,
+          alpha.clone(),
+          gamma.clone(),
+          next_RW_acc,
+          next_global_ts,
+          next_index,
+        ])
+      }
+    }
+
+    let heap_size: usize = 4;
+
+    let ro_consts: ROConstantsCircuit<E2> = PoseidonConstantsCircuit::default();
+
+    let initial_table = {
+      let mut initial_table = (0..heap_size - 1)
+        .map(|i| {
+          (
+            <E2 as Engine>::Base::from(i as u64),
+            <E2 as Engine>::Base::from((heap_size - 2 - i) as u64),
+          )
+        })
+        .collect::<Vec<(<E2 as Engine>::Base, <E2 as Engine>::Base)>>();
+      initial_table.push((
+        <E2 as Engine>::Base::from(heap_size as u64 - 1),
+        <E2 as Engine>::Base::ZERO,
+      )); // attach 1 dummy element to assure table size is power of 2
+      Lookup::new(heap_size * 4, TableType::ReadWrite, initial_table)
+    };
+
+    let (circuit_primaries, final_table, expected_intermediate_gamma) =
+      HeapifyCircuit::new(initial_table.clone(), ro_consts);
+
+    let circuit_secondary = TrivialCircuit::default();
+
+    let ck_hint1 = &*SPrime::<E1, EE<_>>::ck_floor();
+    let ck_hint2 = &*SPrime::<E2, EE<_>>::ck_floor();
+
+    // produce public parameters
+    let pp =
+      PublicParams::<E1, E2, HeapifyCircuit<E1, E2>, TrivialCircuit<<E2 as Engine>::Scalar>>::setup(
+        &circuit_primaries[0],
+        &circuit_secondary,
+        ck_hint1,
+        ck_hint2,
+      );
+
+    // produce the prover and verifier keys for compressed snark
+    let (pk, vk) =
+      CompressedSNARKV2::<_, _, _, _, S1<E1, EE<E1>>, S2<E2, EE<E2>>>::setup(&pp, &initial_table)
+        .unwrap();
+
+    let z0_primary =
+      HeapifyCircuit::<E1, E2>::get_z0(&pp.ck_primary, &final_table, expected_intermediate_gamma);
+
+    // 5th is initial index.
+    // +1 for index end with 0
+    let num_steps = u32::from_le_bytes(z0_primary[5].to_repr()[0..4].try_into().unwrap()) + 1;
+
+    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; 1];
+
+    // produce a recursive SNARK
+    let mut recursive_snark: RecursiveSNARK<
+      E1,
+      E2,
+      HeapifyCircuit<E1, E2>,
+      TrivialCircuit<<E2 as Engine>::Scalar>,
+    > = RecursiveSNARK::new(
+      &pp,
+      &circuit_primaries[0],
+      &circuit_secondary,
+      &z0_primary,
+      &z0_secondary,
+    )
+    .unwrap();
+
+    for i in 0..num_steps {
+      println!("step i {}", i);
+      let res = recursive_snark.prove_step(&pp, &circuit_primaries[i as usize], &circuit_secondary);
+      res
+        .clone()
+        .map_err(|err| println!("err {:?}", err))
+        .unwrap();
+      assert!(res.is_ok());
+    }
+    // verify the recursive SNARK
+    let res = recursive_snark.verify(&pp, num_steps as usize, &z0_primary, &z0_secondary);
+    let (zn_primary, _) = res
+      .clone()
+      .map_err(|err| {
+        print_constraints_name_on_error_index::<E1, E2, _>(&err, &circuit_primaries[0])
+      })
+      .unwrap();
+
+    assert_eq!(<E1 as Engine>::Scalar::from(1).neg(), zn_primary[5]);
+
+    let number_of_iterated_nodes = (heap_size - 4) / 2 + 1;
+    assert_eq!(
+      <E1 as Engine>::Scalar::from((number_of_iterated_nodes * 7) as u64),
+      zn_primary[4]
+    ); // global ts = number_of_iterated_nodes * (3r + 4w) operations
+
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_cons, 13377);
+    assert_eq!(pp.circuit_shape_primary.r1cs_shape.num_vars, 13388);
+    assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_cons, 10349);
+    assert_eq!(pp.circuit_shape_secondary.r1cs_shape.num_vars, 10329);
+
+    println!("zn_primary {:?}", zn_primary);
+
+    let intermediate_gamma = zn_primary[0];
+    let r = zn_primary[1];
+    let gamma = zn_primary[2];
+    let RW_acc = zn_primary[3];
+    assert_eq!(
+      expected_intermediate_gamma, intermediate_gamma,
+      "expected_intermediate_gamma != intermediate_gamma"
+    );
+
+    // produce a compressed SNARK
+    let res = CompressedSNARKV2::<_, _, _, _, S1<E1, EE<E1>>, S2<E2, EE<E2>>>::prove(
+      &pp,
+      &pk,
+      &recursive_snark,
+      (r, gamma),
+      RW_acc,
+      &initial_table,
+      &final_table,
+    );
+    assert!(res.is_ok());
+    let compressed_snark = res.unwrap();
+
+    // verify the compressed SNARK
+    let res = compressed_snark.verify(
+      &vk,
+      num_steps.try_into().unwrap(),
+      &z0_primary,
+      &z0_secondary,
+      expected_intermediate_gamma,
+      RW_acc,
+      (r, gamma),
+    );
+    println!("res {:?}", res);
+    assert!(res.is_ok());
   }
 }

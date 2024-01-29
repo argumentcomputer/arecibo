@@ -2,6 +2,8 @@
 //!
 //!
 
+use crate::spartan::sumcheck::engine::MemorySumcheckInstance;
+use crate::spartan::sumcheck::engine::NaturalNumVec;
 use crate::{
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
@@ -20,8 +22,7 @@ use crate::{
     powers,
     ppsnark::{R1CSShapeSparkCommitment, R1CSShapeSparkRepr},
     sumcheck::engine::{
-      InnerSumcheckInstance, MemorySumcheckInstance, OuterSumcheckInstance, SumcheckEngine,
-      WitnessBoundSumcheck,
+      InnerSumcheckInstance, OuterSumcheckInstance, SumcheckEngine, WitnessBoundSumcheck,
     },
     sumcheck::SumcheckProof,
     PolyEvalInstance, PolyEvalWitness,
@@ -473,23 +474,56 @@ where
         .try_fold(
           (Vec::new(), Vec::new(), Vec::new()),
           |(mut comms, mut polys, mut aux), (((s_repr, poly_tau), poly_Z), [L_row, L_col])| {
-            let (comm, poly, a) = MemorySumcheckInstance::<E>::compute_oracles(
-              ck,
-              &r,
-              &gamma,
-              poly_tau,
-              &s_repr.row,
-              L_row,
-              &s_repr.ts_row,
-              poly_Z,
-              &s_repr.col,
-              L_col,
-              &s_repr.ts_col,
-            )?;
+            assert!(poly_tau.len() == poly_Z.len());
+            let mem_size = poly_tau.len().try_into().unwrap();
 
-            comms.push(comm);
-            polys.push(poly);
-            aux.push(a);
+            let (mem_row_res, mem_col_res) = rayon::join(
+              // mem row
+              || {
+                MemorySumcheckInstance::<E>::compute_oracles(
+                  ck,
+                  &r,
+                  &gamma,
+                  vec![
+                    Box::new(NaturalNumVec::<E>::new(mem_size)),
+                    Box::new(poly_tau.to_vec().into_iter()),
+                  ], // t set
+                  vec![
+                    Box::new(s_repr.row.clone().into_iter()),
+                    Box::new(L_row.clone().into_iter()),
+                  ], // w set
+                  &s_repr.ts_row, // ts
+                )
+              },
+              // mem col
+              || {
+                MemorySumcheckInstance::<E>::compute_oracles(
+                  ck,
+                  &r,
+                  &gamma,
+                  vec![
+                    Box::new(NaturalNumVec::<E>::new(mem_size)),
+                    Box::new(poly_Z.to_vec().into_iter()),
+                  ], // t set
+                  vec![
+                    Box::new(s_repr.col.clone().into_iter()),
+                    Box::new(L_col.clone().into_iter()),
+                  ], // w set
+                  &s_repr.ts_col, // ts
+                )
+              },
+            );
+            let ((comm_row, polys_row, a_row), (comm_col, polys_col, a_col)) =
+              (mem_row_res?, mem_col_res?);
+            let (mut comm_row, mut polys_row, mut a_row) =
+              (comm_row.to_vec(), polys_row.to_vec(), a_row.to_vec());
+
+            comm_row.extend(comm_col);
+            comms.push(comm_row);
+            polys_row.extend(polys_col);
+            polys.push(polys_row);
+            a_row.extend(a_col);
+            aux.push(a_row);
 
             Ok::<_, NovaError>((comms, polys, aux))
           },
@@ -513,12 +547,22 @@ where
           mem_aux.into_par_iter()
         ),
         |s_repr, Ni, polys_mem_oracles, polys_aux| {
-          MemorySumcheckInstance::<E>::new(
-            polys_mem_oracles.clone(),
-            polys_aux,
-            PowPolynomial::evals_with_powers(&all_rhos, Ni.log_2()),
-            s_repr.ts_row.clone(),
-            s_repr.ts_col.clone(),
+          let poly_eq_Z = PowPolynomial::evals_with_powers(&all_rhos, Ni.log_2());
+          (
+            MemorySumcheckInstance::new(
+              polys_mem_oracles[0..2].to_vec().try_into().unwrap(),
+              polys_aux[0..2].to_vec().try_into().unwrap(),
+              poly_eq_Z.clone(),
+              s_repr.ts_row.clone(),
+              None,
+            ),
+            MemorySumcheckInstance::new(
+              polys_mem_oracles[2..4].to_vec().try_into().unwrap(),
+              polys_aux[2..4].to_vec().try_into().unwrap(),
+              poly_eq_Z,
+              s_repr.ts_col.clone(),
+              None,
+            ),
           )
         }
       )
@@ -740,7 +784,14 @@ where
       .collect();
     let comms_mem_oracles = comms_mem_oracles
       .into_iter()
-      .map(|comms| comms.map(|comm| comm.compress()))
+      .map(|comms| {
+        comms
+          .into_iter()
+          .map(|comm| comm.compress())
+          .collect::<Vec<_>>()
+          .try_into()
+          .unwrap()
+      })
       .collect();
 
     Ok(Self {
@@ -993,9 +1044,9 @@ where
 
         let claims_mem = [
           t_plus_r_inv_row - w_plus_r_inv_row,
-          t_plus_r_inv_col - w_plus_r_inv_col,
           eq_rho * (t_plus_r_inv_row * t_plus_r_row - ts_row),
           eq_rho * (w_plus_r_inv_row * w_plus_r_row - E::Scalar::ONE),
+          t_plus_r_inv_col - w_plus_r_inv_col,
           eq_rho * (t_plus_r_inv_col * t_plus_r_col - ts_col),
           eq_rho * (w_plus_r_inv_col * w_plus_r_col - E::Scalar::ONE),
         ];
@@ -1132,7 +1183,7 @@ where
   /// in order batch all evaluations with a single PCS call.
   fn prove_helper<T1, T2, T3, T4>(
     num_rounds: usize,
-    mut mem: Vec<T1>,
+    mut mem: Vec<(T1, T1)>,
     mut outer: Vec<T2>,
     mut inner: Vec<T3>,
     mut witness: Vec<T4>,
@@ -1160,8 +1211,9 @@ where
     assert_eq!(inner.len(), num_instances);
     assert_eq!(witness.len(), num_instances);
 
-    for inst in mem.iter_mut() {
-      assert!(inst.size().is_power_of_two());
+    for (inst_row, inst_col) in mem.iter_mut() {
+      assert!(inst_row.size().is_power_of_two());
+      assert!(inst_col.size().is_power_of_two());
     }
     for inst in outer.iter() {
       assert!(inst.size().is_power_of_two());
@@ -1173,8 +1225,10 @@ where
       assert!(inst.size().is_power_of_two());
     }
 
-    let degree = mem[0].degree();
-    assert!(mem.iter().all(|inst| inst.degree() == degree));
+    let degree = mem[0].0.degree();
+    assert!(mem
+      .iter()
+      .all(|(inst_row, inst_col)| inst_row.degree() == degree && inst_col.degree() == degree));
     assert!(outer.iter().all(|inst| inst.degree() == degree));
     assert!(inner.iter().all(|inst| inst.degree() == degree));
     assert!(witness.iter().all(|inst| inst.degree() == degree));
@@ -1186,8 +1240,10 @@ where
       iter,
       (mem, outer, inner, witness),
       |mem, outer, inner, witness| {
-        Self::scaled_claims(mem, num_rounds)
+        let (mem_row, mem_col) = mem;
+        Self::scaled_claims(mem_row, num_rounds)
           .into_iter()
+          .chain(Self::scaled_claims(mem_col, num_rounds))
           .chain(Self::scaled_claims(outer, num_rounds))
           .chain(Self::scaled_claims(inner, num_rounds))
           .chain(Self::scaled_claims(witness, num_rounds))
@@ -1222,22 +1278,30 @@ where
         par_iter,
         (mem, outer, inner, witness),
         |mem, outer, inner, witness| {
-          let ((evals_mem, evals_outer), (evals_inner, evals_witness)) = rayon::join(
-            || {
-              rayon::join(
-                || Self::get_evals(mem, remaining_variables),
-                || Self::get_evals(outer, remaining_variables),
-              )
-            },
-            || {
-              rayon::join(
-                || Self::get_evals(inner, remaining_variables),
-                || Self::get_evals(witness, remaining_variables),
-              )
-            },
-          );
-          evals_mem
+          let (mem_row, mem_col) = mem;
+          let (((evals_mem_row, evals_mem_col), evals_outer), (evals_inner, evals_witness)) =
+            rayon::join(
+              || {
+                rayon::join(
+                  || {
+                    rayon::join(
+                      || Self::get_evals(mem_row, remaining_variables),
+                      || Self::get_evals(mem_col, remaining_variables),
+                    )
+                  },
+                  || Self::get_evals(outer, remaining_variables),
+                )
+              },
+              || {
+                rayon::join(
+                  || Self::get_evals(inner, remaining_variables),
+                  || Self::get_evals(witness, remaining_variables),
+                )
+              },
+            );
+          evals_mem_row
             .into_par_iter()
+            .chain(evals_mem_col.into_par_iter())
             .chain(evals_outer.into_par_iter())
             .chain(evals_inner.into_par_iter())
             .chain(evals_witness.into_par_iter())
@@ -1276,10 +1340,16 @@ where
         par_iter_mut,
         (mem, outer, inner, witness),
         |mem, outer, inner, witness| {
+          let (mem_row, mem_col) = mem;
           rayon::join(
             || {
               rayon::join(
-                || Self::bind(mem, remaining_variables, &r_i),
+                || {
+                  rayon::join(
+                    || Self::bind(mem_row, remaining_variables, &r_i),
+                    || Self::bind(mem_col, remaining_variables, &r_i),
+                  )
+                },
                 || Self::bind(outer, remaining_variables, &r_i),
               )
             },
@@ -1301,7 +1371,10 @@ where
     // where m is the initial number of variables the individual claims are defined over.
     let claims_outer = outer.into_iter().map(|inst| inst.final_claims()).collect();
     let claims_inner = inner.into_iter().map(|inst| inst.final_claims()).collect();
-    let claims_mem = mem.into_iter().map(|inst| inst.final_claims()).collect();
+    let claims_mem = mem
+      .into_iter()
+      .map(|(inst_row, inst_col)| vec![inst_row.final_claims(), inst_col.final_claims()].concat())
+      .collect();
     let claims_witness = witness
       .into_iter()
       .map(|inst| inst.final_claims())
@@ -1340,7 +1413,7 @@ where
 
   /// In round i after receiving challenge r_i, we partially evaluate all polynomials in the instance
   /// at X_i = r_i. If the instance is defined over m variables m which is less than n-i, then
-  /// the polynomials do not depend on X_i, so binding them to r_i has no effect.  
+  /// the polynomials do not depend on X_i, so binding them to r_i has no effect.
   fn bind<T: SumcheckEngine<E>>(inst: &mut T, remaining_variables: usize, r: &E::Scalar) {
     let num_instance_variables = inst.size().log_2(); // m
     if remaining_variables <= num_instance_variables {
@@ -1349,7 +1422,7 @@ where
   }
 
   /// Given an instance defined over m variables, the sum over n = `remaining_variables` is equal
-  /// to the initial claim scaled by 2^{n-m}, when m ≤ n.   
+  /// to the initial claim scaled by 2^{n-m}, when m ≤ n.
   fn scaled_claims<T: SumcheckEngine<E>>(inst: &T, remaining_variables: usize) -> Vec<E::Scalar> {
     let num_instance_variables = inst.size().log_2(); // m
     let num_repetitions = 1 << (remaining_variables - num_instance_variables);
