@@ -6,8 +6,8 @@ use crate::{
   CommitmentKey,
 };
 
-use abomonation::Abomonation;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Public parameter creation takes a size hint. This size hint carries the particular requirements of
 /// the final compressing SNARK the user expected to use with these public parameters, and the below
@@ -23,15 +23,10 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
   Send + Sync + Serialize + for<'de> Deserialize<'de>
 {
   /// A type that represents the prover's key
-  type ProverKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + Abomonation;
+  type ProverKey: Send + Sync;
 
   /// A type that represents the verifier's key
-  type VerifierKey: Send
-    + Sync
-    + Serialize
-    + for<'de> Deserialize<'de>
-    + DigestHelperTrait<E>
-    + Abomonation;
+  type VerifierKey: Send + Sync + Serialize;
 
   /// This associated function (not a method) provides a hint that offers
   /// a minimum sizing cue for the commitment key used by this SNARK
@@ -44,7 +39,7 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
 
   /// Produces the keys for the prover and the verifier
   fn setup(
-    ck: &CommitmentKey<E>,
+    ck: Arc<CommitmentKey<E>>,
     S: &R1CSShape<E>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError>;
 
@@ -66,15 +61,10 @@ pub trait BatchedRelaxedR1CSSNARKTrait<E: Engine>:
   Send + Sync + Serialize + for<'de> Deserialize<'de>
 {
   /// A type that represents the prover's key
-  type ProverKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + Abomonation;
+  type ProverKey: Send + Sync;
 
   /// A type that represents the verifier's key
-  type VerifierKey: Send
-    + Sync
-    + Serialize
-    + for<'de> Deserialize<'de>
-    + DigestHelperTrait<E>
-    + Abomonation;
+  type VerifierKey: Send + Sync + DigestHelperTrait<E>;
 
   /// This associated function (not a method) provides a hint that offers
   /// a minimum sizing cue for the commitment key used by this SNARK
@@ -85,8 +75,11 @@ pub trait BatchedRelaxedR1CSSNARKTrait<E: Engine>:
   }
 
   /// Produces the keys for the prover and the verifier
+  ///
+  /// **Note:** This method should be cheap and should not copy most of the
+  /// commitment key. Look at CommitmentEngineTrait::setup for generating SRS data.
   fn setup(
-    ck: &CommitmentKey<E>,
+    ck: Arc<CommitmentKey<E>>,
     S: Vec<&R1CSShape<E>>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError>;
 

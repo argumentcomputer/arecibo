@@ -28,6 +28,7 @@ use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::debug;
 
 use crate::bellpepper::{
@@ -89,12 +90,12 @@ where
 
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: CommitmentKey<E1>, // This is shared between all circuit params
+  ck_primary: Arc<CommitmentKey<E1>>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<E2>,
+  ck_secondary: Arc<CommitmentKey<E2>>,
   circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
@@ -123,12 +124,14 @@ where
 {
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: CommitmentKey<E1>, // This is shared between all circuit params
+  #[abomonate_with(CommitmentKey<E1>)]
+  ck_primary: Arc<CommitmentKey<E1>>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<E2>,
+  #[abomonate_with(CommitmentKey<E2>)]
+  ck_secondary: Arc<CommitmentKey<E2>>,
   circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
@@ -221,6 +224,7 @@ where
       .collect::<Vec<_>>();
 
     let ck_primary = Self::compute_primary_ck(&circuit_shapes, ck_hint1);
+    let ck_primary = Arc::new(ck_primary);
 
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
@@ -241,6 +245,7 @@ where
       .synthesize(&mut cs)
       .expect("circuit synthesis failed");
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
+    let ck_secondary = Arc::new(ck_secondary);
     let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     let pp = Self {
@@ -572,7 +577,7 @@ where
       RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, l_w_primary);
 
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp[circuit_index].r1cs_shape,
       l_u_primary,
     );
@@ -583,7 +588,7 @@ where
 
     // Initialize relaxed instance/witness pair for the secondary circuit proofs
     let r_W_secondary: RelaxedR1CSWitness<E2> = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
-    let r_U_secondary = RelaxedR1CSInstance::default(&pp.ck_secondary, r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::default(&*pp.ck_secondary, r1cs_secondary);
 
     // Outputs of the two circuits and next program counter thus far.
     let zi_primary = zi_primary
@@ -688,7 +693,7 @@ where
 
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
-      &pp.ck_secondary,
+      &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(self.pp_digest),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -749,7 +754,7 @@ where
       (r_U_primary, r_W_primary)
     } else {
       self.r_U_primary[circuit_index] = Some(RelaxedR1CSInstance::default(
-        &pp.ck_primary,
+        &*pp.ck_primary,
         &pp[circuit_index].r1cs_shape,
       ));
       self.r_W_primary[circuit_index] =
@@ -761,7 +766,7 @@ where
     };
 
     let nifs_primary = NIFS::prove_mut(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp.ro_consts_primary,
       &self.pp_digest,
       &pp[circuit_index].r1cs_shape,
@@ -974,7 +979,7 @@ where
       self.r_U_primary.iter().enumerate().for_each(|(i, U)| {
         U.as_ref()
           .unwrap_or(&RelaxedR1CSInstance::default(
-            &pp.ck_primary,
+            &*pp.ck_primary,
             &pp[i].r1cs_shape,
           ))
           .absorb_in_ro(&mut hasher);

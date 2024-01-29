@@ -42,6 +42,7 @@ use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use super::polys::masked_eq::MaskedEqPolynomial;
 
@@ -255,32 +256,30 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
 }
 
 /// A type that represents the prover's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
+#[derive(Debug, Clone)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
   S_repr: R1CSShapeSparkRepr<E>,
   S_comm: R1CSShapeSparkCommitment<E>,
-  #[abomonate_with(<E::Scalar as PrimeField>::Repr)]
   vk_digest: E::Scalar, // digest of verifier's key
 }
 
 /// A type that represents the verifier's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(bound = "EE::VerifierKey: Serialize")]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   num_cons: usize,
   num_vars: usize,
   vk_ee: EE::VerifierKey,
   S_comm: R1CSShapeSparkCommitment<E>,
-  #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E::Scalar>,
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E, EE> {}
+impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E, EE> where
+  EE::VerifierKey: Serialize
+{
+}
 
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
 /// The proof is produced using Spartan's combination of the sum-check and
@@ -494,20 +493,20 @@ where
   }
 
   fn setup(
-    ck: &CommitmentKey<E>,
+    ck: Arc<CommitmentKey<E>>,
     S: &R1CSShape<E>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     // check the provided commitment key meets minimal requirements
     if ck.length() < Self::ck_floor()(S) {
       return Err(NovaError::InvalidCommitmentKeyLength);
     }
-    let (pk_ee, vk_ee) = EE::setup(ck);
+    let (pk_ee, vk_ee) = EE::setup(ck.clone());
 
     // pad the R1CS matrices
     let S = S.pad();
 
     let S_repr = R1CSShapeSparkRepr::new(&S);
-    let S_comm = S_repr.commit(ck);
+    let S_comm = S_repr.commit(&*ck);
 
     let vk = VerifierKey::new(S.num_cons, S.num_vars, S_comm.clone(), vk_ee);
 

@@ -1,5 +1,6 @@
 //! This module implements `EvaluationEngine` using an IPA-based polynomial commitment scheme
 use crate::{
+  digest::SimpleDigestible,
   errors::{NovaError, PCSError},
   provider::{pedersen::CommitmentKeyExtTrait, traits::DlogGroup},
   spartan::polys::eq::EqPolynomial,
@@ -10,29 +11,28 @@ use crate::{
   },
   Commitment, CommitmentKey, CompressedCommitment, CE,
 };
-use abomonation_derive::Abomonation;
 use core::iter;
 use ff::Field;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 /// Provides an implementation of the prover key
-#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_omit_bounds]
+#[derive(Clone, Debug)]
 pub struct ProverKey<E: Engine> {
   ck_s: CommitmentKey<E>,
 }
 
 /// Provides an implementation of the verifier key
-#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(bound = "")]
-#[abomonation_omit_bounds]
 pub struct VerifierKey<E: Engine> {
-  ck_v: CommitmentKey<E>,
+  ck_v: Arc<CommitmentKey<E>>,
   ck_s: CommitmentKey<E>,
 }
+
+impl<E: Engine> SimpleDigestible for VerifierKey<E> {}
 
 /// Provides an implementation of a polynomial evaluation engine using IPA
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -51,7 +51,7 @@ where
   type EvaluationArgument = InnerProductArgument<E>;
 
   fn setup(
-    ck: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
+    ck: Arc<<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey>,
   ) -> (Self::ProverKey, Self::VerifierKey) {
     let ck_c = E::CE::setup(b"ipa", 1);
 

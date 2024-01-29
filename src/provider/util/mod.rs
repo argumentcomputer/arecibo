@@ -50,6 +50,7 @@ pub mod test_utils {
   use ff::Field;
   use rand::rngs::StdRng;
   use rand_core::{CryptoRng, RngCore};
+  use std::sync::Arc;
 
   /// Returns a random polynomial, a point and calculate its evaluation.
   fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
@@ -88,14 +89,15 @@ pub mod test_utils {
 
     // Mock commitment key.
     let ck = E::CE::setup(b"test", 1 << num_vars);
+    let ck = Arc::new(ck);
     // Commits to the provided vector using the provided generators.
     let commitment = E::CE::commit(&ck, poly.evaluations());
 
-    prove_verify_with::<E, EE>(&ck, &commitment, &poly, &point, &eval, true)
+    prove_verify_with::<E, EE>(ck, &commitment, &poly, &point, &eval, true)
   }
 
   fn prove_verify_with<E: Engine, EE: EvaluationEngineTrait<E>>(
-    ck: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
+    ck: Arc<<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey>,
     commitment: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
     poly: &MultilinearPolynomial<<E as Engine>::Scalar>,
     point: &[<E as Engine>::Scalar],
@@ -106,12 +108,13 @@ pub mod test_utils {
     use std::ops::Add;
 
     // Generate Prover and verifier key for given commitment key.
+    let ock = ck.clone();
     let (prover_key, verifier_key) = EE::setup(ck);
 
     // Generate proof.
     let mut prover_transcript = E::TE::new(b"TestEval");
     let proof = EE::prove(
-      ck,
+      &*ock,
       &prover_key,
       &mut prover_transcript,
       commitment,

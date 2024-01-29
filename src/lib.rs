@@ -52,6 +52,7 @@ use r1cs::{
   CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use traits::{
   circuit::StepCircuit,
   commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -109,11 +110,13 @@ where
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: CommitmentKey<E1>,
+  #[abomonate_with(CommitmentKey<E1>)]
+  ck_primary: Arc<CommitmentKey<E1>>,
   circuit_shape_primary: R1CSWithArity<E1>,
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<E2>,
+  #[abomonate_with(CommitmentKey<E2>)]
+  ck_secondary: Arc<CommitmentKey<E2>>,
   circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
@@ -213,6 +216,7 @@ where
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
+    let ck_primary = Arc::new(ck_primary);
     let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     // Initialize ck for the secondary
@@ -225,6 +229,7 @@ where
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
+    let ck_secondary = Arc::new(ck_secondary);
     let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     Self {
@@ -386,7 +391,7 @@ where
     let l_u_primary = u_primary;
     let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary);
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp.circuit_shape_primary.r1cs_shape,
       l_u_primary,
     );
@@ -469,7 +474,7 @@ where
 
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
-      &pp.ck_secondary,
+      &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -510,7 +515,7 @@ where
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
       &pp.circuit_shape_primary.r1cs_shape,
@@ -688,9 +693,7 @@ where
 }
 
 /// A type that holds the prover key for `CompressedSNARK`
-#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_omit_bounds]
+#[derive(Clone, Debug)]
 pub struct ProverKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -706,18 +709,8 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-    C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<E2::Scalar>,
-    S1: RelaxedR1CSSNARKTrait<E1>,
-    S2: RelaxedR1CSSNARKTrait<E2>,
-    <E1::Scalar as PrimeField>::Repr: Abomonation,
-  )]
 pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -731,7 +724,6 @@ where
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
   ro_consts_secondary: ROConstants<E2>,
-  #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
   pp_digest: E1::Scalar,
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
@@ -783,9 +775,12 @@ where
     ),
     NovaError,
   > {
-    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp.circuit_shape_primary.r1cs_shape)?;
-    let (pk_secondary, vk_secondary) =
-      S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
+    let (pk_primary, vk_primary) =
+      S1::setup(pp.ck_primary.clone(), &pp.circuit_shape_primary.r1cs_shape)?;
+    let (pk_secondary, vk_secondary) = S2::setup(
+      pp.ck_secondary.clone(),
+      &pp.circuit_shape_secondary.r1cs_shape,
+    )?;
 
     let pk = ProverKey {
       pk_primary,
@@ -815,7 +810,7 @@ where
   ) -> Result<Self, NovaError> {
     // fold the secondary circuit's instance with its running instance
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
-      &pp.ck_secondary,
+      &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
