@@ -14,7 +14,7 @@ use crate::parafold::nivc::{
 };
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::parafold::transcript::TranscriptConstants;
-use crate::traits::circuit_supernova::EnforcingStepCircuit;
+use crate::supernova::EnforcingStepCircuit;
 use crate::traits::Engine;
 
 /// A representation of a NIVC state, where `io` represents the computations inputs and outputs,
@@ -122,7 +122,7 @@ where
 
     let (pc_curr, z_curr) = (Some(&self.io.pc_out), self.io.z_out.as_slice());
 
-    let (pc_next, z_next) = step_circuit.synthesize(cs_step, pc_curr, z_curr)?;
+    let (pc_next, z_next) = step_circuit.enforcing_synthesize(cs_step, pc_curr, z_curr)?;
 
     self.io.pc_out = pc_next.ok_or(SynthesisError::AssignmentMissing)?;
     self.io.z_out = z_next;

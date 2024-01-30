@@ -4,7 +4,7 @@ use crate::parafold::nivc::circuit::AllocatedNIVCState;
 use crate::parafold::nivc::{NIVCMergeProof, NIVCUpdateProof, NIVCIO};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::parafold::transcript::TranscriptConstants;
-use crate::traits::circuit_supernova::EnforcingStepCircuit;
+use crate::supernova::StepCircuit;
 use crate::traits::Engine;
 
 pub fn synthesize_step<E1, E2, CS, SF>(
@@ -17,7 +17,7 @@ where
   E1: Engine,
   E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
   CS: ConstraintSystem<E1::Scalar>,
-  SF: EnforcingStepCircuit<E1::Scalar>,
+  SF: StepCircuit<E1::Scalar>,
 {
   // Fold proof for previous state
   let (mut state, transcript) =
