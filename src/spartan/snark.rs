@@ -23,7 +23,6 @@ use crate::{
   CommitmentKey,
 };
 
-use abomonation::Abomonation;
 use ff::Field;
 use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
@@ -90,10 +89,7 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   eval_arg: EE::EvaluationArgument,
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as ff::PrimeField>::Repr: Abomonation,
-{
+impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
 

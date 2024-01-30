@@ -34,10 +34,8 @@ use crate::{
   },
   zip_with, Commitment, CommitmentKey, CompressedCommitment,
 };
-use abomonation::Abomonation;
-use abomonation_derive::Abomonation;
 use core::cmp::max;
-use ff::{Field, PrimeField};
+use ff::Field;
 use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
@@ -53,35 +51,26 @@ fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar>
 }
 
 /// A type that holds `R1CSShape` in a form amenable to memory checking
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkRepr<E: Engine> {
   pub(in crate::spartan) N: usize, // size of the vectors
 
   // dense representation
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) row: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) col: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) val_A: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) val_B: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) val_C: Vec<E::Scalar>,
 
   // timestamp polynomials
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) ts_row: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) ts_col: Vec<E::Scalar>,
 }
 
 /// A type that holds a commitment to a sparse polynomial
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkCommitment<E: Engine> {
   pub(in crate::spartan) N: usize, // size of each vector
 
@@ -337,8 +326,6 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
 }
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
 {
   fn prove_helper<T1, T2, T3, T4>(
     mem: &mut T1,
@@ -479,8 +466,6 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
 }
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
 {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
