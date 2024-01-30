@@ -11,8 +11,10 @@ use crate::gadgets::utils::{
   select_num_or_one, select_num_or_zero, select_num_or_zero2, select_one_or_diff2,
   select_one_or_num2, select_zero_or_num2,
 };
-use crate::parafold::transcript::circuit::TranscriptRepresentable;
-use crate::traits::Group;
+use crate::parafold::transcript::circuit::AllocatedTranscript;
+use crate::traits::commitment::CommitmentTrait;
+use crate::traits::{Engine, Group};
+use crate::Commitment;
 
 /// `AllocatedPoint` provides an elliptic curve abstraction inside a circuit.
 #[derive(Debug, Clone)]
@@ -23,18 +25,66 @@ pub struct AllocatedPoint<F: PrimeField, G: Group> {
   _marker: PhantomData<G>,
 }
 
-impl<F: PrimeField, G: Group> TranscriptRepresentable<F> for AllocatedPoint<F, G> {
-  fn to_field_vec(&self) -> Vec<AllocatedNum<F>> {
-    todo!()
-  }
-}
-
 impl<F, G> AllocatedPoint<F, G>
 where
   F: PrimeField,
-  // G: Group,
   G: Group<Base = F>,
 {
+  pub fn select_default<CS>(self, mut cs: CS, is_default: &Boolean) -> Result<Self, SynthesisError>
+  where
+    CS: ConstraintSystem<F>,
+  {
+    let zero = alloc_zero(cs.namespace(|| "alloc 0"));
+    let one = alloc_one(cs.namespace(|| "alloc 1"));
+    let Self {
+      x, y, is_infinity, ..
+    } = self;
+    let x = conditionally_select(cs.namespace(|| "select x"), &zero, &x, is_default)?;
+    let y = conditionally_select(cs.namespace(|| "select y"), &zero, &y, is_default)?;
+    let is_infinity = conditionally_select(
+      cs.namespace(|| "select is_infinity"),
+      &one,
+      &is_infinity,
+      is_default,
+    )?;
+    Ok(Self {
+      x,
+      y,
+      is_infinity,
+      _marker: Default::default(),
+    })
+  }
+
+  pub fn enforce_trivial<CS>(&self, mut cs: CS, is_trivial: &Boolean)
+  where
+    CS: ConstraintSystem<F>,
+  {
+    // is_trivial => (is_identity == 1)
+    // is_trivial == is_identity
+    cs.enforce(
+      || "is_trivial - E.is_infinity = 0",
+      |lc| lc,
+      |lc| lc,
+      |_| is_trivial.lc(CS::one(), F::ONE) - self.is_infinity.get_variable(),
+    );
+  }
+
+  pub fn alloc_transcript<CS, E1, E2>(
+    mut cs: CS,
+    c: Commitment<E2>,
+    transcript: &mut AllocatedTranscript<E1>,
+  ) -> Self
+  where
+    CS: ConstraintSystem<F>,
+    E1: Engine<Scalar = F>,
+    E2: Engine<Base = E1::Scalar, GE = G>,
+  {
+    let c = Self::alloc(&mut cs, Some(c.to_coordinates())).unwrap();
+    c.check_on_curve(cs.namespace(|| "check on curve")).unwrap();
+    transcript.absorb([c.x.clone(), c.y.clone()]);
+    c
+  }
+
   /// Allocates a new point on the curve using coordinates provided by `coords`.
   /// If coords = None, it allocates the default infinity point
   pub fn alloc<CS>(mut cs: CS, coords: Option<(F, F, bool)>) -> Result<Self, SynthesisError>
@@ -61,7 +111,7 @@ where
       x,
       y,
       is_infinity,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -112,19 +162,19 @@ where
   }
 
   /// Allocates a default point on the curve, set to the identity point.
-  pub fn default<CS>(mut cs: CS) -> Result<Self, SynthesisError>
+  pub fn default<CS>(mut cs: CS) -> Self
   where
     CS: ConstraintSystem<F>,
   {
     let zero = alloc_zero(cs.namespace(|| "zero"));
     let one = alloc_one(cs.namespace(|| "one"));
 
-    Ok(Self {
+    Self {
       x: zero.clone(),
       y: zero,
       is_infinity: one,
-      _marker: PhantomData::default(),
-    })
+      _marker: PhantomData,
+    }
   }
 
   /// Returns coordinates associated with the point.
@@ -150,7 +200,7 @@ where
       x: self.x.clone(),
       y,
       is_infinity: self.is_infinity.clone(),
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -369,7 +419,7 @@ where
       x,
       y,
       is_infinity,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -479,7 +529,7 @@ where
       x,
       y,
       is_infinity,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -521,7 +571,7 @@ where
     // convert back to AllocatedPoint
     let res = {
       // we set acc.is_infinity = self.is_infinity
-      let acc = acc.to_allocated_point(&self.is_infinity)?;
+      let acc = acc.to_allocated_point(&self.is_infinity);
 
       // we remove the initial slack if bits[0] is as not as assumed (i.e., it is not 1)
       let acc_minus_initial = {
@@ -539,7 +589,7 @@ where
 
     // when self.is_infinity = 1, return the default point, else return res
     // we already set res.is_infinity to be self.is_infinity, so we do not need to set it here
-    let default = Self::default(cs.namespace(|| "default"))?;
+    let default = Self::default(cs.namespace(|| "default"));
     let x = conditionally_select2(
       cs.namespace(|| "check if self.is_infinity is zero (x)"),
       &default.x,
@@ -559,9 +609,9 @@ where
       x,
       y,
       is_infinity: res.is_infinity,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     };
-    let mut p_complete = p.to_allocated_point(&self.is_infinity)?;
+    let mut p_complete = p.to_allocated_point(&self.is_infinity);
 
     for (i, bit) in complete_bits.iter().enumerate() {
       let temp = acc.add(cs.namespace(|| format!("add_complete {i}")), &p_complete)?;
@@ -603,7 +653,7 @@ where
       x,
       y,
       is_infinity,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -630,8 +680,12 @@ where
       x,
       y,
       is_infinity,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
+  }
+
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<F>> {
+    [self.x.clone(), self.y.clone(), self.is_infinity.clone()]
   }
 }
 
@@ -653,7 +707,7 @@ where
     Self {
       x,
       y,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     }
   }
 
@@ -672,7 +726,7 @@ where
     Ok(Self {
       x,
       y,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -681,21 +735,18 @@ where
     Self {
       x: p.x.clone(),
       y: p.y.clone(),
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     }
   }
 
   /// Returns an `AllocatedPoint` from an `AllocatedPointNonInfinity`
-  pub fn to_allocated_point(
-    &self,
-    is_infinity: &AllocatedNum<F>,
-  ) -> Result<AllocatedPoint<F, G>, SynthesisError> {
-    Ok(AllocatedPoint {
+  pub fn to_allocated_point(&self, is_infinity: &AllocatedNum<F>) -> AllocatedPoint<F, G> {
+    AllocatedPoint {
       x: self.x.clone(),
       y: self.y.clone(),
       is_infinity: is_infinity.clone(),
-      _marker: PhantomData::default(),
-    })
+      _marker: PhantomData,
+    }
   }
 
   /// Returns coordinates associated with the point.
@@ -765,7 +816,7 @@ where
     Ok(Self {
       x,
       y,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -826,7 +877,7 @@ where
     Ok(Self {
       x,
       y,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 
@@ -843,7 +894,7 @@ where
     Ok(Self {
       x,
       y,
-      _marker: PhantomData::default(),
+      _marker: PhantomData,
     })
   }
 }

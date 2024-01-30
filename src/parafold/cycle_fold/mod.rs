@@ -1,56 +1,38 @@
-use std::marker::PhantomData;
-
 use bellpepper_core::num::AllocatedNum;
-use ff::Field;
+use bellpepper_core::ConstraintSystem;
+use ff::{Field, PrimeFieldBits};
+use neptune::Poseidon;
 
-use crate::constants::BN_N_LIMBS;
-use crate::gadgets::nonnative::bignat::BigNat;
-use crate::parafold::nifs_secondary::prover::SecondaryRelaxedR1CSInstance;
-use crate::parafold::nifs_secondary::{
-  AllocatedSecondaryFoldProof, AllocatedSecondaryMergeProof, AllocatedSecondaryRelaxedR1CSInstance,
-};
-use crate::parafold::nifs_secondary::{SecondaryFoldProof, SecondaryMergeProof};
+use crate::constants::{BN_LIMB_WIDTH, BN_N_LIMBS};
+use crate::parafold::transcript::TranscriptConstants;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::Engine;
 use crate::Commitment;
-use crate::parafold::transcript;
 
 pub mod circuit;
-mod circuit_alloc;
 pub mod prover;
 
-/// A native group element for the [Engine] is given by `point = (x, y)` where the coordinates are over the base field.
-/// Inside a circuit, it is represented only as the hash `h = H(x, y)`, where `H` is a hash function with
-/// efficient arithmetization over the base field. The identity element is represented by the zero `hash`.   
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct HashedCommitment<E1: Engine> {
-  point: Commitment<E1>,
-  // Poseidon hash of (x,y) = point. We set hash = 0 when `point` = infinity
-  hash: E1::Base,
-  // E1 representation of `BN_N_LIMBS` limbs with BN_LIMB_WIDTH bits.
-  hash_limbs: Vec<E1::Scalar>,
-}
-
-/// Circuit representation of a [GroupElement<E>]
+/// Compressed representation of a [Commitment] for a proof over the [Engine]'s scalar field.
 ///
 /// # Details
 /// Let F_r be the scalar field over which the circuit is defined, and F_q be the base field of the group G over which
 /// the proof is defined, whose scalar field is F_r. We will assume that r < q, which is the case when we instantiate
 /// the proof over the BN254/Grumpkin curve cycle.
 ///
-/// A [GroupElement] corresponds to a group element C \in G, and would usually be represented by
+/// A [HashedCommitment] corresponds to a group element C \in G, and would usually be represented by
 /// its coordinates (x,y) \in F_q, possibly with a boolean flag indicating whether it is equal to the identity element.
 ///
 /// Representing F_q scalars within a circuit over F_r is expensive since we need to encode these
 /// with range-checked limbs, and any operation performed over these non-native scalar require many constraints
 /// to properly constrain the modular reduction by q.
 ///
-/// An important observation we can make is that the minimal operation we need to support over [GroupElement]s is
+/// An important observation we can make is that the minimal operation we need to support over [HashedCommitment]s is
 /// "multiply-add", and that the internal of the group element are ignored by the recursive verifier.
 ///
-/// We chose to represent the [GroupElement] C as the F_q element
+/// We chose to represent the [HashedCommitment] C as the F_q element
 ///  h_C = H(C) = H((x,y)),
 /// where H is a hash function with efficient arithmetization over F_q.
+/// If C is the identity, then we define h_C = 0.
 ///
 /// The circuit on the secondary curve has IO (h_C, h_A, h_B, x) \in (F_q, F_q, F_q, F_r),
 /// with private inputs A, B \in G, and checks
@@ -60,103 +42,93 @@ pub struct HashedCommitment<E1: Engine> {
 /// When folding a proof for the above IO on the primary curve, each IO elements leads to a non-native "multiply-add",
 /// so this additional hashing that occurs in the secondary circuit ensure we only need to perform this expensive
 /// operation 4 times. Moreover, the fact that r<q ensures that the scalar x \in F_r can be trivially embedded into F_q.
-///
-/// # TODO:
-/// - Move the above details (or a portion of it) to the module documentation
-#[derive(Debug, Clone)]
-pub struct AllocatedHashedCommitment<E1: Engine> {
-  // hash = if let Some(point) = value { H_secondary(point) } else { 0 }
-  value: HashedCommitment<E1>,
-  hash: BigNat<E1::Scalar>,
-}
-
-impl<E1: Engine> transcript::circuit::TranscriptRepresentable<E1::Scalar>
-  for AllocatedHashedCommitment<E1>
-{
-  fn to_field_vec(&self) -> Vec<AllocatedNum<E1::Scalar>> {
-    //
-    todo!()
-  }
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HashedCommitment<E1: Engine> {
+  point: Commitment<E1>,
+  // Poseidon hash of (x,y) = point. We set hash = 0 when `point` = infinity
+  hash: E1::Base,
+  // E1 representation of `BN_N_LIMBS` limbs with BN_LIMB_WIDTH bits.
+  hash_limbs: [E1::Scalar; BN_N_LIMBS],
 }
 
 impl<E1: Engine> HashedCommitment<E1> {
-  pub fn new(C: Commitment<E1>) -> Self {
-    let (_x, _y, infinity) = C.to_coordinates();
+  /// Convert a [Commitment] to it's compressed representation.
+  ///
+  /// # TODO:
+  /// - The Poseidon constants for `H(x,y)` over F_q are defined by `constants.1`.
+  pub fn new(point: Commitment<E1>, constants: &TranscriptConstants<E1>) -> Self {
+    let (x, y, infinity) = point.to_coordinates();
     if infinity {
       Self {
-        point: C,
+        point,
         hash: E1::Base::ZERO,
-        hash_limbs: vec![E1::Scalar::ZERO; BN_N_LIMBS],
+        hash_limbs: [E1::Scalar::ZERO; BN_N_LIMBS],
       }
     } else {
-      // TODO
-      // Compute hash = H(x,y)
-      // decompose hash into BN_N_LIMBS with BN_LIMB_WIDTH bits each
+      let hash = Poseidon::new_with_preimage(&[x, y], &constants.1).hash();
+      let hash_limbs = hash
+        .to_le_bits()
+        .chunks_exact(BN_LIMB_WIDTH)
+        .map(|limb_bits| {
+          // TODO: Find more efficient trick
+          let mut limb = E1::Scalar::ZERO;
+          for bit in limb_bits.iter().rev() {
+            // double limb
+            limb += limb;
+            if *bit {
+              limb += E1::Scalar::ONE;
+            }
+          }
+          limb
+        })
+        .collect::<Vec<E1::Scalar>>();
+
       Self {
-        point: C,
-        hash: E1::Base::ZERO,
-        hash_limbs: vec![E1::Scalar::ZERO; BN_N_LIMBS],
+        point,
+        hash,
+        hash_limbs: hash_limbs.try_into().unwrap(),
       }
     }
   }
-}
 
-impl<E1: Engine> transcript::prover::TranscriptRepresentable<E1::Scalar> for HashedCommitment<E1> {
-  fn to_field_vec(&self) -> Vec<E1::Scalar> {
-    self.hash_limbs.clone()
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = E1::Scalar> {
+    self.hash_limbs
   }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScalarMulAccumulatorInstance<E2: Engine> {
-  acc: SecondaryRelaxedR1CSInstance<E2>,
-}
-
-/// Circuit representation of a RelaxedR1CS accumulator of the non-native scalar multiplication circuit.
+/// Allocated [HashedCommitment]
 ///
-/// # Future work
-/// While the secondary circuit will be quite small, generating a proof for it may lead to bottlenecks in
-/// the full prover pipeline, since each operation needs to be proved sequentially. The small size of the circuit
-/// also prevents efficient use of parallelism.
+/// # Details
+/// Inside the primary circuit, a [Commitment] C is represented by the limbs of the hash `h_C = H(C.x, C.y)`.
+/// The limbs of `h_C` are not range-checked and we assume this check occurs during the conversion to a big integer.
 ///
-/// One way to side-step this issue is to defer all proving until the end of the interaction, while still ensuring
-/// that the non-interactive instantiation of the protocol is safe.
-///
-/// Whenever `scalar_mul(A, B, x, transcript)` is called, the function will only compute the result `C <- A + x * B`
-/// and add `C` to the `transcript`. This defines an instance `X = [A, B, C, x]` of the secondary circuit,
-/// which can be appended to a list of deferred instances stored inside the mutable accumulator.
-/// At the end of the protocol, the accumulator is "finalized" before being returned as output. This involves the prover
-/// synthesizing and proving each instance of the circuit, until the list of deferred instances is empty.
-///
-/// The `merge` operation can simply compute the actual merged folding accumulators, while concatenating the two lists
-/// of deferred instances.  
+/// # TODO
+/// - Investigate whether a `is_infinity` flag is needed. It could be used to avoid synthesizing secondary circuits
+///   when the scalar multiplication is trivial.
 #[derive(Debug, Clone)]
-pub struct AllocatedScalarMulAccumulator<E1: Engine, E2: Engine> {
-  acc: AllocatedSecondaryRelaxedR1CSInstance<E1, E2>,
+pub struct AllocatedHashedCommitment<E1: Engine> {
+  value: Commitment<E1>,
+  // hash = if let Some(point) = value { H_secondary(point) } else { 0 }
+  hash_limbs: [AllocatedNum<E1::Scalar>; BN_N_LIMBS],
 }
 
-/// A proof for a non-native group operation C = A + x * B, where x is a native scalar
-/// and A, B, C, are non-native group elements
-#[derive(Debug, Clone, Default)]
-pub struct ScalarMulFoldProof<E1: Engine, E2: Engine> {
-  output: HashedCommitment<E1>,
-  proof: SecondaryFoldProof<E2>,
-}
+impl<E1: Engine> AllocatedHashedCommitment<E1> {
+  pub fn alloc<CS>(mut cs: CS, c: Commitment<E1>, constants: &TranscriptConstants<E1>) -> Self
+  where
+    CS: ConstraintSystem<E1::Scalar>,
+  {
+    let hashed = HashedCommitment::<E1>::new(c, constants);
+    let hash_limbs = hashed
+      .hash_limbs
+      .map(|limb| AllocatedNum::alloc_infallible(cs.namespace(|| "alloc limb"), || limb));
 
-#[derive(Debug, Clone)]
-pub struct AllocatedScalarMulFoldProof<E1: Engine, E2: Engine> {
-  output: AllocatedHashedCommitment<E1>,
-  proof: AllocatedSecondaryFoldProof<E1, E2>,
-}
+    Self {
+      value: c,
+      hash_limbs,
+    }
+  }
 
-///
-#[derive(Debug, Clone)]
-pub struct ScalarMulMergeProof<E1: Engine, E2: Engine> {
-  proof: SecondaryMergeProof<E2>,
-  _marker: PhantomData<E1>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AllocatedScalarMulMergeProof<E1: Engine, E2: Engine> {
-  proof: AllocatedSecondaryMergeProof<E1, E2>,
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> {
+    self.hash_limbs.clone()
+  }
 }

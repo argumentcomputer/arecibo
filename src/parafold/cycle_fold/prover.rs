@@ -1,51 +1,114 @@
-use crate::parafold::cycle_fold::{
-  HashedCommitment, ScalarMulAccumulatorInstance, ScalarMulFoldProof, ScalarMulMergeProof,
-};
-use crate::parafold::transcript::prover::Transcript;
-use crate::traits::Engine;
+use bellpepper_core::ConstraintSystem;
 
-#[derive(Debug)]
-pub struct ScalarMulAccumulator<E2: Engine> {
-  // ro consts secondary?
-  // used to hash the incoming point
-  instance: ScalarMulAccumulatorInstance<E2>,
-  W: Vec<E2::Scalar>,
-  E: Vec<E2::Scalar>,
+use crate::bellpepper::solver::SatisfyingAssignment;
+use crate::parafold::cycle_fold::HashedCommitment;
+use crate::parafold::nifs::prover::RelaxedR1CS;
+use crate::parafold::nifs::FoldProof;
+use crate::parafold::transcript::prover::Transcript;
+use crate::parafold::transcript::TranscriptConstants;
+use crate::r1cs::R1CSShape;
+use crate::traits::Engine;
+use crate::{Commitment, CommitmentKey};
+
+/// A [ScalarMulAccumulator] represents a coprocessor for efficiently computing non-native ECC scalar multiplications
+/// inside a circuit.
+///
+/// # Details
+/// During an interactive proof, all scalar multiplications operations are deferred and collected
+/// into this data structure. Since the results of the operation are provided non-deterministically, it must be
+/// added to the Fiat-Shamir transcript as it represents a value "provided by the prover".
+///
+/// All operations are proved in a batch at the end of the circuit in order to minimize latency for the prover.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarMulAccumulator<E1: Engine> {
+  constants: TranscriptConstants<E1>,
+  deferred: Vec<ScalarMulInstance<E1>>,
 }
 
-impl<E2: Engine> ScalarMulAccumulator<E2> {
+impl<E1: Engine> ScalarMulAccumulator<E1> {
+  pub fn new(constants: TranscriptConstants<E1>) -> Self {
+    Self {
+      constants,
+      deferred: vec![],
+    }
+  }
+
+  /// Given two commitments `A`, `B` and a scalar `x`, compute `C <- A + x * B`
   ///
-  pub fn scalar_mul<E1: Engine<Scalar = E2::Base>>(
+  /// # Details
+  /// Since the result `C` is computed by the prover, it is added to the transcript.
+  /// The tuple `[A, B, x, C]` is added to the `deferred` list which will be proved in a batch later on.
+  pub fn scalar_mul(
     &mut self,
-    _A: &HashedCommitment<E1>,
-    _B: &HashedCommitment<E1>,
-    _x: &E1::Scalar,
-    _transcript: &mut Transcript<E1>,
-  ) -> (HashedCommitment<E1>, ScalarMulFoldProof<E1, E2>) {
-    // Compute C = A + x * B
-    // Compute W proof of this operation
-    // compute H(C) as the circuit representation of C, where H is Poseidon on the secondary curve
-    // Add C,W to the transcript
-    // Set X = [H(A), H(B), X, H(C)] and fold into self
-    // return proof
-    todo!()
+    A: Commitment<E1>,
+    B: Commitment<E1>,
+    x: E1::Scalar,
+    transcript: &mut Transcript<E1>,
+  ) -> Commitment<E1> {
+    let C_value = A + B * x;
+
+    let C = self.add_to_transcript(C_value, transcript);
+
+    self.deferred.push(ScalarMulInstance {
+      A: HashedCommitment::new(A, &self.constants),
+      B: HashedCommitment::new(B, &self.constants),
+      x,
+      C,
+    });
+    C_value
   }
 
-  /// Compute
-  pub fn merge<E1: Engine<Scalar = E2::Base>>(
+  /// Convert a [Commitment] to a [HashedCommitment] and add it to the transcript.
+  pub fn add_to_transcript(
+    &self,
+    C: Commitment<E1>,
+    transcript: &mut Transcript<E1>,
+  ) -> HashedCommitment<E1> {
+    let C = HashedCommitment::new(C, &self.constants);
+    transcript.absorb(C.hash_limbs);
+    C
+  }
+
+  /// Consume all deferred scalar multiplication instances and create a folding proof for each result.
+  /// The proofs are folded into a mutable RelaxedR1CS for the corresponding circuit over the secondary curve.
+  pub fn finalize<E2>(
     self,
-    _other: &Self,
-    _transcript: &mut Transcript<E1>,
-  ) -> (Self, ScalarMulMergeProof<E1, E2>) {
-    // self and other will not need to be added to the transcript since they are obtained from an accumulator
-    // we need to compute the T cross term vector
-    // add T to transcript
-    // return linear combination of both accumulators
-    todo!()
+    ck: &CommitmentKey<E2>,
+    shape: &R1CSShape<E2>,
+    acc_cf: &mut RelaxedR1CS<E2>,
+    transcript: &mut Transcript<E1>,
+  ) -> Vec<FoldProof<E2>>
+  where
+    E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
+  {
+    self
+      .deferred
+      .into_iter()
+      .map(|_instance| {
+        let cs = SatisfyingAssignment::<E2>::new();
+        // TODO: synthesize the circuit that proves `instance`
+        let (X, W) = cs.to_assignments();
+        acc_cf.fold_secondary(ck, shape, X, &W, transcript)
+      })
+      .collect()
   }
 
-  /// Return the succinct instance of the accumulator
-  pub(crate) fn instance(&self) -> ScalarMulAccumulatorInstance<E2> {
-    self.instance.clone()
+  pub fn simulate_finalize<E2>(self, transcript: &mut Transcript<E1>) -> Vec<FoldProof<E2>>
+  where
+    E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
+  {
+    self
+      .deferred
+      .into_iter()
+      .map(|_| RelaxedR1CS::<E2>::simulate_fold_secondary(transcript))
+      .collect()
   }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ScalarMulInstance<E1: Engine> {
+  A: HashedCommitment<E1>,
+  B: HashedCommitment<E1>,
+  x: E1::Scalar,
+  C: HashedCommitment<E1>,
 }

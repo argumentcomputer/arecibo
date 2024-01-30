@@ -3,37 +3,40 @@ use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use itertools::*;
 
-use crate::parafold::cycle_fold::AllocatedScalarMulAccumulator;
-use crate::parafold::nifs_primary::{
-  AllocatedFoldProof, AllocatedMergeProof, AllocatedRelaxedR1CSInstance,
-};
+use crate::parafold::cycle_fold::circuit::AllocatedScalarMulAccumulator;
+use crate::parafold::cycle_fold::AllocatedHashedCommitment;
+use crate::parafold::nifs::{FoldProof, MergeProof, RelaxedR1CSInstance};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
+use crate::parafold::transcript::TranscriptConstants;
 use crate::traits::Engine;
+
+/// Allocated [RelaxedR1CSInstance]
+#[derive(Debug, Clone)]
+pub struct AllocatedRelaxedR1CSInstance<E1: Engine> {
+  u: AllocatedNum<E1::Scalar>,
+  X: Vec<AllocatedNum<E1::Scalar>>,
+  W: AllocatedHashedCommitment<E1>,
+  E: AllocatedHashedCommitment<E1>,
+}
 
 impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
   /// Folds an R1CSInstance into `self`
-  pub fn fold<CS, E2: Engine<Base = E1::Scalar>>(
-    &mut self,
+  pub fn fold<CS>(
+    self,
     mut cs: CS,
     X_new: Vec<AllocatedNum<E1::Scalar>>,
-    acc_sm: &mut AllocatedScalarMulAccumulator<E1, E2>,
-    fold_proof: AllocatedFoldProof<E1, E2>,
+    acc_sm: &mut AllocatedScalarMulAccumulator<E1>,
+    fold_proof: FoldProof<E1>,
     transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<(), SynthesisError>
+  ) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
-    let AllocatedFoldProof {
-      W: W_new,
-      T,
-      W_sm_proof,
-      E_sm_proof,
-    } = fold_proof;
+    let FoldProof { W: W_new, T } = fold_proof;
+    let W_new = acc_sm.alloc_transcript(cs.namespace(|| "alloc W_new"), W_new, transcript);
+    let T = acc_sm.alloc_transcript(cs.namespace(|| "alloc E"), T, transcript);
 
-    transcript.absorb(&W_new);
-    transcript.absorb(&T);
-
-    let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
+    let r = transcript.squeeze(&mut cs.namespace(|| "squeeze r"))?;
 
     let Self {
       W: W_curr,
@@ -55,7 +58,6 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
       W_curr.clone(),
       W_new.clone(),
       r.clone(),
-      W_sm_proof,
       transcript,
     )?;
     let E_next = acc_sm.scalar_mul(
@@ -63,67 +65,56 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
       E_curr.clone(),
       T.clone(),
       r.clone(),
-      E_sm_proof,
       transcript,
     )?;
 
-    *self = Self {
+    Ok(Self {
       u: u_next,
       X: X_next,
       W: W_next,
       E: E_next,
-    };
-
-    Ok(())
+    })
   }
 
-  pub fn merge_many<CS, E2: Engine<Base = E1::Scalar>>(
+  /// Optimized merge over the primary curve, where the same `r` is used across many accumulators.
+  pub fn merge_many<CS>(
     mut cs: CS,
     accs_L: Vec<Self>,
     accs_R: Vec<Self>,
-    acc_sm: &mut AllocatedScalarMulAccumulator<E1, E2>,
-    merge_proofs: Vec<AllocatedMergeProof<E1, E2>>,
+    acc_sm: &mut AllocatedScalarMulAccumulator<E1>,
+    proofs: Vec<MergeProof<E1>>,
     transcript: &mut AllocatedTranscript<E1>,
   ) -> Result<Vec<Self>, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
-    let (nifs_proofs, sm_proofs): (Vec<_>, Vec<_>) = merge_proofs
+    // Add all cross-term commitments to the transcript.
+    let Ts = proofs
       .into_iter()
-      .map(|merge_proof| {
-        let AllocatedMergeProof {
-          T,
-          W_sm_proof,
-          E1_sm_proof,
-          E2_sm_proof,
-        } = merge_proof;
-        (T, [W_sm_proof, E1_sm_proof, E2_sm_proof])
-      })
-      .unzip();
+      .map(|proof| acc_sm.alloc_transcript(cs.namespace(|| "alloc Ts"), proof.T, transcript))
+      .collect::<Vec<_>>();
 
-    for nifs_proof in &nifs_proofs {
-      transcript.absorb(nifs_proof);
-    }
-
+    // Get common challenge
     let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
 
+    // Merge all accumulators
     let accs_next = zip_eq(accs_L, accs_R)
-      .zip_eq(zip_eq(nifs_proofs, sm_proofs))
-      .map(|((acc_L, acc_R), (T, sm_proof))| {
+      .zip_eq(Ts)
+      .map(|((acc_L, acc_R), T)| {
         let Self {
           u: u_L,
           X: X_L,
           W: W_L,
           E: E_L,
+          ..
         } = acc_L;
         let Self {
           u: u_R,
           X: X_R,
           W: W_R,
           E: E_R,
+          ..
         } = acc_R;
-
-        let [W_sm_proof, E1_sm_proof, E2_sm_proof] = sm_proof;
 
         let u_next = mul_add(cs.namespace(|| "u_new"), &u_L, &u_R, &r)?;
         let X_next = zip_eq(X_L, X_R)
@@ -135,7 +126,6 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
           W_L.clone(),
           W_R.clone(),
           r.clone(),
-          W_sm_proof,
           transcript,
         )?;
         let E1_next = acc_sm.scalar_mul(
@@ -143,28 +133,72 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
           T.clone(),
           E_R.clone(),
           r.clone(),
-          E1_sm_proof,
           transcript,
         )?;
         let E_next = acc_sm.scalar_mul(
-          cs.namespace(|| "E2_next"),
+          cs.namespace(|| "E_next"),
           E_L.clone(),
           E1_next.clone(),
           r.clone(),
-          E2_sm_proof,
           transcript,
         )?;
 
         Ok::<Self, SynthesisError>(Self {
-          W: W_next,
-          E: E_next,
           u: u_next,
           X: X_next,
+          W: W_next,
+          E: E_next,
         })
       })
       .collect::<Result<Vec<_>, _>>()?;
 
     Ok(accs_next)
+  }
+
+  /// Compute the hash of the accumulator over the primary curve.  
+  pub fn hash<CS>(
+    &self,
+    mut cs: CS,
+    constants: &TranscriptConstants<E1>,
+  ) -> Result<AllocatedNum<E1::Scalar>, SynthesisError>
+  where
+    CS: ConstraintSystem<E1::Scalar>,
+  {
+    let mut transcript = AllocatedTranscript::<E1>::new(constants.clone());
+    transcript.absorb(self.as_preimage());
+    transcript.squeeze(&mut cs)
+  }
+
+  pub fn alloc<CS>(
+    mut cs: CS,
+    instance: RelaxedR1CSInstance<E1>,
+    constants: &TranscriptConstants<E1>,
+  ) -> Self
+  where
+    CS: ConstraintSystem<E1::Scalar>,
+  {
+    // TODO: Add the circuit digest
+    let RelaxedR1CSInstance { u, X, W, E } = instance;
+    let u = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc u"), || u);
+    let X = X
+      .into_iter()
+      .enumerate()
+      .map(|(i, X)| AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc X[{i}]")), || X))
+      .collect();
+    let W = AllocatedHashedCommitment::alloc(cs.namespace(|| "alloc W"), W, constants);
+    let E = AllocatedHashedCommitment::alloc(cs.namespace(|| "alloc E"), E, constants);
+
+    Self { u, X, W, E }
+  }
+
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> + '_ {
+    // TODO: Add the circuit digest
+    chain![
+      [self.u.clone()],
+      self.X.iter().cloned(),
+      self.W.as_preimage(),
+      self.E.as_preimage()
+    ]
   }
 }
 

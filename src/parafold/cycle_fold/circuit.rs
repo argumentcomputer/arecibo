@@ -1,64 +1,125 @@
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
+use itertools::{chain, zip_eq};
 
-use crate::parafold::cycle_fold::{
-  AllocatedHashedCommitment, AllocatedScalarMulAccumulator, AllocatedScalarMulFoldProof,
-  AllocatedScalarMulMergeProof,
-};
-use crate::parafold::nifs_secondary::AllocatedSecondaryRelaxedR1CSInstance;
+use crate::parafold::cycle_fold::AllocatedHashedCommitment;
+use crate::parafold::nifs::circuit_secondary::AllocatedSecondaryRelaxedR1CSInstance;
+use crate::parafold::nifs::FoldProof;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
+use crate::parafold::transcript::TranscriptConstants;
 use crate::traits::Engine;
+use crate::Commitment;
 
-impl<E1, E2> AllocatedScalarMulAccumulator<E1, E2>
+#[derive(Debug, Clone)]
+pub struct AllocatedScalarMulAccumulator<E1: Engine> {
+  constants: TranscriptConstants<E1>,
+  deferred: Vec<AllocatedScalarMulInstance<E1>>,
+}
+
+impl<E1> AllocatedScalarMulAccumulator<E1>
 where
   E1: Engine,
-  E2: Engine<Base = E1::Scalar>,
 {
+  pub fn new(constants: TranscriptConstants<E1>) -> Self {
+    Self {
+      constants,
+      deferred: vec![],
+    }
+  }
+
+  pub fn alloc_transcript<CS>(
+    &self,
+    mut cs: CS,
+    commitment: Commitment<E1>,
+    transcript: &mut AllocatedTranscript<E1>,
+  ) -> AllocatedHashedCommitment<E1>
+  where
+    CS: ConstraintSystem<E1::Scalar>,
+  {
+    let c = AllocatedHashedCommitment::alloc(&mut cs, commitment, &self.constants);
+    transcript.absorb(c.as_preimage());
+    c
+  }
+
   /// Compute the result `C <- A + x * B` by folding a proof over the secondary curve.
   pub fn scalar_mul<CS>(
     &mut self,
-    /*mut*/ cs: CS,
+    mut cs: CS,
     A: AllocatedHashedCommitment<E1>,
     B: AllocatedHashedCommitment<E1>,
-    _x: AllocatedNum<E1::Scalar>,
-    proof: AllocatedScalarMulFoldProof<E1, E2>,
+    x: AllocatedNum<E1::Scalar>,
     transcript: &mut AllocatedTranscript<E1>,
   ) -> Result<AllocatedHashedCommitment<E1>, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
-    let AllocatedScalarMulFoldProof { output, proof } = proof;
-    transcript.absorb(&output);
+    let A_value = A.value;
+    let B_value = B.value;
+    let x_value = x.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+    let C_value = A_value + B_value * x_value;
+    let C = self.alloc_transcript(cs.namespace(|| "alloc output"), C_value, transcript);
 
-    let X_new = vec![
-      A.hash,
-      B.hash,
-      // TODO: alloc x as big nat
-      // BigNat::(cs.namespace(|| "alloc x"), Some(x))?,
-      output.hash.clone(),
-    ];
+    self.deferred.push(AllocatedScalarMulInstance {
+      A,
+      B,
+      x,
+      C: C.clone(),
+    });
 
-    self.acc.fold(cs, X_new, proof, transcript)?;
-
-    Ok(output)
+    Ok(C)
   }
 
   /// Merges another existing [AllocatedScalarMulAccumulator] into `self`
-  pub fn merge<CS>(
-    cs: CS,
-    self_L: Self,
-    self_R: Self,
-    proof: AllocatedScalarMulMergeProof<E1, E2>,
+  pub fn merge(mut self_L: Self, mut self_R: Self) -> Self {
+    self_L.deferred.append(&mut self_R.deferred);
+    self_L
+  }
+
+  pub fn finalize<CS, E2>(
+    self,
+    mut cs: CS,
+    mut acc_cf: AllocatedSecondaryRelaxedR1CSInstance<E1, E2>,
+    proofs: impl IntoIterator<Item = FoldProof<E2>>,
     transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<Self, SynthesisError>
+  ) -> Result<AllocatedSecondaryRelaxedR1CSInstance<E1, E2>, SynthesisError>
   where
     CS: ConstraintSystem<E1::Scalar>,
+    E2: Engine<Base = E1::Scalar>,
   {
-    let Self { acc: acc_L } = self_L;
-    let Self { acc: acc_R } = self_R;
-    let AllocatedScalarMulMergeProof { proof } = proof;
-    let acc_next =
-      AllocatedSecondaryRelaxedR1CSInstance::merge(cs, acc_L, acc_R, proof, transcript)?;
-    Ok(Self { acc: acc_next })
+    for (instance, proof) in zip_eq(self.deferred, proofs) {
+      let AllocatedScalarMulInstance { A, B, x, C } = instance;
+      let _X_tmp: Vec<_> = chain![A.as_preimage(), B.as_preimage(), [x], C.as_preimage()].collect();
+
+      // TODO: In order to avoid computing unnecessary proofs, we can check
+      // - x = 0 => C = A
+
+      // Convert the elements in the instance to a bignum modulo E1::Base.
+      // Since |E1::Scalar| < |E1::Base|, we can create the limbs without an initial bound-check
+      // We should check here that the limbs are of the right size, but not-necessarily bound check them.
+      // X = [A.as_bignum(), B.as_bignum(), x.as_bignum(), C.as_bignum()]
+      let X = vec![];
+      acc_cf.fold(cs.namespace(|| "fold cf instance"), X, proof, transcript)?;
+    }
+
+    Ok(acc_cf)
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct AllocatedScalarMulInstance<E1: Engine> {
+  A: AllocatedHashedCommitment<E1>,
+  B: AllocatedHashedCommitment<E1>,
+  x: AllocatedNum<E1::Scalar>,
+  C: AllocatedHashedCommitment<E1>,
+}
+
+impl<E1: Engine> AllocatedScalarMulInstance<E1> {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> + '_ {
+    chain![
+      self.A.as_preimage(),
+      self.B.as_preimage(),
+      [self.x.clone()],
+      self.C.as_preimage()
+    ]
   }
 }

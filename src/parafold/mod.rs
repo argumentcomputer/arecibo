@@ -3,15 +3,14 @@ mod cycle_fold;
 #[allow(dead_code)]
 mod ecc;
 #[allow(dead_code)]
-mod nifs_primary;
-#[allow(dead_code)]
-mod nifs_secondary;
+mod nifs;
 #[allow(dead_code)]
 mod nivc;
 #[allow(dead_code)]
 mod prover;
 #[allow(dead_code)]
 mod transcript;
+mod circuit;
 
 // pub struct ProvingKey<E: Engine> {
 //   /// Commitment Key
