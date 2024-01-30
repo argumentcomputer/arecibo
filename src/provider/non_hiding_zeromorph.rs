@@ -519,90 +519,24 @@ mod test {
   use rand_chacha::ChaCha20Rng;
   use rand_core::SeedableRng;
   use std::borrow::Borrow;
-  use std::iter;
   use std::sync::Arc;
 
   use super::quotients;
-  use super::trim_zeromorph;
 
   use crate::{
     errors::PCSError,
     provider::{
-      keccak::Keccak256Transcript,
       non_hiding_kzg::{
         trim, KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS,
       },
-      non_hiding_zeromorph::{
-        batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMEvaluation, ZMPCS,
-      },
+      non_hiding_zeromorph::{batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMPCS},
       traits::DlogGroup,
       util::test_utils::prove_verify_from_num_vars,
-      Bn256Engine, Bn256EngineZM,
+      Bn256EngineZM,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
-    traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
     NovaError,
   };
-
-  fn commit_open_verify_with<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>>()
-  where
-    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
-    <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
-    E::Fr: PrimeFieldBits,
-  {
-    let max_vars = 16;
-    let mut rng = thread_rng();
-    let max_poly_size = 1 << (max_vars + 1);
-    let universal_setup = Arc::new(UniversalKZGParam::<E>::gen_srs_for_testing(
-      &mut rng,
-      max_poly_size,
-    ));
-
-    for num_vars in 3..max_vars {
-      // Setup
-      let (pp, vk) = {
-        let poly_size = 1 << (num_vars + 1);
-
-        trim_zeromorph(universal_setup.clone(), poly_size)
-      };
-
-      // Commit and open
-      let mut transcript = Keccak256Transcript::<NE>::new(b"test");
-      let poly = MultilinearPolynomial::<E::Fr>::random(num_vars, &mut thread_rng());
-      let comm = ZMPCS::<E, NE>::commit(&pp, &poly).unwrap();
-      let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
-        .take(num_vars)
-        .collect::<Vec<_>>();
-      let eval = ZMEvaluation(poly.evaluate(&point));
-
-      let mut transcript_prover = Keccak256Transcript::<NE>::new(b"test");
-      let proof = ZMPCS::open(&pp, &comm, &poly, &point, &eval, &mut transcript_prover).unwrap();
-
-      // Verify
-      let mut transcript_verifier = Keccak256Transcript::<NE>::new(b"test");
-      let result = ZMPCS::verify(
-        &vk,
-        &mut transcript_verifier,
-        &comm,
-        point.as_slice(),
-        &eval,
-        &proof,
-      );
-
-      // check both random oracles are synced, as expected
-      assert_eq!(
-        transcript_prover.squeeze(b"test"),
-        transcript_verifier.squeeze(b"test")
-      );
-
-      result.unwrap();
-    }
-  }
-
-  #[test]
-  fn test_commit_open_verify() {
-    commit_open_verify_with::<Bn256, Bn256Engine>();
-  }
 
   #[test]
   fn test_multiple_polynomial_size() {
