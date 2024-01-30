@@ -6,7 +6,6 @@
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-use abomonation::Abomonation;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
@@ -103,8 +102,6 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   for BatchedRelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as ff::PrimeField>::Repr: Abomonation,
 {
   type ProverKey = ProverKey<E, EE>;
 

@@ -34,8 +34,7 @@ use crate::{
   },
   zip_with, zip_with_for_each, Commitment, CommitmentKey, CompressedCommitment,
 };
-use abomonation::Abomonation;
-use ff::{Field, PrimeField};
+use ff::Field;
 use itertools::{chain, Itertools as _};
 use once_cell::sync::*;
 use rayon::prelude::*;
@@ -126,8 +125,6 @@ pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   for BatchedRelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
 {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
@@ -1088,10 +1085,7 @@ where
   }
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
-{
+impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARK<E, EE> {
   /// Runs the batched Sumcheck protocol for the claims of multiple instance of possibly different sizes.
   ///
   /// # Details
