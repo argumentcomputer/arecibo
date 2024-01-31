@@ -3,7 +3,7 @@ use core::fmt::Debug;
 use thiserror::Error;
 
 /// Errors returned by Nova
-#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[derive(Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum NovaError {
   /// returned if the supplied row or col in (row,col,val) tuple is out of range
@@ -72,7 +72,7 @@ pub enum NovaError {
 }
 
 /// Errors specific to the Polynomial commitment scheme
-#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[derive(Debug, Eq, PartialEq, Error)]
 pub enum PCSError {
   /// returned when an invalid inner product argument is provided
   #[error("InvalidIPA")]
