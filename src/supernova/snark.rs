@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// A type that holds the prover key for `CompressedSNARK`
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ProverKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -33,7 +33,7 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -49,7 +49,7 @@ where
 }
 
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
 where
