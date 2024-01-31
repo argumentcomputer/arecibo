@@ -209,7 +209,7 @@ where
 }
 
 /// Provides a commitment engine
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitmentEngine<E> {
   _p: PhantomData<E>,
 }
