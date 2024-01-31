@@ -666,22 +666,6 @@ mod tests {
     let minus_r = -r;
     let r_squared = r * r;
 
-    /// UNIT-TEST
-    let evals_at_r = Pi
-      .clone()
-      .into_iter()
-      .map(|poly| UniPoly::new(poly).evaluate(&r))
-      .collect::<Vec<Fr>>();
-
-    let eval_r_expected = evals_at_r
-      .iter()
-      .zip(q_powers.iter())
-      .map(|(eval, q)| eval * q)
-      .collect::<Vec<Fr>>()
-      .into_iter()
-      .sum::<Fr>();
-    assert_eq!(evals_at_r, eval_r_expected);
-    ///
     let eval_r = batched_Pi.evaluate(&r);
     let eval_minus_r = batched_Pi.evaluate(&minus_r);
     let eval_r_squared = batched_Pi.evaluate(&r_squared);
@@ -723,6 +707,7 @@ mod tests {
     let minus_R_x = UVKZGPoly::new(
       R_x
         .coeffs
+        .clone()
         .into_iter()
         .map(|coeff| -coeff)
         .collect::<Vec<Fr>>(),

@@ -16,6 +16,7 @@ pub(crate) mod traits;
 mod kzg_commitment;
 mod kzg_impl;
 mod non_hiding_kzg;
+mod shplonk;
 pub(crate) mod util;
 
 // crate-private modules
