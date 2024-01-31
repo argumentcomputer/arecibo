@@ -13,9 +13,9 @@ use crate::{
     non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
-    util::iterators::DoubleEndedIteratorExt as _,
+    util::iterators::IndexedParallelIteratorExt as _,
   },
-  spartan::polys::univariate::UniPoly,
+  spartan::{polys::univariate::UniPoly, powers},
   traits::{
     commitment::{CommitmentEngineTrait, Len},
     evaluation::EvaluationEngineTrait,
@@ -92,9 +92,7 @@ where
 
   /// Compute powers of q : (1, q, q^2, ..., q^(k-1))
   pub fn batch_challenge_powers(q: E::Fr, k: usize) -> Vec<E::Fr> {
-    std::iter::successors(Some(E::Fr::ONE), |&x| Some(x * q))
-      .take(k)
-      .collect()
+    powers(&q, k)
   }
 
   /// TODO: write doc
@@ -182,7 +180,7 @@ where
      -> (Vec<E::G1Affine>, Vec<Vec<E::Fr>>) {
       let kzg_compute_batch_polynomial = |f: Vec<Vec<E::Fr>>, q: E::Fr| -> Vec<E::Fr> {
         // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
-        let B: UniPoly<E::Fr> = f.into_iter().map(UniPoly::new).rlc(&q);
+        let B: UniPoly<E::Fr> = f.into_par_iter().map(UniPoly::new).rlc(&q);
         B.coeffs
       };
       ///////// END kzg_open_batch closure helpers

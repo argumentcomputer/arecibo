@@ -367,7 +367,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARK<E, EE> {
       .collect::<Vec<E::Scalar>>();
 
     let s = transcript.squeeze(b"r")?;
-    let coeffs = powers::<E>(&s, claims.len());
+    let coeffs = powers(&s, claims.len());
 
     // compute the joint claim
     let claim = zip_with!((claims.iter(), coeffs.iter()), |c_1, c_2| *c_1 * c_2).sum();
@@ -879,7 +879,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
     let num_claims = 10;
     let s = transcript.squeeze(b"r")?;
-    let coeffs = powers::<E>(&s, num_claims);
+    let coeffs = powers(&s, num_claims);
     let claim = (coeffs[7] + coeffs[8]) * claim; // rest are zeros
 
     // verify sc

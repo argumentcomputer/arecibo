@@ -202,7 +202,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
-    let outer_r_powers = powers::<E>(&outer_r, num_instances);
+    let outer_r_powers = powers(&outer_r, num_instances);
 
     // Verify outer sumcheck: Az * Bz - uCz_E for each instance
     let (sc_proof_outer, r_x, claims_outer) = SumcheckProof::prove_cubic_with_additive_term_batch(
@@ -257,7 +257,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let inner_r = transcript.squeeze(b"in_r")?;
     let inner_r_square = inner_r.square();
     let inner_r_cube = inner_r_square * inner_r;
-    let inner_r_powers = powers::<E>(&inner_r_cube, num_instances);
+    let inner_r_powers = powers(&inner_r_cube, num_instances);
 
     let claims_inner_joint = evals_Az_Bz_Cz
       .iter()
@@ -405,7 +405,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
-    let outer_r_powers = powers::<E>(&outer_r, num_instances);
+    let outer_r_powers = powers(&outer_r, num_instances);
 
     let (claim_outer_final, r_x) = self.sc_proof_outer.verify_batch(
       &vec![E::Scalar::ZERO; num_instances],
@@ -456,7 +456,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let inner_r = transcript.squeeze(b"in_r")?;
     let inner_r_square = inner_r.square();
     let inner_r_cube = inner_r_square * inner_r;
-    let inner_r_powers = powers::<E>(&inner_r_cube, num_instances);
+    let inner_r_powers = powers(&inner_r_cube, num_instances);
 
     // Compute inner claims Mzᵢ = (Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ),
     // which are batched by Sumcheck into one claim:  ∑ᵢ r³ⁱ⋅Mzᵢ
