@@ -35,7 +35,7 @@ pub struct VerifierKey<E: Engine> {
 impl<E: Engine> SimpleDigestible for VerifierKey<E> {}
 
 /// Provides an implementation of a polynomial evaluation engine using IPA
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct EvaluationEngine<E> {
   _p: PhantomData<E>,
 }
