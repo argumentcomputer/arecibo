@@ -5,7 +5,7 @@ use crate::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
   },
-  traits::Engine,
+  traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait},
 };
 
 use bellpepper_core::{ConstraintSystem, SynthesisError};
@@ -19,12 +19,35 @@ impl<E: Engine> AllocatedFoldingData<E> {
   pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
     inst: Option<&FoldingData<E>>,
+    limb_width: usize,
+    n_limbs: usize,
   ) -> Result<Self, SynthesisError> {
-    todo!()
+    let U = AllocatedRelaxedR1CSInstance::alloc(
+      cs.namespace(|| "U"),
+      inst.map(|x| &x.U),
+      limb_width,
+      n_limbs,
+    )?;
+
+    let u = AllocatedR1CSInstance::alloc(cs.namespace(|| "U"), inst.map(|x| &x.u))?;
+
+    let T = AllocatedPoint::alloc(cs.namespace(|| "T"), inst.map(|x| x.T.to_coordinates()))?;
+    T.check_on_curve(cs.namespace(|| "T on curve"))?;
+
+    Ok(Self { U, u, T })
   }
 
-  pub fn absorb_in_ro(&self, ro: &mut E::ROCircuit) -> Result<(), SynthesisError> {
-    todo!()
+  pub fn absorb_in_ro<CS: ConstraintSystem<<E as Engine>::Base>>(
+    &self,
+    mut cs: CS,
+    ro: &mut E::ROCircuit,
+  ) -> Result<(), SynthesisError> {
+    self.U.absorb_in_ro(cs.namespace(|| "absorb U"), ro)?;
+    self.u.absorb_in_ro(ro);
+    ro.absorb(&self.T.x);
+    ro.absorb(&self.T.y);
+    ro.absorb(&self.T.is_infinity);
+    Ok(())
   }
 }
 

@@ -41,9 +41,9 @@ impl AugmentedCircuitParams {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub(crate) struct FoldingData<E: Engine> {
-  U: RelaxedR1CSInstance<E>,
-  u: R1CSInstance<E>,
-  T: Commitment<E>,
+  pub U: RelaxedR1CSInstance<E>,
+  pub u: R1CSInstance<E>,
+  pub T: Commitment<E>,
 }
 
 impl<E: Engine> FoldingData<E> {
@@ -200,6 +200,8 @@ where
         .inputs
         .as_ref()
         .and_then(|inputs| inputs.data_c_1.as_ref()),
+      self.params.limb_width,
+      self.params.n_limbs,
     )?;
 
     let data_c_2 = AllocatedFoldingData::alloc(
@@ -208,6 +210,8 @@ where
         .inputs
         .as_ref()
         .and_then(|inputs| inputs.data_c_2.as_ref()),
+      self.params.limb_width,
+      self.params.n_limbs,
     )?;
 
     let E_new = emulated::AllocatedPoint::alloc(
@@ -352,7 +356,7 @@ where
     let h_c_int = le_bits_to_num(cs.namespace(|| "intermediate hash"), &h_c_int_bits)?;
 
     // Calculate h_1 = H(pp, U_c_1)
-    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts, NUM_FE_WITHOUT_IO_FOR_CRHF);
+    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
     ro_c_1.absorb(pp_digest);
     data_c_2
       .U

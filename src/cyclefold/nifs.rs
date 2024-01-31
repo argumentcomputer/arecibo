@@ -2,14 +2,53 @@
 
 use std::marker::PhantomData;
 
+use ff::Field;
+
 use crate::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+  constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
   errors::NovaError,
-  gadgets::utils::scalar_as_base,
+  gadgets::{
+    nonnative::{bignat::nat_to_limbs, util::f_to_nat},
+    utils::scalar_as_base,
+  },
   r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
-  traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROConstants, ROTrait},
-  CommitmentKey, CompressedCommitment,
+  traits::{commitment::CommitmentTrait, /*AbsorbInROTrait,*/ Engine, ROConstants, ROTrait},
+  Commitment, CommitmentKey, CompressedCommitment,
 };
+
+fn absorb_commitment<E1, E2>(comm: &Commitment<E1>, ro: &mut E2::RO)
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  let (x, y, is_infinity) = comm.to_coordinates();
+
+  let x_limbs = nat_to_limbs(&f_to_nat(&x), BN_LIMB_WIDTH, BN_N_LIMBS).unwrap();
+  let y_limbs = nat_to_limbs(&f_to_nat(&y), BN_LIMB_WIDTH, BN_N_LIMBS).unwrap();
+
+  for limb in x_limbs {
+    ro.absorb(scalar_as_base::<E2>(limb));
+  }
+  for limb in y_limbs {
+    ro.absorb(scalar_as_base::<E2>(limb));
+  }
+  if is_infinity {
+    ro.absorb(<E1 as Engine>::Scalar::ONE);
+  } else {
+    ro.absorb(<E1 as Engine>::Scalar::ZERO);
+  }
+}
+
+fn absorb_r1cs<E1, E2>(u: &R1CSInstance<E1>, ro: &mut E2::RO)
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  absorb_commitment::<E1, E2>(&u.comm_W, ro);
+  for x in &u.X {
+    ro.absorb(*x);
+  }
+}
 
 pub struct NIFS<E1, E2>
 where
@@ -25,7 +64,7 @@ where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  pub fn prove<C>(
+  pub fn prove(
     ck: &CommitmentKey<E1>,
     ro_consts: &ROConstants<E2>,
     pp_digest: &E1::Scalar,
@@ -46,15 +85,11 @@ where
 
     ro.absorb(*pp_digest);
 
-    // FIXME
-    // Want to write: U2.absorb_in_ro(&mut ro);
-    // But can't because U2 is a R1CSInstance<E1> and not a R1CSInstance<E2>
+    absorb_r1cs::<E1, E2>(U2, &mut ro);
 
     let (T, comm_T) = S.commit_T(ck, U1, W1, U2, W2)?;
 
-    // FIXME
-    // Want to write: comm_T.absorb_in_ro(&mut ro);
-    // But can't because comm_T is a CompressedCommitment<E1> and not a CompressedCommitment<E2>
+    absorb_commitment::<E1, E2>(&comm_T, &mut ro);
 
     let r = scalar_as_base::<E2>(ro.squeeze(NUM_CHALLENGE_BITS));
 
