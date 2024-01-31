@@ -28,6 +28,7 @@ pub mod traits;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
+use traits::commitment::Len;
 
 use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::{
@@ -87,6 +88,53 @@ impl<E: Engine> R1CSWithArity<E> {
   }
 }
 
+/// A helper struct for holding [`CommitmentKey`]s
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct CommitmentKeyParams<E1, E2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  /// Primary key
+  pub primary: CommitmentKey<E1>,
+  /// Secondary key
+  pub secondary: CommitmentKey<E2>,
+}
+
+/// Auxiliary [PublicParams] information about constants of the primary and
+/// secondary circuit. This is used as a helper struct when reconstructing
+/// [PublicParams] downstream in lurk.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[serde(bound = "")]
+#[abomonation_bounds(where 
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  <<E1 as Engine>::Scalar as ff::PrimeField>::Repr: Abomonation,
+  <<E2 as Engine>::Scalar as ff::PrimeField>::Repr: Abomonation,
+)]
+pub struct AuxParams<E1, E2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  /// Hint for how long `ck_primary` should be
+  pub ck_primary_len: usize,
+  ro_consts_primary: ROConstants<E1>,
+  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
+
+  /// Hint for how long `ck_secondary` should be
+  pub ck_secondary_len: usize,
+  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
+  circuit_shape_secondary: R1CSWithArity<E2>,
+  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
+
+  #[abomonate_with(<E1::Scalar as ff::PrimeField>::Repr)]
+  digest: E1::Scalar,
+}
+
 /// A type that holds public parameters of Nova
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -97,8 +145,6 @@ where
   C1: StepCircuit<E1::Scalar>,
   C2: StepCircuit<E2::Scalar>,
 {
-  F_arity_primary: usize,
-  F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
   ck_primary: Arc<CommitmentKey<E1>>,
@@ -112,105 +158,6 @@ where
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E1::Scalar>,
   _p: PhantomData<(C1, C2)>,
-}
-
-// Ensure to include necessary crates and features in your Cargo.toml
-// e.g., abomonation, serde, etc., with the appropriate feature flags.
-
-/// A version of [`crate::PublicParams`] that is amenable to fast ser/de using Abomonation
-#[cfg(feature = "abomonate")]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-  <E1::Scalar as PrimeField>::Repr: Abomonation,
-  <E2::Scalar as PrimeField>::Repr: Abomonation,
-)]
-pub struct FlatPublicParams<E1, E2, C1, C2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-{
-  F_arity_primary: usize,
-  F_arity_secondary: usize,
-  ro_consts_primary: ROConstants<E1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: CommitmentKey<E1>,
-  circuit_shape_primary: R1CSWithArity<E1>,
-  ro_consts_secondary: ROConstants<E2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<E2>,
-  circuit_shape_secondary: R1CSWithArity<E2>,
-  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
-  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  _p: PhantomData<(C1, C2)>,
-}
-
-#[cfg(feature = "abomonate")]
-impl<E1, E2, C1, C2> TryFrom<PublicParams<E1, E2, C1, C2>> for FlatPublicParams<E1, E2, C1, C2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-{
-  type Error = &'static str;
-
-  fn try_from(value: PublicParams<E1, E2, C1, C2>) -> Result<Self, Self::Error> {
-    let ck_primary =
-      Arc::try_unwrap(value.ck_primary).map_err(|_| "Failed to unwrap Arc for ck_primary")?;
-    let ck_secondary =
-      Arc::try_unwrap(value.ck_secondary).map_err(|_| "Failed to unwrap Arc for ck_secondary")?;
-    Ok(Self {
-      F_arity_primary: value.F_arity_primary,
-      F_arity_secondary: value.F_arity_secondary,
-      ro_consts_primary: value.ro_consts_primary,
-      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
-      ck_primary,
-      circuit_shape_primary: value.circuit_shape_primary,
-      ro_consts_secondary: value.ro_consts_secondary,
-      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
-      ck_secondary,
-      circuit_shape_secondary: value.circuit_shape_secondary,
-      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
-      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
-      _p: PhantomData,
-    })
-  }
-}
-
-#[cfg(feature = "abomonate")]
-impl<E1, E2, C1, C2> From<FlatPublicParams<E1, E2, C1, C2>> for PublicParams<E1, E2, C1, C2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-{
-  fn from(value: FlatPublicParams<E1, E2, C1, C2>) -> Self {
-    Self {
-      F_arity_primary: value.F_arity_primary,
-      F_arity_secondary: value.F_arity_secondary,
-      ro_consts_primary: value.ro_consts_primary,
-      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
-      ck_primary: Arc::new(value.ck_primary),
-      circuit_shape_primary: value.circuit_shape_primary,
-      ro_consts_secondary: value.ro_consts_secondary,
-      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
-      ck_secondary: Arc::new(value.ck_secondary),
-      circuit_shape_secondary: value.circuit_shape_secondary,
-      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
-      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
-      digest: OnceCell::new(),
-      _p: PhantomData,
-    }
-  }
 }
 
 impl<E1, E2, C1, C2> SimpleDigestible for PublicParams<E1, E2, C1, C2>
@@ -320,8 +267,6 @@ where
     let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     Self {
-      F_arity_primary,
-      F_arity_secondary,
       ro_consts_primary,
       ro_consts_circuit_primary,
       ck_primary,
@@ -360,6 +305,84 @@ where
       self.circuit_shape_primary.r1cs_shape.num_vars,
       self.circuit_shape_secondary.r1cs_shape.num_vars,
     )
+  }
+
+  /// Breaks down an instance of [PublicParams] into the circuit params and auxiliary params.
+  pub fn into_parts(
+    self,
+  ) -> (
+    R1CSWithArity<E1>,
+    CommitmentKeyParams<E1, E2>,
+    AuxParams<E1, E2>,
+  ) {
+    let digest = self.digest();
+
+    let Self {
+      ro_consts_primary,
+      ro_consts_circuit_primary,
+      ck_primary,
+      circuit_shape_primary,
+      ro_consts_secondary,
+      ro_consts_circuit_secondary,
+      ck_secondary,
+      circuit_shape_secondary,
+      augmented_circuit_params_primary,
+      augmented_circuit_params_secondary,
+      digest: _digest,
+      _p,
+    } = self;
+
+    let ck_primary_len = ck_primary.length();
+    let ck_secondary_len = ck_secondary.length();
+    let ck_params = CommitmentKeyParams {
+      primary: Arc::try_unwrap(ck_primary).unwrap_or_else(|arc| (*arc).clone()),
+      secondary: Arc::try_unwrap(ck_secondary).unwrap_or_else(|arc| (*arc).clone()),
+    };
+
+    let aux_params = AuxParams {
+      ck_primary_len,
+      ro_consts_primary,
+      ro_consts_circuit_primary,
+      augmented_circuit_params_primary,
+      ck_secondary_len,
+      ro_consts_secondary,
+      ro_consts_circuit_secondary,
+      circuit_shape_secondary,
+      augmented_circuit_params_secondary,
+      digest,
+    };
+
+    (circuit_shape_primary, ck_params, aux_params)
+  }
+
+  /// Create a [PublicParams] from a raw [R1CSWithArity] and auxiliary params.
+  pub fn from_parts(
+    circuit_shape: R1CSWithArity<E1>,
+    ck_params: CommitmentKeyParams<E1, E2>,
+    aux_params: AuxParams<E1, E2>,
+  ) -> Self {
+    assert_eq!(ck_params.primary.length(), aux_params.ck_primary_len, "incorrect primary key length");
+    assert_eq!(ck_params.secondary.length(), aux_params.ck_secondary_len, "incorrect secondary key length");
+    let pp = Self {
+      ro_consts_primary: aux_params.ro_consts_primary,
+      ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
+      ck_primary: Arc::new(ck_params.primary),
+      circuit_shape_primary: circuit_shape,
+      augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
+      ro_consts_secondary: aux_params.ro_consts_secondary,
+      ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
+      ck_secondary: Arc::new(ck_params.secondary),
+      circuit_shape_secondary: aux_params.circuit_shape_secondary,
+      augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
+      digest: OnceCell::new(),
+      _p: PhantomData,
+    };
+    assert_eq!(
+      aux_params.digest,
+      pp.digest(),
+      "param data is invalid; aux_params contained the incorrect digest"
+    );
+    pp
   }
 }
 
@@ -423,7 +446,9 @@ where
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
   ) -> Result<Self, NovaError> {
-    if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
+    if z0_primary.len() != pp.circuit_shape_primary.F_arity
+      || z0_secondary.len() != pp.circuit_shape_secondary.F_arity
+    {
       return Err(NovaError::InvalidInitialInputLength);
     }
 
@@ -490,7 +515,8 @@ where
     let r_U_secondary = RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
-      !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
+      !(zi_primary.len() != pp.circuit_shape_primary.F_arity
+        || zi_secondary.len() != pp.circuit_shape_secondary.F_arity),
       "Invalid step length"
     );
 
@@ -693,7 +719,7 @@ where
     let (hash_primary, hash_secondary) = {
       let mut hasher = <E2 as Engine>::RO::new(
         pp.ro_consts_secondary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
+        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.circuit_shape_primary.F_arity,
       );
       hasher.absorb(pp.digest());
       hasher.absorb(E1::Scalar::from(num_steps as u64));
@@ -707,7 +733,7 @@ where
 
       let mut hasher2 = <E1 as Engine>::RO::new(
         pp.ro_consts_primary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_secondary,
+        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.circuit_shape_secondary.F_arity,
       );
       hasher2.absorb(scalar_as_base::<E1>(pp.digest()));
       hasher2.absorb(E2::Scalar::from(num_steps as u64));
@@ -876,8 +902,8 @@ where
     };
 
     let vk = VerifierKey {
-      F_arity_primary: pp.F_arity_primary,
-      F_arity_secondary: pp.F_arity_secondary,
+      F_arity_primary: pp.circuit_shape_primary.F_arity,
+      F_arity_secondary: pp.circuit_shape_secondary.F_arity,
       ro_consts_primary: pp.ro_consts_primary.clone(),
       ro_consts_secondary: pp.ro_consts_secondary.clone(),
       pp_digest: pp.digest(),
@@ -1062,7 +1088,8 @@ pub fn circuit_digest<
   cs.r1cs_shape().digest()
 }
 
-type CommitmentKey<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey;
+/// must fix later
+pub type CommitmentKey<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey;
 type Commitment<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment;
 type CompressedCommitment<E> = <<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment as CommitmentTrait<E>>::CompressedCommitment;
 type CE<E> = <E as Engine>::CE;
