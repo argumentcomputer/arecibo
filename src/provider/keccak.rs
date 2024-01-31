@@ -14,7 +14,7 @@ const KECCAK256_PREFIX_CHALLENGE_LO: u8 = 0;
 const KECCAK256_PREFIX_CHALLENGE_HI: u8 = 1;
 
 /// Provides an implementation of `TranscriptEngine`
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Keccak256Transcript<E: Engine> {
   round: u16,
   state: [u8; KECCAK256_STATE_SIZE],
