@@ -14,20 +14,16 @@ use crate::{
   },
   scalar_as_base,
   traits::{
-    commitment::{CommitmentEngineTrait, CommitmentTrait},
+    commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
-  Commitment, CommitmentKey, R1CSWithArity,
+  Commitment, CommitmentKey, CommitmentKeyParams, R1CSWithArity,
 };
 
-#[cfg(feature = "abomonate")]
 use abomonation::Abomonation;
-#[cfg(feature = "abomonate")]
 use abomonation_derive::Abomonation;
 use bellpepper_core::SynthesisError;
 use ff::Field;
-#[cfg(feature = "abomonate")]
-use ff::PrimeField;
 use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
@@ -109,109 +105,37 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
-/// Auxiliary [PublicParams] information about the commitment keys and
+/// Auxiliary [PublicParams] information about constants of the primary
 /// secondary circuit. This is used as a helper struct when reconstructing
 /// [PublicParams] downstream in lurk.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
+#[abomonation_bounds(where 
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  <<E1 as Engine>::Scalar as ff::PrimeField>::Repr: Abomonation,
+  <<E2 as Engine>::Scalar as ff::PrimeField>::Repr: Abomonation,
+)]
 pub struct AuxParams<E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
+  /// Hint for how long `ck_primary` should be
+  pub ck_primary_len: usize,
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: Arc<CommitmentKey<E1>>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
+  /// Hint for how long `ck_secondary` should be
+  pub ck_secondary_len: usize,
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: Arc<CommitmentKey<E2>>,
   circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
+  #[abomonate_with(<E1::Scalar as ff::PrimeField>::Repr)]
   digest: E1::Scalar,
-}
-
-/// A variant of [`crate::supernova::AuxParams`] that is suitable for fast ser/de using Abomonation
-#[cfg(feature = "abomonate")]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  <E1::Scalar as PrimeField>::Repr: Abomonation,
-  <E2::Scalar as PrimeField>::Repr: Abomonation,
-)]
-pub struct FlatAuxParams<E1, E2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-{
-  ro_consts_primary: ROConstants<E1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: CommitmentKey<E1>, // This is shared between all circuit params
-  augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
-
-  ro_consts_secondary: ROConstants<E2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<E2>,
-  circuit_shape_secondary: R1CSWithArity<E2>,
-  augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
-
-  #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
-  digest: E1::Scalar,
-}
-
-#[cfg(feature = "abomonate")]
-impl<E1, E2> TryFrom<AuxParams<E1, E2>> for FlatAuxParams<E1, E2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-{
-  type Error = &'static str;
-
-  fn try_from(value: AuxParams<E1, E2>) -> Result<Self, Self::Error> {
-    let ck_primary =
-      Arc::try_unwrap(value.ck_primary).map_err(|_| "Failed to unwrap Arc for ck_primary")?;
-    let ck_secondary =
-      Arc::try_unwrap(value.ck_secondary).map_err(|_| "Failed to unwrap Arc for ck_secondary")?;
-    Ok(Self {
-      ro_consts_primary: value.ro_consts_primary,
-      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
-      ck_primary,
-      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
-      ro_consts_secondary: value.ro_consts_secondary,
-      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
-      ck_secondary,
-      circuit_shape_secondary: value.circuit_shape_secondary,
-      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
-      digest: value.digest,
-    })
-  }
-}
-
-#[cfg(feature = "abomonate")]
-impl<E1, E2> From<FlatAuxParams<E1, E2>> for AuxParams<E1, E2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-{
-  fn from(value: FlatAuxParams<E1, E2>) -> Self {
-    Self {
-      ro_consts_primary: value.ro_consts_primary,
-      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
-      ck_primary: Arc::new(value.ck_primary),
-      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
-      ro_consts_secondary: value.ro_consts_secondary,
-      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
-      ck_secondary: Arc::new(value.ck_secondary),
-      circuit_shape_secondary: value.circuit_shape_secondary,
-      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
-      digest: value.digest,
-    }
-  }
 }
 
 impl<E1, E2, C1, C2> Index<usize> for PublicParams<E1, E2, C1, C2>
@@ -345,7 +269,13 @@ where
   }
 
   /// Breaks down an instance of [PublicParams] into the circuit params and auxiliary params.
-  pub fn into_parts(self) -> (Vec<R1CSWithArity<E1>>, AuxParams<E1, E2>) {
+  pub fn into_parts(
+    self,
+  ) -> (
+    Vec<R1CSWithArity<E1>>,
+    CommitmentKeyParams<E1, E2>,
+    AuxParams<E1, E2>,
+  ) {
     let digest = self.digest();
 
     let Self {
@@ -363,33 +293,46 @@ where
       _p,
     } = self;
 
+    let ck_primary_len = ck_primary.length();
+    let ck_secondary_len = ck_secondary.length();
+    let ck_params = CommitmentKeyParams {
+      primary: Arc::try_unwrap(ck_primary).unwrap_or_else(|arc| (*arc).clone()),
+      secondary: Arc::try_unwrap(ck_secondary).unwrap_or_else(|arc| (*arc).clone()),
+    };
+
     let aux_params = AuxParams {
+      ck_primary_len,
       ro_consts_primary,
       ro_consts_circuit_primary,
-      ck_primary,
       augmented_circuit_params_primary,
+      ck_secondary_len,
       ro_consts_secondary,
       ro_consts_circuit_secondary,
-      ck_secondary,
       circuit_shape_secondary,
       augmented_circuit_params_secondary,
       digest,
     };
 
-    (circuit_shapes, aux_params)
+    (circuit_shapes, ck_params, aux_params)
   }
 
   /// Create a [PublicParams] from a vector of raw [R1CSWithArity] and auxiliary params.
-  pub fn from_parts(circuit_shapes: Vec<R1CSWithArity<E1>>, aux_params: AuxParams<E1, E2>) -> Self {
+  pub fn from_parts(
+    circuit_shapes: Vec<R1CSWithArity<E1>>,
+    ck_params: CommitmentKeyParams<E1, E2>,
+    aux_params: AuxParams<E1, E2>,
+  ) -> Self {
+    assert_eq!(ck_params.primary.length(), aux_params.ck_primary_len, "incorrect primary key length");
+    assert_eq!(ck_params.secondary.length(), aux_params.ck_secondary_len, "incorrect secondary key length");
     let pp = Self {
       circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
       ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
-      ck_primary: aux_params.ck_primary,
+      ck_primary: Arc::new(ck_params.primary),
       augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
       ro_consts_secondary: aux_params.ro_consts_secondary,
       ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
-      ck_secondary: aux_params.ck_secondary,
+      ck_secondary: Arc::new(ck_params.secondary),
       circuit_shape_secondary: aux_params.circuit_shape_secondary,
       augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
       digest: OnceCell::new(),
@@ -407,17 +350,18 @@ where
   /// We don't check that the `aux_params.digest` is a valid digest for the created params.
   pub fn from_parts_unchecked(
     circuit_shapes: Vec<R1CSWithArity<E1>>,
+    ck_params: CommitmentKeyParams<E1, E2>,
     aux_params: AuxParams<E1, E2>,
   ) -> Self {
     Self {
       circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
       ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
-      ck_primary: aux_params.ck_primary,
+      ck_primary: Arc::new(ck_params.primary),
       augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
       ro_consts_secondary: aux_params.ro_consts_secondary,
       ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
-      ck_secondary: aux_params.ck_secondary,
+      ck_secondary: Arc::new(ck_params.secondary),
       circuit_shape_secondary: aux_params.circuit_shape_secondary,
       augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
       digest: aux_params.digest.into(),
