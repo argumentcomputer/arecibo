@@ -12,25 +12,12 @@ use crate::{
 };
 use crate::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
 
-use abomonation::Abomonation;
-use abomonation_derive::Abomonation;
 use ff::PrimeField;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// A type that holds the prover key for `CompressedSNARK`
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-    C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<E2::Scalar>,
-    S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-    S2: RelaxedR1CSSNARKTrait<E2>,
-    <E1::Scalar as PrimeField>::Repr: Abomonation,
-  )]
+#[derive(Debug, Clone)]
 pub struct ProverKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -46,18 +33,7 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-    C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<E2::Scalar>,
-    S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-    S2: RelaxedR1CSSNARKTrait<E2>,
-    <E1::Scalar as PrimeField>::Repr: Abomonation,
-  )]
+#[derive(Debug, Clone)]
 pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -119,10 +95,12 @@ where
     ),
     SuperNovaError,
   > {
-    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, pp.primary_r1cs_shapes())?;
+    let (pk_primary, vk_primary) = S1::setup(pp.ck_primary.clone(), pp.primary_r1cs_shapes())?;
 
-    let (pk_secondary, vk_secondary) =
-      S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
+    let (pk_secondary, vk_secondary) = S2::setup(
+      pp.ck_secondary.clone(),
+      &pp.circuit_shape_secondary.r1cs_shape,
+    )?;
 
     let prover_key = ProverKey {
       pk_primary,
@@ -146,7 +124,7 @@ where
   ) -> Result<Self, SuperNovaError> {
     // fold the secondary circuit's instance
     let res_secondary = NIFS::prove(
-      &pp.ck_secondary,
+      &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -167,7 +145,7 @@ where
       .map(|(idx, r_U)| {
         r_U
           .clone()
-          .unwrap_or_else(|| RelaxedR1CSInstance::default(&pp.ck_primary, &pp[idx].r1cs_shape))
+          .unwrap_or_else(|| RelaxedR1CSInstance::default(&*pp.ck_primary, &pp[idx].r1cs_shape))
       })
       .collect::<Vec<_>>();
 

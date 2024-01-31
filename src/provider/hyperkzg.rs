@@ -10,7 +10,7 @@ use crate::{
   errors::NovaError,
   provider::{
     kzg_commitment::KZGCommitmentEngine,
-    non_hiding_kzg::{KZGProverKey, KZGVerifierKey, UniversalKZGParam},
+    non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
     util::iterators::DoubleEndedIteratorExt as _,
@@ -31,6 +31,7 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::*;
 use ref_cast::RefCast as _;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Provides an implementation of a polynomial evaluation argument
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -121,8 +122,9 @@ where
   type ProverKey = KZGProverKey<E>;
   type VerifierKey = KZGVerifierKey<E>;
 
-  fn setup(ck: &UniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
-    ck.trim(ck.length() - 1)
+  fn setup(ck: Arc<UniversalKZGParam<E>>) -> (Self::ProverKey, Self::VerifierKey) {
+    let len = ck.length() - 1;
+    trim(ck, len)
   }
 
   fn prove(
@@ -428,7 +430,9 @@ mod tests {
     let n = 4;
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-    let (pk, _vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+    let ck = Arc::new(ck);
+    let (pk, _vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
 
     // poly is in eval. representation; evaluated at [(0,0), (0,1), (1,0), (1,1)]
     let poly = vec![Fr::from(1), Fr::from(2), Fr::from(2), Fr::from(4)];
@@ -464,7 +468,9 @@ mod tests {
     fn test_inner(n: usize, poly: &[Fr], point: &[Fr], eval: Fr) -> Result<(), NovaError> {
       let ck: CommitmentKey<NE> =
         <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-      let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+      let ck = Arc::new(ck);
+      let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+        EvaluationEngine::<E, NE>::setup(ck.clone());
 
       // make a commitment
       let C = KZGCommitmentEngine::commit(&ck, poly);
@@ -522,7 +528,9 @@ mod tests {
 
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+    let ck = Arc::new(ck);
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
 
     // make a commitment
     let C = KZGCommitmentEngine::commit(&ck, &poly);

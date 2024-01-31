@@ -14,6 +14,7 @@ use halo2curves::bn256::Bn256;
 use rand::rngs::StdRng;
 use rand_core::{CryptoRng, RngCore, SeedableRng};
 use std::any::type_name;
+use std::sync::Arc;
 use std::time::Duration;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
@@ -44,7 +45,7 @@ struct BenchAssests<E: Engine, EE: EvaluationEngineTrait<E>> {
   poly: MultilinearPolynomial<<E as Engine>::Scalar>,
   point: Vec<<E as Engine>::Scalar>,
   eval: <E as Engine>::Scalar,
-  ck: <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
+  ck: Arc<<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey>,
   commitment: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
   prover_key: <EE as EvaluationEngineTrait<E>>::ProverKey,
   verifier_key: <EE as EvaluationEngineTrait<E>>::VerifierKey,
@@ -78,10 +79,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BenchAssests<E, EE> {
 
     // Mock commitment key.
     let ck = E::CE::setup(b"test", 1 << num_vars);
+    let ck = Arc::new(ck);
     // Commits to the provided vector using the provided generators.
     let commitment = E::CE::commit(&ck, poly.evaluations());
 
-    let (prover_key, verifier_key) = EE::setup(&ck);
+    let (prover_key, verifier_key) = EE::setup(ck.clone());
 
     // Generate proof so that we can bench verification.
     let proof = EE::prove(

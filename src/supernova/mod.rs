@@ -20,14 +20,19 @@ use crate::{
   Commitment, CommitmentKey, R1CSWithArity,
 };
 
+#[cfg(feature = "abomonate")]
 use abomonation::Abomonation;
+#[cfg(feature = "abomonate")]
 use abomonation_derive::Abomonation;
 use bellpepper_core::SynthesisError;
-use ff::{Field, PrimeField};
+use ff::Field;
+#[cfg(feature = "abomonate")]
+use ff::PrimeField;
 use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::debug;
 
 use crate::bellpepper::{
@@ -89,12 +94,12 @@ where
 
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: CommitmentKey<E1>, // This is shared between all circuit params
+  ck_primary: Arc<CommitmentKey<E1>>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<E2>,
+  ck_secondary: Arc<CommitmentKey<E2>>,
   circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
@@ -107,6 +112,29 @@ where
 /// Auxiliary [PublicParams] information about the commitment keys and
 /// secondary circuit. This is used as a helper struct when reconstructing
 /// [PublicParams] downstream in lurk.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct AuxParams<E1, E2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  ro_consts_primary: ROConstants<E1>,
+  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  ck_primary: Arc<CommitmentKey<E1>>, // This is shared between all circuit params
+  augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
+
+  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
+  ck_secondary: Arc<CommitmentKey<E2>>,
+  circuit_shape_secondary: R1CSWithArity<E2>,
+  augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
+
+  digest: E1::Scalar,
+}
+
+/// A variant of [`crate::supernova::AuxParams`] that is suitable for fast ser/de using Abomonation
+#[cfg(feature = "abomonate")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
@@ -116,7 +144,7 @@ where
   <E1::Scalar as PrimeField>::Repr: Abomonation,
   <E2::Scalar as PrimeField>::Repr: Abomonation,
 )]
-pub struct AuxParams<E1, E2>
+pub struct FlatAuxParams<E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -134,6 +162,56 @@ where
 
   #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
   digest: E1::Scalar,
+}
+
+#[cfg(feature = "abomonate")]
+impl<E1, E2> TryFrom<AuxParams<E1, E2>> for FlatAuxParams<E1, E2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  type Error = &'static str;
+
+  fn try_from(value: AuxParams<E1, E2>) -> Result<Self, Self::Error> {
+    let ck_primary =
+      Arc::try_unwrap(value.ck_primary).map_err(|_| "Failed to unwrap Arc for ck_primary")?;
+    let ck_secondary =
+      Arc::try_unwrap(value.ck_secondary).map_err(|_| "Failed to unwrap Arc for ck_secondary")?;
+    Ok(Self {
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary,
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary,
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      digest: value.digest,
+    })
+  }
+}
+
+#[cfg(feature = "abomonate")]
+impl<E1, E2> From<FlatAuxParams<E1, E2>> for AuxParams<E1, E2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  fn from(value: FlatAuxParams<E1, E2>) -> Self {
+    Self {
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary: Arc::new(value.ck_primary),
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary: Arc::new(value.ck_secondary),
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      digest: value.digest,
+    }
+  }
 }
 
 impl<E1, E2, C1, C2> Index<usize> for PublicParams<E1, E2, C1, C2>
@@ -221,6 +299,7 @@ where
       .collect::<Vec<_>>();
 
     let ck_primary = Self::compute_primary_ck(&circuit_shapes, ck_hint1);
+    let ck_primary = Arc::new(ck_primary);
 
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
@@ -241,6 +320,7 @@ where
       .synthesize(&mut cs)
       .expect("circuit synthesis failed");
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
+    let ck_secondary = Arc::new(ck_secondary);
     let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     let pp = Self {
@@ -572,7 +652,7 @@ where
       RelaxedR1CSWitness::from_r1cs_witness(&pp[circuit_index].r1cs_shape, l_w_primary);
 
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp[circuit_index].r1cs_shape,
       l_u_primary,
     );
@@ -583,7 +663,7 @@ where
 
     // Initialize relaxed instance/witness pair for the secondary circuit proofs
     let r_W_secondary: RelaxedR1CSWitness<E2> = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
-    let r_U_secondary = RelaxedR1CSInstance::default(&pp.ck_secondary, r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::default(&*pp.ck_secondary, r1cs_secondary);
 
     // Outputs of the two circuits and next program counter thus far.
     let zi_primary = zi_primary
@@ -688,7 +768,7 @@ where
 
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
-      &pp.ck_secondary,
+      &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(self.pp_digest),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -749,7 +829,7 @@ where
       (r_U_primary, r_W_primary)
     } else {
       self.r_U_primary[circuit_index] = Some(RelaxedR1CSInstance::default(
-        &pp.ck_primary,
+        &*pp.ck_primary,
         &pp[circuit_index].r1cs_shape,
       ));
       self.r_W_primary[circuit_index] =
@@ -761,7 +841,7 @@ where
     };
 
     let nifs_primary = NIFS::prove_mut(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp.ro_consts_primary,
       &self.pp_digest,
       &pp[circuit_index].r1cs_shape,
@@ -974,7 +1054,7 @@ where
       self.r_U_primary.iter().enumerate().for_each(|(i, U)| {
         U.as_ref()
           .unwrap_or(&RelaxedR1CSInstance::default(
-            &pp.ck_primary,
+            &*pp.ck_primary,
             &pp[i].r1cs_shape,
           ))
           .absorb_in_ro(&mut hasher);

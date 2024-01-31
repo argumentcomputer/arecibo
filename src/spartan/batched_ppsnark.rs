@@ -34,35 +34,29 @@ use crate::{
   },
   zip_with, zip_with_for_each, Commitment, CommitmentKey, CompressedCommitment,
 };
-use abomonation::Abomonation;
-use abomonation_derive::Abomonation;
-use ff::{Field, PrimeField};
+use ff::Field;
 use itertools::{chain, Itertools as _};
 use once_cell::sync::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// A type that represents the prover's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where < E::Scalar as PrimeField >::Repr: Abomonation)]
+#[derive(Debug, Clone)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
   S_repr: Vec<R1CSShapeSparkRepr<E>>,
   S_comm: Vec<R1CSShapeSparkCommitment<E>>,
-  #[abomonate_with(<E::Scalar as PrimeField >::Repr)]
   vk_digest: E::Scalar, // digest of verifier's key
 }
 
 /// A type that represents the verifier's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(where < E::Scalar as PrimeField >::Repr: Abomonation)]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   vk_ee: EE::VerifierKey,
   S_comm: Vec<R1CSShapeSparkCommitment<E>>,
   num_vars: Vec<usize>,
-  #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E::Scalar>,
 }
@@ -80,6 +74,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> VerifierKey<E, EE> {
     }
   }
 }
+
 impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E, EE> {}
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierKey<E, EE> {
@@ -130,8 +125,6 @@ pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   for BatchedRelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
 {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
@@ -147,7 +140,7 @@ where
   }
 
   fn setup(
-    ck: &CommitmentKey<E>,
+    ck: Arc<CommitmentKey<E>>,
     S: Vec<&R1CSShape<E>>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     for s in S.iter() {
@@ -157,13 +150,13 @@ where
         return Err(NovaError::InternalError);
       }
     }
-    let (pk_ee, vk_ee) = EE::setup(ck);
+    let (pk_ee, vk_ee) = EE::setup(ck.clone());
 
     let S = S.iter().map(|s| s.pad()).collect::<Vec<_>>();
     let S_repr = S.iter().map(R1CSShapeSparkRepr::new).collect::<Vec<_>>();
     let S_comm = S_repr
       .iter()
-      .map(|s_repr| s_repr.commit(ck))
+      .map(|s_repr| s_repr.commit(&*ck))
       .collect::<Vec<_>>();
     let num_vars = S.iter().map(|s| s.num_vars).collect::<Vec<_>>();
     let vk = VerifierKey::new(num_vars, S_comm.clone(), vk_ee);
@@ -1092,10 +1085,7 @@ where
   }
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
-{
+impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARK<E, EE> {
   /// Runs the batched Sumcheck protocol for the claims of multiple instance of possibly different sizes.
   ///
   /// # Details
