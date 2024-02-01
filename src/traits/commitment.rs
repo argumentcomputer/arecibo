@@ -68,6 +68,7 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
   /// Holds the type of the commitment key
   /// The key should quantify its length in terms of group generators.
   type CommitmentKey: Len
+    + Clone
     + PartialEq
     + Debug
     + Send

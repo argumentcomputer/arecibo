@@ -234,7 +234,7 @@ where
   E::GE: DlogGroup,
 {
   /// Splits the commitment key into two pieces at a specified point
-  fn split_at(&self, n: usize) -> (Self, Self)
+  fn split_at(self, n: usize) -> (Self, Self)
   where
     Self: Sized;
 
@@ -242,10 +242,10 @@ where
   fn combine(&self, other: &Self) -> Self;
 
   /// Folds the two commitment keys into one using the provided weights
-  fn fold(&self, w1: &E::Scalar, w2: &E::Scalar) -> Self;
+  fn fold(L: &Self, R: &Self, w1: &E::Scalar, w2: &E::Scalar) -> Self;
 
   /// Scales the commitment key using the provided scalar
-  fn scale(&self, r: &E::Scalar) -> Self;
+  fn scale(&mut self, r: &E::Scalar);
 
   /// Reinterprets commitments as commitment keys
   fn reinterpret_commitments_as_ck(
@@ -260,48 +260,38 @@ where
   E: Engine<CE = CommitmentEngine<E>>,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
-  fn split_at(&self, n: usize) -> (Self, Self) {
-    (
-      Self {
-        ck: self.ck[0..n].to_vec(),
-      },
-      Self {
-        ck: self.ck[n..].to_vec(),
-      },
-    )
+  fn split_at(mut self, n: usize) -> (Self, Self) {
+    let right = self.ck.split_off(n);
+    (self, Self { ck: right })
   }
 
   fn combine(&self, other: &Self) -> Self {
     let ck = {
-      let mut c = self.ck.clone();
-      c.extend(other.ck.clone());
-      c
+      self
+        .ck
+        .iter()
+        .cloned()
+        .chain(other.ck.iter().cloned())
+        .collect::<Vec<_>>()
     };
     Self { ck }
   }
 
   // combines the left and right halves of `self` using `w1` and `w2` as the weights
-  fn fold(&self, w1: &E::Scalar, w2: &E::Scalar) -> Self {
-    let mid = self.ck.len() / 2;
-    let L = &self.ck[..mid];
-    let R = &self.ck[mid..];
-
-    let ck_curve: Vec<E::GE> = zip_with!(par_iter, (L, R), |l, r| *l * w1 + *r * w2).collect();
-    let mut ck_affine = vec![<E::GE as PrimeCurve>::Affine::identity(); self.ck.len() / 2];
+  fn fold(L: &Self, R: &Self, w1: &E::Scalar, w2: &E::Scalar) -> Self {
+    debug_assert!(L.ck.len() == R.ck.len());
+    let ck_curve: Vec<E::GE> =
+      zip_with!(par_iter, (L.ck, R.ck), |l, r| *l * w1 + *r * w2).collect();
+    let mut ck_affine = vec![<E::GE as PrimeCurve>::Affine::identity(); L.ck.len()];
     E::GE::batch_normalize(&ck_curve, &mut ck_affine);
 
     Self { ck: ck_affine }
   }
 
   /// Scales each element in `self` by `r`
-  fn scale(&self, r: &E::Scalar) -> Self {
+  fn scale(&mut self, r: &E::Scalar) {
     let ck_scaled: Vec<E::GE> = self.ck.par_iter().map(|g| *g * r).collect();
-    let mut ck_scaled_affine = vec![<E::GE as PrimeCurve>::Affine::identity(); ck_scaled.len()];
-    E::GE::batch_normalize(&ck_scaled, &mut ck_scaled_affine);
-
-    Self {
-      ck: ck_scaled_affine,
-    }
+    E::GE::batch_normalize(&ck_scaled, &mut self.ck);
   }
 
   /// reinterprets a vector of commitments as a set of generators
