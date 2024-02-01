@@ -6,6 +6,7 @@ use crate::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
+  zip_with,
 };
 use abomonation_derive::Abomonation;
 use core::{
@@ -14,7 +15,10 @@ use core::{
   ops::{Add, Mul, MulAssign},
 };
 use ff::Field;
-use group::{prime::PrimeCurve, Curve, Group, GroupEncoding};
+use group::{
+  prime::{PrimeCurve, PrimeCurveAffine},
+  Curve, Group, GroupEncoding,
+};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -291,42 +295,36 @@ where
 
   // combines the left and right halves of `self` using `w1` and `w2` as the weights
   fn fold(&self, w1: &E::Scalar, w2: &E::Scalar) -> Self {
-    let w = vec![*w1, *w2];
-    let (L, R) = self.split_at(self.ck.len() / 2);
+    let mid = self.ck.len() / 2;
+    let L = &self.ck[..mid];
+    let R = &self.ck[mid..];
 
-    let ck = (0..self.ck.len() / 2)
-      .into_par_iter()
-      .map(|i| {
-        let bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
-        E::GE::vartime_multiscalar_mul(&w, &bases).to_affine()
-      })
-      .collect();
+    let ck_curve: Vec<E::GE> = zip_with!(par_iter, (L, R), |l, r| *l * w1 + *r * w2).collect();
+    let mut ck_affine = vec![<E::GE as PrimeCurve>::Affine::identity(); self.ck.len() / 2];
+    E::GE::batch_normalize(&ck_curve, &mut ck_affine);
 
-    Self { ck }
+    Self { ck: ck_affine }
   }
 
   /// Scales each element in `self` by `r`
   fn scale(&self, r: &E::Scalar) -> Self {
-    let ck_scaled = self
-      .ck
-      .clone()
-      .into_par_iter()
-      .map(|g| E::GE::vartime_multiscalar_mul(&[*r], &[g]).to_affine())
-      .collect();
+    let ck_scaled: Vec<E::GE> = self.ck.par_iter().map(|g| *g * r).collect();
+    let mut ck_scaled_affine = vec![<E::GE as PrimeCurve>::Affine::identity(); ck_scaled.len()];
+    E::GE::batch_normalize(&ck_scaled, &mut ck_scaled_affine);
 
-    Self { ck: ck_scaled }
+    Self {
+      ck: ck_scaled_affine,
+    }
   }
 
   /// reinterprets a vector of commitments as a set of generators
   fn reinterpret_commitments_as_ck(c: &[CompressedCommitment<E>]) -> Result<Self, NovaError> {
-    let d = (0..c.len())
-      .into_par_iter()
-      .map(|i| Commitment::<E>::decompress(&c[i]))
-      .collect::<Result<Vec<Commitment<E>>, NovaError>>()?;
-    let ck = (0..d.len())
-      .into_par_iter()
-      .map(|i| d[i].comm.to_affine())
-      .collect();
+    let d = c
+      .par_iter()
+      .map(|c| Commitment::<E>::decompress(c).map(|c| c.comm))
+      .collect::<Result<Vec<E::GE>, NovaError>>()?;
+    let mut ck = vec![<E::GE as PrimeCurve>::Affine::identity(); d.len()];
+    E::GE::batch_normalize(&d, &mut ck);
     Ok(Self { ck })
   }
 }
