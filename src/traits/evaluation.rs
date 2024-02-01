@@ -28,7 +28,7 @@ pub trait EvaluationEngineTrait<E: Engine>: Clone + Send + Sync {
   /// A method to perform any additional setup needed to produce proofs of evaluations
   ///
   /// **Note:** This method should be cheap and should not copy most of the
-  /// commitment key. Look at CommitmentEngineTrait::setup for generating SRS data.
+  /// commitment key. Look at `CommitmentEngineTrait::setup` for generating SRS data.
   fn setup(
     ck: Arc<<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey>,
   ) -> (Self::ProverKey, Self::VerifierKey);

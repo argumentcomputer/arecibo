@@ -160,7 +160,7 @@ impl<E: Engine> R1CSShape<E> {
     })
   }
 
-  /// Generate a random [R1CSShape] with the specified number of constraints, variables, and public inputs/outputs.
+  /// Generate a random [`R1CSShape`] with the specified number of constraints, variables, and public inputs/outputs.
   pub fn random<R: RngCore + CryptoRng>(
     num_cons: usize,
     num_vars: usize,
@@ -197,7 +197,7 @@ impl<E: Engine> R1CSShape<E> {
     }
   }
 
-  /// Generate a satisfying [RelaxedR1CSWitness] and [RelaxedR1CSInstance] for this [R1CSShape].
+  /// Generate a satisfying [`RelaxedR1CSWitness`] and [`RelaxedR1CSInstance`] for this [`R1CSShape`].
   pub fn random_witness_instance<R: RngCore + CryptoRng>(
     &self,
     commitment_key: &CommitmentKey<E>,

@@ -77,7 +77,7 @@ pub trait BatchedRelaxedR1CSSNARKTrait<E: Engine>:
   /// Produces the keys for the prover and the verifier
   ///
   /// **Note:** This method should be cheap and should not copy most of the
-  /// commitment key. Look at CommitmentEngineTrait::setup for generating SRS data.
+  /// commitment key. Look at `CommitmentEngineTrait::setup` for generating SRS data.
   fn setup(
     ck: Arc<CommitmentKey<E>>,
     S: Vec<&R1CSShape<E>>,

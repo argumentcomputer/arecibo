@@ -227,7 +227,7 @@ pub type UVKZGPoly<F> = crate::spartan::polys::univariate::UniPoly<F>;
 #[derive(Debug, Eq, PartialEq, Default)]
 /// KZG Polynomial Commitment Scheme on univariate polynomial.
 /// Note: this is non-hiding, which is why we will implement traits on this token struct,
-/// as we expect to have several impls for the trait pegged on the same instance of a pairing::Engine.
+/// as we expect to have several impls for the trait pegged on the same instance of a `pairing::Engine`.
 #[allow(clippy::upper_case_acronyms)]
 pub struct UVKZGPCS<E> {
   #[doc(hidden)]

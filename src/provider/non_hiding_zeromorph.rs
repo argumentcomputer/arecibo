@@ -128,8 +128,8 @@ pub struct ZMProof<E: Engine> {
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 /// Zeromorph Polynomial Commitment Scheme on multilinear polynomials.
-/// Note: this is non-hiding, which is why we will implement the EvaluationEngineTrait on this token struct,
-/// as we will have several impls for the trait pegged on the same instance of a pairing::Engine.
+/// Note: this is non-hiding, which is why we will implement the `EvaluationEngineTrait` on this token struct,
+/// as we will have several impls for the trait pegged on the same instance of a `pairing::Engine`.
 #[allow(clippy::upper_case_acronyms)]
 pub struct ZMPCS<E, NE> {
   #[doc(hidden)]
@@ -314,7 +314,7 @@ where
 ///
 /// where `poly(point)` is the evaluation of `poly` at `point`, and each `q_k` is a polynomial in `k` variables.
 ///
-/// Since our evaluations are presented in order reverse from the coefficients, if we want to interpret index q_k
+/// Since our evaluations are presented in order reverse from the coefficients, if we want to interpret index `q_k`
 /// to be the k-th coefficient in the polynomials returned here, the equality that holds is:
 ///
 /// ```text

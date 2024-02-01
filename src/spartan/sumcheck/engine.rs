@@ -31,7 +31,7 @@ pub trait SumcheckEngine<E: Engine>: Send + Sync {
   fn final_claims(&self) -> Vec<Vec<E::Scalar>>;
 }
 
-/// The [WitnessBoundSumcheck] ensures that the witness polynomial W defined over n = log(N) variables,
+/// The [`WitnessBoundSumcheck`] ensures that the witness polynomial W defined over n = log(N) variables,
 /// is zero outside of the first `num_vars = 2^m` entries.
 ///
 /// # Details
@@ -132,7 +132,7 @@ pub(in crate::spartan) struct MemorySumcheckInstance<E: Engine> {
 }
 
 impl<E: Engine> MemorySumcheckInstance<E> {
-  /// Computes witnesses for MemoryInstanceSumcheck
+  /// Computes witnesses for `MemoryInstanceSumcheck`
   ///
   /// # Description
   /// We use the logUp protocol to prove that
@@ -147,8 +147,8 @@ impl<E: Engine> MemorySumcheckInstance<E> {
   ///   W_col[i] = addr_col[i]     * gamma + addr_col[i]
   ///            = z[col[i]]       * gamma + addr_col[i]
   /// and
-  ///   TS_row, TS_col are integer-valued vectors representing the number of reads
-  ///   to each memory cell of L_row, L_col
+  ///   `TS_row`, `TS_col` are integer-valued vectors representing the number of reads
+  ///   to each memory cell of `L_row`, `L_col`
   ///
   /// The function returns oracles for the polynomials TS[i]/(T[i] + r), 1/(W[i] + r),
   /// as well as auxiliary polynomials T[i] + r, W[i] + r

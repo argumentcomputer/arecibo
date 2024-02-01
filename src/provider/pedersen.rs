@@ -30,7 +30,7 @@ where
   ck: Vec<<E::GE as PrimeCurve>::Affine>,
 }
 
-/// [CommitmentKey]s are often large, and this helps with cloning bottlenecks
+/// [`CommitmentKey`]s are often large, and this helps with cloning bottlenecks
 impl<E> Clone for CommitmentKey<E>
 where
   E: Engine,
