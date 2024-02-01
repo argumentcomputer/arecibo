@@ -221,6 +221,8 @@ where
         .as_ref()
         .and_then(|inputs| inputs.E_new.as_ref())
         .map(|E_new| E_new.to_coordinates()),
+      self.params.limb_width,
+      self.params.n_limbs,
     )?;
 
     let W_new = emulated::AllocatedPoint::alloc(
@@ -230,6 +232,8 @@ where
         .as_ref()
         .and_then(|inputs| inputs.W_new.as_ref())
         .map(|W_new| W_new.to_coordinates()),
+      self.params.limb_width,
+      self.params.n_limbs,
     )?;
 
     Ok((
@@ -304,13 +308,9 @@ where
     let hash_bits_p = ro_p.squeeze(cs.namespace(|| "primary hash bits"), NUM_HASH_BITS)?;
     let hash_p = le_bits_to_num(cs.namespace(|| "primary hash"), &hash_bits_p)?;
 
-    let x_0 = data_p
-      .u_x0
-      .as_allocated_num(cs.namespace(|| "u.x[0] as AllocatedNum"))?;
-
     let check_primary = alloc_num_equals(
       cs.namespace(|| "u.X[0] = H(params, i, z0, zi, U_p)"),
-      &x_0,
+      &data_p.u_x0,
       &hash_p,
     )?;
 
@@ -323,12 +323,11 @@ where
     let hash_c_bits = ro_c.squeeze(cs.namespace(|| "cyclefold hash bits"), NUM_HASH_BITS)?;
     let hash_c = le_bits_to_num(cs.namespace(|| "cyclefold hash"), &hash_c_bits)?;
 
-    let x_1 = data_p
-      .u_x1
-      .as_allocated_num(cs.namespace(|| "u.x[1] as AllocatedNum"))?;
-
-    let check_cyclefold =
-      alloc_num_equals(cs.namespace(|| "u.X[1] = H(params, U_c)"), &x_1, &hash_c)?;
+    let check_cyclefold = alloc_num_equals(
+      cs.namespace(|| "u.X[1] = H(params, U_c)"),
+      &data_p.u_x1,
+      &hash_c,
+    )?;
 
     let check_io = AllocatedBit::and(
       cs.namespace(|| "both IOs match"),
@@ -384,13 +383,14 @@ where
 
     let U_p = data_p.U.fold_with_r1cs(
       cs.namespace(|| "fold u_p into U_p"),
+      &pp_digest,
       W_new.clone(),
       E_new.clone(),
+      &data_p.u_W,
       &data_p.u_x0,
       &data_p.u_x1,
+      &data_p.T,
       self.ro_consts.clone(),
-      self.params.limb_width,
-      self.params.n_limbs,
     )?;
 
     Ok((U_c, U_p, checks_pass))
