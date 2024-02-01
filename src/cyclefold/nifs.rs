@@ -50,6 +50,7 @@ where
   }
 }
 
+/// A SNARK that holds the proof of a step of an incremental computation
 pub struct NIFS<E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -64,6 +65,9 @@ where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
+  /// Takes a relaxed R1CS instance-witness pair (U1, W1) and an R1CS instance-witness pair (U2, W)
+  /// and folds them into a new relaxed R1CS instance-witness pair (U, W) and a commitment to the
+  /// cross term T. It also provides the challenge r used to fold the instances.
   pub fn prove(
     ck: &CommitmentKey<E1>,
     ro_consts: &ROConstants<E2>,
