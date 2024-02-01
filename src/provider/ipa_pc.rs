@@ -19,13 +19,13 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// Provides an implementation of the prover key
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ProverKey<E: Engine> {
   ck_s: CommitmentKey<E>,
 }
 
 /// Provides an implementation of the verifier key
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(bound = "")]
 pub struct VerifierKey<E: Engine> {
   ck_v: Arc<CommitmentKey<E>>,
@@ -44,7 +44,7 @@ impl<E> EvaluationEngineTrait<E> for EvaluationEngine<E>
 where
   E: Engine,
   E::GE: DlogGroup,
-  CommitmentKey<E>: CommitmentKeyExtTrait<E>,
+  CommitmentKey<E>: CommitmentKeyExtTrait<E> + Clone,
 {
   type ProverKey = ProverKey<E>;
   type VerifierKey = VerifierKey<E>;

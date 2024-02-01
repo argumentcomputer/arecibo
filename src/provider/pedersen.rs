@@ -23,7 +23,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A type that holds commitment generators
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_omit_bounds]
 pub struct CommitmentKey<E>
 where
@@ -32,19 +32,6 @@ where
 {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<<E::GE as PrimeCurve>::Affine>,
-}
-
-/// [`CommitmentKey`]s are often large, and this helps with cloning bottlenecks
-impl<E> Clone for CommitmentKey<E>
-where
-  E: Engine,
-  E::GE: DlogGroup<ScalarExt = E::Scalar>,
-{
-  fn clone(&self) -> Self {
-    Self {
-      ck: self.ck[..].par_iter().cloned().collect(),
-    }
-  }
 }
 
 impl<E> Len for CommitmentKey<E>
