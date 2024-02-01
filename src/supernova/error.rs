@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::errors::NovaError;
 
 /// Errors returned by Nova
-#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[derive(Debug, Eq, PartialEq, Error)]
 pub enum SuperNovaError {
   /// Nova error
   #[error("NovaError")]

@@ -210,10 +210,10 @@ where
 }
 
 /// Polynomial Evaluation
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct UVKZGEvaluation<E: Engine>(pub E::Fr);
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default)]
 
 /// Proofs
 pub struct UVKZGProof<E: Engine> {
@@ -224,7 +224,7 @@ pub struct UVKZGProof<E: Engine> {
 /// Polynomial and its associated types
 pub type UVKZGPoly<F> = crate::spartan::polys::univariate::UniPoly<F>;
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default)]
 /// KZG Polynomial Commitment Scheme on univariate polynomial.
 /// Note: this is non-hiding, which is why we will implement traits on this token struct,
 /// as we expect to have several impls for the trait pegged on the same instance of a pairing::Engine.

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 /// A SNARK that holds the proof of a step of an incremental computation
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct NIFS<E: Engine> {
   pub(crate) comm_T: CompressedCommitment<E>,

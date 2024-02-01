@@ -51,7 +51,7 @@ use circuit::{
 use error::SuperNovaError;
 
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CircuitDigests<E: Engine> {
   digests: Vec<E::Scalar>,
 }
@@ -80,7 +80,7 @@ impl<E: Engine> CircuitDigests<E> {
 }
 
 /// A vector of [R1CSWithArity] adjoined to a set of [PublicParams]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PublicParams<E1, E2, C1, C2>
 where
