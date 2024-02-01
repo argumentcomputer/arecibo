@@ -9,7 +9,7 @@ use crate::{
     evaluation::EvaluationEngineTrait,
     Engine, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, CompressedCommitment, CE,
+  zip_with, Commitment, CommitmentKey, CompressedCommitment, CE,
 };
 use core::iter;
 use ff::Field;
@@ -90,24 +90,14 @@ where
   ) -> Result<(), NovaError> {
     let u = InnerProductInstance::new(comm, &EqPolynomial::evals_from_points(point), eval);
 
-    arg.verify(
-      &vk.ck_v,
-      &vk.ck_s,
-      (2_usize).pow(point.len() as u32),
-      &u,
-      transcript,
-    )?;
+    arg.verify(&vk.ck_v, &vk.ck_s, 1 << point.len(), &u, transcript)?;
 
     Ok(())
   }
 }
 
 fn inner_product<T: Field + Send + Sync>(a: &[T], b: &[T]) -> T {
-  assert_eq!(a.len(), b.len());
-  (0..a.len())
-    .into_par_iter()
-    .map(|i| a[i] * b[i])
-    .reduce(|| T::ZERO, |x, y| x + y)
+  zip_with!(par_iter, (a, b), |x, y| *x * y).sum()
 }
 
 /// An inner product instance consists of a commitment to a vector `a` and another vector `b`
