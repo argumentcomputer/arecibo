@@ -117,7 +117,7 @@ pub trait ROCircuitTrait<Base: PrimeField> {
   ) -> Result<Vec<AllocatedBit>, SynthesisError>;
 }
 
-/// An alias for constants associated with E::RO
+/// An alias for constants associated with `E::RO`
 pub type ROConstants<E> =
   <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants;
 

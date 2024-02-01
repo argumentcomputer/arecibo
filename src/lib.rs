@@ -80,7 +80,7 @@ impl<E: Engine> R1CSWithArity<E> {
     }
   }
 
-  /// Return the [R1CSWithArity]' digest.
+  /// Return the [`R1CSWithArity`]' digest.
   pub fn digest(&self) -> E::Scalar {
     let dc: DigestComputer<'_, <E as Engine>::Scalar, Self> = DigestComputer::new(self);
     dc.digest().expect("Failure in computing digest")
@@ -1038,7 +1038,7 @@ where
   }
 }
 
-/// Compute the circuit digest of a [StepCircuit].
+/// Compute the circuit digest of a [`StepCircuit`].
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.

@@ -67,19 +67,19 @@ impl<E: Engine> std::ops::Deref for CircuitDigests<E> {
 }
 
 impl<E: Engine> CircuitDigests<E> {
-  /// Construct a new [CircuitDigests]
+  /// Construct a new [`CircuitDigests`]
   pub fn new(digests: Vec<E::Scalar>) -> Self {
     Self { digests }
   }
 
-  /// Return the [CircuitDigests]' digest.
+  /// Return the [`CircuitDigests`]' digest.
   pub fn digest(&self) -> E::Scalar {
     let dc: DigestComputer<'_, <E as Engine>::Scalar, Self> = DigestComputer::new(self);
     dc.digest().expect("Failure in computing digest")
   }
 }
 
-/// A vector of [R1CSWithArity] adjoined to a set of [PublicParams]
+/// A vector of [`R1CSWithArity`] adjoined to a set of [`PublicParams`]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PublicParams<E1, E2, C1, C2>
@@ -109,9 +109,9 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
-/// Auxiliary [PublicParams] information about the commitment keys and
+/// Auxiliary [`PublicParams`] information about the commitment keys and
 /// secondary circuit. This is used as a helper struct when reconstructing
-/// [PublicParams] downstream in lurk.
+/// [`PublicParams`] downstream in lurk.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct AuxParams<E1, E2>
@@ -244,7 +244,7 @@ where
   C1: StepCircuit<E1::Scalar>,
   C2: StepCircuit<E2::Scalar>,
 {
-  /// Construct a new [PublicParams]
+  /// Construct a new [`PublicParams`]
   ///
   /// # Note
   ///
@@ -344,7 +344,7 @@ where
     pp
   }
 
-  /// Breaks down an instance of [PublicParams] into the circuit params and auxiliary params.
+  /// Breaks down an instance of [`PublicParams`] into the circuit params and auxiliary params.
   pub fn into_parts(self) -> (Vec<R1CSWithArity<E1>>, AuxParams<E1, E2>) {
     let digest = self.digest();
 
@@ -379,7 +379,7 @@ where
     (circuit_shapes, aux_params)
   }
 
-  /// Create a [PublicParams] from a vector of raw [R1CSWithArity] and auxiliary params.
+  /// Create a [`PublicParams`] from a vector of raw [`R1CSWithArity`] and auxiliary params.
   pub fn from_parts(circuit_shapes: Vec<R1CSWithArity<E1>>, aux_params: AuxParams<E1, E2>) -> Self {
     let pp = Self {
       circuit_shapes,
@@ -403,7 +403,7 @@ where
     pp
   }
 
-  /// Create a [PublicParams] from a vector of raw [R1CSWithArity] and auxiliary params.
+  /// Create a [`PublicParams`] from a vector of raw [`R1CSWithArity`] and auxiliary params.
   /// We don't check that the `aux_params.digest` is a valid digest for the created params.
   pub fn from_parts_unchecked(
     circuit_shapes: Vec<R1CSWithArity<E1>>,
@@ -440,7 +440,7 @@ where
     E1::CE::setup(b"ck", size_primary)
   }
 
-  /// Return the [PublicParams]' digest.
+  /// Return the [`PublicParams`]' digest.
   pub fn digest(&self) -> E1::Scalar {
     self
       .digest
@@ -452,7 +452,7 @@ where
       .expect("Failure in retrieving digest")
   }
 
-  /// All of the primary circuit digests of this [PublicParams]
+  /// All of the primary circuit digests of this [`PublicParams`]
   pub fn circuit_param_digests(&self) -> CircuitDigests<E1> {
     let digests = self
       .circuit_shapes
@@ -1178,7 +1178,7 @@ where
 {
 }
 
-/// Compute the circuit digest of a supernova [StepCircuit].
+/// Compute the circuit digest of a supernova [`StepCircuit`].
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.
