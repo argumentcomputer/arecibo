@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/provider/mlkzg.rs`."><title>mlkzg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/provider/hyperkzg.rs`."><title>hyperkzg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -576,13 +576,35 @@
 <a href="#576" id="576">576</a>
 <a href="#577" id="577">577</a>
 <a href="#578" id="578">578</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova&#39;s evaluation engine using multilinear KZG
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova&#39;s evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
+//! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
+//! However, there are some key differences:
+//! (1) HyperKZG works with multilinear polynomials represented in evaluation form (rather than in coefficient form in Gemini&#39;s transformation).
+//! This means that Spartan&#39;s polynomial IOP can use commit to its polynomials as-is without incurring any interpolations or FFTs.
+//! (2) HyperKZG is specialized to use KZG as the univariate commitment scheme, so it includes several optimizations (both during the transformation of multilinear-to-univariate claims
+//! and within the KZG commitment scheme implementation itself).
 </span><span class="attr">#![allow(non_snake_case)]
 </span><span class="kw">use crate</span>::{
   errors::NovaError,
   provider::{
     kzg_commitment::KZGCommitmentEngine,
-    non_hiding_kzg::{KZGProverKey, KZGVerifierKey, UniversalKZGParam},
+    non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
     util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>,
@@ -603,6 +625,7 @@
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>ref_cast::RefCast <span class="kw">as _</span>;
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="doccomment">/// Provides an implementation of a polynomial evaluation argument
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
@@ -693,8 +716,9 @@
   <span class="kw">type </span>ProverKey = KZGProverKey&lt;E&gt;;
   <span class="kw">type </span>VerifierKey = KZGVerifierKey&lt;E&gt;;
 
-  <span class="kw">fn </span>setup(ck: <span class="kw-2">&amp;</span>UniversalKZGParam&lt;E&gt;) -&gt; (<span class="self">Self</span>::ProverKey, <span class="self">Self</span>::VerifierKey) {
-    ck.trim(ck.length() - <span class="number">1</span>)
+  <span class="kw">fn </span>setup(ck: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;) -&gt; (<span class="self">Self</span>::ProverKey, <span class="self">Self</span>::VerifierKey) {
+    <span class="kw">let </span>len = ck.length() - <span class="number">1</span>;
+    trim(ck, len)
   }
 
   <span class="kw">fn </span>prove(
@@ -787,6 +811,8 @@
     <span class="macro">assert_eq!</span>(n, <span class="number">1 </span>&lt;&lt; ell); <span class="comment">// Below we assume that n is a power of two
 
     // Phase 1  -- create commitments com_1, ..., com_\ell
+    // We do not compute final Pi (and its commitment) as it is constant and equals to &#39;eval&#39;
+    // also known to verifier, so can be derived on its side as well
     </span><span class="kw">let </span><span class="kw-2">mut </span>polys: Vec&lt;Vec&lt;E::Fr&gt;&gt; = Vec::new();
     polys.push(hat_P.to_vec());
 
@@ -816,8 +842,8 @@
       .collect();
 
     <span class="comment">// Phase 2
-    // We do not need to add x to the transcript, because in our context x was
-    // obtained from the transcript.
+    // We do not need to add x to the transcript, because in our context x was obtained from the transcript.
+    // We also do not need to absorb `C` and `eval` as they are already absorbed by the transcript by the caller
     </span><span class="kw">let </span>r = <span class="self">Self</span>::compute_challenge(<span class="kw-2">&amp;</span>comms, transcript);
     <span class="kw">let </span>u = <span class="macro">vec!</span>[r, -r, r * r];
 
@@ -860,7 +886,7 @@
       <span class="macro">assert!</span>(t == <span class="number">3</span>);
       <span class="macro">assert!</span>(W.len() == <span class="number">3</span>);
       <span class="comment">// We write a special case for t=3, since this what is required for
-      // mlkzg. Following the paper directly, we must compute:
+      // hyperkzg. Following the paper directly, we must compute:
       // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
       // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
       // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
@@ -993,12 +1019,14 @@
   <span class="kw">type </span>Fr = &lt;NE <span class="kw">as </span>NovaEngine&gt;::Scalar;
 
   <span class="attr">#[test]
-  </span><span class="kw">fn </span>test_mlkzg_eval() {
+  </span><span class="kw">fn </span>test_hyperkzg_eval() {
     <span class="comment">// Test with poly(X1, X2) = 1 + X1 + X2 + X1*X2
     </span><span class="kw">let </span>n = <span class="number">4</span>;
     <span class="kw">let </span>ck: CommitmentKey&lt;NE&gt; =
       &lt;KZGCommitmentEngine&lt;E&gt; <span class="kw">as </span>CommitmentEngineTrait&lt;NE&gt;&gt;::setup(<span class="string">b&quot;test&quot;</span>, n);
-    <span class="kw">let </span>(pk, _vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) = EvaluationEngine::&lt;E, NE&gt;::setup(<span class="kw-2">&amp;</span>ck);
+    <span class="kw">let </span>ck = Arc::new(ck);
+    <span class="kw">let </span>(pk, _vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) =
+      EvaluationEngine::&lt;E, NE&gt;::setup(ck.clone());
 
     <span class="comment">// poly is in eval. representation; evaluated at [(0,0), (0,1), (1,0), (1,1)]
     </span><span class="kw">let </span>poly = <span class="macro">vec!</span>[Fr::from(<span class="number">1</span>), Fr::from(<span class="number">2</span>), Fr::from(<span class="number">2</span>), Fr::from(<span class="number">4</span>)];
@@ -1030,11 +1058,13 @@
   }
 
   <span class="attr">#[test]
-  </span><span class="kw">fn </span>test_mlkzg_alternative() {
+  </span><span class="kw">fn </span>test_hyperkzg_alternative() {
     <span class="kw">fn </span>test_inner(n: usize, poly: <span class="kw-2">&amp;</span>[Fr], point: <span class="kw-2">&amp;</span>[Fr], eval: Fr) -&gt; <span class="prelude-ty">Result</span>&lt;(), NovaError&gt; {
       <span class="kw">let </span>ck: CommitmentKey&lt;NE&gt; =
         &lt;KZGCommitmentEngine&lt;E&gt; <span class="kw">as </span>CommitmentEngineTrait&lt;NE&gt;&gt;::setup(<span class="string">b&quot;test&quot;</span>, n);
-      <span class="kw">let </span>(pk, vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) = EvaluationEngine::&lt;E, NE&gt;::setup(<span class="kw-2">&amp;</span>ck);
+      <span class="kw">let </span>ck = Arc::new(ck);
+      <span class="kw">let </span>(pk, vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) =
+        EvaluationEngine::&lt;E, NE&gt;::setup(ck.clone());
 
       <span class="comment">// make a commitment
       </span><span class="kw">let </span>C = KZGCommitmentEngine::commit(<span class="kw-2">&amp;</span>ck, poly);
@@ -1078,7 +1108,7 @@
   }
 
   <span class="attr">#[test]
-  </span><span class="kw">fn </span>test_mlkzg() {
+  </span><span class="kw">fn </span>test_hyperkzg() {
     <span class="kw">let </span>n = <span class="number">4</span>;
 
     <span class="comment">// poly = [1, 2, 1, 4]
@@ -1092,7 +1122,9 @@
 
     <span class="kw">let </span>ck: CommitmentKey&lt;NE&gt; =
       &lt;KZGCommitmentEngine&lt;E&gt; <span class="kw">as </span>CommitmentEngineTrait&lt;NE&gt;&gt;::setup(<span class="string">b&quot;test&quot;</span>, n);
-    <span class="kw">let </span>(pk, vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) = EvaluationEngine::&lt;E, NE&gt;::setup(<span class="kw-2">&amp;</span>ck);
+    <span class="kw">let </span>ck = Arc::new(ck);
+    <span class="kw">let </span>(pk, vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) =
+      EvaluationEngine::&lt;E, NE&gt;::setup(ck.clone());
 
     <span class="comment">// make a commitment
     </span><span class="kw">let </span>C = KZGCommitmentEngine::commit(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>poly);
@@ -1147,8 +1179,8 @@
   }
 
   <span class="attr">#[test]
-  </span><span class="kw">fn </span>test_mlkzg_more() {
-    <span class="comment">// test the mlkzg prover and verifier with random instances (derived from a seed)
+  </span><span class="kw">fn </span>test_hyperkzg_more() {
+    <span class="comment">// test the hyperkzg prover and verifier with random instances (derived from a seed)
     </span><span class="kw">for </span>num_vars <span class="kw">in </span>[<span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>] {
       prove_verify_from_num_vars::&lt;<span class="kw">_</span>, EvaluationEngine&lt;E, NE&gt;&gt;(num_vars);
     }

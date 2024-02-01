@@ -161,6 +161,9 @@
 <a href="#161" id="161">161</a>
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Utilities for provider module.
 </span><span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) <span class="kw">mod </span>fb_msm;
 <span class="kw">pub mod </span>msm {
@@ -213,6 +216,7 @@
   <span class="kw">use </span>ff::Field;
   <span class="kw">use </span>rand::rngs::StdRng;
   <span class="kw">use </span>rand_core::{CryptoRng, RngCore};
+  <span class="kw">use </span>std::sync::Arc;
 
   <span class="doccomment">/// Returns a random polynomial, a point and calculate its evaluation.
   </span><span class="kw">fn </span>random_poly_with_eval&lt;E: Engine, R: RngCore + CryptoRng&gt;(
@@ -251,14 +255,15 @@
 
     <span class="comment">// Mock commitment key.
     </span><span class="kw">let </span>ck = E::CE::setup(<span class="string">b&quot;test&quot;</span>, <span class="number">1 </span>&lt;&lt; num_vars);
+    <span class="kw">let </span>ck = Arc::new(ck);
     <span class="comment">// Commits to the provided vector using the provided generators.
     </span><span class="kw">let </span>commitment = E::CE::commit(<span class="kw-2">&amp;</span>ck, poly.evaluations());
 
-    prove_verify_with::&lt;E, EE&gt;(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>commitment, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval, <span class="bool-val">true</span>)
+    prove_verify_with::&lt;E, EE&gt;(ck, <span class="kw-2">&amp;</span>commitment, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval, <span class="bool-val">true</span>)
   }
 
   <span class="kw">fn </span>prove_verify_with&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt;(
-    ck: <span class="kw-2">&amp;</span>&lt;&lt;E <span class="kw">as </span>Engine&gt;::CE <span class="kw">as </span>CommitmentEngineTrait&lt;E&gt;&gt;::CommitmentKey,
+    ck: Arc&lt;&lt;&lt;E <span class="kw">as </span>Engine&gt;::CE <span class="kw">as </span>CommitmentEngineTrait&lt;E&gt;&gt;::CommitmentKey&gt;,
     commitment: <span class="kw-2">&amp;</span>&lt;&lt;E <span class="kw">as </span>Engine&gt;::CE <span class="kw">as </span>CommitmentEngineTrait&lt;E&gt;&gt;::Commitment,
     poly: <span class="kw-2">&amp;</span>MultilinearPolynomial&lt;&lt;E <span class="kw">as </span>Engine&gt;::Scalar&gt;,
     point: <span class="kw-2">&amp;</span>[&lt;E <span class="kw">as </span>Engine&gt;::Scalar],
@@ -269,12 +274,13 @@
     <span class="kw">use </span>std::ops::Add;
 
     <span class="comment">// Generate Prover and verifier key for given commitment key.
-    </span><span class="kw">let </span>(prover_key, verifier_key) = EE::setup(ck);
+    </span><span class="kw">let </span>ock = ck.clone();
+    <span class="kw">let </span>(prover_key, verifier_key) = EE::setup(ck);
 
     <span class="comment">// Generate proof.
     </span><span class="kw">let </span><span class="kw-2">mut </span>prover_transcript = E::TE::new(<span class="string">b&quot;TestEval&quot;</span>);
     <span class="kw">let </span>proof = EE::prove(
-      ck,
+      <span class="kw-2">&amp;*</span>ock,
       <span class="kw-2">&amp;</span>prover_key,
       <span class="kw-2">&amp;mut </span>prover_transcript,
       commitment,

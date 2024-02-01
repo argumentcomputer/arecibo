@@ -520,8 +520,11 @@
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
 <a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Non-hiding variant of KZG10 scheme for univariate polynomials.
-</span><span class="kw">use </span><span class="kw">crate</span>::zip_with_for_each;
+</span><span class="kw">use crate</span>::{digest::SimpleDigestible, zip_with_for_each};
 <span class="kw">use </span>abomonation_derive::Abomonation;
 <span class="kw">use </span>ff::{Field, PrimeField, PrimeFieldBits};
 <span class="kw">use </span>group::{prime::PrimeCurveAffine, Curve, Group <span class="kw">as _</span>};
@@ -530,7 +533,7 @@
 <span class="kw">use </span>rand_core::{CryptoRng, RngCore};
 <span class="kw">use </span>rayon::iter::{IntoParallelIterator, ParallelIterator};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>std::{borrow::Borrow, marker::PhantomData, ops::Mul};
+<span class="kw">use </span>std::{borrow::Borrow, marker::PhantomData, ops::Mul, sync::Arc};
 
 <span class="kw">use crate</span>::{
   errors::{NovaError, PCSError},
@@ -571,36 +574,59 @@
 }
 
 <span class="doccomment">/// `UnivariateProverKey` is used to generate a proof
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
-#[abomonation_omit_bounds]
-#[serde(bound(
-  serialize = <span class="string">&quot;E::G1Affine: Serialize&quot;</span>,
-  deserialize = <span class="string">&quot;E::G1Affine: Deserialize&lt;&#39;de&gt;&quot;
-</span>))]
+</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq)]
 </span><span class="kw">pub struct </span>KZGProverKey&lt;E: Engine&gt; {
-  <span class="doccomment">/// generators
-  </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">8</span>]</span>&gt;)] <span class="comment">// this is a hack; we just assume the size of the element.
-  </span><span class="kw">pub </span>powers_of_g: Vec&lt;E::G1Affine&gt;,
+  <span class="doccomment">/// generators from the universal parameters
+  </span>uv_params: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;,
+  <span class="doccomment">/// offset at which we start reading into the SRS
+  </span>offset: usize,
+  <span class="doccomment">/// maximum supported size
+  </span>supported_size: usize,
+}
+
+<span class="kw">impl</span>&lt;E: Engine&gt; KZGProverKey&lt;E&gt; {
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) <span class="kw">fn </span>new(
+    uv_params: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;,
+    offset: usize,
+    supported_size: usize,
+  ) -&gt; <span class="self">Self </span>{
+    <span class="macro">assert!</span>(
+      uv_params.max_degree() &gt;= offset + supported_size,
+      <span class="string">&quot;not enough bases (req: {} from offset {}) in the UVKZGParams (length: {})&quot;</span>,
+      supported_size,
+      offset,
+      uv_params.max_degree()
+    );
+    <span class="self">Self </span>{
+      uv_params,
+      offset,
+      supported_size,
+    }
+  }
+
+  <span class="kw">pub fn </span>powers_of_g(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[E::G1Affine] {
+    <span class="kw-2">&amp;</span><span class="self">self</span>.uv_params.powers_of_g[<span class="self">self</span>.offset..<span class="self">self</span>.offset + <span class="self">self</span>.supported_size]
+  }
 }
 
 <span class="doccomment">/// `UVKZGVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
-#[abomonation_omit_bounds]
-#[serde(bound(
-  serialize = <span class="string">&quot;E::G1Affine: Serialize, E::G2Affine: Serialize&quot;</span>,
-  deserialize = <span class="string">&quot;E::G1Affine: Deserialize&lt;&#39;de&gt;, E::G2Affine: Deserialize&lt;&#39;de&gt;&quot;
-</span>))]
+</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(bound(serialize = <span class="string">&quot;E::G1Affine: Serialize, E::G2Affine: Serialize&quot;</span>,))]
 </span><span class="kw">pub struct </span>KZGVerifierKey&lt;E: Engine&gt; {
   <span class="doccomment">/// The generator of G1.
-  </span><span class="attr">#[abomonate_with([u64; <span class="number">8</span>]</span>)] <span class="comment">// this is a hack; we just assume the size of the element.
   </span><span class="kw">pub </span>g: E::G1Affine,
   <span class="doccomment">/// The generator of G2.
-  </span><span class="attr">#[abomonate_with([u64; <span class="number">16</span>]</span>)] <span class="comment">// this is a hack; we just assume the size of the element.
   </span><span class="kw">pub </span>h: E::G2Affine,
   <span class="doccomment">/// β times the above generator of G2.
-  </span><span class="attr">#[abomonate_with([u64; <span class="number">16</span>]</span>)] <span class="comment">// this is a hack; we just assume the size of the element.
   </span><span class="kw">pub </span>beta_h: E::G2Affine,
+}
+
+<span class="kw">impl</span>&lt;E: Engine&gt; SimpleDigestible <span class="kw">for </span>KZGVerifierKey&lt;E&gt;
+<span class="kw">where
+  </span>E::G1Affine: Serialize,
+  E::G2Affine: Serialize,
+{
 }
 
 <span class="kw">impl</span>&lt;E: Engine&gt; UniversalKZGParam&lt;E&gt; {
@@ -608,50 +634,26 @@
   </span><span class="kw">pub fn </span>max_degree(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
     <span class="self">self</span>.powers_of_g.len()
   }
+}
 
-  <span class="doccomment">/// Returns the prover parameters
-  ///
-  /// # Panics
-  /// if `supported_size` is greater than `self.max_degree()`
-  </span><span class="kw">pub fn </span>extract_prover_key(<span class="kw-2">&amp;</span><span class="self">self</span>, supported_size: usize) -&gt; KZGProverKey&lt;E&gt; {
-    <span class="kw">let </span>powers_of_g = <span class="self">self</span>.powers_of_g[..=supported_size].to_vec();
-    KZGProverKey { powers_of_g }
-  }
-
-  <span class="doccomment">/// Returns the verifier parameters
-  ///
-  /// # Panics
-  /// If self.prover_params is empty.
-  </span><span class="kw">pub fn </span>extract_verifier_key(<span class="kw-2">&amp;</span><span class="self">self</span>, supported_size: usize) -&gt; KZGVerifierKey&lt;E&gt; {
-    <span class="macro">assert!</span>(
-      <span class="self">self</span>.powers_of_g.len() &gt;= supported_size,
-      <span class="string">&quot;supported_size is greater than self.max_degree()&quot;
-    </span>);
-    KZGVerifierKey {
-      g: <span class="self">self</span>.powers_of_g[<span class="number">0</span>],
-      h: <span class="self">self</span>.powers_of_h[<span class="number">0</span>],
-      beta_h: <span class="self">self</span>.powers_of_h[<span class="number">1</span>],
-    }
-  }
-
-  <span class="doccomment">/// Trim the universal parameters to specialize the public parameters
-  /// for univariate polynomials to the given `supported_size`, and
-  /// returns prover key and verifier key. `supported_size` should
-  /// be in range `1..params.len()`
-  ///
-  /// # Panics
-  /// If `supported_size` is greater than `self.max_degree()`, or `self.max_degree()` is zero.
-  </span><span class="kw">pub fn </span>trim(<span class="kw-2">&amp;</span><span class="self">self</span>, supported_size: usize) -&gt; (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) {
-    <span class="kw">let </span>powers_of_g = <span class="self">self</span>.powers_of_g[..=supported_size].to_vec();
-
-    <span class="kw">let </span>pk = KZGProverKey { powers_of_g };
-    <span class="kw">let </span>vk = KZGVerifierKey {
-      g: <span class="self">self</span>.powers_of_g[<span class="number">0</span>],
-      h: <span class="self">self</span>.powers_of_h[<span class="number">0</span>],
-      beta_h: <span class="self">self</span>.powers_of_h[<span class="number">1</span>],
-    };
-    (pk, vk)
-  }
+<span class="doccomment">/// Trim the universal parameters to specialize the public parameters
+/// for univariate polynomials to the given `supported_size`, and
+/// returns prover key and verifier key. `supported_size` should
+/// be in range `1..params.len()`
+///
+/// # Panics
+/// If `supported_size` is greater than `self.max_degree()`, or `self.max_degree()` is zero.
+</span><span class="kw">pub fn </span>trim&lt;E: Engine&gt;(
+  ukzg: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;,
+  supported_size: usize,
+) -&gt; (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) {
+  <span class="macro">assert!</span>(ukzg.max_degree() &gt; <span class="number">0</span>, <span class="string">&quot;max_degree is zero&quot;</span>);
+  <span class="kw">let </span>g = ukzg.powers_of_g[<span class="number">0</span>];
+  <span class="kw">let </span>h = ukzg.powers_of_h[<span class="number">0</span>];
+  <span class="kw">let </span>beta_h = ukzg.powers_of_h[<span class="number">1</span>];
+  <span class="kw">let </span>pk = KZGProverKey::new(ukzg, <span class="number">0</span>, supported_size + <span class="number">1</span>);
+  <span class="kw">let </span>vk = KZGVerifierKey { g, h, beta_h };
+  (pk, vk)
 }
 
 <span class="kw">impl</span>&lt;E: Engine&gt; UniversalKZGParam&lt;E&gt;
@@ -733,10 +735,10 @@
 }
 
 <span class="doccomment">/// Polynomial Evaluation
-</span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Default)]
+</span><span class="attr">#[derive(Debug, Eq, PartialEq, Default)]
 </span><span class="kw">pub struct </span>UVKZGEvaluation&lt;E: Engine&gt;(<span class="kw">pub </span>E::Fr);
 
-<span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Default)]
+<span class="attr">#[derive(Debug, Eq, PartialEq, Default)]
 
 </span><span class="doccomment">/// Proofs
 </span><span class="kw">pub struct </span>UVKZGProof&lt;E: Engine&gt; {
@@ -747,10 +749,10 @@
 <span class="doccomment">/// Polynomial and its associated types
 </span><span class="kw">pub type </span>UVKZGPoly&lt;F&gt; = <span class="kw">crate</span>::spartan::polys::univariate::UniPoly&lt;F&gt;;
 
-<span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Default)]
+<span class="attr">#[derive(Debug, Eq, PartialEq, Default)]
 </span><span class="doccomment">/// KZG Polynomial Commitment Scheme on univariate polynomial.
 /// Note: this is non-hiding, which is why we will implement traits on this token struct,
-/// as we expect to have several impls for the trait pegged on the same instance of a pairing::Engine.
+/// as we expect to have several impls for the trait pegged on the same instance of a `pairing::Engine`.
 </span><span class="attr">#[allow(clippy::upper_case_acronyms)]
 </span><span class="kw">pub struct </span>UVKZGPCS&lt;E&gt; {
   <span class="attr">#[doc(hidden)]
@@ -768,12 +770,12 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;UVKZGCommitment&lt;E&gt;, NovaError&gt; {
     <span class="kw">let </span>prover_param = prover_param.borrow();
 
-    <span class="kw">if </span>poly.degree() &gt; prover_param.powers_of_g.len() {
+    <span class="kw">if </span>poly.degree() &gt; prover_param.powers_of_g().len() {
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::PCSError(PCSError::LengthError));
     }
 
     <span class="kw">let </span>scalars = poly.coeffs.as_slice();
-    <span class="kw">let </span>bases = prover_param.powers_of_g.as_slice();
+    <span class="kw">let </span>bases = prover_param.powers_of_g();
 
     <span class="comment">// We can avoid some scalar multiplications if &#39;scalars&#39; contains a lot of leading zeroes using
     // offset, that points where non-zero scalars start.
@@ -793,12 +795,12 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;UVKZGCommitment&lt;E&gt;, NovaError&gt; {
     <span class="kw">let </span>prover_param = prover_param.borrow();
 
-    <span class="kw">if </span>poly.degree() &gt; prover_param.powers_of_g.len() {
+    <span class="kw">if </span>poly.degree() &gt; prover_param.powers_of_g().len() {
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::PCSError(PCSError::LengthError));
     }
     <span class="kw">let </span>C = &lt;E::G1 <span class="kw">as </span>DlogGroup&gt;::vartime_multiscalar_mul(
       poly.coeffs.as_slice(),
-      <span class="kw-2">&amp;</span>prover_param.powers_of_g.as_slice()[..poly.coeffs.len()],
+      <span class="kw-2">&amp;</span>prover_param.powers_of_g()[..poly.coeffs.len()],
     );
     <span class="prelude-val">Ok</span>(UVKZGCommitment(C.to_affine()))
   }
@@ -834,7 +836,7 @@
       .ok_or(NovaError::PCSError(PCSError::ZMError))<span class="question-mark">?</span>;
     <span class="kw">let </span>proof = &lt;E::G1 <span class="kw">as </span>DlogGroup&gt;::vartime_multiscalar_mul(
       witness_polynomial.coeffs.as_slice(),
-      <span class="kw-2">&amp;</span>prover_param.powers_of_g.as_slice()[..witness_polynomial.coeffs.len()],
+      <span class="kw-2">&amp;</span>prover_param.powers_of_g()[..witness_polynomial.coeffs.len()],
     );
     <span class="kw">let </span>evaluation = UVKZGEvaluation(polynomial.evaluate(point));
 
@@ -978,8 +980,10 @@
       <span class="kw">let </span><span class="kw-2">mut </span>rng = <span class="kw-2">&amp;mut </span>thread_rng();
       <span class="kw">let </span>degree = rng.gen_range(<span class="number">2</span>..<span class="number">20</span>);
 
-      <span class="kw">let </span>pp = UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(<span class="kw-2">&amp;mut </span>rng, degree);
-      <span class="kw">let </span>(ck, vk) = pp.trim(degree);
+      <span class="kw">let </span>pp = Arc::new(UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(
+        <span class="kw-2">&amp;mut </span>rng, degree,
+      ));
+      <span class="kw">let </span>(ck, vk) = trim(pp, degree);
       <span class="kw">let </span>p = random(degree, rng);
       <span class="kw">let </span>comm = UVKZGPCS::&lt;E&gt;::commit(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>p)<span class="question-mark">?</span>;
       <span class="kw">let </span>point = E::Fr::random(rng);
@@ -1010,8 +1014,10 @@
 
       <span class="kw">let </span>degree = rng.gen_range(<span class="number">2</span>..<span class="number">20</span>);
 
-      <span class="kw">let </span>pp = UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(<span class="kw-2">&amp;mut </span>rng, degree);
-      <span class="kw">let </span>(ck, vk) = pp.trim(degree);
+      <span class="kw">let </span>pp = Arc::new(UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(
+        <span class="kw-2">&amp;mut </span>rng, degree,
+      ));
+      <span class="kw">let </span>(ck, vk) = trim(pp, degree);
 
       <span class="kw">let </span><span class="kw-2">mut </span>comms = Vec::new();
       <span class="kw">let </span><span class="kw-2">mut </span>values = Vec::new();

@@ -893,11 +893,14 @@
 <a href="#893" id="893">893</a>
 <a href="#894" id="894">894</a>
 <a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Non-hiding Zeromorph scheme for Multilinear Polynomials.
 //!
 //!
 
 </span><span class="kw">use crate</span>::{
+  digest::SimpleDigestible,
   errors::{NovaError, PCSError},
   provider::{
     non_hiding_kzg::{
@@ -913,7 +916,6 @@
   },
   Commitment,
 };
-<span class="kw">use </span>abomonation_derive::Abomonation;
 <span class="kw">use </span>ff::{BatchInvert, Field, PrimeField, PrimeFieldBits};
 <span class="kw">use </span>group::{Curve, Group <span class="kw">as _</span>};
 <span class="kw">use </span>itertools::Itertools <span class="kw">as _</span>;
@@ -924,17 +926,13 @@
 };
 <span class="kw">use </span>ref_cast::RefCast;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::{borrow::Borrow, iter, marker::PhantomData};
 
 <span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::KZGCommitmentEngine;
 
 <span class="doccomment">/// `ZMProverKey` is used to generate a proof
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
-#[abomonation_omit_bounds]
-#[serde(bound(
-  serialize = <span class="string">&quot;E::G1Affine: Serialize&quot;</span>,
-  deserialize = <span class="string">&quot;E::G1Affine: Deserialize&lt;&#39;de&gt;&quot;
-</span>))]
+</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq)]
 </span><span class="kw">pub struct </span>ZMProverKey&lt;E: Engine&gt; {
   commit_pp: KZGProverKey&lt;E&gt;,
   open_pp: KZGProverKey&lt;E&gt;,
@@ -942,16 +940,18 @@
 
 <span class="doccomment">/// `ZMVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
-#[abomonation_omit_bounds]
-#[serde(bound(
-  serialize = <span class="string">&quot;E::G1Affine: Serialize, E::G2Affine: Serialize&quot;</span>,
-  deserialize = <span class="string">&quot;E::G1Affine: Deserialize&lt;&#39;de&gt;, E::G2Affine: Deserialize&lt;&#39;de&gt;&quot;
-</span>))]
+</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(bound(serialize = <span class="string">&quot;E::G1Affine: Serialize, E::G2Affine: Serialize&quot;</span>,))]
 </span><span class="kw">pub struct </span>ZMVerifierKey&lt;E: Engine&gt; {
   vp: KZGVerifierKey&lt;E&gt;,
-  <span class="attr">#[abomonate_with([u64; <span class="number">16</span>]</span>)] <span class="comment">// this is a hack; we just assume the size of the element.
-  </span>s_offset_h: E::G2Affine,
+  s_offset_h: E::G2Affine,
+}
+
+<span class="kw">impl</span>&lt;E: Engine&gt; SimpleDigestible <span class="kw">for </span>ZMVerifierKey&lt;E&gt;
+<span class="kw">where
+  </span>E::G1Affine: Serialize,
+  E::G2Affine: Serialize,
+{
 }
 
 <span class="doccomment">/// Trim the universal parameters to specialize the public parameters
@@ -960,23 +960,18 @@
 /// be in range `1..params.len()`
 ///
 /// # Panics
-/// If `supported_size` is greater than `self.max_degree()`, or `self.max_degree()` is zero.
+/// If `params.max_degree() &lt; 2 * max_degree + 1`
 </span><span class="comment">//
 // TODO: important, we need a better way to handle that the commitment key should be 2^max_degree sized,
 // see the runtime error in commit() below
-</span><span class="kw">fn </span>trim&lt;E: Engine&gt;(
-  params: <span class="kw-2">&amp;</span>UniversalKZGParam&lt;E&gt;,
+</span><span class="kw">fn </span>trim_zeromorph&lt;E: Engine&gt;(
+  params: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;,
   max_degree: usize,
 ) -&gt; (ZMProverKey&lt;E&gt;, ZMVerifierKey&lt;E&gt;) {
-  <span class="kw">let </span>(commit_pp, vp) = params.trim(max_degree);
-  <span class="kw">let </span>offset = params.powers_of_g.len() - max_degree;
-  <span class="kw">let </span>open_pp = {
-    <span class="kw">let </span>offset_powers_of_g1 = params.powers_of_g[offset..].to_vec();
-    KZGProverKey {
-      powers_of_g: offset_powers_of_g1,
-    }
-  };
+  <span class="kw">let </span>(commit_pp, vp) = <span class="kw">crate</span>::provider::non_hiding_kzg::trim(params.clone(), max_degree);
+  <span class="kw">let </span>offset = params.max_degree() - max_degree;
   <span class="kw">let </span>s_offset_h = params.powers_of_h[offset];
+  <span class="kw">let </span>open_pp = KZGProverKey::new(params, offset, max_degree);
 
   (
     ZMProverKey { commit_pp, open_pp },
@@ -1030,8 +1025,8 @@
 
 <span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Default)]
 </span><span class="doccomment">/// Zeromorph Polynomial Commitment Scheme on multilinear polynomials.
-/// Note: this is non-hiding, which is why we will implement the EvaluationEngineTrait on this token struct,
-/// as we will have several impls for the trait pegged on the same instance of a pairing::Engine.
+/// Note: this is non-hiding, which is why we will implement the `EvaluationEngineTrait` on this token struct,
+/// as we will have several impls for the trait pegged on the same instance of a `pairing::Engine`.
 </span><span class="attr">#[allow(clippy::upper_case_acronyms)]
 </span><span class="kw">pub struct </span>ZMPCS&lt;E, NE&gt; {
   <span class="attr">#[doc(hidden)]
@@ -1055,7 +1050,7 @@
     poly: <span class="kw-2">&amp;</span>MultilinearPolynomial&lt;E::Fr&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;ZMCommitment&lt;E&gt;, NovaError&gt; {
     <span class="kw">let </span>pp = pp.borrow();
-    <span class="kw">if </span>pp.commit_pp.powers_of_g.len() &lt; poly.Z.len() {
+    <span class="kw">if </span>pp.commit_pp.powers_of_g().len() &lt; poly.Z.len() {
       <span class="kw">return </span><span class="prelude-val">Err</span>(PCSError::LengthError.into());
     }
     UVKZGPCS::commit(<span class="kw-2">&amp;</span>pp.commit_pp, UVKZGPoly::ref_cast(<span class="kw-2">&amp;</span>poly.Z)).map(|c| c.into())
@@ -1074,7 +1069,7 @@
     transcript.dom_sep(<span class="self">Self</span>::protocol_name());
 
     <span class="kw">let </span>pp = pp.borrow();
-    <span class="kw">if </span>pp.commit_pp.powers_of_g.len() &lt; poly.Z.len() {
+    <span class="kw">if </span>pp.commit_pp.powers_of_g().len() &lt; poly.Z.len() {
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::PCSError(PCSError::LengthError));
     }
 
@@ -1216,7 +1211,7 @@
 ///
 /// where `poly(point)` is the evaluation of `poly` at `point`, and each `q_k` is a polynomial in `k` variables.
 ///
-/// Since our evaluations are presented in order reverse from the coefficients, if we want to interpret index q_k
+/// Since our evaluations are presented in order reverse from the coefficients, if we want to interpret index `q_k`
 /// to be the k-th coefficient in the polynomials returned here, the equality that holds is:
 ///
 /// ```text
@@ -1370,8 +1365,9 @@
 
   <span class="kw">type </span>EvaluationArgument = ZMProof&lt;E&gt;;
 
-  <span class="kw">fn </span>setup(ck: <span class="kw-2">&amp;</span>UniversalKZGParam&lt;E&gt;) -&gt; (<span class="self">Self</span>::ProverKey, <span class="self">Self</span>::VerifierKey) {
-    trim(ck, ck.length() - <span class="number">1</span>)
+  <span class="kw">fn </span>setup(ck: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;) -&gt; (<span class="self">Self</span>::ProverKey, <span class="self">Self</span>::VerifierKey) {
+    <span class="kw">let </span>len = ck.length() - <span class="number">1</span>;
+    trim_zeromorph(ck, len)
   }
 
   <span class="kw">fn </span>prove(
@@ -1410,9 +1406,6 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
-  <span class="kw">use </span>std::borrow::Borrow;
-  <span class="kw">use </span>std::iter;
-
   <span class="kw">use </span>ff::{Field, PrimeField, PrimeFieldBits};
   <span class="kw">use </span>group::Curve;
   <span class="kw">use </span>halo2curves::bn256::Bn256;
@@ -1422,16 +1415,22 @@
   <span class="kw">use </span>rand::thread_rng;
   <span class="kw">use </span>rand_chacha::ChaCha20Rng;
   <span class="kw">use </span>rand_core::SeedableRng;
+  <span class="kw">use </span>std::borrow::Borrow;
+  <span class="kw">use </span>std::iter;
+  <span class="kw">use </span>std::sync::Arc;
 
   <span class="kw">use </span><span class="kw">super</span>::quotients;
+  <span class="kw">use </span><span class="kw">super</span>::trim_zeromorph;
 
   <span class="kw">use crate</span>::{
     errors::PCSError,
     provider::{
       keccak::Keccak256Transcript,
-      non_hiding_kzg::{KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS},
+      non_hiding_kzg::{
+        trim, KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS,
+      },
       non_hiding_zeromorph::{
-        batched_lifted_degree_quotient, eval_and_quotient_scalars, trim, ZMEvaluation, ZMPCS,
+        batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMEvaluation, ZMPCS,
       },
       traits::DlogGroup,
       util::test_utils::prove_verify_from_num_vars,
@@ -1451,14 +1450,17 @@
     <span class="kw">let </span>max_vars = <span class="number">16</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>rng = thread_rng();
     <span class="kw">let </span>max_poly_size = <span class="number">1 </span>&lt;&lt; (max_vars + <span class="number">1</span>);
-    <span class="kw">let </span>universal_setup = UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(<span class="kw-2">&amp;mut </span>rng, max_poly_size);
+    <span class="kw">let </span>universal_setup = Arc::new(UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(
+      <span class="kw-2">&amp;mut </span>rng,
+      max_poly_size,
+    ));
 
     <span class="kw">for </span>num_vars <span class="kw">in </span><span class="number">3</span>..max_vars {
       <span class="comment">// Setup
       </span><span class="kw">let </span>(pp, vk) = {
         <span class="kw">let </span>poly_size = <span class="number">1 </span>&lt;&lt; (num_vars + <span class="number">1</span>);
 
-        trim(<span class="kw-2">&amp;</span>universal_setup, poly_size)
+        trim_zeromorph(universal_setup.clone(), poly_size)
       };
 
       <span class="comment">// Commit and open
@@ -1725,12 +1727,12 @@
   {
     <span class="kw">let </span>prover_param = prover_param.borrow();
 
-    <span class="kw">if </span>poly.degree() &gt; prover_param.powers_of_g.len() {
+    <span class="kw">if </span>poly.degree() &gt; prover_param.powers_of_g().len() {
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::PCSError(PCSError::LengthError));
     }
 
     <span class="comment">// We use following filter to optimise MSM for cases where scalars contain a lot of zeroes
-    </span><span class="kw">let </span>initial_bases = <span class="kw-2">&amp;</span>prover_param.powers_of_g.as_slice()[..poly.coeffs.len()].to_vec();
+    </span><span class="kw">let </span>initial_bases = <span class="kw-2">&amp;</span>prover_param.powers_of_g()[..poly.coeffs.len()].to_vec();
     <span class="kw">let </span><span class="kw-2">mut </span>scalars = <span class="macro">vec!</span>[];
     <span class="kw">let </span><span class="kw-2">mut </span>bases = <span class="macro">vec!</span>[];
     <span class="kw">for </span>(index, scalar) <span class="kw">in </span>poly.coeffs.iter().enumerate() {
@@ -1770,8 +1772,10 @@
 
     <span class="kw">let </span>(q_hat, offset) = batched_lifted_degree_quotient(E::Fr::random(<span class="kw-2">&amp;mut </span>rng), <span class="kw-2">&amp;</span>quotients_polys);
 
-    <span class="kw">let </span>pp = UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(<span class="kw-2">&amp;mut </span>rng, degree);
-    <span class="kw">let </span>(ck, _vk) = pp.trim(degree);
+    <span class="kw">let </span>pp = Arc::new(UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(
+      <span class="kw-2">&amp;mut </span>rng, degree,
+    ));
+    <span class="kw">let </span>(ck, _vk) = trim(pp, degree);
 
     <span class="kw">let </span>commitment_expected = UVKZGPCS::commit(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>q_hat)<span class="question-mark">?</span>;
     <span class="kw">let </span>commitment_actual_1 = commit_filtered(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>q_hat)<span class="question-mark">?</span>;

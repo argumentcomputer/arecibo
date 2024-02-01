@@ -1097,7 +1097,7 @@
     })
   }
 
-  <span class="doccomment">/// Generate a random [R1CSShape] with the specified number of constraints, variables, and public inputs/outputs.
+  <span class="doccomment">/// Generate a random [`R1CSShape`] with the specified number of constraints, variables, and public inputs/outputs.
   </span><span class="kw">pub fn </span>random&lt;R: RngCore + CryptoRng&gt;(
     num_cons: usize,
     num_vars: usize,
@@ -1134,7 +1134,7 @@
     }
   }
 
-  <span class="doccomment">/// Generate a satisfying [RelaxedR1CSWitness] and [RelaxedR1CSInstance] for this [R1CSShape].
+  <span class="doccomment">/// Generate a satisfying [`RelaxedR1CSWitness`] and [`RelaxedR1CSInstance`] for this [`R1CSShape`].
   </span><span class="kw">pub fn </span>random_witness_instance&lt;R: RngCore + CryptoRng&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     commitment_key: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,

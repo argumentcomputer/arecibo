@@ -268,7 +268,7 @@
 <span class="kw">const </span>KECCAK256_PREFIX_CHALLENGE_HI: u8 = <span class="number">1</span>;
 
 <span class="doccomment">/// Provides an implementation of `TranscriptEngine`
-</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Keccak256Transcript&lt;E: Engine&gt; {
   round: u16,
   state: [u8; KECCAK256_STATE_SIZE],

@@ -367,7 +367,7 @@
   </span><span class="kw">pub </span>cols: usize,
 }
 
-<span class="doccomment">/// [SparseMatrix]s are often large, and this helps with cloning bottlenecks
+<span class="doccomment">/// [`SparseMatrix`]s are often large, and this helps with cloning bottlenecks
 </span><span class="kw">impl</span>&lt;F: PrimeField&gt; Clone <span class="kw">for </span>SparseMatrix&lt;F&gt; {
   <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
     <span class="self">Self </span>{

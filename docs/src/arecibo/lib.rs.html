@@ -1703,6 +1703,88 @@
 <a href="#1703" id="1703">1703</a>
 <a href="#1704" id="1704">1704</a>
 <a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
+<a href="#1776" id="1776">1776</a>
+<a href="#1777" id="1777">1777</a>
+<a href="#1778" id="1778">1778</a>
+<a href="#1779" id="1779">1779</a>
+<a href="#1780" id="1780">1780</a>
+<a href="#1781" id="1781">1781</a>
+<a href="#1782" id="1782">1782</a>
+<a href="#1783" id="1783">1783</a>
+<a href="#1784" id="1784">1784</a>
+<a href="#1785" id="1785">1785</a>
+<a href="#1786" id="1786">1786</a>
+<a href="#1787" id="1787">1787</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This library implements Nova, a high-speed recursive SNARK.
 </span><span class="attr">#![deny(
   warnings,
@@ -1757,6 +1839,7 @@
   CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>traits::{
   circuit::StepCircuit,
   commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -1784,7 +1867,7 @@
     }
   }
 
-  <span class="doccomment">/// Return the [R1CSWithArity]&#39; digest.
+  <span class="doccomment">/// Return the [`R1CSWithArity`]&#39; digest.
   </span><span class="kw">pub fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E::Scalar {
     <span class="kw">let </span>dc: DigestComputer&lt;<span class="lifetime">&#39;_</span>, &lt;E <span class="kw">as </span>Engine&gt;::Scalar, <span class="self">Self</span>&gt; = DigestComputer::new(<span class="self">self</span>);
     dc.digest().expect(<span class="string">&quot;Failure in computing digest&quot;</span>)
@@ -1792,7 +1875,38 @@
 }
 
 <span class="doccomment">/// A type that holds public parameters of Nova
-</span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound = <span class="string">&quot;&quot;</span>)]
+</span><span class="kw">pub struct </span>PublicParams&lt;E1, E2, C1, C2&gt;
+<span class="kw">where
+  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  C1: StepCircuit&lt;E1::Scalar&gt;,
+  C2: StepCircuit&lt;E2::Scalar&gt;,
+{
+  F_arity_primary: usize,
+  F_arity_secondary: usize,
+  ro_consts_primary: ROConstants&lt;E1&gt;,
+  ro_consts_circuit_primary: ROConstantsCircuit&lt;E2&gt;,
+  ck_primary: Arc&lt;CommitmentKey&lt;E1&gt;&gt;,
+  circuit_shape_primary: R1CSWithArity&lt;E1&gt;,
+  ro_consts_secondary: ROConstants&lt;E2&gt;,
+  ro_consts_circuit_secondary: ROConstantsCircuit&lt;E1&gt;,
+  ck_secondary: Arc&lt;CommitmentKey&lt;E2&gt;&gt;,
+  circuit_shape_secondary: R1CSWithArity&lt;E2&gt;,
+  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
+  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
+  <span class="attr">#[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
+  </span>digest: OnceCell&lt;E1::Scalar&gt;,
+  _p: PhantomData&lt;(C1, C2)&gt;,
+}
+
+<span class="comment">// Ensure to include necessary crates and features in your Cargo.toml
+// e.g., abomonation, serde, etc., with the appropriate feature flags.
+
+</span><span class="doccomment">/// A version of [`crate::PublicParams`] that is amenable to fast ser/de using Abomonation
+</span><span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_bounds(
 <span class="kw">where
@@ -1803,7 +1917,7 @@
   &lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
   &lt;E2::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
 )]
-</span><span class="kw">pub struct </span>PublicParams&lt;E1, E2, C1, C2&gt;
+</span><span class="kw">pub struct </span>FlatPublicParams&lt;E1, E2, C1, C2&gt;
 <span class="kw">where
   </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
   E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
@@ -1822,10 +1936,68 @@
   circuit_shape_secondary: R1CSWithArity&lt;E2&gt;,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  <span class="attr">#[abomonation_skip]
-  #[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
-  </span>digest: OnceCell&lt;E1::Scalar&gt;,
   _p: PhantomData&lt;(C1, C2)&gt;,
+}
+
+<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+</span><span class="kw">impl</span>&lt;E1, E2, C1, C2&gt; TryFrom&lt;PublicParams&lt;E1, E2, C1, C2&gt;&gt; <span class="kw">for </span>FlatPublicParams&lt;E1, E2, C1, C2&gt;
+<span class="kw">where
+  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  C1: StepCircuit&lt;E1::Scalar&gt;,
+  C2: StepCircuit&lt;E2::Scalar&gt;,
+{
+  <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+
+  <span class="kw">fn </span>try_from(value: PublicParams&lt;E1, E2, C1, C2&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+    <span class="kw">let </span>ck_primary =
+      Arc::try_unwrap(value.ck_primary).map_err(|<span class="kw">_</span>| <span class="string">&quot;Failed to unwrap Arc for ck_primary&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>ck_secondary =
+      Arc::try_unwrap(value.ck_secondary).map_err(|<span class="kw">_</span>| <span class="string">&quot;Failed to unwrap Arc for ck_secondary&quot;</span>)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+      F_arity_primary: value.F_arity_primary,
+      F_arity_secondary: value.F_arity_secondary,
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary,
+      circuit_shape_primary: value.circuit_shape_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary,
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      _p: PhantomData,
+    })
+  }
+}
+
+<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+</span><span class="kw">impl</span>&lt;E1, E2, C1, C2&gt; From&lt;FlatPublicParams&lt;E1, E2, C1, C2&gt;&gt; <span class="kw">for </span>PublicParams&lt;E1, E2, C1, C2&gt;
+<span class="kw">where
+  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  C1: StepCircuit&lt;E1::Scalar&gt;,
+  C2: StepCircuit&lt;E2::Scalar&gt;,
+{
+  <span class="kw">fn </span>from(value: FlatPublicParams&lt;E1, E2, C1, C2&gt;) -&gt; <span class="self">Self </span>{
+    <span class="self">Self </span>{
+      F_arity_primary: value.F_arity_primary,
+      F_arity_secondary: value.F_arity_secondary,
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary: Arc::new(value.ck_primary),
+      circuit_shape_primary: value.circuit_shape_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary: Arc::new(value.ck_secondary),
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      digest: OnceCell::new(),
+      _p: PhantomData,
+    }
+  }
 }
 
 <span class="kw">impl</span>&lt;E1, E2, C1, C2&gt; SimpleDigestible <span class="kw">for </span>PublicParams&lt;E1, E2, C1, C2&gt;
@@ -1918,6 +2090,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;E1&gt; = ShapeCS::new();
     <span class="kw">let _ </span>= circuit_primary.synthesize(<span class="kw-2">&amp;mut </span>cs);
     <span class="kw">let </span>(r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
+    <span class="kw">let </span>ck_primary = Arc::new(ck_primary);
     <span class="kw">let </span>circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     <span class="comment">// Initialize ck for the secondary
@@ -1930,6 +2103,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;E2&gt; = ShapeCS::new();
     <span class="kw">let _ </span>= circuit_secondary.synthesize(<span class="kw-2">&amp;mut </span>cs);
     <span class="kw">let </span>(r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
+    <span class="kw">let </span>ck_secondary = Arc::new(ck_secondary);
     <span class="kw">let </span>circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     <span class="self">Self </span>{
@@ -2091,7 +2265,7 @@
     <span class="kw">let </span>l_u_primary = u_primary;
     <span class="kw">let </span>r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary);
     <span class="kw">let </span>r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
-      <span class="kw-2">&amp;</span>pp.ck_primary,
+      <span class="kw-2">&amp;*</span>pp.ck_primary,
       <span class="kw-2">&amp;</span>pp.circuit_shape_primary.r1cs_shape,
       l_u_primary,
     );
@@ -2174,7 +2348,7 @@
 
     <span class="comment">// fold the secondary circuit&#39;s instance
     </span><span class="kw">let </span>nifs_secondary = NIFS::prove_mut(
-      <span class="kw-2">&amp;</span>pp.ck_secondary,
+      <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
       <span class="kw-2">&amp;</span>scalar_as_base::&lt;E1&gt;(pp.digest()),
       <span class="kw-2">&amp;</span>pp.circuit_shape_secondary.r1cs_shape,
@@ -2215,7 +2389,7 @@
 
     <span class="comment">// fold the primary circuit&#39;s instance
     </span><span class="kw">let </span>nifs_primary = NIFS::prove_mut(
-      <span class="kw-2">&amp;</span>pp.ck_primary,
+      <span class="kw-2">&amp;*</span>pp.ck_primary,
       <span class="kw-2">&amp;</span>pp.ro_consts_primary,
       <span class="kw-2">&amp;</span>pp.digest(),
       <span class="kw-2">&amp;</span>pp.circuit_shape_primary.r1cs_shape,
@@ -2393,9 +2567,7 @@
 }
 
 <span class="doccomment">/// A type that holds the prover key for `CompressedSNARK`
-</span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
-#[abomonation_omit_bounds]
+</span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E1, E2, C1, C2, S1, S2&gt;
 <span class="kw">where
   </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
@@ -2411,18 +2583,8 @@
 }
 
 <span class="doccomment">/// A type that holds the verifier key for `CompressedSNARK`
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Clone, Serialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
-#[abomonation_bounds(
-  <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    C1: StepCircuit&lt;E1::Scalar&gt;,
-    C2: StepCircuit&lt;E2::Scalar&gt;,
-    S1: RelaxedR1CSSNARKTrait&lt;E1&gt;,
-    S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
-    &lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
-  )]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E1, E2, C1, C2, S1, S2&gt;
 <span class="kw">where
   </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
@@ -2436,15 +2598,14 @@
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants&lt;E1&gt;,
   ro_consts_secondary: ROConstants&lt;E2&gt;,
-  <span class="attr">#[abomonate_with(&lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr)]
-  </span>pp_digest: E1::Scalar,
+  pp_digest: E1::Scalar,
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
   _p: PhantomData&lt;(C1, C2)&gt;,
 }
 
 <span class="doccomment">/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 </span><span class="kw">pub struct </span>CompressedSNARK&lt;E1, E2, C1, C2, S1, S2&gt;
 <span class="kw">where
@@ -2488,9 +2649,12 @@
     ),
     NovaError,
   &gt; {
-    <span class="kw">let </span>(pk_primary, vk_primary) = S1::setup(<span class="kw-2">&amp;</span>pp.ck_primary, <span class="kw-2">&amp;</span>pp.circuit_shape_primary.r1cs_shape)<span class="question-mark">?</span>;
-    <span class="kw">let </span>(pk_secondary, vk_secondary) =
-      S2::setup(<span class="kw-2">&amp;</span>pp.ck_secondary, <span class="kw-2">&amp;</span>pp.circuit_shape_secondary.r1cs_shape)<span class="question-mark">?</span>;
+    <span class="kw">let </span>(pk_primary, vk_primary) =
+      S1::setup(pp.ck_primary.clone(), <span class="kw-2">&amp;</span>pp.circuit_shape_primary.r1cs_shape)<span class="question-mark">?</span>;
+    <span class="kw">let </span>(pk_secondary, vk_secondary) = S2::setup(
+      pp.ck_secondary.clone(),
+      <span class="kw-2">&amp;</span>pp.circuit_shape_secondary.r1cs_shape,
+    )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>pk = ProverKey {
       pk_primary,
@@ -2520,7 +2684,7 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
     <span class="comment">// fold the secondary circuit&#39;s instance with its running instance
     </span><span class="kw">let </span>(nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
-      <span class="kw-2">&amp;</span>pp.ck_secondary,
+      <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
       <span class="kw-2">&amp;</span>scalar_as_base::&lt;E1&gt;(pp.digest()),
       <span class="kw-2">&amp;</span>pp.circuit_shape_secondary.r1cs_shape,
@@ -2661,7 +2825,7 @@
   }
 }
 
-<span class="doccomment">/// Compute the circuit digest of a [StepCircuit].
+<span class="doccomment">/// Compute the circuit digest of a [`StepCircuit`].
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.
@@ -3088,7 +3252,7 @@
     test_ivc_nontrivial_with_spark_compression_with::&lt;
       Bn256EngineKZG,
       GrumpkinEngine,
-      provider::mlkzg::EvaluationEngine&lt;Bn256, <span class="kw">_</span>&gt;,
+      provider::hyperkzg::EvaluationEngine&lt;Bn256, <span class="kw">_</span>&gt;,
       EE&lt;<span class="kw">_</span>&gt;,
     &gt;();
   }

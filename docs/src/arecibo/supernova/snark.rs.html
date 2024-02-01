@@ -752,28 +752,6 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines a final compressing SNARK for supernova proofs
 
 </span><span class="kw">use super</span>::{error::SuperNovaError, PublicParams, RecursiveSNARK};
@@ -788,25 +766,12 @@
 };
 <span class="kw">use crate</span>::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
 
-<span class="kw">use </span>abomonation::Abomonation;
-<span class="kw">use </span>abomonation_derive::Abomonation;
 <span class="kw">use </span>ff::PrimeField;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::marker::PhantomData;
 
 <span class="doccomment">/// A type that holds the prover key for `CompressedSNARK`
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
-#[abomonation_bounds(
-  <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    C1: StepCircuit&lt;E1::Scalar&gt;,
-    C2: StepCircuit&lt;E2::Scalar&gt;,
-    S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-    S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
-    &lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
-  )]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E1, E2, C1, C2, S1, S2&gt;
 <span class="kw">where
   </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
@@ -822,18 +787,7 @@
 }
 
 <span class="doccomment">/// A type that holds the verifier key for `CompressedSNARK`
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
-#[abomonation_bounds(
-  <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    C1: StepCircuit&lt;E1::Scalar&gt;,
-    C2: StepCircuit&lt;E2::Scalar&gt;,
-    S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-    S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
-    &lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
-  )]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E1, E2, C1, C2, S1, S2&gt;
 <span class="kw">where
   </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
@@ -849,7 +803,7 @@
 }
 
 <span class="doccomment">/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 </span><span class="kw">pub struct </span>CompressedSNARK&lt;E1, E2, C1, C2, S1, S2&gt;
 <span class="kw">where
@@ -895,10 +849,12 @@
     ),
     SuperNovaError,
   &gt; {
-    <span class="kw">let </span>(pk_primary, vk_primary) = S1::setup(<span class="kw-2">&amp;</span>pp.ck_primary, pp.primary_r1cs_shapes())<span class="question-mark">?</span>;
+    <span class="kw">let </span>(pk_primary, vk_primary) = S1::setup(pp.ck_primary.clone(), pp.primary_r1cs_shapes())<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>(pk_secondary, vk_secondary) =
-      S2::setup(<span class="kw-2">&amp;</span>pp.ck_secondary, <span class="kw-2">&amp;</span>pp.circuit_shape_secondary.r1cs_shape)<span class="question-mark">?</span>;
+    <span class="kw">let </span>(pk_secondary, vk_secondary) = S2::setup(
+      pp.ck_secondary.clone(),
+      <span class="kw-2">&amp;</span>pp.circuit_shape_secondary.r1cs_shape,
+    )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>prover_key = ProverKey {
       pk_primary,
@@ -922,7 +878,7 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SuperNovaError&gt; {
     <span class="comment">// fold the secondary circuit&#39;s instance
     </span><span class="kw">let </span>res_secondary = NIFS::prove(
-      <span class="kw-2">&amp;</span>pp.ck_secondary,
+      <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
       <span class="kw-2">&amp;</span>scalar_as_base::&lt;E1&gt;(pp.digest()),
       <span class="kw-2">&amp;</span>pp.circuit_shape_secondary.r1cs_shape,
@@ -943,7 +899,7 @@
       .map(|(idx, r_U)| {
         r_U
           .clone()
-          .unwrap_or_else(|| RelaxedR1CSInstance::default(<span class="kw-2">&amp;</span>pp.ck_primary, <span class="kw-2">&amp;</span>pp[idx].r1cs_shape))
+          .unwrap_or_else(|| RelaxedR1CSInstance::default(<span class="kw-2">&amp;*</span>pp.ck_primary, <span class="kw-2">&amp;</span>pp[idx].r1cs_shape))
       })
       .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 

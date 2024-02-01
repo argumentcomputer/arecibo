@@ -426,6 +426,7 @@
 <a href="#426" id="426">426</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `EvaluationEngine` using an IPA-based polynomial commitment scheme
 </span><span class="kw">use crate</span>::{
+  digest::SimpleDigestible,
   errors::{NovaError, PCSError},
   provider::{pedersen::CommitmentKeyExtTrait, traits::DlogGroup},
   spartan::polys::eq::EqPolynomial,
@@ -436,29 +437,28 @@
   },
   Commitment, CommitmentKey, CompressedCommitment, CE,
 };
-<span class="kw">use </span>abomonation_derive::Abomonation;
 <span class="kw">use </span>core::iter;
 <span class="kw">use </span>ff::Field;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::marker::PhantomData;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="doccomment">/// Provides an implementation of the prover key
-</span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
-#[abomonation_omit_bounds]
+</span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine&gt; {
   ck_s: CommitmentKey&lt;E&gt;,
 }
 
 <span class="doccomment">/// Provides an implementation of the verifier key
-</span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Clone, Debug, Serialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
-#[abomonation_omit_bounds]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine&gt; {
-  ck_v: CommitmentKey&lt;E&gt;,
+  ck_v: Arc&lt;CommitmentKey&lt;E&gt;&gt;,
   ck_s: CommitmentKey&lt;E&gt;,
 }
+
+<span class="kw">impl</span>&lt;E: Engine&gt; SimpleDigestible <span class="kw">for </span>VerifierKey&lt;E&gt; {}
 
 <span class="doccomment">/// Provides an implementation of a polynomial evaluation engine using IPA
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
@@ -477,7 +477,7 @@
   <span class="kw">type </span>EvaluationArgument = InnerProductArgument&lt;E&gt;;
 
   <span class="kw">fn </span>setup(
-    ck: <span class="kw-2">&amp;</span>&lt;&lt;E <span class="kw">as </span>Engine&gt;::CE <span class="kw">as </span>CommitmentEngineTrait&lt;E&gt;&gt;::CommitmentKey,
+    ck: Arc&lt;&lt;&lt;E <span class="kw">as </span>Engine&gt;::CE <span class="kw">as </span>CommitmentEngineTrait&lt;E&gt;&gt;::CommitmentKey&gt;,
   ) -&gt; (<span class="self">Self</span>::ProverKey, <span class="self">Self</span>::VerifierKey) {
     <span class="kw">let </span>ck_c = E::CE::setup(<span class="string">b&quot;ipa&quot;</span>, <span class="number">1</span>);
 

@@ -95,7 +95,7 @@
 <span class="kw">use </span>thiserror::Error;
 
 <span class="doccomment">/// Errors returned by Nova
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Error)]
+</span><span class="attr">#[derive(Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 </span><span class="kw">pub enum </span>NovaError {
   <span class="doccomment">/// returned if the supplied row or col in (row,col,val) tuple is out of range
@@ -164,7 +164,7 @@
 }
 
 <span class="doccomment">/// Errors specific to the Polynomial commitment scheme
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Error)]
+</span><span class="attr">#[derive(Debug, Eq, PartialEq, Error)]
 </span><span class="kw">pub enum </span>PCSError {
   <span class="doccomment">/// returned when an invalid inner product argument is provided
   </span><span class="attr">#[error(<span class="string">&quot;InvalidIPA&quot;</span>)]
