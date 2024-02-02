@@ -158,7 +158,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     // Produce public parameters
     let ttc = TrivialCircuit::default();
-    let pp = PublicParams::<E1, E2, C1, C2>::setup(
+    let pp = PublicParams::<E1, C1, E2, C2>::setup(
       &circuit_primary,
       &ttc,
       &*default_ck_hint(),

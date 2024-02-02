@@ -223,8 +223,8 @@ fn main() {
     println!("Producing public parameters...");
     let pp = PublicParams::<
       E1,
-      E2,
       MinRootCircuit<<E1 as Engine>::GE>,
+      E2,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::setup(
       &circuit_primary,
@@ -316,8 +316,8 @@ fn main() {
     type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
-      RecursiveSNARK::<E1, E2, C1, C2>::new(
+    let mut recursive_snark: RecursiveSNARK<E1, C1, E2, C2> =
+      RecursiveSNARK::<E1, C1, E2, C2>::new(
         &pp,
         &minroot_circuits[0],
         &circuit_secondary,
@@ -351,7 +351,7 @@ fn main() {
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with multilinear KZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, S1, _, _, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
     type E1 = Bn256EngineKZG;
@@ -361,7 +361,7 @@ fn main() {
     type S1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>; // non-preprocessing SNARK
     type S2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>; // non-preprocessing SNARK
 
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, S1, _, _, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),

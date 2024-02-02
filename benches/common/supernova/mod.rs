@@ -95,7 +95,7 @@ where
 }
 
 impl<E1, E2, S>
-  NonUniformCircuit<E1, E2, NonTrivialTestCircuit<E1::Scalar>, TrivialTestCircuit<E2::Scalar>>
+  NonUniformCircuit<E1, NonTrivialTestCircuit<E1::Scalar>, E2, TrivialTestCircuit<E2::Scalar>>
   for NonUniformBench<E1, E2, S>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,

@@ -18,7 +18,7 @@ use std::marker::PhantomData;
 
 /// A type that holds the prover key for `CompressedSNARK`
 #[derive(Debug)]
-pub struct ProverKey<E1, E2, C1, C2, S1, S2>
+pub struct ProverKey<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -34,7 +34,7 @@ where
 
 /// A type that holds the verifier key for `CompressedSNARK`
 #[derive(Debug)]
-pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
+pub struct VerifierKey<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -51,7 +51,7 @@ where
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
+pub struct CompressedSNARK<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -73,10 +73,10 @@ where
 
   zn_primary: Vec<E1::Scalar>,
   zn_secondary: Vec<E2::Scalar>,
-  _p: PhantomData<(E1, E2, C1, C2, S1, S2)>,
+  _p: PhantomData<(E1, C1, S1, E2, C2, S2)>,
 }
 
-impl<E1, E2, C1, C2, S1, S2> CompressedSNARK<E1, E2, C1, C2, S1, S2>
+impl<E1, C1, S1, E2, C2, S2> CompressedSNARK<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -87,11 +87,11 @@ where
 {
   /// Creates prover and verifier keys for `CompressedSNARK`
   pub fn setup(
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
   ) -> Result<
     (
-      ProverKey<E1, E2, C1, C2, S1, S2>,
-      VerifierKey<E1, E2, C1, C2, S1, S2>,
+      ProverKey<E1, C1, S1, E2, C2, S2>,
+      VerifierKey<E1, C1, S1, E2, C2, S2>,
     ),
     SuperNovaError,
   > {
@@ -118,8 +118,8 @@ where
 
   /// Create a new `CompressedSNARK`
   pub fn prove(
-    pp: &PublicParams<E1, E2, C1, C2>,
-    pk: &ProverKey<E1, E2, C1, C2, S1, S2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
+    pk: &ProverKey<E1, C1, S1, E2, C2, S2>,
     recursive_snark: &RecursiveSNARK<E1, E2>,
   ) -> Result<Self, SuperNovaError> {
     // fold the secondary circuit's instance
@@ -204,8 +204,8 @@ where
   /// Verify the correctness of the `CompressedSNARK`
   pub fn verify(
     &self,
-    pp: &PublicParams<E1, E2, C1, C2>,
-    vk: &VerifierKey<E1, E2, C1, C2, S1, S2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
+    vk: &VerifierKey<E1, C1, S1, E2, C2, S2>,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
   ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), SuperNovaError> {
@@ -466,7 +466,7 @@ mod test {
     }
   }
 
-  impl<E1, E2> NonUniformCircuit<E1, E2, Self, TrivialSecondaryCircuit<E2::Scalar>>
+  impl<E1, E2> NonUniformCircuit<E1, Self, E2, TrivialSecondaryCircuit<E2::Scalar>>
     for TestCircuit<E1>
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -527,7 +527,7 @@ mod test {
       assert!(verify_res.is_ok());
     }
 
-    let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (prover_key, verifier_key) = CompressedSNARK::<_, _, S1, _, _, S2>::setup(&pp).unwrap();
 
     let compressed_prove_res = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark);
 
@@ -652,7 +652,7 @@ mod test {
     }
   }
 
-  impl<E1, E2> NonUniformCircuit<E1, E2, Self, TrivialSecondaryCircuit<E2::Scalar>>
+  impl<E1, E2> NonUniformCircuit<E1, Self, E2, TrivialSecondaryCircuit<E2::Scalar>>
     for BigTestCircuit<E1>
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -713,7 +713,7 @@ mod test {
       assert!(verify_res.is_ok());
     }
 
-    let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (prover_key, verifier_key) = CompressedSNARK::<_, _, S1, _, _, S2>::setup(&pp).unwrap();
 
     let compressed_prove_res = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark);
 

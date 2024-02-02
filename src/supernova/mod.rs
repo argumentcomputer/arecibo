@@ -82,7 +82,7 @@ impl<E: Engine> CircuitDigests<E> {
 /// A vector of [`R1CSWithArity`] adjoined to a set of [`PublicParams`]
 #[derive(Debug, Serialize)]
 #[serde(bound = "")]
-pub struct PublicParams<E1, E2, C1, C2>
+pub struct PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -213,7 +213,7 @@ where
   }
 }
 
-impl<E1, E2, C1, C2> Index<usize> for PublicParams<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> Index<usize> for PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -227,7 +227,7 @@ where
   }
 }
 
-impl<E1, E2, C1, C2> SimpleDigestible for PublicParams<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> SimpleDigestible for PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -236,7 +236,7 @@ where
 {
 }
 
-impl<E1, E2, C1, C2> PublicParams<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -261,7 +261,7 @@ where
   /// * `ck_hint1`: A `CommitmentKeyHint` for `E1`, which is a function that provides a hint
   ///    for the number of generators required in the commitment scheme for the primary circuit.
   /// * `ck_hint2`: A `CommitmentKeyHint` for `E2`, similar to `ck_hint1`, but for the secondary circuit.
-  pub fn setup<NC: NonUniformCircuit<E1, E2, C1, C2>>(
+  pub fn setup<NC: NonUniformCircuit<E1, C1, E2, C2>>(
     non_uniform_circuit: &NC,
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
@@ -538,11 +538,11 @@ where
   /// iterate base step to get new instance of recursive SNARK
   #[allow(clippy::too_many_arguments)]
   pub fn new<
-    C0: NonUniformCircuit<E1, E2, C1, C2>,
+    C0: NonUniformCircuit<E1, C1, E2, C2>,
     C1: StepCircuit<E1::Scalar>,
     C2: StepCircuit<E2::Scalar>,
   >(
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
     non_uniform_circuit: &C0,
     c_primary: &C1,
     c_secondary: &C2,
@@ -746,7 +746,7 @@ where
   #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
   pub fn prove_step<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<E2::Scalar>>(
     &mut self,
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
     c_primary: &C1,
     c_secondary: &C2,
   ) -> Result<(), SuperNovaError> {
@@ -933,7 +933,7 @@ where
   /// verify recursive snark
   pub fn verify<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<E2::Scalar>>(
     &self,
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
   ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), SuperNovaError> {
@@ -1131,7 +1131,7 @@ where
 /// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
 /// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
 /// `self.num_circuits()`.
-pub trait NonUniformCircuit<E1, E2, C1, C2>
+pub trait NonUniformCircuit<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -1154,7 +1154,7 @@ where
 }
 
 /// Extension trait to simplify getting scalar form of initial circuit index.
-trait InitialProgramCounter<E1, E2, C1, C2>: NonUniformCircuit<E1, E2, C1, C2>
+trait InitialProgramCounter<E1, C1, E2, C2>: NonUniformCircuit<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -1167,7 +1167,7 @@ where
   }
 }
 
-impl<E1, E2, C1, C2, T: NonUniformCircuit<E1, E2, C1, C2>> InitialProgramCounter<E1, E2, C1, C2>
+impl<E1, C1, E2, C2, T: NonUniformCircuit<E1, C1, E2, C2>> InitialProgramCounter<E1, C1, E2, C2>
   for T
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,

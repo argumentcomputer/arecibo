@@ -226,9 +226,9 @@ where
   }
 }
 
-fn print_constraints_name_on_error_index<E1, E2, C1, C2>(
+fn print_constraints_name_on_error_index<E1, C1, E2, C2>(
   err: &SuperNovaError,
-  pp: &PublicParams<E1, E2, C1, C2>,
+  pp: &PublicParams<E1, C1, E2, C2>,
   c_primary: &C1,
   c_secondary: &C2,
   num_augmented_circuits: usize,
@@ -318,7 +318,7 @@ impl<F: PrimeField> StepCircuit<F> for TestROMCircuit<F> {
 }
 
 impl<E1, E2>
-  NonUniformCircuit<E1, E2, TestROMCircuit<E1::Scalar>, TrivialSecondaryCircuit<E2::Scalar>>
+  NonUniformCircuit<E1, TestROMCircuit<E1::Scalar>, E2, TrivialSecondaryCircuit<E2::Scalar>>
   for TestROM<E1, E2, TrivialSecondaryCircuit<E2::Scalar>>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -575,19 +575,19 @@ fn test_recursive_circuit() {
   );
 }
 
-fn test_pp_digest_with<E1, E2, T1, T2, NC>(non_uniform_circuit: &NC, expected: &Expect)
+fn test_pp_digest_with<E1, E2, C1, C2, NC>(non_uniform_circuit: &NC, expected: &Expect)
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  T1: StepCircuit<E1::Scalar>,
-  T2: StepCircuit<E2::Scalar>,
-  NC: NonUniformCircuit<E1, E2, T1, T2>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+  NC: NonUniformCircuit<E1, C1, E2, C2>,
 {
   // TODO: add back in https://github.com/lurk-lab/arecibo/issues/53
   // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
   // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
-  let pp = PublicParams::<E1, E2, T1, T2>::setup(
+  let pp = PublicParams::<E1, C1, E2, C2>::setup(
     non_uniform_circuit,
     &*default_ck_hint(),
     &*default_ck_hint(),
@@ -816,7 +816,7 @@ where
   }
 }
 
-impl<E1, E2> NonUniformCircuit<E1, E2, Self, TrivialSecondaryCircuit<E1::Base>>
+impl<E1, E2> NonUniformCircuit<E1, Self, E2, TrivialSecondaryCircuit<E1::Base>>
   for RootCheckingCircuit<E1::Scalar>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -859,8 +859,8 @@ where
   // produce public parameters
   let pp = PublicParams::<
     E1,
-    E2,
     RootCheckingCircuit<<E1 as Engine>::Scalar>,
+    E2,
     TrivialSecondaryCircuit<<E2 as Engine>::Scalar>,
   >::setup(&roots[0], &*default_ck_hint(), &*default_ck_hint());
   // produce a recursive SNARK

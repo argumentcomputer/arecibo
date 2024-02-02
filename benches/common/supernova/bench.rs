@@ -97,11 +97,11 @@ pub fn bench_snark_internal_with_arity<
 
   match snark_type {
     SnarkType::Compressed => {
-      let (prover_key, verifier_key) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+      let (prover_key, verifier_key) = CompressedSNARK::<_, _, S1, _, _, S2>::setup(&pp).unwrap();
       // Benchmark the prove time
       group.bench_function(bench_params.bench_id("Prove"), |b| {
         b.iter(|| {
-          assert!(CompressedSNARK::<_, _, _, _, S1, S2>::prove(
+          assert!(CompressedSNARK::<_, _, S1, _, _, S2>::prove(
             black_box(&pp),
             black_box(&prover_key),
             black_box(&recursive_snark)
@@ -110,7 +110,7 @@ pub fn bench_snark_internal_with_arity<
         })
       });
 
-      let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &prover_key, &recursive_snark);
+      let res = CompressedSNARK::<_, _, S1, _, _, S2>::prove(&pp, &prover_key, &recursive_snark);
       assert!(res.is_ok());
       let compressed_snark = res.unwrap();
       // Benchmark the verification time

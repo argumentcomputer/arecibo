@@ -90,7 +90,7 @@ impl<E: Engine> R1CSWithArity<E> {
 /// A type that holds public parameters of Nova
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct PublicParams<E1, E2, C1, C2>
+pub struct PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -130,7 +130,7 @@ where
   <E1::Scalar as PrimeField>::Repr: Abomonation,
   <E2::Scalar as PrimeField>::Repr: Abomonation,
 )]
-pub struct FlatPublicParams<E1, E2, C1, C2>
+pub struct FlatPublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -153,7 +153,7 @@ where
 }
 
 #[cfg(feature = "abomonate")]
-impl<E1, E2, C1, C2> TryFrom<PublicParams<E1, E2, C1, C2>> for FlatPublicParams<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> TryFrom<PublicParams<E1, C1, E2, C2>> for FlatPublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -162,7 +162,7 @@ where
 {
   type Error = &'static str;
 
-  fn try_from(value: PublicParams<E1, E2, C1, C2>) -> Result<Self, Self::Error> {
+  fn try_from(value: PublicParams<E1, C1, E2, C2>) -> Result<Self, Self::Error> {
     let ck_primary =
       Arc::try_unwrap(value.ck_primary).map_err(|_| "Failed to unwrap Arc for ck_primary")?;
     let ck_secondary =
@@ -186,14 +186,14 @@ where
 }
 
 #[cfg(feature = "abomonate")]
-impl<E1, E2, C1, C2> From<FlatPublicParams<E1, E2, C1, C2>> for PublicParams<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> From<FlatPublicParams<E1, C1, E2, C2>> for PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
   C1: StepCircuit<E1::Scalar>,
   C2: StepCircuit<E2::Scalar>,
 {
-  fn from(value: FlatPublicParams<E1, E2, C1, C2>) -> Self {
+  fn from(value: FlatPublicParams<E1, C1, E2, C2>) -> Self {
     Self {
       F_arity_primary: value.F_arity_primary,
       F_arity_secondary: value.F_arity_secondary,
@@ -213,7 +213,7 @@ where
   }
 }
 
-impl<E1, E2, C1, C2> SimpleDigestible for PublicParams<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> SimpleDigestible for PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -222,7 +222,7 @@ where
 {
 }
 
-impl<E1, E2, C1, C2> PublicParams<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> PublicParams<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -381,7 +381,7 @@ pub struct ResourceBuffer<E: Engine> {
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RecursiveSNARK<E1, E2, C1, C2>
+pub struct RecursiveSNARK<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -408,7 +408,7 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
-impl<E1, E2, C1, C2> RecursiveSNARK<E1, E2, C1, C2>
+impl<E1, C1, E2, C2> RecursiveSNARK<E1, C1, E2, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -417,7 +417,7 @@ where
 {
   /// Create new instance of recursive SNARK
   pub fn new(
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
     c_primary: &C1,
     c_secondary: &C2,
     z0_primary: &[E1::Scalar],
@@ -544,7 +544,7 @@ where
   #[tracing::instrument(skip_all, name = "nova::RecursiveSNARK::prove_step")]
   pub fn prove_step(
     &mut self,
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
     c_primary: &C1,
     c_secondary: &C2,
   ) -> Result<(), NovaError> {
@@ -662,7 +662,7 @@ where
   /// Verify the correctness of the `RecursiveSNARK`
   pub fn verify(
     &self,
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
     num_steps: usize,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
@@ -781,7 +781,7 @@ where
 
 /// A type that holds the prover key for `CompressedSNARK`
 #[derive(Clone, Debug)]
-pub struct ProverKey<E1, E2, C1, C2, S1, S2>
+pub struct ProverKey<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -798,7 +798,7 @@ where
 /// A type that holds the verifier key for `CompressedSNARK`
 #[derive(Debug, Clone, Serialize)]
 #[serde(bound = "")]
-pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
+pub struct VerifierKey<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -820,7 +820,7 @@ where
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
+pub struct CompressedSNARK<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -843,7 +843,7 @@ where
   _p: PhantomData<(C1, C2)>,
 }
 
-impl<E1, E2, C1, C2, S1, S2> CompressedSNARK<E1, E2, C1, C2, S1, S2>
+impl<E1, C1, S1, E2, C2, S2> CompressedSNARK<E1, C1, S1, E2, C2, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -854,11 +854,11 @@ where
 {
   /// Creates prover and verifier keys for `CompressedSNARK`
   pub fn setup(
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
   ) -> Result<
     (
-      ProverKey<E1, E2, C1, C2, S1, S2>,
-      VerifierKey<E1, E2, C1, C2, S1, S2>,
+      ProverKey<E1, C1, S1, E2, C2, S2>,
+      VerifierKey<E1, C1, S1, E2, C2, S2>,
     ),
     NovaError,
   > {
@@ -891,9 +891,9 @@ where
 
   /// Create a new `CompressedSNARK`
   pub fn prove(
-    pp: &PublicParams<E1, E2, C1, C2>,
-    pk: &ProverKey<E1, E2, C1, C2, S1, S2>,
-    recursive_snark: &RecursiveSNARK<E1, E2, C1, C2>,
+    pp: &PublicParams<E1, C1, E2, C2>,
+    pk: &ProverKey<E1, C1, S1, E2, C2, S2>,
+    recursive_snark: &RecursiveSNARK<E1, C1, E2, C2>,
   ) -> Result<Self, NovaError> {
     // fold the secondary circuit's instance with its running instance
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
@@ -948,7 +948,7 @@ where
   /// Verify the correctness of the `CompressedSNARK`
   pub fn verify(
     &self,
-    vk: &VerifierKey<E1, E2, C1, C2, S1, S2>,
+    vk: &VerifierKey<E1, C1, S1, E2, C2, S2>,
     num_steps: usize,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
@@ -1153,7 +1153,7 @@ mod tests {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let ck_hint1 = &*SPrime::<E1, EE1>::ck_floor();
     let ck_hint2 = &*SPrime::<E2, EE2>::ck_floor();
-    let pp = PublicParams::<E1, E2, T1, T2>::setup(circuit1, circuit2, ck_hint1, ck_hint2);
+    let pp = PublicParams::<E1, T1, E2, T2>::setup(circuit1, circuit2, ck_hint1, ck_hint2);
 
     let digest_str = pp
       .digest()
@@ -1241,8 +1241,8 @@ mod tests {
     // produce public parameters
     let pp = PublicParams::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::setup(
       &test_circuit1,
@@ -1294,8 +1294,8 @@ mod tests {
     // produce public parameters
     let pp = PublicParams::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::setup(
       &circuit_primary,
@@ -1309,8 +1309,8 @@ mod tests {
     // produce a recursive SNARK
     let mut recursive_snark = RecursiveSNARK::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
@@ -1379,8 +1379,8 @@ mod tests {
     // produce public parameters
     let pp = PublicParams::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::setup(
       &circuit_primary,
@@ -1394,8 +1394,8 @@ mod tests {
     // produce a recursive SNARK
     let mut recursive_snark = RecursiveSNARK::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
@@ -1432,11 +1432,11 @@ mod tests {
     assert_eq!(zn_secondary, vec![<E2 as Engine>::Scalar::from(2460515u64)]);
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, S<E1, EE1>, _, _, S<E2, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
     let res =
-      CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
+      CompressedSNARK::<_, _, S<E1, EE1>, _, _, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1486,8 +1486,8 @@ mod tests {
     // produce public parameters, which we'll use with a spark-compressed SNARK
     let pp = PublicParams::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::setup(
       &circuit_primary,
@@ -1501,8 +1501,8 @@ mod tests {
     // produce a recursive SNARK
     let mut recursive_snark = RecursiveSNARK::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
@@ -1541,10 +1541,10 @@ mod tests {
     // run the compressed snark with Spark compiler
     // produce the prover and verifier keys for compressed snark
     let (pk, vk) =
-      CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::setup(&pp).unwrap();
+      CompressedSNARK::<_, _, SPrime<E1, EE1>, _, _, SPrime<E2, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::prove(
+    let res = CompressedSNARK::<_, _, SPrime<E1, EE1>, _, _, SPrime<E2, EE2>>::prove(
       &pp,
       &pk,
       &recursive_snark,
@@ -1652,8 +1652,8 @@ mod tests {
     // produce public parameters
     let pp = PublicParams::<
       E1,
-      E2,
       FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,
+      E2,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::setup(
       &circuit_primary,
@@ -1669,15 +1669,10 @@ mod tests {
     let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
 
     // produce a recursive SNARK
-    let mut recursive_snark: RecursiveSNARK<
+    let mut recursive_snark = RecursiveSNARK::<
       E1,
-      E2,
       FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    > = RecursiveSNARK::<
-      E1,
       E2,
-      FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
@@ -1698,11 +1693,11 @@ mod tests {
     assert!(res.is_ok());
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, S<E1, EE1>, _, _, S<E2, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
     let res =
-      CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
+      CompressedSNARK::<_, _, S<E1, EE1>, _, _, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1731,8 +1726,8 @@ mod tests {
     // produce public parameters
     let pp = PublicParams::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::setup(
       &test_circuit1,
@@ -1746,8 +1741,8 @@ mod tests {
     // produce a recursive SNARK
     let mut recursive_snark = RecursiveSNARK::<
       E1,
-      E2,
       TrivialCircuit<<E1 as Engine>::Scalar>,
+      E2,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
