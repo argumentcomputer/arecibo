@@ -222,12 +222,7 @@ fn main() {
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<
-      E1,
-      AndCircuit<<E1 as Engine>::GE>,
-      E2,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1, AndCircuit<<E1 as Engine>::GE>>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*S1::ck_floor(),
@@ -263,15 +258,14 @@ fn main() {
 
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, C1, E2, C2> =
-      RecursiveSNARK::<E1, C1, E2, C2>::new(
-        &pp,
-        &circuits[0],
-        &circuit_secondary,
-        &[<E1 as Engine>::Scalar::zero()],
-        &[<E2 as Engine>::Scalar::zero()],
-      )
-      .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, C1, C2> = RecursiveSNARK::<E1, C1, C2>::new(
+      &pp,
+      &circuits[0],
+      &circuit_secondary,
+      &[<E1 as Engine>::Scalar::zero()],
+      &[<E2 as Engine>::Scalar::zero()],
+    )
+    .unwrap();
 
     let start = Instant::now();
     for circuit_primary in circuits.iter() {
@@ -297,11 +291,11 @@ fn main() {
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with multilinear KZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, S1, _, _, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, S1, _, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
 
-    let res = CompressedSNARK::<_, _, S1, _, _, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, S1, _, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),

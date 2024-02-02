@@ -221,12 +221,7 @@ fn main() {
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<
-      E1,
-      MinRootCircuit<<E1 as Engine>::GE>,
-      E2,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1, MinRootCircuit<<E1 as Engine>::GE>>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*S1::ck_floor(),
@@ -272,16 +267,9 @@ fn main() {
       let mut reader = std::io::BufReader::new(file);
       let mut bytes = Vec::new();
       reader.read_to_end(&mut bytes).unwrap();
-      if let Some((result, remaining)) = unsafe {
-        decode::<
-          FlatPublicParams<
-            E1,
-            E2,
-            MinRootCircuit<<E1 as Engine>::GE>,
-            TrivialCircuit<<E2 as Engine>::Scalar>,
-          >,
-        >(&mut bytes)
-      } {
+      if let Some((result, remaining)) =
+        unsafe { decode::<FlatPublicParams<E1, MinRootCircuit<<E1 as Engine>::GE>>>(&mut bytes) }
+      {
         let result_pp = PublicParams::from(result.clone());
         assert!(result_pp == pp, "decoded parameters not equal to original!");
         assert!(remaining.is_empty());
@@ -316,15 +304,14 @@ fn main() {
     type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, C1, E2, C2> =
-      RecursiveSNARK::<E1, C1, E2, C2>::new(
-        &pp,
-        &minroot_circuits[0],
-        &circuit_secondary,
-        &z0_primary,
-        &z0_secondary,
-      )
-      .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, C1, C2> = RecursiveSNARK::<E1, C1, C2>::new(
+      &pp,
+      &minroot_circuits[0],
+      &circuit_secondary,
+      &z0_primary,
+      &z0_secondary,
+    )
+    .unwrap();
 
     for (i, circuit_primary) in minroot_circuits.iter().enumerate() {
       let start = Instant::now();
@@ -351,7 +338,7 @@ fn main() {
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with multilinear KZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, S1, _, _, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, S1, _, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
     type E1 = Bn256EngineKZG;
@@ -361,7 +348,7 @@ fn main() {
     type S1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>; // non-preprocessing SNARK
     type S2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>; // non-preprocessing SNARK
 
-    let res = CompressedSNARK::<_, _, S1, _, _, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, S1, _, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),
