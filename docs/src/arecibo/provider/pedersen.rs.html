@@ -307,29 +307,6 @@
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module provides an implementation of a commitment engine
 </span><span class="kw">use crate</span>::{
   errors::NovaError,
@@ -338,6 +315,7 @@
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
+  zip_with,
 };
 <span class="kw">use </span>abomonation_derive::Abomonation;
 <span class="kw">use </span>core::{
@@ -346,12 +324,15 @@
   ops::{Add, Mul, MulAssign},
 };
 <span class="kw">use </span>ff::Field;
-<span class="kw">use </span>group::{prime::PrimeCurve, Curve, Group, GroupEncoding};
+<span class="kw">use </span>group::{
+  prime::{PrimeCurve, PrimeCurveAffine},
+  Curve, Group, GroupEncoding,
+};
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// A type that holds commitment generators
-</span><span class="attr">#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_omit_bounds]
 </span><span class="kw">pub struct </span>CommitmentKey&lt;E&gt;
 <span class="kw">where
@@ -360,19 +341,6 @@
 {
   <span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">8</span>]</span>&gt;)] <span class="comment">// this is a hack; we just assume the size of the element.
   </span>ck: Vec&lt;&lt;E::GE <span class="kw">as </span>PrimeCurve&gt;::Affine&gt;,
-}
-
-<span class="doccomment">/// [`CommitmentKey`]s are often large, and this helps with cloning bottlenecks
-</span><span class="kw">impl</span>&lt;E&gt; Clone <span class="kw">for </span>CommitmentKey&lt;E&gt;
-<span class="kw">where
-  </span>E: Engine,
-  E::GE: DlogGroup&lt;ScalarExt = E::Scalar&gt;,
-{
-  <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-    <span class="self">Self </span>{
-      ck: <span class="self">self</span>.ck[..].par_iter().cloned().collect(),
-    }
-  }
 }
 
 <span class="kw">impl</span>&lt;E&gt; Len <span class="kw">for </span>CommitmentKey&lt;E&gt;
@@ -575,7 +543,7 @@
   E::GE: DlogGroup,
 {
   <span class="doccomment">/// Splits the commitment key into two pieces at a specified point
-  </span><span class="kw">fn </span>split_at(<span class="kw-2">&amp;</span><span class="self">self</span>, n: usize) -&gt; (<span class="self">Self</span>, <span class="self">Self</span>)
+  </span><span class="kw">fn </span>split_at(<span class="self">self</span>, n: usize) -&gt; (<span class="self">Self</span>, <span class="self">Self</span>)
   <span class="kw">where
     </span><span class="self">Self</span>: Sized;
 
@@ -583,10 +551,10 @@
   </span><span class="kw">fn </span>combine(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="self">Self</span>;
 
   <span class="doccomment">/// Folds the two commitment keys into one using the provided weights
-  </span><span class="kw">fn </span>fold(<span class="kw-2">&amp;</span><span class="self">self</span>, w1: <span class="kw-2">&amp;</span>E::Scalar, w2: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self</span>;
+  </span><span class="kw">fn </span>fold(L: <span class="kw-2">&amp;</span><span class="self">Self</span>, R: <span class="kw-2">&amp;</span><span class="self">Self</span>, w1: <span class="kw-2">&amp;</span>E::Scalar, w2: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self</span>;
 
   <span class="doccomment">/// Scales the commitment key using the provided scalar
-  </span><span class="kw">fn </span>scale(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self</span>;
+  </span><span class="kw">fn </span>scale(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>E::Scalar);
 
   <span class="doccomment">/// Reinterprets commitments as commitment keys
   </span><span class="kw">fn </span>reinterpret_commitments_as_ck(
@@ -601,64 +569,50 @@
   </span>E: Engine&lt;CE = CommitmentEngine&lt;E&gt;&gt;,
   E::GE: DlogGroup&lt;ScalarExt = E::Scalar&gt;,
 {
-  <span class="kw">fn </span>split_at(<span class="kw-2">&amp;</span><span class="self">self</span>, n: usize) -&gt; (<span class="self">Self</span>, <span class="self">Self</span>) {
-    (
-      <span class="self">Self </span>{
-        ck: <span class="self">self</span>.ck[<span class="number">0</span>..n].to_vec(),
-      },
-      <span class="self">Self </span>{
-        ck: <span class="self">self</span>.ck[n..].to_vec(),
-      },
-    )
+  <span class="kw">fn </span>split_at(<span class="kw-2">mut </span><span class="self">self</span>, n: usize) -&gt; (<span class="self">Self</span>, <span class="self">Self</span>) {
+    <span class="kw">let </span>right = <span class="self">self</span>.ck.split_off(n);
+    (<span class="self">self</span>, <span class="self">Self </span>{ ck: right })
   }
 
   <span class="kw">fn </span>combine(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="self">Self </span>{
     <span class="kw">let </span>ck = {
-      <span class="kw">let </span><span class="kw-2">mut </span>c = <span class="self">self</span>.ck.clone();
-      c.extend(other.ck.clone());
-      c
+      <span class="self">self
+        </span>.ck
+        .iter()
+        .cloned()
+        .chain(other.ck.iter().cloned())
+        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
     };
     <span class="self">Self </span>{ ck }
   }
 
   <span class="comment">// combines the left and right halves of `self` using `w1` and `w2` as the weights
-  </span><span class="kw">fn </span>fold(<span class="kw-2">&amp;</span><span class="self">self</span>, w1: <span class="kw-2">&amp;</span>E::Scalar, w2: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
-    <span class="kw">let </span>w = <span class="macro">vec!</span>[<span class="kw-2">*</span>w1, <span class="kw-2">*</span>w2];
-    <span class="kw">let </span>(L, R) = <span class="self">self</span>.split_at(<span class="self">self</span>.ck.len() / <span class="number">2</span>);
+  </span><span class="kw">fn </span>fold(L: <span class="kw-2">&amp;</span><span class="self">Self</span>, R: <span class="kw-2">&amp;</span><span class="self">Self</span>, w1: <span class="kw-2">&amp;</span>E::Scalar, w2: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
+    <span class="macro">debug_assert!</span>(L.ck.len() == R.ck.len());
+    <span class="kw">let </span>ck_curve: Vec&lt;E::GE&gt; = <span class="macro">zip_with!</span>(par_iter, (L.ck, R.ck), |l, r| {
+      E::GE::vartime_multiscalar_mul(<span class="kw-2">&amp;</span>[<span class="kw-2">*</span>w1, <span class="kw-2">*</span>w2], <span class="kw-2">&amp;</span>[<span class="kw-2">*</span>l, <span class="kw-2">*</span>r])
+    })
+    .collect();
+    <span class="kw">let </span><span class="kw-2">mut </span>ck_affine = <span class="macro">vec!</span>[&lt;E::GE <span class="kw">as </span>PrimeCurve&gt;::Affine::identity(); L.ck.len()];
+    E::GE::batch_normalize(<span class="kw-2">&amp;</span>ck_curve, <span class="kw-2">&amp;mut </span>ck_affine);
 
-    <span class="kw">let </span>ck = (<span class="number">0</span>..<span class="self">self</span>.ck.len() / <span class="number">2</span>)
-      .into_par_iter()
-      .map(|i| {
-        <span class="kw">let </span>bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
-        E::GE::vartime_multiscalar_mul(<span class="kw-2">&amp;</span>w, <span class="kw-2">&amp;</span>bases).to_affine()
-      })
-      .collect();
-
-    <span class="self">Self </span>{ ck }
+    <span class="self">Self </span>{ ck: ck_affine }
   }
 
   <span class="doccomment">/// Scales each element in `self` by `r`
-  </span><span class="kw">fn </span>scale(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
-    <span class="kw">let </span>ck_scaled = <span class="self">self
-      </span>.ck
-      .clone()
-      .into_par_iter()
-      .map(|g| E::GE::vartime_multiscalar_mul(<span class="kw-2">&amp;</span>[<span class="kw-2">*</span>r], <span class="kw-2">&amp;</span>[g]).to_affine())
-      .collect();
-
-    <span class="self">Self </span>{ ck: ck_scaled }
+  </span><span class="kw">fn </span>scale(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>E::Scalar) {
+    <span class="kw">let </span>ck_scaled: Vec&lt;E::GE&gt; = <span class="self">self</span>.ck.par_iter().map(|g| <span class="kw-2">*</span>g * r).collect();
+    E::GE::batch_normalize(<span class="kw-2">&amp;</span>ck_scaled, <span class="kw-2">&amp;mut </span><span class="self">self</span>.ck);
   }
 
   <span class="doccomment">/// reinterprets a vector of commitments as a set of generators
   </span><span class="kw">fn </span>reinterpret_commitments_as_ck(c: <span class="kw-2">&amp;</span>[CompressedCommitment&lt;E&gt;]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
-    <span class="kw">let </span>d = (<span class="number">0</span>..c.len())
-      .into_par_iter()
-      .map(|i| Commitment::&lt;E&gt;::decompress(<span class="kw-2">&amp;</span>c[i]))
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;Commitment&lt;E&gt;&gt;, NovaError&gt;&gt;()<span class="question-mark">?</span>;
-    <span class="kw">let </span>ck = (<span class="number">0</span>..d.len())
-      .into_par_iter()
-      .map(|i| d[i].comm.to_affine())
-      .collect();
+    <span class="kw">let </span>d = c
+      .par_iter()
+      .map(|c| Commitment::&lt;E&gt;::decompress(c).map(|c| c.comm))
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;E::GE&gt;, NovaError&gt;&gt;()<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>ck = <span class="macro">vec!</span>[&lt;E::GE <span class="kw">as </span>PrimeCurve&gt;::Affine::identity(); d.len()];
+    E::GE::batch_normalize(<span class="kw-2">&amp;</span>d, <span class="kw-2">&amp;mut </span>ck);
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ ck })
   }
 }

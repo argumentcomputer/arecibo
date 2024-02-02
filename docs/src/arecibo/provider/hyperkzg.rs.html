@@ -592,6 +592,9 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova&#39;s evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
 //! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
 //! However, there are some key differences:
@@ -796,7 +799,10 @@
       <span class="kw">let </span>B = kzg_compute_batch_polynomial(f, q);
 
       <span class="comment">// Now open B at u0, ..., u_{t-1}
-      </span><span class="kw">let </span>w = u.par_iter().map(|ui| kzg_open(<span class="kw-2">&amp;</span>B, <span class="kw-2">*</span>ui)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+      </span><span class="kw">let </span>w = u
+        .into_par_iter()
+        .map(|ui| kzg_open(<span class="kw-2">&amp;</span>B, <span class="kw-2">*</span>ui))
+        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
       <span class="comment">// The prover computes the challenge to keep the transcript in the same
       // state as that of the verifier

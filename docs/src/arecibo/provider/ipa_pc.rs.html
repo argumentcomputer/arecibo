@@ -414,16 +414,6 @@
 <a href="#414" id="414">414</a>
 <a href="#415" id="415">415</a>
 <a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `EvaluationEngine` using an IPA-based polynomial commitment scheme
 </span><span class="kw">use crate</span>::{
   digest::SimpleDigestible,
@@ -435,7 +425,7 @@
     evaluation::EvaluationEngineTrait,
     Engine, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, CompressedCommitment, CE,
+  zip_with, Commitment, CommitmentKey, CompressedCommitment, CE,
 };
 <span class="kw">use </span>core::iter;
 <span class="kw">use </span>ff::Field;
@@ -445,13 +435,13 @@
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="doccomment">/// Provides an implementation of the prover key
-</span><span class="attr">#[derive(Clone, Debug)]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine&gt; {
   ck_s: CommitmentKey&lt;E&gt;,
 }
 
 <span class="doccomment">/// Provides an implementation of the verifier key
-</span><span class="attr">#[derive(Clone, Debug, Serialize)]
+</span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine&gt; {
   ck_v: Arc&lt;CommitmentKey&lt;E&gt;&gt;,
@@ -502,7 +492,7 @@
     <span class="kw">let </span>u = InnerProductInstance::new(comm, <span class="kw-2">&amp;</span>EqPolynomial::evals_from_points(point), eval);
     <span class="kw">let </span>w = InnerProductWitness::new(poly);
 
-    InnerProductArgument::prove(ck, <span class="kw-2">&amp;</span>pk.ck_s, <span class="kw-2">&amp;</span>u, <span class="kw-2">&amp;</span>w, transcript)
+    InnerProductArgument::prove(ck.clone(), pk.ck_s.clone(), <span class="kw-2">&amp;</span>u, <span class="kw-2">&amp;</span>w, transcript)
   }
 
   <span class="doccomment">/// A method to verify purported evaluations of a batch of polynomials
@@ -516,24 +506,14 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(), NovaError&gt; {
     <span class="kw">let </span>u = InnerProductInstance::new(comm, <span class="kw-2">&amp;</span>EqPolynomial::evals_from_points(point), eval);
 
-    arg.verify(
-      <span class="kw-2">&amp;</span>vk.ck_v,
-      <span class="kw-2">&amp;</span>vk.ck_s,
-      (<span class="number">2_usize</span>).pow(point.len() <span class="kw">as </span>u32),
-      <span class="kw-2">&amp;</span>u,
-      transcript,
-    )<span class="question-mark">?</span>;
+    arg.verify(<span class="kw-2">&amp;</span>vk.ck_v, vk.ck_s.clone(), <span class="number">1 </span>&lt;&lt; point.len(), <span class="kw-2">&amp;</span>u, transcript)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
   }
 }
 
 <span class="kw">fn </span>inner_product&lt;T: Field + Send + Sync&gt;(a: <span class="kw-2">&amp;</span>[T], b: <span class="kw-2">&amp;</span>[T]) -&gt; T {
-  <span class="macro">assert_eq!</span>(a.len(), b.len());
-  (<span class="number">0</span>..a.len())
-    .into_par_iter()
-    .map(|i| a[i] * b[i])
-    .reduce(|| T::ZERO, |x, y| x + y)
+  <span class="macro">zip_with!</span>(par_iter, (a, b), |x, y| <span class="kw-2">*</span>x * y).sum()
 }
 
 <span class="doccomment">/// An inner product instance consists of a commitment to a vector `a` and another vector `b`
@@ -601,8 +581,8 @@
   </span>}
 
   <span class="kw">fn </span>prove(
-    ck: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
-    ck_c: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
+    ck: CommitmentKey&lt;E&gt;,
+    <span class="kw-2">mut </span>ck_c: CommitmentKey&lt;E&gt;,
     U: <span class="kw-2">&amp;</span>InnerProductInstance&lt;E&gt;,
     W: <span class="kw-2">&amp;</span>InnerProductWitness&lt;E&gt;,
     transcript: <span class="kw-2">&amp;mut </span>E::TE,
@@ -620,12 +600,12 @@
 
     <span class="comment">// sample a random base for commiting to the inner product
     </span><span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>ck_c = ck_c.scale(<span class="kw-2">&amp;</span>r);
+    ck_c.scale(<span class="kw-2">&amp;</span>r);
 
     <span class="comment">// a closure that executes a step of the recursive inner product argument
     </span><span class="kw">let </span>prove_inner = |a_vec: <span class="kw-2">&amp;</span>[E::Scalar],
                        b_vec: <span class="kw-2">&amp;</span>[E::Scalar],
-                       ck: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
+                       ck: CommitmentKey&lt;E&gt;,
                        transcript: <span class="kw-2">&amp;mut </span>E::TE|
      -&gt; <span class="prelude-ty">Result</span>&lt;
       (
@@ -681,7 +661,7 @@
         .map(|(b_L, b_R)| <span class="kw-2">*</span>b_L * r_inverse + r * <span class="kw-2">*</span>b_R)
         .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
 
-      <span class="kw">let </span>ck_folded = ck.fold(<span class="kw-2">&amp;</span>r_inverse, <span class="kw-2">&amp;</span>r);
+      <span class="kw">let </span>ck_folded = CommitmentKeyExtTrait::fold(<span class="kw-2">&amp;</span>ck_L, <span class="kw-2">&amp;</span>ck_R, <span class="kw-2">&amp;</span>r_inverse, <span class="kw-2">&amp;</span>r);
 
       <span class="prelude-val">Ok</span>((L, R, a_vec_folded, b_vec_folded, ck_folded))
     };
@@ -696,7 +676,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>ck = ck;
     <span class="kw">for </span>_i <span class="kw">in </span><span class="number">0</span>..usize::try_from(U.b_vec.len().ilog2()).unwrap() {
       <span class="kw">let </span>(L, R, a_vec_folded, b_vec_folded, ck_folded) =
-        prove_inner(<span class="kw-2">&amp;</span>a_vec, <span class="kw-2">&amp;</span>b_vec, <span class="kw-2">&amp;</span>ck, transcript)<span class="question-mark">?</span>;
+        prove_inner(<span class="kw-2">&amp;</span>a_vec, <span class="kw-2">&amp;</span>b_vec, ck, transcript)<span class="question-mark">?</span>;
       L_vec.push(L);
       R_vec.push(R);
 
@@ -715,12 +695,12 @@
   <span class="kw">fn </span>verify(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     ck: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
-    ck_c: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
+    <span class="kw-2">mut </span>ck_c: CommitmentKey&lt;E&gt;,
     n: usize,
     U: <span class="kw-2">&amp;</span>InnerProductInstance&lt;E&gt;,
     transcript: <span class="kw-2">&amp;mut </span>E::TE,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(), NovaError&gt; {
-    <span class="kw">let </span>(ck, <span class="kw">_</span>) = ck.split_at(U.b_vec.len());
+    <span class="kw">let </span>(ck, <span class="kw">_</span>) = ck.clone().split_at(U.b_vec.len());
 
     transcript.dom_sep(<span class="self">Self</span>::protocol_name());
     <span class="kw">if </span>U.b_vec.len() != n
@@ -736,7 +716,7 @@
 
     <span class="comment">// sample a random base for commiting to the inner product
     </span><span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>ck_c = ck_c.scale(<span class="kw-2">&amp;</span>r);
+    ck_c.scale(<span class="kw-2">&amp;</span>r);
 
     <span class="kw">let </span>P = U.comm_a_vec + CE::&lt;E&gt;::commit(<span class="kw-2">&amp;</span>ck_c, <span class="kw-2">&amp;</span>[U.c]);
 
