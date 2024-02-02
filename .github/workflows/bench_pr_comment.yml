@@ -4,114 +4,51 @@ on:
   issue_comment:
     types: [created]
 
-env:
-  CARGO_TERM_COLOR: always
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
+  gpu-benchmark:
+    name: run benchmarks on GPU
+    runs-on: [self-hosted, gpu-bench]
     if:
       github.event.issue.pull_request
       && github.event.issue.state == 'open'
-      && contains(github.event.comment.body, '!benchmark')
+      && contains(github.event.comment.body, '!gpu-benchmark')
       && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
-    # Set job outputs to values from filter step
-    outputs:
-      spartan: ${{ steps.filter.outputs.spartan }}
-      supernova: ${{ steps.filter.outputs.supernova }}
     steps:
+      # Set up GPU env
+      - uses: actions/checkout@v4
+        with:
+          repository: lurk-lab/ci-workflows
+      - uses: ./.github/actions/gpu-setup
+        with:
+          gpu-framework: 'cuda'
+      - uses: ./.github/actions/ci-env
+      # Get base branch of the PR
       - uses: xt0rted/pull-request-comment-branch@v2
         id: comment-branch
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          ref: ${{ steps.comment-branch.outputs.head_ref }}
-          filters: |
-            spartan:
-              - 'src/spartan/**'
-            supernova:
-              - 'src/supernova/**'
-
-  recursive-benchmark:
-    name: run benchmark
-    runs-on: buildjet-16vcpu-ubuntu-2204
-    if:
-      github.event.issue.pull_request
-      && github.event.issue.state == 'open'
-      && contains(github.event.comment.body, '!benchmark')
-      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
-    steps:
-      - uses: xt0rted/pull-request-comment-branch@v2
-        id: comment-branch
-      - uses: actions/checkout@v4
-        if: success()
-        with:
-          ref: ${{ steps.comment-branch.outputs.head_ref }}
-      # Set the Rust env vars
+      - name: Checkout PR branch
+        run: gh pr checkout $PR_NUMBER
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+      # Install dependencies
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Set output type
+        run: |
+          echo "ARECIBO_BENCH_OUTPUT=pr-comment" >> $GITHUB_ENV
+          echo "ARECIBO_NUM_CONS=16384,1038732" >> $GITHUB_ENV
+      # Run the comparative benchmark and comment output on the PR
       - uses: boa-dev/criterion-compare-action@v3
         with:
+          # Note: Removing `benchName` causes `criterion` errors: https://github.com/boa-dev/criterion-compare-action#troubleshooting
           # Optional. Compare only this benchmark target
-          benchName: "recursive-snark"
+          benchName: "supernova-ci"
+          # Optional. Features activated in the benchmark
+          features: "cuda"
           # Needed. The name of the branch to compare with
-          branchName: ${{ github.ref_name }}
-
-  spartan-benchmark:
-    name: run benchmark
-    runs-on: buildjet-16vcpu-ubuntu-2204
-    needs: changes
-    if:
-      github.event.issue.pull_request
-      && github.event.issue.state == 'open'
-      && contains(github.event.comment.body, '!benchmark')
-      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
-      && ${{ needs.changes.outputs.spartan == 'true' }}
-    steps:
-      - uses: xt0rted/pull-request-comment-branch@v2
-        id: comment-branch
-      - uses: actions/checkout@v4
-        if: success()
-        with:
-          ref: ${{ steps.comment-branch.outputs.head_ref }}
-      # Set the Rust env vars
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: boa-dev/criterion-compare-action@v3
-        with:
-          # Optional. Compare only this benchmark target
-          benchName: "compressed-snark"
-          # Needed. The name of the branch to compare with
-          branchName: ${{ github.ref_name }}
-
-  supernova-benchmark:
-    name: run benchmark
-    runs-on: buildjet-16vcpu-ubuntu-2204
-    needs: changes
-    if:
-      github.event.issue.pull_request
-      && github.event.issue.state == 'open'
-      && contains(github.event.comment.body, '!benchmark')
-      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
-      && ${{ needs.changes.outputs.supernova == 'true' }}
-    steps:
-      - uses: xt0rted/pull-request-comment-branch@v2
-        id: comment-branch
-      - uses: actions/checkout@v4
-        if: success()
-        with:
-          ref: ${{ steps.comment-branch.outputs.head_ref }}
-      # Set the Rust env vars
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: boa-dev/criterion-compare-action@v3
-        with:
-          # Optional. Compare only this benchmark target
-          benchName: "recursive-snark-supernova"
-          # Needed. The name of the branch to compare with
-          branchName: ${{ github.ref_name }}
+          branchName: ${{ steps.comment-branch.outputs.base_ref }}
