@@ -46,7 +46,7 @@ pub struct EvaluationArgument<E: Engine> {
 }
 
 /// Provides an implementation of a polynomial evaluation engine using KZG
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct EvaluationEngine<E, NE> {
   _p: PhantomData<(E, NE)>,
 }

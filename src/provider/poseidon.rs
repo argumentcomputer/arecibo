@@ -35,7 +35,7 @@ impl<Scalar: PrimeField> Default for PoseidonConstantsCircuit<Scalar> {
 }
 
 /// A Poseidon-based RO to use outside circuits
-#[derive(Debug, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Abomonation)]
 #[abomonation_bounds(
   where
     Base: PrimeField,
@@ -115,7 +115,7 @@ where
 }
 
 /// A Poseidon-based RO gadget to use inside the verifier circuit.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct PoseidonROCircuit<Scalar: PrimeField> {
   // Internal state
   state: Vec<AllocatedNum<Scalar>>,

@@ -83,7 +83,7 @@ fn trim_zeromorph<E: Engine>(
 }
 
 /// Commitments
-#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ZMCommitment<E: Engine>(
   /// the actual commitment is an affine point.
   E::G1Affine,
