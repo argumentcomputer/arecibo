@@ -12,11 +12,10 @@ use serde::{Deserialize, Serialize};
 /// A trait that ties different pieces of the commitment evaluation together
 pub trait EvaluationEngineTrait<E: Engine>: Clone + Send + Sync {
   /// A type that holds the prover key
-  type ProverKey: Clone + Send + Sync;
+  type ProverKey: Send + Sync;
 
   /// A type that holds the verifier key
-  type VerifierKey: Clone
-    + Send
+  type VerifierKey: Send
     + Sync
     // required for easy Digest computation purposes, could be relaxed to
     // [`crate::digest::Digestible`]

@@ -9,7 +9,7 @@ use crate::{
     evaluation::EvaluationEngineTrait,
     Engine, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, CompressedCommitment, CE,
+  zip_with, Commitment, CommitmentKey, CompressedCommitment, CE,
 };
 use core::iter;
 use ff::Field;
@@ -19,13 +19,13 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// Provides an implementation of the prover key
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ProverKey<E: Engine> {
   ck_s: CommitmentKey<E>,
 }
 
 /// Provides an implementation of the verifier key
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(bound = "")]
 pub struct VerifierKey<E: Engine> {
   ck_v: Arc<CommitmentKey<E>>,
@@ -76,7 +76,7 @@ where
     let u = InnerProductInstance::new(comm, &EqPolynomial::evals_from_points(point), eval);
     let w = InnerProductWitness::new(poly);
 
-    InnerProductArgument::prove(ck, &pk.ck_s, &u, &w, transcript)
+    InnerProductArgument::prove(ck.clone(), pk.ck_s.clone(), &u, &w, transcript)
   }
 
   /// A method to verify purported evaluations of a batch of polynomials
@@ -90,24 +90,14 @@ where
   ) -> Result<(), NovaError> {
     let u = InnerProductInstance::new(comm, &EqPolynomial::evals_from_points(point), eval);
 
-    arg.verify(
-      &vk.ck_v,
-      &vk.ck_s,
-      (2_usize).pow(point.len() as u32),
-      &u,
-      transcript,
-    )?;
+    arg.verify(&vk.ck_v, vk.ck_s.clone(), 1 << point.len(), &u, transcript)?;
 
     Ok(())
   }
 }
 
 fn inner_product<T: Field + Send + Sync>(a: &[T], b: &[T]) -> T {
-  assert_eq!(a.len(), b.len());
-  (0..a.len())
-    .into_par_iter()
-    .map(|i| a[i] * b[i])
-    .reduce(|| T::ZERO, |x, y| x + y)
+  zip_with!(par_iter, (a, b), |x, y| *x * y).sum()
 }
 
 /// An inner product instance consists of a commitment to a vector `a` and another vector `b`
@@ -175,8 +165,8 @@ where
   }
 
   fn prove(
-    ck: &CommitmentKey<E>,
-    ck_c: &CommitmentKey<E>,
+    ck: CommitmentKey<E>,
+    mut ck_c: CommitmentKey<E>,
     U: &InnerProductInstance<E>,
     W: &InnerProductWitness<E>,
     transcript: &mut E::TE,
@@ -194,12 +184,12 @@ where
 
     // sample a random base for commiting to the inner product
     let r = transcript.squeeze(b"r")?;
-    let ck_c = ck_c.scale(&r);
+    ck_c.scale(&r);
 
     // a closure that executes a step of the recursive inner product argument
     let prove_inner = |a_vec: &[E::Scalar],
                        b_vec: &[E::Scalar],
-                       ck: &CommitmentKey<E>,
+                       ck: CommitmentKey<E>,
                        transcript: &mut E::TE|
      -> Result<
       (
@@ -255,7 +245,7 @@ where
         .map(|(b_L, b_R)| *b_L * r_inverse + r * *b_R)
         .collect::<Vec<E::Scalar>>();
 
-      let ck_folded = ck.fold(&r_inverse, &r);
+      let ck_folded = CommitmentKeyExtTrait::fold(&ck_L, &ck_R, &r_inverse, &r);
 
       Ok((L, R, a_vec_folded, b_vec_folded, ck_folded))
     };
@@ -270,7 +260,7 @@ where
     let mut ck = ck;
     for _i in 0..usize::try_from(U.b_vec.len().ilog2()).unwrap() {
       let (L, R, a_vec_folded, b_vec_folded, ck_folded) =
-        prove_inner(&a_vec, &b_vec, &ck, transcript)?;
+        prove_inner(&a_vec, &b_vec, ck, transcript)?;
       L_vec.push(L);
       R_vec.push(R);
 
@@ -289,12 +279,12 @@ where
   fn verify(
     &self,
     ck: &CommitmentKey<E>,
-    ck_c: &CommitmentKey<E>,
+    mut ck_c: CommitmentKey<E>,
     n: usize,
     U: &InnerProductInstance<E>,
     transcript: &mut E::TE,
   ) -> Result<(), NovaError> {
-    let (ck, _) = ck.split_at(U.b_vec.len());
+    let (ck, _) = ck.clone().split_at(U.b_vec.len());
 
     transcript.dom_sep(Self::protocol_name());
     if U.b_vec.len() != n
@@ -310,7 +300,7 @@ where
 
     // sample a random base for commiting to the inner product
     let r = transcript.squeeze(b"r")?;
-    let ck_c = ck_c.scale(&r);
+    ck_c.scale(&r);
 
     let P = U.comm_a_vec + CE::<E>::commit(&ck_c, &[U.c]);
 

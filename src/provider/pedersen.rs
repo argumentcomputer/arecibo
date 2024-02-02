@@ -6,6 +6,7 @@ use crate::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
+  zip_with,
 };
 use abomonation_derive::Abomonation;
 use core::{
@@ -14,12 +15,15 @@ use core::{
   ops::{Add, Mul, MulAssign},
 };
 use ff::Field;
-use group::{prime::PrimeCurve, Curve, Group, GroupEncoding};
+use group::{
+  prime::{PrimeCurve, PrimeCurveAffine},
+  Curve, Group, GroupEncoding,
+};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A type that holds commitment generators
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[abomonation_omit_bounds]
 pub struct CommitmentKey<E>
 where
@@ -28,19 +32,6 @@ where
 {
   #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
   ck: Vec<<E::GE as PrimeCurve>::Affine>,
-}
-
-/// [`CommitmentKey`]s are often large, and this helps with cloning bottlenecks
-impl<E> Clone for CommitmentKey<E>
-where
-  E: Engine,
-  E::GE: DlogGroup<ScalarExt = E::Scalar>,
-{
-  fn clone(&self) -> Self {
-    Self {
-      ck: self.ck[..].par_iter().cloned().collect(),
-    }
-  }
 }
 
 impl<E> Len for CommitmentKey<E>
@@ -243,7 +234,7 @@ where
   E::GE: DlogGroup,
 {
   /// Splits the commitment key into two pieces at a specified point
-  fn split_at(&self, n: usize) -> (Self, Self)
+  fn split_at(self, n: usize) -> (Self, Self)
   where
     Self: Sized;
 
@@ -251,10 +242,10 @@ where
   fn combine(&self, other: &Self) -> Self;
 
   /// Folds the two commitment keys into one using the provided weights
-  fn fold(&self, w1: &E::Scalar, w2: &E::Scalar) -> Self;
+  fn fold(L: &Self, R: &Self, w1: &E::Scalar, w2: &E::Scalar) -> Self;
 
   /// Scales the commitment key using the provided scalar
-  fn scale(&self, r: &E::Scalar) -> Self;
+  fn scale(&mut self, r: &E::Scalar);
 
   /// Reinterprets commitments as commitment keys
   fn reinterpret_commitments_as_ck(
@@ -269,64 +260,50 @@ where
   E: Engine<CE = CommitmentEngine<E>>,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
-  fn split_at(&self, n: usize) -> (Self, Self) {
-    (
-      Self {
-        ck: self.ck[0..n].to_vec(),
-      },
-      Self {
-        ck: self.ck[n..].to_vec(),
-      },
-    )
+  fn split_at(mut self, n: usize) -> (Self, Self) {
+    let right = self.ck.split_off(n);
+    (self, Self { ck: right })
   }
 
   fn combine(&self, other: &Self) -> Self {
     let ck = {
-      let mut c = self.ck.clone();
-      c.extend(other.ck.clone());
-      c
+      self
+        .ck
+        .iter()
+        .cloned()
+        .chain(other.ck.iter().cloned())
+        .collect::<Vec<_>>()
     };
     Self { ck }
   }
 
   // combines the left and right halves of `self` using `w1` and `w2` as the weights
-  fn fold(&self, w1: &E::Scalar, w2: &E::Scalar) -> Self {
-    let w = vec![*w1, *w2];
-    let (L, R) = self.split_at(self.ck.len() / 2);
+  fn fold(L: &Self, R: &Self, w1: &E::Scalar, w2: &E::Scalar) -> Self {
+    debug_assert!(L.ck.len() == R.ck.len());
+    let ck_curve: Vec<E::GE> = zip_with!(par_iter, (L.ck, R.ck), |l, r| {
+      E::GE::vartime_multiscalar_mul(&[*w1, *w2], &[*l, *r])
+    })
+    .collect();
+    let mut ck_affine = vec![<E::GE as PrimeCurve>::Affine::identity(); L.ck.len()];
+    E::GE::batch_normalize(&ck_curve, &mut ck_affine);
 
-    let ck = (0..self.ck.len() / 2)
-      .into_par_iter()
-      .map(|i| {
-        let bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
-        E::GE::vartime_multiscalar_mul(&w, &bases).to_affine()
-      })
-      .collect();
-
-    Self { ck }
+    Self { ck: ck_affine }
   }
 
   /// Scales each element in `self` by `r`
-  fn scale(&self, r: &E::Scalar) -> Self {
-    let ck_scaled = self
-      .ck
-      .clone()
-      .into_par_iter()
-      .map(|g| E::GE::vartime_multiscalar_mul(&[*r], &[g]).to_affine())
-      .collect();
-
-    Self { ck: ck_scaled }
+  fn scale(&mut self, r: &E::Scalar) {
+    let ck_scaled: Vec<E::GE> = self.ck.par_iter().map(|g| *g * r).collect();
+    E::GE::batch_normalize(&ck_scaled, &mut self.ck);
   }
 
   /// reinterprets a vector of commitments as a set of generators
   fn reinterpret_commitments_as_ck(c: &[CompressedCommitment<E>]) -> Result<Self, NovaError> {
-    let d = (0..c.len())
-      .into_par_iter()
-      .map(|i| Commitment::<E>::decompress(&c[i]))
-      .collect::<Result<Vec<Commitment<E>>, NovaError>>()?;
-    let ck = (0..d.len())
-      .into_par_iter()
-      .map(|i| d[i].comm.to_affine())
-      .collect();
+    let d = c
+      .par_iter()
+      .map(|c| Commitment::<E>::decompress(c).map(|c| c.comm))
+      .collect::<Result<Vec<E::GE>, NovaError>>()?;
+    let mut ck = vec![<E::GE as PrimeCurve>::Affine::identity(); d.len()];
+    E::GE::batch_normalize(&d, &mut ck);
     Ok(Self { ck })
   }
 }

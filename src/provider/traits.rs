@@ -1,7 +1,9 @@
 use crate::traits::{Group, TranscriptReprTrait};
+use group::prime::PrimeCurveAffine;
 use group::{prime::PrimeCurve, GroupEncoding};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::ops::Mul;
 
 /// A trait that defines extensions to the Group trait
 pub trait DlogGroup:
@@ -11,7 +13,16 @@ pub trait DlogGroup:
   + PrimeCurve<Scalar = <Self as DlogGroup>::ScalarExt, Affine = <Self as DlogGroup>::AffineExt>
 {
   type ScalarExt;
-  type AffineExt: Clone + Debug + Eq + Serialize + for<'de> Deserialize<'de> + Sync + Send;
+  type AffineExt: Clone
+    + Debug
+    + Eq
+    + Serialize
+    + for<'de> Deserialize<'de>
+    + Sync
+    + Send
+    // technical bounds, should disappear when associated_type_bounds stabilizes
+    + Mul<Self::ScalarExt, Output = Self>
+    + PrimeCurveAffine<Curve = Self, Scalar = Self::ScalarExt>;
   type Compressed: Clone
     + Debug
     + Eq
