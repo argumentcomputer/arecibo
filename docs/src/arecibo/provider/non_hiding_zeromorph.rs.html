@@ -829,72 +829,6 @@
 <a href="#829" id="829">829</a>
 <a href="#830" id="830">830</a>
 <a href="#831" id="831">831</a>
-<a href="#832" id="832">832</a>
-<a href="#833" id="833">833</a>
-<a href="#834" id="834">834</a>
-<a href="#835" id="835">835</a>
-<a href="#836" id="836">836</a>
-<a href="#837" id="837">837</a>
-<a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
-<a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a>
-<a href="#892" id="892">892</a>
-<a href="#893" id="893">893</a>
-<a href="#894" id="894">894</a>
-<a href="#895" id="895">895</a>
-<a href="#896" id="896">896</a>
-<a href="#897" id="897">897</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Non-hiding Zeromorph scheme for Multilinear Polynomials.
 //!
 //!
@@ -1416,90 +1350,24 @@
   <span class="kw">use </span>rand_chacha::ChaCha20Rng;
   <span class="kw">use </span>rand_core::SeedableRng;
   <span class="kw">use </span>std::borrow::Borrow;
-  <span class="kw">use </span>std::iter;
   <span class="kw">use </span>std::sync::Arc;
 
   <span class="kw">use </span><span class="kw">super</span>::quotients;
-  <span class="kw">use </span><span class="kw">super</span>::trim_zeromorph;
 
   <span class="kw">use crate</span>::{
     errors::PCSError,
     provider::{
-      keccak::Keccak256Transcript,
       non_hiding_kzg::{
         trim, KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS,
       },
-      non_hiding_zeromorph::{
-        batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMEvaluation, ZMPCS,
-      },
+      non_hiding_zeromorph::{batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMPCS},
       traits::DlogGroup,
       util::test_utils::prove_verify_from_num_vars,
-      Bn256Engine, Bn256EngineZM,
+      Bn256EngineZM,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
-    traits::{Engine <span class="kw">as </span>NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
     NovaError,
   };
-
-  <span class="kw">fn </span>commit_open_verify_with&lt;E: MultiMillerLoop, NE: NovaEngine&lt;GE = E::G1, Scalar = E::Fr&gt;&gt;()
-  <span class="kw">where
-    </span>E::G1: DlogGroup&lt;ScalarExt = E::Fr, AffineExt = E::G1Affine&gt;,
-    &lt;E::G1 <span class="kw">as </span>Group&gt;::Base: TranscriptReprTrait&lt;E::G1&gt;, <span class="comment">// Note: due to the move of the bound TranscriptReprTrait&lt;G&gt; on G::Base from Group to Engine
-    </span>E::Fr: PrimeFieldBits,
-  {
-    <span class="kw">let </span>max_vars = <span class="number">16</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>rng = thread_rng();
-    <span class="kw">let </span>max_poly_size = <span class="number">1 </span>&lt;&lt; (max_vars + <span class="number">1</span>);
-    <span class="kw">let </span>universal_setup = Arc::new(UniversalKZGParam::&lt;E&gt;::gen_srs_for_testing(
-      <span class="kw-2">&amp;mut </span>rng,
-      max_poly_size,
-    ));
-
-    <span class="kw">for </span>num_vars <span class="kw">in </span><span class="number">3</span>..max_vars {
-      <span class="comment">// Setup
-      </span><span class="kw">let </span>(pp, vk) = {
-        <span class="kw">let </span>poly_size = <span class="number">1 </span>&lt;&lt; (num_vars + <span class="number">1</span>);
-
-        trim_zeromorph(universal_setup.clone(), poly_size)
-      };
-
-      <span class="comment">// Commit and open
-      </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = Keccak256Transcript::&lt;NE&gt;::new(<span class="string">b&quot;test&quot;</span>);
-      <span class="kw">let </span>poly = MultilinearPolynomial::&lt;E::Fr&gt;::random(num_vars, <span class="kw-2">&amp;mut </span>thread_rng());
-      <span class="kw">let </span>comm = ZMPCS::&lt;E, NE&gt;::commit(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>poly).unwrap();
-      <span class="kw">let </span>point = iter::from_fn(|| transcript.squeeze(<span class="string">b&quot;pt&quot;</span>).ok())
-        .take(num_vars)
-        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-      <span class="kw">let </span>eval = ZMEvaluation(poly.evaluate(<span class="kw-2">&amp;</span>point));
-
-      <span class="kw">let </span><span class="kw-2">mut </span>transcript_prover = Keccak256Transcript::&lt;NE&gt;::new(<span class="string">b&quot;test&quot;</span>);
-      <span class="kw">let </span>proof = ZMPCS::open(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>comm, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval, <span class="kw-2">&amp;mut </span>transcript_prover).unwrap();
-
-      <span class="comment">// Verify
-      </span><span class="kw">let </span><span class="kw-2">mut </span>transcript_verifier = Keccak256Transcript::&lt;NE&gt;::new(<span class="string">b&quot;test&quot;</span>);
-      <span class="kw">let </span>result = ZMPCS::verify(
-        <span class="kw-2">&amp;</span>vk,
-        <span class="kw-2">&amp;mut </span>transcript_verifier,
-        <span class="kw-2">&amp;</span>comm,
-        point.as_slice(),
-        <span class="kw-2">&amp;</span>eval,
-        <span class="kw-2">&amp;</span>proof,
-      );
-
-      <span class="comment">// check both random oracles are synced, as expected
-      </span><span class="macro">assert_eq!</span>(
-        transcript_prover.squeeze(<span class="string">b&quot;test&quot;</span>),
-        transcript_verifier.squeeze(<span class="string">b&quot;test&quot;</span>)
-      );
-
-      result.unwrap();
-    }
-  }
-
-  <span class="attr">#[test]
-  </span><span class="kw">fn </span>test_commit_open_verify() {
-    commit_open_verify_with::&lt;Bn256, Bn256Engine&gt;();
-  }
 
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_multiple_polynomial_size() {
