@@ -1,14 +1,10 @@
 use crate::gadgets::utils::alloc_zero;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
 use crate::provider::Bn256Engine;
-use crate::provider::GrumpkinEngine;
 use crate::provider::PallasEngine;
 use crate::provider::Secp256k1Engine;
-use crate::provider::Secq256k1Engine;
 use crate::provider::VestaEngine;
-use crate::supernova::circuit::{
-  EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit,
-};
+use crate::supernova::circuit::{StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit};
 use crate::traits::snark::default_ck_hint;
 use crate::{bellpepper::test_shape_cs::TestShapeCS, gadgets::utils::alloc_one};
 use abomonation::Abomonation;
@@ -226,27 +222,29 @@ where
   }
 }
 
-fn print_constraints_name_on_error_index<E1, C1, E2, C2>(
+fn print_constraints_name_on_error_index<
+  E1,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<<SecEng<E1> as Engine>::Scalar>,
+>(
   err: &SuperNovaError,
-  pp: &PublicParams<E1, C1, E2, C2>,
+  pp: &PublicParams<E1>,
   c_primary: &C1,
   c_secondary: &C2,
   num_augmented_circuits: usize,
 ) where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: EnforcingStepCircuit<E1::Scalar>,
-  C2: EnforcingStepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
 {
   match err {
     SuperNovaError::UnSatIndex(msg, index) if *msg == "r_primary" => {
-      let circuit_primary: SuperNovaAugmentedCircuit<'_, E2, C1> = SuperNovaAugmentedCircuit::new(
-        &pp.augmented_circuit_params_primary,
-        None,
-        c_primary,
-        pp.ro_consts_circuit_primary.clone(),
-        num_augmented_circuits,
-      );
+      let circuit_primary: SuperNovaAugmentedCircuit<'_, SecEng<E1>, C1> =
+        SuperNovaAugmentedCircuit::new(
+          &pp.augmented_circuit_params_primary,
+          None,
+          c_primary,
+          pp.ro_consts_circuit_primary.clone(),
+          num_augmented_circuits,
+        );
       let mut cs: TestShapeCS<E1> = TestShapeCS::new();
       let _ = circuit_primary.synthesize(&mut cs);
       cs.constraints
@@ -261,7 +259,7 @@ fn print_constraints_name_on_error_index<E1, C1, E2, C2>(
         pp.ro_consts_circuit_secondary.clone(),
         num_augmented_circuits,
       );
-      let mut cs: TestShapeCS<E2> = TestShapeCS::new();
+      let mut cs: TestShapeCS<SecEng<E1>> = TestShapeCS::new();
       let _ = circuit_secondary.synthesize(&mut cs);
       cs.constraints
         .get(*index)
@@ -274,13 +272,9 @@ fn print_constraints_name_on_error_index<E1, C1, E2, C2>(
 const OPCODE_0: usize = 0;
 const OPCODE_1: usize = 1;
 
-struct TestROM<E1, E2, S>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-{
+struct TestROM<E1> {
   rom: Vec<usize>,
-  _p: PhantomData<(E1, E2, S)>,
+  _p: PhantomData<E1>,
 }
 
 #[derive(Debug, Clone)]
@@ -317,18 +311,18 @@ impl<F: PrimeField> StepCircuit<F> for TestROMCircuit<F> {
   }
 }
 
-impl<E1, E2>
-  NonUniformCircuit<E1, TestROMCircuit<E1::Scalar>, E2, TrivialSecondaryCircuit<E2::Scalar>>
-  for TestROM<E1, E2, TrivialSecondaryCircuit<E2::Scalar>>
+impl<E1> NonUniformCircuit<E1> for TestROM<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  E1: CurveCycleEquipped,
 {
+  type C1 = TestROMCircuit<E1::Scalar>;
+  type C2 = TrivialSecondaryCircuit<<SecEng<E1> as Engine>::Scalar>;
+
   fn num_circuits(&self) -> usize {
     2
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> TestROMCircuit<E1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> Self::C1 {
     match circuit_index {
       0 => TestROMCircuit::Cubic(CubicCircuit::new(circuit_index, self.rom.len())),
       1 => TestROMCircuit::Square(SquareCircuit::new(circuit_index, self.rom.len())),
@@ -336,7 +330,7 @@ where
     }
   }
 
-  fn secondary_circuit(&self) -> TrivialSecondaryCircuit<E2::Scalar> {
+  fn secondary_circuit(&self) -> Self::C2 {
     Default::default()
   }
 
@@ -345,11 +339,7 @@ where
   }
 }
 
-impl<E1, E2, S> TestROM<E1, E2, S>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-{
+impl<E1> TestROM<E1> {
   fn new(rom: Vec<usize>) -> Self {
     Self {
       rom,
@@ -358,10 +348,9 @@ where
   }
 }
 
-fn test_trivial_nivc_with<E1, E2>()
+fn test_trivial_nivc_with<E1>()
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  E1: CurveCycleEquipped,
 {
   // Here demo a simple RAM machine
   // - with 2 argumented circuit
@@ -382,7 +371,7 @@ where
     OPCODE_1,
   ]; // Rom can be arbitrary length.
 
-  let test_rom = TestROM::<E1, E2, TrivialSecondaryCircuit<E2::Scalar>>::new(rom);
+  let test_rom = TestROM::<E1>::new(rom);
 
   let pp = PublicParams::setup(&test_rom, &*default_ck_hint(), &*default_ck_hint());
 
@@ -395,9 +384,9 @@ where
       .iter()
       .map(|opcode| <E1 as Engine>::Scalar::from(*opcode as u64)),
   );
-  let z0_secondary = vec![<E2 as Engine>::Scalar::ONE];
+  let z0_secondary = vec![<SecEng<E1> as Engine>::Scalar::ONE];
 
-  let mut recursive_snark_option: Option<RecursiveSNARK<E1, E2>> = None;
+  let mut recursive_snark_option: Option<RecursiveSNARK<E1>> = None;
 
   for &op_code in test_rom.rom.iter() {
     let circuit_primary = test_rom.primary_circuit(op_code);
@@ -456,7 +445,7 @@ where
 #[tracing_test::traced_test]
 fn test_trivial_nivc() {
   // Experimenting with selecting the running claims for nifs
-  test_trivial_nivc_with::<PallasEngine, VestaEngine>();
+  test_trivial_nivc_with::<PallasEngine>();
 }
 
 // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
@@ -575,19 +564,16 @@ fn test_recursive_circuit() {
   );
 }
 
-fn test_pp_digest_with<E1, E2, C1, C2, NC>(non_uniform_circuit: &NC, expected: &Expect)
+fn test_pp_digest_with<E1, NC>(non_uniform_circuit: &NC, expected: &Expect)
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-  NC: NonUniformCircuit<E1, C1, E2, C2>,
+  E1: CurveCycleEquipped,
+  NC: NonUniformCircuit<E1>,
 {
   // TODO: add back in https://github.com/lurk-lab/arecibo/issues/53
   // // this tests public parameters with a size specifically intended for a spark-compressed SNARK
   // let pp_hint1 = Some(SPrime::<G1>::commitment_key_floor());
   // let pp_hint2 = Some(SPrime::<G2>::commitment_key_floor());
-  let pp = PublicParams::<E1, C1, E2, C2>::setup(
+  let pp = PublicParams::<E1>::setup(
     non_uniform_circuit,
     &*default_ck_hint(),
     &*default_ck_hint(),
@@ -611,13 +597,9 @@ fn test_supernova_pp_digest() {
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
     OPCODE_1,
   ]; // Rom can be arbitrary length.
-  let test_rom = TestROM::<
-    PallasEngine,
-    VestaEngine,
-    TrivialSecondaryCircuit<<VestaEngine as Engine>::Scalar>,
-  >::new(rom);
+  let test_rom = TestROM::<PallasEngine>::new(rom);
 
-  test_pp_digest_with::<PallasEngine, VestaEngine, _, _, _>(
+  test_pp_digest_with::<PallasEngine, _>(
     &test_rom,
     &expect!["95f57227c5d62d13b9fe55deac13b8bd099b068bcc785d7b3a054bf376f68e00"],
   );
@@ -626,13 +608,9 @@ fn test_supernova_pp_digest() {
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
     OPCODE_1,
   ]; // Rom can be arbitrary length.
-  let test_rom_grumpkin = TestROM::<
-    Bn256Engine,
-    GrumpkinEngine,
-    TrivialSecondaryCircuit<<GrumpkinEngine as Engine>::Scalar>,
-  >::new(rom);
+  let test_rom_grumpkin = TestROM::<Bn256Engine>::new(rom);
 
-  test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, _>(
+  test_pp_digest_with::<Bn256Engine, _>(
     &test_rom_grumpkin,
     &expect!["d439e957618eb071360f9c87c0014fd0cfa21f1271813004d18f967355912a01"],
   );
@@ -641,13 +619,9 @@ fn test_supernova_pp_digest() {
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
     OPCODE_1,
   ]; // Rom can be arbitrary length.
-  let test_rom_secp = TestROM::<
-    Secp256k1Engine,
-    Secq256k1Engine,
-    TrivialSecondaryCircuit<<Secq256k1Engine as Engine>::Scalar>,
-  >::new(rom);
+  let test_rom_secp = TestROM::<Secp256k1Engine>::new(rom);
 
-  test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, _>(
+  test_pp_digest_with::<Secp256k1Engine, _>(
     &test_rom_secp,
     &expect!["5dfc2cc21f0a29a67ec3b3cbb7fbff535c876ef51e655f4abf4c00e058175103"],
   );
@@ -816,12 +790,13 @@ where
   }
 }
 
-impl<E1, E2> NonUniformCircuit<E1, Self, E2, TrivialSecondaryCircuit<E1::Base>>
-  for RootCheckingCircuit<E1::Scalar>
+impl<E1> NonUniformCircuit<E1> for RootCheckingCircuit<E1::Scalar>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  E1: CurveCycleEquipped,
 {
+  type C1 = Self;
+  type C2 = TrivialSecondaryCircuit<<SecEng<E1> as Engine>::Scalar>;
+
   fn num_circuits(&self) -> usize {
     2
   }
@@ -834,18 +809,17 @@ where
     }
   }
 
-  fn secondary_circuit(&self) -> TrivialSecondaryCircuit<E1::Base> {
+  fn secondary_circuit(&self) -> Self::C2 {
     TrivialSecondaryCircuit::<E1::Base>::default()
   }
 }
 
-fn test_nivc_nondet_with<E1, E2>()
+fn test_nivc_nondet_with<E1>()
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  E1: CurveCycleEquipped,
   // this is due to the reliance on Abomonation
   <<E1 as Engine>::Scalar as PrimeField>::Repr: Abomonation,
-  <<E2 as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+  <<SecEng<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
 {
   let circuit_secondary = TrivialSecondaryCircuit::default();
 
@@ -854,20 +828,15 @@ where
   // produce non-deterministic hint
   let (z0_primary, roots) = RootCheckingCircuit::new(num_steps);
   assert_eq!(num_steps, roots.len());
-  let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
+  let z0_secondary = vec![<SecEng<E1> as Engine>::Scalar::ZERO];
 
   // produce public parameters
-  let pp = PublicParams::<
-    E1,
-    RootCheckingCircuit<<E1 as Engine>::Scalar>,
-    E2,
-    TrivialSecondaryCircuit<<E2 as Engine>::Scalar>,
-  >::setup(&roots[0], &*default_ck_hint(), &*default_ck_hint());
+  let pp = PublicParams::<E1>::setup(&roots[0], &*default_ck_hint(), &*default_ck_hint());
   // produce a recursive SNARK
 
   let circuit_primary = &roots[0];
 
-  let mut recursive_snark = RecursiveSNARK::<E1, E2>::new(
+  let mut recursive_snark = RecursiveSNARK::<E1>::new(
     &pp,
     circuit_primary,
     circuit_primary,
@@ -900,7 +869,7 @@ where
 
 #[test]
 fn test_nivc_nondet() {
-  test_nivc_nondet_with::<PallasEngine, VestaEngine>();
-  test_nivc_nondet_with::<Bn256Engine, GrumpkinEngine>();
-  test_nivc_nondet_with::<Secp256k1Engine, Secq256k1Engine>();
+  test_nivc_nondet_with::<PallasEngine>();
+  test_nivc_nondet_with::<Bn256Engine>();
+  test_nivc_nondet_with::<Secp256k1Engine>();
 }

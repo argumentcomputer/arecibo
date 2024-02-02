@@ -139,7 +139,6 @@ where
   circuit_shape_secondary: R1CSWithArity<SecEng<E1>>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  _p: PhantomData<(C1, C2)>,
 }
 
 #[cfg(feature = "abomonate")]
@@ -167,7 +166,6 @@ where
       circuit_shape_secondary: value.circuit_shape_secondary,
       augmented_circuit_params_primary: value.augmented_circuit_params_primary,
       augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
-      _p: PhantomData,
     })
   }
 }
@@ -192,7 +190,6 @@ where
       augmented_circuit_params_primary: value.augmented_circuit_params_primary,
       augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-      _p: PhantomData,
     }
   }
 }

@@ -6,9 +6,8 @@ pub mod targets;
 
 use anyhow::anyhow;
 use arecibo::{
-  supernova::NonUniformCircuit,
-  supernova::{StepCircuit, TrivialTestCircuit},
-  traits::Engine,
+  supernova::{NonUniformCircuit, StepCircuit, TrivialTestCircuit},
+  traits::{CurveCycleEquipped, Engine, SecEng},
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
@@ -68,45 +67,40 @@ fn num_cons_env() -> anyhow::Result<Vec<usize>> {
     })
 }
 
-pub struct NonUniformBench<E1, E2, S>
+pub struct NonUniformBench<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  S: StepCircuit<E2::Scalar> + Default,
+  E1: CurveCycleEquipped,
 {
   num_circuits: usize,
   num_cons: usize,
-  _p: PhantomData<(E1, E2, S)>,
+  _p: PhantomData<E1>,
 }
 
-impl<E1, E2, S> NonUniformBench<E1, E2, S>
+impl<E1> NonUniformBench<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  S: StepCircuit<E2::Scalar> + Default,
+  E1: CurveCycleEquipped,
 {
   fn new(num_circuits: usize, num_cons: usize) -> Self {
     Self {
       num_circuits,
       num_cons,
-      _p: Default::default(),
+      _p: PhantomData,
     }
   }
 }
 
-impl<E1, E2, S>
-  NonUniformCircuit<E1, NonTrivialTestCircuit<E1::Scalar>, E2, TrivialTestCircuit<E2::Scalar>>
-  for NonUniformBench<E1, E2, S>
+impl<E1> NonUniformCircuit<E1> for NonUniformBench<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  S: StepCircuit<E2::Scalar> + Default,
+  E1: CurveCycleEquipped,
 {
+  type C1 = NonTrivialTestCircuit<E1::Scalar>;
+  type C2 = TrivialTestCircuit<<SecEng<E1> as Engine>::Scalar>;
+
   fn num_circuits(&self) -> usize {
     self.num_circuits
   }
 
-  fn primary_circuit(&self, circuit_index: usize) -> NonTrivialTestCircuit<E1::Scalar> {
+  fn primary_circuit(&self, circuit_index: usize) -> Self::C1 {
     assert!(
       circuit_index < self.num_circuits,
       "Circuit index out of bounds: asked for {circuit_index}, but there are only {} circuits.",
@@ -116,7 +110,7 @@ where
     NonTrivialTestCircuit::new(self.num_cons)
   }
 
-  fn secondary_circuit(&self) -> TrivialTestCircuit<E2::Scalar> {
+  fn secondary_circuit(&self) -> Self::C2 {
     Default::default()
   }
 }

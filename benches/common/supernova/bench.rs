@@ -8,7 +8,6 @@ use crate::common::{noise_threshold_env, BenchParams};
 use arecibo::{
   provider::{PallasEngine, VestaEngine},
   supernova::NonUniformCircuit,
-  supernova::TrivialTestCircuit,
   supernova::{snark::CompressedSNARK, PublicParams, RecursiveSNARK},
   traits::{
     snark::RelaxedR1CSSNARKTrait,
@@ -33,10 +32,9 @@ pub fn bench_snark_internal_with_arity<
   num_cons: usize,
   snark_type: SnarkType,
 ) {
-  let bench: NonUniformBench<E1, E2, TrivialTestCircuit<<E2 as Engine>::Scalar>> = match snark_type
-  {
-    SnarkType::Recursive => NonUniformBench::new(2, num_cons),
-    SnarkType::Compressed => NonUniformBench::new(num_augmented_circuits, num_cons),
+  let bench: NonUniformBench<E1> = match snark_type {
+    SnarkType::Recursive => NonUniformBench::<E1>::new(2, num_cons),
+    SnarkType::Compressed => NonUniformBench::<E1>::new(num_augmented_circuits, num_cons),
   };
   let pp = match snark_type {
     SnarkType::Recursive => PublicParams::setup(&bench, &*default_ck_hint(), &*default_ck_hint()),
@@ -50,7 +48,7 @@ pub fn bench_snark_internal_with_arity<
   };
   let z0_primary = vec![<E1 as Engine>::Scalar::from(2u64)];
   let z0_secondary = vec![<E2 as Engine>::Scalar::from(2u64)];
-  let mut recursive_snark_option: Option<RecursiveSNARK<E1, E2>> = None;
+  let mut recursive_snark_option: Option<RecursiveSNARK<E1>> = None;
   let mut selected_augmented_circuit = 0;
 
   for _ in 0..num_warmup_steps {
@@ -97,11 +95,11 @@ pub fn bench_snark_internal_with_arity<
 
   match snark_type {
     SnarkType::Compressed => {
-      let (prover_key, verifier_key) = CompressedSNARK::<_, _, S1, _, _, S2>::setup(&pp).unwrap();
+      let (prover_key, verifier_key) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
       // Benchmark the prove time
       group.bench_function(bench_params.bench_id("Prove"), |b| {
         b.iter(|| {
-          assert!(CompressedSNARK::<_, _, S1, _, _, S2>::prove(
+          assert!(CompressedSNARK::<_, S1, S2>::prove(
             black_box(&pp),
             black_box(&prover_key),
             black_box(&recursive_snark)
@@ -110,7 +108,7 @@ pub fn bench_snark_internal_with_arity<
         })
       });
 
-      let res = CompressedSNARK::<_, _, S1, _, _, S2>::prove(&pp, &prover_key, &recursive_snark);
+      let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &prover_key, &recursive_snark);
       assert!(res.is_ok());
       let compressed_snark = res.unwrap();
       // Benchmark the verification time
