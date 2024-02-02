@@ -1231,7 +1231,6 @@
 <a href="#1231" id="1231">1231</a>
 <a href="#1232" id="1232">1232</a>
 <a href="#1233" id="1233">1233</a>
-<a href="#1234" id="1234">1234</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;./Readme.md&quot;</span>)]
 
 </span><span class="kw">use </span>std::marker::PhantomData;
@@ -1285,7 +1284,7 @@
 <span class="kw">use </span>error::SuperNovaError;
 
 <span class="doccomment">/// A struct that manages all the digests of the primary circuits of a SuperNova instance
-</span><span class="attr">#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, PartialEq, Eq, Serialize)]
 </span><span class="kw">pub struct </span>CircuitDigests&lt;E: Engine&gt; {
   digests: Vec&lt;E::Scalar&gt;,
 }
@@ -1314,7 +1313,7 @@
 }
 
 <span class="doccomment">/// A vector of [`R1CSWithArity`] adjoined to a set of [`PublicParams`]
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 </span><span class="kw">pub struct </span>PublicParams&lt;E1, E2, C1, C2&gt;
 <span class="kw">where
@@ -1346,7 +1345,7 @@
 <span class="doccomment">/// Auxiliary [`PublicParams`] information about the commitment keys and
 /// secondary circuit. This is used as a helper struct when reconstructing
 /// [`PublicParams`] downstream in lurk.
-</span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 </span><span class="kw">pub struct </span>AuxParams&lt;E1, E2&gt;
 <span class="kw">where
@@ -1369,8 +1368,7 @@
 
 <span class="doccomment">/// A variant of [`crate::supernova::AuxParams`] that is suitable for fast ser/de using Abomonation
 </span><span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[derive(Debug, Clone, PartialEq, Abomonation)]
 #[abomonation_bounds(
 <span class="kw">where
   </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,

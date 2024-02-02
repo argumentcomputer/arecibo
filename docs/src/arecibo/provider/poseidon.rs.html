@@ -292,7 +292,7 @@
 }
 
 <span class="doccomment">/// A Poseidon-based RO to use outside circuits
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize, Abomonation)]
+</span><span class="attr">#[derive(Debug, Abomonation)]
 #[abomonation_bounds(
   <span class="kw">where
     </span>Base: PrimeField,
@@ -372,7 +372,7 @@
 }
 
 <span class="doccomment">/// A Poseidon-based RO gadget to use inside the verifier circuit.
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>PoseidonROCircuit&lt;Scalar: PrimeField&gt; {
   <span class="comment">// Internal state
   </span>state: Vec&lt;AllocatedNum&lt;Scalar&gt;&gt;,

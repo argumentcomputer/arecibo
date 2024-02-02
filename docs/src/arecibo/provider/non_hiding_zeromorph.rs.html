@@ -914,7 +914,7 @@
 }
 
 <span class="doccomment">/// Commitments
-</span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Default)]
 </span><span class="kw">pub struct </span>ZMCommitment&lt;E: Engine&gt;(
   <span class="doccomment">/// the actual commitment is an affine point.
   </span>E::G1Affine,
