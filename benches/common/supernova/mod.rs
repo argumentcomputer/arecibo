@@ -12,10 +12,11 @@ use arecibo::{
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
 use ff::PrimeField;
+use halo2curves::bn256::Bn256;
 
-pub type E1 = arecibo::provider::PallasEngine;
-pub type E2 = arecibo::provider::VestaEngine;
-pub type EE1 = arecibo::provider::ipa_pc::EvaluationEngine<E1>;
+pub type E1 = arecibo::provider::Bn256EngineKZG;
+pub type E2 = arecibo::provider::GrumpkinEngine;
+pub type EE1 = arecibo::provider::hyperkzg::EvaluationEngine<Bn256, E1>;
 pub type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
 // SNARKs without computation commitments
 pub type S1 = arecibo::spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;

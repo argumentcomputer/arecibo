@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use arecibo::{
-  provider::{PallasEngine, VestaEngine},
+  provider::{Bn256EngineKZG, GrumpkinEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     snark::default_ck_hint,
@@ -17,8 +17,8 @@ use std::time::Duration;
 mod common;
 use common::{noise_threshold_env, BenchParams};
 
-type E1 = PallasEngine;
-type E2 = VestaEngine;
+type E1 = Bn256EngineKZG;
+type E2 = GrumpkinEngine;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
 // Then `cargo criterion --bench recursive-snark`. The results are located in `target/criterion/data/<name-of-benchmark>`.

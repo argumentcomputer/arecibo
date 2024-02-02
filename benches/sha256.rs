@@ -4,7 +4,7 @@
 //! It also uses code from bellman/bellperson to compare circuit-generated digest with sha2 crate's output
 #![allow(non_snake_case)]
 use arecibo::{
-  provider::{PallasEngine, VestaEngine},
+  provider::{Bn256EngineKZG, GrumpkinEngine},
   traits::{
     circuit::{StepCircuit, TrivialCircuit},
     snark::default_ck_hint,
@@ -24,8 +24,8 @@ use criterion::*;
 use ff::{PrimeField, PrimeFieldBits};
 use sha2::{Digest, Sha256};
 
-type E1 = PallasEngine;
-type E2 = VestaEngine;
+type E1 = Bn256EngineKZG;
+type E2 = GrumpkinEngine;
 
 #[derive(Clone, Debug)]
 struct Sha256Circuit<Scalar: PrimeField> {
