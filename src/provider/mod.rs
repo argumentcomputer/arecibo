@@ -28,7 +28,7 @@ use crate::{
     poseidon::{PoseidonRO, PoseidonROCircuit},
     secp_secq::{secp256k1, secq256k1},
   },
-  traits::Engine,
+  traits::{CurveCycleEquipped, Engine},
 };
 use halo2curves::bn256::Bn256;
 use pasta_curves::{pallas, vesta};
@@ -90,6 +90,18 @@ impl Engine for Bn256EngineKZG {
   type CE = KZGCommitmentEngine<Bn256>;
 }
 
+impl CurveCycleEquipped for Bn256Engine {
+  type Secondary = GrumpkinEngine;
+}
+
+impl CurveCycleEquipped for Bn256EngineKZG {
+  type Secondary = GrumpkinEngine;
+}
+
+impl CurveCycleEquipped for Bn256EngineZM {
+  type Secondary = GrumpkinEngine;
+}
+
 /// An implementation of the Nova `Engine` trait with Secp256k1 curve and Pedersen commitment scheme
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Secp256k1Engine;
@@ -118,6 +130,10 @@ impl Engine for Secq256k1Engine {
   type CE = PedersenCommitmentEngine<Self>;
 }
 
+impl CurveCycleEquipped for Secp256k1Engine {
+  type Secondary = Secq256k1Engine;
+}
+
 /// An implementation of the Nova `Engine` trait with Pallas curve and Pedersen commitment scheme
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PallasEngine;
@@ -144,6 +160,10 @@ impl Engine for VestaEngine {
   type ROCircuit = PoseidonROCircuit<Self::Base>;
   type TE = Keccak256Transcript<Self>;
   type CE = PedersenCommitmentEngine<Self>;
+}
+
+impl CurveCycleEquipped for PallasEngine {
+  type Secondary = VestaEngine;
 }
 
 #[cfg(test)]
