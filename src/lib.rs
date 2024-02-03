@@ -985,20 +985,17 @@ where
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.
-pub fn circuit_digest<
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C: StepCircuit<E1::Scalar>,
->(
+pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
   circuit: &C,
 ) -> E1::Scalar {
   let augmented_circuit_params = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-  let ro_consts_circuit: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
+  let ro_consts_circuit: ROConstantsCircuit<SecEng<E1>> =
+    ROConstantsCircuit::<SecEng<E1>>::default();
 
   // Initialize ck for the primary
-  let augmented_circuit: NovaAugmentedCircuit<'_, E2, C> =
+  let augmented_circuit: NovaAugmentedCircuit<'_, SecEng<E1>, C> =
     NovaAugmentedCircuit::new(&augmented_circuit_params, None, circuit, ro_consts_circuit);
   let mut cs: ShapeCS<E1> = ShapeCS::new();
   let _ = augmented_circuit.synthesize(&mut cs);

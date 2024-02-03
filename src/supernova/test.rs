@@ -449,22 +449,24 @@ fn test_trivial_nivc() {
 }
 
 // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
-fn test_recursive_circuit_with<E1, E2>(
+fn test_recursive_circuit_with<E1>(
   primary_params: &SuperNovaAugmentedCircuitParams,
   secondary_params: &SuperNovaAugmentedCircuitParams,
-  ro_consts1: ROConstantsCircuit<E2>,
+  ro_consts1: ROConstantsCircuit<SecEng<E1>>,
   ro_consts2: ROConstantsCircuit<E1>,
   num_constraints_primary: &Expect,
   num_constraints_secondary: &Expect,
 ) where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  E1: CurveCycleEquipped,
 {
   // Initialize the shape and ck for the primary
   let step_circuit1 = TrivialTestCircuit::default();
   let arity1 = step_circuit1.arity();
-  let circuit1: SuperNovaAugmentedCircuit<'_, E2, TrivialTestCircuit<<E2 as Engine>::Base>> =
-    SuperNovaAugmentedCircuit::new(primary_params, None, &step_circuit1, ro_consts1.clone(), 2);
+  let circuit1: SuperNovaAugmentedCircuit<
+    '_,
+    SecEng<E1>,
+    TrivialTestCircuit<<SecEng<E1> as Engine>::Base>,
+  > = SuperNovaAugmentedCircuit::new(primary_params, None, &step_circuit1, ro_consts1.clone(), 2);
   let mut cs: ShapeCS<E1> = ShapeCS::new();
   if let Err(e) = circuit1.synthesize(&mut cs) {
     panic!("{}", e)
@@ -483,7 +485,7 @@ fn test_recursive_circuit_with<E1, E2>(
       ro_consts2.clone(),
       2,
     );
-  let mut cs: ShapeCS<E2> = ShapeCS::new();
+  let mut cs: ShapeCS<SecEng<E1>> = ShapeCS::new();
   if let Err(e) = circuit2.synthesize(&mut cs) {
     panic!("{}", e)
   }
@@ -491,23 +493,27 @@ fn test_recursive_circuit_with<E1, E2>(
   num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
   // Execute the base case for the primary
-  let zero1 = <<E2 as Engine>::Base as Field>::ZERO;
+  let zero1 = <<SecEng<E1> as Engine>::Base as Field>::ZERO;
   let z0 = vec![zero1; arity1];
   let mut cs1 = SatisfyingAssignment::<E1>::new();
-  let inputs1: SuperNovaAugmentedCircuitInputs<'_, E2> = SuperNovaAugmentedCircuitInputs::new(
-    scalar_as_base::<E1>(zero1), // pass zero for testing
-    zero1,
-    &z0,
-    None,
-    None,
-    None,
-    None,
-    Some(zero1),
-    zero1,
-  );
+  let inputs1: SuperNovaAugmentedCircuitInputs<'_, SecEng<E1>> =
+    SuperNovaAugmentedCircuitInputs::new(
+      scalar_as_base::<E1>(zero1), // pass zero for testing
+      zero1,
+      &z0,
+      None,
+      None,
+      None,
+      None,
+      Some(zero1),
+      zero1,
+    );
   let step_circuit = TrivialTestCircuit::default();
-  let circuit1: SuperNovaAugmentedCircuit<'_, E2, TrivialTestCircuit<<E2 as Engine>::Base>> =
-    SuperNovaAugmentedCircuit::new(primary_params, Some(inputs1), &step_circuit, ro_consts1, 2);
+  let circuit1: SuperNovaAugmentedCircuit<
+    '_,
+    SecEng<E1>,
+    TrivialTestCircuit<<SecEng<E1> as Engine>::Base>,
+  > = SuperNovaAugmentedCircuit::new(primary_params, Some(inputs1), &step_circuit, ro_consts1, 2);
   if let Err(e) = circuit1.synthesize(&mut cs1) {
     panic!("{}", e)
   }
@@ -518,9 +524,9 @@ fn test_recursive_circuit_with<E1, E2>(
   // Execute the base case for the secondary
   let zero2 = <<E1 as Engine>::Base as Field>::ZERO;
   let z0 = vec![zero2; arity2];
-  let mut cs2 = SatisfyingAssignment::<E2>::new();
+  let mut cs2 = SatisfyingAssignment::<SecEng<E1>>::new();
   let inputs2: SuperNovaAugmentedCircuitInputs<'_, E1> = SuperNovaAugmentedCircuitInputs::new(
-    scalar_as_base::<E2>(zero2), // pass zero for testing
+    scalar_as_base::<SecEng<E1>>(zero2), // pass zero for testing
     zero2,
     &z0,
     None,
@@ -554,7 +560,7 @@ fn test_recursive_circuit() {
   let ro_consts1: ROConstantsCircuit<VestaEngine> = PoseidonConstantsCircuit::default();
   let ro_consts2: ROConstantsCircuit<PallasEngine> = PoseidonConstantsCircuit::default();
 
-  test_recursive_circuit_with::<PallasEngine, VestaEngine>(
+  test_recursive_circuit_with::<PallasEngine>(
     &params1,
     &params2,
     ro_consts1,

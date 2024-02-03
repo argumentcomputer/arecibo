@@ -1149,11 +1149,7 @@ impl<E1: CurveCycleEquipped, T: NonUniformCircuit<E1>> InitialProgramCounter<E1>
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.
-pub fn circuit_digest<
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C: StepCircuit<E1::Scalar>,
->(
+pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
   circuit: &C,
   num_augmented_circuits: usize,
 ) -> E1::Scalar {
@@ -1161,16 +1157,17 @@ pub fn circuit_digest<
     SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
-  let ro_consts_circuit: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
+  let ro_consts_circuit = ROConstantsCircuit::<SecEng<E1>>::default();
 
   // Initialize ck for the primary
-  let augmented_circuit: SuperNovaAugmentedCircuit<'_, E2, C> = SuperNovaAugmentedCircuit::new(
-    &augmented_circuit_params,
-    None,
-    circuit,
-    ro_consts_circuit,
-    num_augmented_circuits,
-  );
+  let augmented_circuit: SuperNovaAugmentedCircuit<'_, SecEng<E1>, C> =
+    SuperNovaAugmentedCircuit::new(
+      &augmented_circuit_params,
+      None,
+      circuit,
+      ro_consts_circuit,
+      num_augmented_circuits,
+    );
   let mut cs: ShapeCS<E1> = ShapeCS::new();
   let _ = augmented_circuit.synthesize(&mut cs);
 
