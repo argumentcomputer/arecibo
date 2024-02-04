@@ -4,7 +4,12 @@
 use std::marker::PhantomData;
 
 use crate::{
-  bellpepper::{r1cs::NovaWitness, solver::SatisfyingAssignment},
+  bellpepper::{
+    r1cs::{NovaShape, NovaWitness},
+    shape_cs::ShapeCS,
+    solver::SatisfyingAssignment,
+  },
+  constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
   cyclefold::circuit::{CyclefoldCircuit, CyclefoldCircuitInputs},
   errors::NovaError,
   gadgets::utils::scalar_as_base,
@@ -48,7 +53,7 @@ where
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
   ck_primary: CommitmentKey<E1>,
   circuit_shape_primary: R1CSWithArity<E1>,
-  augmented_circuit_params_primary: AugmentedCircuitParams,
+  augmented_circuit_params: AugmentedCircuitParams,
 
   ro_consts_cyclefold: ROConstants<E2>,
   ck_cyclefold: CommitmentKey<E2>,
@@ -67,11 +72,46 @@ where
 {
   /// TODO: docs
   pub fn setup(
-    _c_primary: &C1,
-    _ck_hint1: &CommitmentKeyHint<E1>,
-    _ck_hint_cyclefold: &CommitmentKeyHint<E2>,
+    c_primary: &C1,
+    ck_hint1: &CommitmentKeyHint<E1>,
+    ck_hint_cyclefold: &CommitmentKeyHint<E2>,
   ) -> Self {
-    todo!()
+    let F_arity_primary = c_primary.arity();
+    let ro_consts_primary = ROConstants::<E2>::default();
+    let ro_consts_circuit_primary = ROConstantsCircuit::<E2>::default();
+
+    let augmented_circuit_params = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS);
+    let circuit_primary: AugmentedCircuit<'_, E2, E1, C1> = AugmentedCircuit::new(
+      &augmented_circuit_params,
+      ro_consts_circuit_primary.clone(),
+      None,
+      c_primary,
+    );
+    let mut cs: ShapeCS<E1> = ShapeCS::new();
+    let _ = circuit_primary.synthesize(&mut cs);
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
+    let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
+
+    let ro_consts_cyclefold = ROConstants::<E2>::default();
+    let mut cs: ShapeCS<E2> = ShapeCS::new();
+    let circuit_cyclefold: CyclefoldCircuit<E1> = CyclefoldCircuit::new(None);
+    let _ = circuit_cyclefold.synthesize(&mut cs);
+    let (r1cs_shape_cyclefold, ck_cyclefold) = cs.r1cs_shape_and_key(ck_hint_cyclefold);
+    let circuit_shape_cyclefold = R1CSWithArity::new(r1cs_shape_cyclefold, 0);
+
+    Self {
+      F_arity_primary,
+      ro_consts_primary,
+      ro_consts_circuit_primary,
+      ck_primary,
+      circuit_shape_primary,
+      augmented_circuit_params,
+      ro_consts_cyclefold,
+      ck_cyclefold,
+      circuit_shape_cyclefold,
+      digest: OnceCell::new(),
+      _p: PhantomData,
+    }
   }
 
   /// TODO: docs
@@ -84,13 +124,19 @@ where
   }
 
   /// TODO: docs
-  pub const fn num_constraints(&self) -> usize {
-    todo!()
+  pub const fn num_constraints(&self) -> (usize, usize) {
+    (
+      self.circuit_shape_primary.r1cs_shape.num_cons,
+      self.circuit_shape_cyclefold.r1cs_shape.num_cons,
+    )
   }
 
   /// TODO: docs
-  pub const fn num_variables(&self) -> usize {
-    todo!()
+  pub const fn num_variables(&self) -> (usize, usize) {
+    (
+      self.circuit_shape_primary.r1cs_shape.num_vars,
+      self.circuit_shape_cyclefold.r1cs_shape.num_vars,
+    )
   }
 }
 
@@ -284,7 +330,7 @@ where
     );
 
     let circuit_primary: AugmentedCircuit<'_, E2, E1, C1> = AugmentedCircuit::new(
-      &pp.augmented_circuit_params_primary,
+      &pp.augmented_circuit_params,
       pp.ro_consts_circuit_primary.clone(),
       Some(inputs_primary),
       c_primary,
