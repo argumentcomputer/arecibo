@@ -155,42 +155,43 @@ impl<Scalar: PrimeField> Num<Scalar> {
     Ok(())
   }
 
-  /// Computes the natural number represented by an array of bits.
-  pub fn from_bits<CS: ConstraintSystem<Scalar>>(
-    mut cs: CS,
-    bits: &Bitvector<Scalar>,
-  ) -> Result<Self, SynthesisError> {
-    let allocations = bits.allocations.clone();
-    let mut f = Scalar::ONE;
-    let num = allocations
-      .iter()
-      .fold(LinearCombination::zero(), |lc, bit| {
-        let l = lc + (f, &bit.bit);
-        f = f.double();
-        l
-      });
-    let mut f = Scalar::ONE;
-    let value = bits.values.as_ref().map(|vs| {
-      vs.iter().fold(Scalar::ZERO, |mut acc, b| {
-        if *b {
-          acc += f;
-        }
-        f = f.double();
-        acc
-      })
-    });
+  // TOOD: Can probably delete this
+  // /// Computes the natural number represented by an array of bits.
+  // pub fn from_bits<CS: ConstraintSystem<Scalar>>(
+  //   mut cs: CS,
+  //   bits: &Bitvector<Scalar>,
+  // ) -> Result<Self, SynthesisError> {
+  //   let allocations = bits.allocations.clone();
+  //   let mut f = Scalar::ONE;
+  //   let num = allocations
+  //     .iter()
+  //     .fold(LinearCombination::zero(), |lc, bit| {
+  //       let l = lc + (f, &bit.bit);
+  //       f = f.double();
+  //       l
+  //     });
+  //   let mut f = Scalar::ONE;
+  //   let value = bits.values.as_ref().map(|vs| {
+  //     vs.iter().fold(Scalar::ZERO, |mut acc, b| {
+  //       if *b {
+  //         acc += f;
+  //       }
+  //       f = f.double();
+  //       acc
+  //     })
+  //   });
 
-    let val = value.grab()?;
+  //   let val = value.grab()?;
 
-    cs.enforce(
-      || "field element equals bits",
-      |lc| lc + &num,
-      |lc| lc + CS::one(),
-      |lc| lc + (*val, CS::one()),
-    );
+  //   cs.enforce(
+  //     || "field element equals bits",
+  //     |lc| lc + &num,
+  //     |lc| lc + CS::one(),
+  //     |lc| lc + (*val, CS::one()),
+  //   );
 
-    Ok(Self::new(value, num))
-  }
+  //   Ok(Self::new(value, num))
+  // }
 
   /// Checks if the natural number equals an array of bits.
   pub fn is_equal<CS: ConstraintSystem<Scalar>>(&self, mut cs: CS, other: &Bitvector<Scalar>) {

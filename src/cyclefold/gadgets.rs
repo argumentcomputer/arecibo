@@ -37,18 +37,19 @@ impl<E: Engine> AllocatedFoldingData<E> {
     Ok(Self { U, u, T })
   }
 
-  pub fn absorb_in_ro<CS: ConstraintSystem<<E as Engine>::Base>>(
-    &self,
-    mut cs: CS,
-    ro: &mut E::ROCircuit,
-  ) -> Result<(), SynthesisError> {
-    self.U.absorb_in_ro(cs.namespace(|| "absorb U"), ro)?;
-    self.u.absorb_in_ro(ro);
-    ro.absorb(&self.T.x);
-    ro.absorb(&self.T.y);
-    ro.absorb(&self.T.is_infinity);
-    Ok(())
-  }
+  // TODO: Delete if not needed, or uncomment if this saves time
+  // pub fn absorb_in_ro<CS: ConstraintSystem<<E as Engine>::Base>>(
+  //   &self,
+  //   mut cs: CS,
+  //   ro: &mut E::ROCircuit,
+  // ) -> Result<(), SynthesisError> {
+  //   self.U.absorb_in_ro(cs.namespace(|| "absorb U"), ro)?;
+  //   self.u.absorb_in_ro(ro);
+  //   ro.absorb(&self.T.x);
+  //   ro.absorb(&self.T.y);
+  //   ro.absorb(&self.T.is_infinity);
+  //   Ok(())
+  // }
 }
 
 pub mod emulated {
@@ -66,7 +67,10 @@ pub mod emulated {
     constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
     gadgets::{
       nonnative::{bignat::BigNat, util::f_to_nat},
-      utils::{alloc_bignat_constant, alloc_scalar_as_base, le_bits_to_num, scalar_as_base},
+      utils::{
+        alloc_bignat_constant, alloc_one, alloc_zero, conditionally_select,
+        conditionally_select_bignat, le_bits_to_num, /*scalar_as_base,*/
+      },
     },
     traits::{Group, ROConstantsCircuit},
     RelaxedR1CSInstance,
@@ -233,6 +237,60 @@ pub mod emulated {
 
       Ok(())
     }
+
+    fn conditionally_select<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+      &self,
+      mut cs: CS,
+      other: &Self,
+      condition: &Boolean,
+    ) -> Result<Self, SynthesisError> {
+      let x = conditionally_select_bignat(
+        cs.namespace(|| "x = cond ? self.x : other.x"),
+        &self.x,
+        &other.x,
+        condition,
+      )?;
+
+      let y = conditionally_select_bignat(
+        cs.namespace(|| "y = cond ? self.y : other.y"),
+        &self.y,
+        &other.y,
+        condition,
+      )?;
+
+      let is_infinity = conditionally_select(
+        cs.namespace(|| "is_infinity = cond ? self.is_infinity : other.is_infinity"),
+        &self.is_infinity,
+        &other.is_infinity,
+        condition,
+      )?;
+
+      Ok(Self { x, y, is_infinity })
+    }
+
+    pub fn default<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+      mut cs: CS,
+      limb_width: usize,
+      n_limbs: usize,
+    ) -> Result<Self, SynthesisError> {
+      let x = BigNat::alloc_from_nat(
+        cs.namespace(|| "allocate x_default = 0"),
+        || Ok(f_to_nat(&E1::Scalar::ZERO)),
+        limb_width,
+        n_limbs,
+      )?;
+
+      let y = BigNat::alloc_from_nat(
+        cs.namespace(|| "allocate y_default = 0"),
+        || Ok(f_to_nat(&E1::Scalar::ZERO)),
+        limb_width,
+        n_limbs,
+      )?;
+
+      let is_infinity = alloc_one(cs.namespace(|| "one"));
+
+      Ok(Self { x, y, is_infinity })
+    }
   }
 
   pub struct AllocatedRelaxedR1CSInstance<E1, E2>
@@ -367,20 +425,71 @@ pub mod emulated {
       })
     }
 
-    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
+    pub fn absorb_in_ro<CS>(&self, mut cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
     where
       CS: ConstraintSystem<<E1 as Engine>::Base>,
     {
-      todo!()
+      self
+        .comm_E
+        .absorb_in_ro(cs.namespace(|| "absorb comm_E"), ro)?;
+      self
+        .comm_W
+        .absorb_in_ro(cs.namespace(|| "absorb comm_W"), ro)?;
+
+      ro.absorb(&self.u);
+      ro.absorb(&self.x0);
+      ro.absorb(&self.x1);
+
+      Ok(())
     }
 
     pub fn conditionally_select<CS: ConstraintSystem<<E1 as Engine>::Base>>(
       &self,
-      cs: CS,
+      mut cs: CS,
       other: &Self,
       condition: &Boolean,
     ) -> Result<Self, SynthesisError> {
-      todo!()
+      let comm_W = self.comm_W.conditionally_select(
+        cs.namespace(|| "comm_W = cond ? self.comm_W : other.comm_W"),
+        &other.comm_W,
+        condition,
+      )?;
+
+      let comm_E = self.comm_E.conditionally_select(
+        cs.namespace(|| "comm_E = cond? self.comm_E : other.comm_E"),
+        &other.comm_E,
+        condition,
+      )?;
+
+      let u = conditionally_select(
+        cs.namespace(|| "u = cond ? self.u : other.u"),
+        &self.u,
+        &other.u,
+        condition,
+      )?;
+
+      let x0 = conditionally_select(
+        cs.namespace(|| "x0 = cond ? self.x0 : other.x0"),
+        &self.x0,
+        &other.x0,
+        condition,
+      )?;
+
+      let x1 = conditionally_select(
+        cs.namespace(|| "x1 = cond ? self.x1 : other.x1"),
+        &self.x1,
+        &other.x1,
+        condition,
+      )?;
+
+      Ok(Self {
+        comm_W,
+        comm_E,
+        u,
+        x0,
+        x1,
+        _p: PhantomData,
+      })
     }
 
     pub fn default<CS: ConstraintSystem<<E1 as Engine>::Base>>(
@@ -388,7 +497,22 @@ pub mod emulated {
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError> {
-      todo!()
+      let comm_W = AllocatedPoint::default(cs.namespace(|| "default comm_W"), limb_width, n_limbs)?;
+      let comm_E = comm_W.clone();
+
+      let u = alloc_zero(cs.namespace(|| "u = 0"));
+
+      let x0 = u.clone();
+      let x1 = u.clone();
+
+      Ok(Self {
+        comm_W,
+        comm_E,
+        u,
+        x0,
+        x1,
+        _p: PhantomData,
+      })
     }
   }
   pub struct AllocatedFoldingData<E1, E2>
@@ -409,18 +533,67 @@ pub mod emulated {
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
-    pub fn alloc<CS>(mut cs: CS, inst: Option<&FoldingData<E2>>) -> Result<Self, SynthesisError>
+    pub fn alloc<CS>(
+      mut cs: CS,
+      inst: Option<&FoldingData<E2>>,
+      limb_width: usize,
+      n_limbs: usize,
+    ) -> Result<Self, SynthesisError>
     where
       CS: ConstraintSystem<<E1 as Engine>::Base>,
     {
-      todo!()
+      let U = AllocatedRelaxedR1CSInstance::alloc(
+        cs.namespace(|| "allocate U"),
+        inst.map(|x| &x.U),
+        limb_width,
+        n_limbs,
+      )?;
+
+      let u_W = AllocatedPoint::alloc(
+        cs.namespace(|| "allocate u_W"),
+        inst.map(|x| x.u.comm_W.to_coordinates()),
+        limb_width,
+        n_limbs,
+      )?;
+
+      let u_x0 = AllocatedNum::alloc(cs.namespace(|| "allocate u_x0"), || {
+        inst.map_or(Ok(E1::Base::ZERO), |inst| Ok(inst.u.X[0]))
+      })?;
+
+      let u_x1 = AllocatedNum::alloc(cs.namespace(|| "allocate u_x1"), || {
+        inst.map_or(Ok(E1::Base::ZERO), |inst| Ok(inst.u.X[1]))
+      })?;
+
+      let T = AllocatedPoint::alloc(
+        cs.namespace(|| "allocate T"),
+        inst.map(|x| x.T.to_coordinates()),
+        limb_width,
+        n_limbs,
+      )?;
+
+      T.check_on_curve(cs.namespace(|| "T on curve"), limb_width, n_limbs)?;
+
+      Ok(Self {
+        U,
+        u_W,
+        u_x0,
+        u_x1,
+        T,
+        _p: PhantomData,
+      })
     }
 
-    pub fn absorb_in_ro<CS>(&self, cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
-    where
-      CS: ConstraintSystem<<E1 as Engine>::Base>,
-    {
-      todo!()
-    }
+    // TODO: Delete if not needed
+    // pub fn absorb_in_ro<CS>(&self, mut cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
+    // where
+    //   CS: ConstraintSystem<<E1 as Engine>::Base>,
+    // {
+    //   self.U.absorb_in_ro(cs.namespace(|| "absorb U"), ro)?;
+    //   self.u_W.absorb_in_ro(cs.namespace(|| "absorb u_W"), ro)?;
+    //   ro.absorb(&self.u_x0);
+    //   ro.absorb(&self.u_x1);
+    //   self.T.absorb_in_ro(cs.namespace(|| "absorb T"), ro)?;
+    //   Ok(())
+    // }
   }
 }

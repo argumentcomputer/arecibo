@@ -192,6 +192,8 @@ where
         .inputs
         .as_ref()
         .and_then(|inputs| inputs.data_p.as_ref()),
+      self.params.limb_width,
+      self.params.n_limbs,
     )?;
 
     let data_c_1 = AllocatedFoldingData::alloc(
@@ -225,6 +227,12 @@ where
       self.params.n_limbs,
     )?;
 
+    E_new.check_on_curve(
+      cs.namespace(|| "E_new on curve"),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
     let W_new = emulated::AllocatedPoint::alloc(
       cs.namespace(|| "W_new"),
       self
@@ -232,6 +240,12 @@ where
         .as_ref()
         .and_then(|inputs| inputs.W_new.as_ref())
         .map(|W_new| W_new.to_coordinates()),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
+    W_new.check_on_curve(
+      cs.namespace(|| "W_new on curve"),
       self.params.limb_width,
       self.params.n_limbs,
     )?;
