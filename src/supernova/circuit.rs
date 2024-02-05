@@ -709,38 +709,39 @@ mod tests {
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::utils::scalar_as_base,
     provider::{
-      poseidon::PoseidonConstantsCircuit,
-      {Bn256Engine, GrumpkinEngine}, {PallasEngine, VestaEngine},
-      {Secp256k1Engine, Secq256k1Engine},
+      poseidon::PoseidonConstantsCircuit, Bn256Engine, GrumpkinEngine, PallasEngine,
+      Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     supernova::circuit::TrivialTestCircuit,
-    traits::snark::default_ck_hint,
+    traits::{snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
   use expect_test::{expect, Expect};
 
   // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
-  fn test_supernova_recursive_circuit_with<E1, E2>(
+  fn test_supernova_recursive_circuit_with<E1>(
     primary_params: &SuperNovaAugmentedCircuitParams,
     secondary_params: &SuperNovaAugmentedCircuitParams,
-    ro_consts1: ROConstantsCircuit<E2>,
+    ro_consts1: ROConstantsCircuit<Dual<E1>>,
     ro_consts2: ROConstantsCircuit<E1>,
     num_constraints_primary: &Expect,
     num_constraints_secondary: &Expect,
     num_augmented_circuits: usize,
   ) where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
   {
     let tc1 = TrivialTestCircuit::default();
     // Initialize the shape and ck for the primary
-    let circuit1: SuperNovaAugmentedCircuit<'_, E2, TrivialTestCircuit<<E2 as Engine>::Base>> =
-      SuperNovaAugmentedCircuit::new(
-        primary_params,
-        None,
-        &tc1,
-        ro_consts1.clone(),
-        num_augmented_circuits,
-      );
+    let circuit1: SuperNovaAugmentedCircuit<
+      '_,
+      Dual<E1>,
+      TrivialTestCircuit<<Dual<E1> as Engine>::Base>,
+    > = SuperNovaAugmentedCircuit::new(
+      primary_params,
+      None,
+      &tc1,
+      ro_consts1.clone(),
+      num_augmented_circuits,
+    );
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint());
@@ -757,35 +758,39 @@ mod tests {
         ro_consts2.clone(),
         num_augmented_circuits,
       );
-    let mut cs: TestShapeCS<E2> = TestShapeCS::new();
+    let mut cs: TestShapeCS<Dual<E1>> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
     let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
     // Execute the base case for the primary
-    let zero1 = <<E2 as Engine>::Base as Field>::ZERO;
+    let zero1 = <<Dual<E1> as Engine>::Base as Field>::ZERO;
     let mut cs1 = SatisfyingAssignment::<E1>::new();
     let vzero1 = vec![zero1];
-    let inputs1: SuperNovaAugmentedCircuitInputs<'_, E2> = SuperNovaAugmentedCircuitInputs::new(
-      scalar_as_base::<E1>(zero1), // pass zero for testing
-      zero1,
-      &vzero1,
-      None,
-      None,
-      None,
-      None,
-      Some(zero1),
-      zero1,
-    );
-    let circuit1: SuperNovaAugmentedCircuit<'_, E2, TrivialTestCircuit<<E2 as Engine>::Base>> =
-      SuperNovaAugmentedCircuit::new(
-        primary_params,
-        Some(inputs1),
-        &tc1,
-        ro_consts1,
-        num_augmented_circuits,
+    let inputs1: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>> =
+      SuperNovaAugmentedCircuitInputs::new(
+        scalar_as_base::<E1>(zero1), // pass zero for testing
+        zero1,
+        &vzero1,
+        None,
+        None,
+        None,
+        None,
+        Some(zero1),
+        zero1,
       );
+    let circuit1: SuperNovaAugmentedCircuit<
+      '_,
+      Dual<E1>,
+      TrivialTestCircuit<<Dual<E1> as Engine>::Base>,
+    > = SuperNovaAugmentedCircuit::new(
+      primary_params,
+      Some(inputs1),
+      &tc1,
+      ro_consts1,
+      num_augmented_circuits,
+    );
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1).unwrap();
     // Make sure that this is satisfiable
@@ -793,10 +798,10 @@ mod tests {
 
     // Execute the base case for the secondary
     let zero2 = <<E1 as Engine>::Base as Field>::ZERO;
-    let mut cs2 = SatisfyingAssignment::<E2>::new();
+    let mut cs2 = SatisfyingAssignment::<Dual<E1>>::new();
     let vzero2 = vec![zero2];
     let inputs2: SuperNovaAugmentedCircuitInputs<'_, E1> = SuperNovaAugmentedCircuitInputs::new(
-      scalar_as_base::<E2>(zero2), // pass zero for testing
+      scalar_as_base::<Dual<E1>>(zero2), // pass zero for testing
       zero2,
       &vzero2,
       None,
@@ -828,7 +833,7 @@ mod tests {
     let ro_consts1: ROConstantsCircuit<VestaEngine> = PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<PallasEngine> = PoseidonConstantsCircuit::default();
 
-    test_supernova_recursive_circuit_with::<PallasEngine, VestaEngine>(
+    test_supernova_recursive_circuit_with::<PallasEngine>(
       &params1,
       &params2,
       ro_consts1,
@@ -847,7 +852,7 @@ mod tests {
     let ro_consts1: ROConstantsCircuit<GrumpkinEngine> = PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<Bn256Engine> = PoseidonConstantsCircuit::default();
 
-    test_supernova_recursive_circuit_with::<Bn256Engine, GrumpkinEngine>(
+    test_supernova_recursive_circuit_with::<Bn256Engine>(
       &params1,
       &params2,
       ro_consts1,
@@ -866,7 +871,7 @@ mod tests {
     let ro_consts1: ROConstantsCircuit<Secq256k1Engine> = PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<Secp256k1Engine> = PoseidonConstantsCircuit::default();
 
-    test_supernova_recursive_circuit_with::<Secp256k1Engine, Secq256k1Engine>(
+    test_supernova_recursive_circuit_with::<Secp256k1Engine>(
       &params1,
       &params2,
       ro_consts1,

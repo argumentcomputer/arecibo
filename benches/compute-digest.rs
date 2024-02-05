@@ -29,7 +29,7 @@ criterion_main!(compute_digest);
 fn bench_compute_digest(c: &mut Criterion) {
   c.bench_function("compute_digest", |b| {
     b.iter(|| {
-      PublicParams::<E1, E2, C1, C2>::setup(
+      PublicParams::<E1>::setup(
         black_box(&C1::new(10)),
         black_box(&C2::default()),
         black_box(&*default_ck_hint()),

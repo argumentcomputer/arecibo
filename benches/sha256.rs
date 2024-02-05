@@ -122,9 +122,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for Sha256Circuit<
   }
 }
 
-type C1 = Sha256Circuit<<E1 as Engine>::Scalar>;
-type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
-
 criterion_group! {
 name = recursive_snark;
 config = Criterion::default().warm_up_time(Duration::from_millis(3000));
@@ -158,7 +155,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     // Produce public parameters
     let ttc = TrivialCircuit::default();
-    let pp = PublicParams::<E1, E2, C1, C2>::setup(
+    let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &ttc,
       &*default_ck_hint(),

@@ -195,6 +195,7 @@ fn main() {
     .with(EnvFilter::from_default_env())
     .with(TeXRayLayer::new());
   tracing::subscriber::set_global_default(subscriber).unwrap();
+  type C1 = MinRootCircuit<<Bn256EngineKZG as Engine>::GE>;
 
   println!("Nova-based VDF with MinRoot delay function");
   println!("=========================================================");
@@ -202,7 +203,7 @@ fn main() {
   let num_steps = 10;
   for num_iters_per_step in [1024, 2048, 4096, 8192, 16384, 32768, 65536] {
     // number of iterations of MinRoot per Nova's recursive step
-    let circuit_primary = MinRootCircuit {
+    let circuit_primary = C1 {
       seq: vec![
         MinRootIteration {
           x_i: <E1 as Engine>::Scalar::zero(),
@@ -221,12 +222,7 @@ fn main() {
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<
-      E1,
-      E2,
-      MinRootCircuit<<E1 as Engine>::GE>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*S1::ck_floor(),
@@ -272,16 +268,7 @@ fn main() {
       let mut reader = std::io::BufReader::new(file);
       let mut bytes = Vec::new();
       reader.read_to_end(&mut bytes).unwrap();
-      if let Some((result, remaining)) = unsafe {
-        decode::<
-          FlatPublicParams<
-            E1,
-            E2,
-            MinRootCircuit<<E1 as Engine>::GE>,
-            TrivialCircuit<<E2 as Engine>::Scalar>,
-          >,
-        >(&mut bytes)
-      } {
+      if let Some((result, remaining)) = unsafe { decode::<FlatPublicParams<E1>>(&mut bytes) } {
         let result_pp = PublicParams::from(result.clone());
         assert!(result_pp == pp, "decoded parameters not equal to original!");
         assert!(remaining.is_empty());
@@ -298,7 +285,7 @@ fn main() {
       &<E1 as Engine>::Scalar::one(),
     );
     let minroot_circuits = (0..num_steps)
-      .map(|i| MinRootCircuit {
+      .map(|i| C1 {
         seq: (0..num_iters_per_step)
           .map(|j| MinRootIteration {
             x_i: minroot_iterations[i * num_iters_per_step + j].x_i,
@@ -312,19 +299,16 @@ fn main() {
 
     let z0_secondary = vec![<E2 as Engine>::Scalar::zero()];
 
-    type C1 = MinRootCircuit<<E1 as Engine>::GE>;
-    type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
-      RecursiveSNARK::<E1, E2, C1, C2>::new(
-        &pp,
-        &minroot_circuits[0],
-        &circuit_secondary,
-        &z0_primary,
-        &z0_secondary,
-      )
-      .unwrap();
+    let mut recursive_snark = RecursiveSNARK::<E1>::new(
+      &pp,
+      &minroot_circuits[0],
+      &circuit_secondary,
+      &z0_primary,
+      &z0_secondary,
+    )
+    .unwrap();
 
     for (i, circuit_primary) in minroot_circuits.iter().enumerate() {
       let start = Instant::now();
@@ -351,7 +335,7 @@ fn main() {
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with multilinear KZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
     type E1 = Bn256EngineKZG;
@@ -361,7 +345,7 @@ fn main() {
     type S1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>; // non-preprocessing SNARK
     type S2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>; // non-preprocessing SNARK
 
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),

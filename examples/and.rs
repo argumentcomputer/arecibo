@@ -208,11 +208,14 @@ fn main() {
   println!("Nova-based 64-bit bitwise AND example");
   println!("=========================================================");
 
+  type C1 = AndCircuit<<E1 as Engine>::GE>;
+  type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
+
   let num_steps = 32;
   for num_ops_per_step in [1024, 2048, 4096, 8192, 16384, 32768, 65536] {
     // number of instances of AND per Nova's recursive step
-    let circuit_primary = AndCircuit::new(num_ops_per_step);
-    let circuit_secondary = TrivialCircuit::default();
+    let circuit_primary = C1::new(num_ops_per_step);
+    let circuit_secondary = C2::default();
 
     println!(
       "Proving {} AND ops ({num_ops_per_step} instances per step and {num_steps} steps)",
@@ -222,12 +225,7 @@ fn main() {
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<
-      E1,
-      E2,
-      AndCircuit<<E1 as Engine>::GE>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*S1::ck_floor(),
@@ -255,23 +253,19 @@ fn main() {
 
     // produce non-deterministic advice
     let circuits = (0..num_steps)
-      .map(|_| AndCircuit::new(num_ops_per_step))
+      .map(|_| C1::new(num_ops_per_step))
       .collect::<Vec<_>>();
-
-    type C1 = AndCircuit<<E1 as Engine>::GE>;
-    type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
 
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
-      RecursiveSNARK::<E1, E2, C1, C2>::new(
-        &pp,
-        &circuits[0],
-        &circuit_secondary,
-        &[<E1 as Engine>::Scalar::zero()],
-        &[<E2 as Engine>::Scalar::zero()],
-      )
-      .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1> = RecursiveSNARK::<E1>::new(
+      &pp,
+      &circuits[0],
+      &circuit_secondary,
+      &[<E1 as Engine>::Scalar::zero()],
+      &[<E2 as Engine>::Scalar::zero()],
+    )
+    .unwrap();
 
     let start = Instant::now();
     for circuit_primary in circuits.iter() {
@@ -297,11 +291,11 @@ fn main() {
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with multilinear KZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
 
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),

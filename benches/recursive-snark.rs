@@ -19,8 +19,6 @@ use common::{noise_threshold_env, BenchParams};
 
 type E1 = PallasEngine;
 type E2 = VestaEngine;
-type C1 = NonTrivialCircuit<<E1 as Engine>::Scalar>;
-type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
 // Then `cargo criterion --bench recursive-snark`. The results are located in `target/criterion/data/<name-of-benchmark>`.
@@ -73,7 +71,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
     let c_secondary = TrivialCircuit::default();
 
     // Produce public parameters
-    let pp = PublicParams::<E1, E2, C1, C2>::setup(
+    let pp = PublicParams::<E1>::setup(
       &c_primary,
       &c_secondary,
       &*default_ck_hint(),
@@ -85,7 +83,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
     // the first step is cheaper than other steps owing to the presence of
     // a lot of zeros in the satisfying assignment
     let num_warmup_steps = 10;
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> = RecursiveSNARK::new(
+    let mut recursive_snark: RecursiveSNARK<E1> = RecursiveSNARK::new(
       &pp,
       &c_primary,
       &c_secondary,

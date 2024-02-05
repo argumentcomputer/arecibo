@@ -27,8 +27,6 @@ type S2 = arecibo::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
 // SNARKs with computation commitmnets
 type SS1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>;
 type SS2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
-type C1 = NonTrivialCircuit<<E1 as Engine>::Scalar>;
-type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
 // Then `cargo criterion --bench compressed-snark`. The results are located in `target/criterion/data/<name-of-benchmark>`.
@@ -69,19 +67,14 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
   let c_secondary = TrivialCircuit::default();
 
   // Produce public parameters
-  let pp = PublicParams::<E1, E2, C1, C2>::setup(
-    &c_primary,
-    &c_secondary,
-    &*S1::ck_floor(),
-    &*S2::ck_floor(),
-  );
+  let pp = PublicParams::<E1>::setup(&c_primary, &c_secondary, &*S1::ck_floor(), &*S2::ck_floor());
 
   // Produce prover and verifier keys for CompressedSNARK
-  let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+  let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
   // produce a recursive SNARK
   let num_steps = 3;
-  let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> = RecursiveSNARK::new(
+  let mut recursive_snark: RecursiveSNARK<E1> = RecursiveSNARK::new(
     &pp,
     &c_primary,
     &c_secondary,
@@ -113,7 +106,7 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
   // Bench time to produce a compressed SNARK
   group.bench_function(bench_params.bench_id("Prove"), |b| {
     b.iter(|| {
-      assert!(CompressedSNARK::<_, _, _, _, S1, S2>::prove(
+      assert!(CompressedSNARK::<_, S1, S2>::prove(
         black_box(&pp),
         black_box(&pk),
         black_box(&recursive_snark)
@@ -121,7 +114,7 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
       .is_ok());
     })
   });
-  let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+  let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark);
   assert!(res.is_ok());
   let compressed_snark = res.unwrap();
 

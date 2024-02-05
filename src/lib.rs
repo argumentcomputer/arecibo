@@ -28,6 +28,7 @@ pub mod traits;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
+use traits::{CurveCycleEquipped, Dual};
 
 use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::{
@@ -43,7 +44,6 @@ use abomonation_derive::Abomonation;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
-use core::marker::PhantomData;
 use errors::NovaError;
 use ff::{Field, PrimeField};
 use gadgets::utils::scalar_as_base;
@@ -90,28 +90,24 @@ impl<E: Engine> R1CSWithArity<E> {
 /// A type that holds public parameters of Nova
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct PublicParams<E1, E2, C1, C2>
+pub struct PublicParams<E>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E: CurveCycleEquipped,
 {
   F_arity_primary: usize,
   F_arity_secondary: usize,
-  ro_consts_primary: ROConstants<E1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: Arc<CommitmentKey<E1>>,
-  circuit_shape_primary: R1CSWithArity<E1>,
-  ro_consts_secondary: ROConstants<E2>,
-  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: Arc<CommitmentKey<E2>>,
-  circuit_shape_secondary: R1CSWithArity<E2>,
+  ro_consts_primary: ROConstants<E>,
+  ro_consts_circuit_primary: ROConstantsCircuit<Dual<E>>,
+  ck_primary: Arc<CommitmentKey<E>>,
+  circuit_shape_primary: R1CSWithArity<E>,
+  ro_consts_secondary: ROConstants<Dual<E>>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<E>,
+  ck_secondary: Arc<CommitmentKey<Dual<E>>>,
+  circuit_shape_secondary: R1CSWithArity<Dual<E>>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
   #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<E1::Scalar>,
-  _p: PhantomData<(C1, C2)>,
+  digest: OnceCell<E::Scalar>,
 }
 
 // Ensure to include necessary crates and features in your Cargo.toml
@@ -123,46 +119,36 @@ where
 #[serde(bound = "")]
 #[abomonation_bounds(
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
   <E1::Scalar as PrimeField>::Repr: Abomonation,
-  <E2::Scalar as PrimeField>::Repr: Abomonation,
+  <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
 )]
-pub struct FlatPublicParams<E1, E2, C1, C2>
+pub struct FlatPublicParams<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
 {
   F_arity_primary: usize,
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>>,
   ck_primary: CommitmentKey<E1>,
   circuit_shape_primary: R1CSWithArity<E1>,
-  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_secondary: ROConstants<Dual<E1>>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<E2>,
-  circuit_shape_secondary: R1CSWithArity<E2>,
+  ck_secondary: CommitmentKey<Dual<E1>>,
+  circuit_shape_secondary: R1CSWithArity<Dual<E1>>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  _p: PhantomData<(C1, C2)>,
 }
 
 #[cfg(feature = "abomonate")]
-impl<E1, E2, C1, C2> TryFrom<PublicParams<E1, E2, C1, C2>> for FlatPublicParams<E1, E2, C1, C2>
+impl<E1> TryFrom<PublicParams<E1>> for FlatPublicParams<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
 {
   type Error = &'static str;
 
-  fn try_from(value: PublicParams<E1, E2, C1, C2>) -> Result<Self, Self::Error> {
+  fn try_from(value: PublicParams<E1>) -> Result<Self, Self::Error> {
     let ck_primary =
       Arc::try_unwrap(value.ck_primary).map_err(|_| "Failed to unwrap Arc for ck_primary")?;
     let ck_secondary =
@@ -180,20 +166,16 @@ where
       circuit_shape_secondary: value.circuit_shape_secondary,
       augmented_circuit_params_primary: value.augmented_circuit_params_primary,
       augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
-      _p: PhantomData,
     })
   }
 }
 
 #[cfg(feature = "abomonate")]
-impl<E1, E2, C1, C2> From<FlatPublicParams<E1, E2, C1, C2>> for PublicParams<E1, E2, C1, C2>
+impl<E1> From<FlatPublicParams<E1>> for PublicParams<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
 {
-  fn from(value: FlatPublicParams<E1, E2, C1, C2>) -> Self {
+  fn from(value: FlatPublicParams<E1>) -> Self {
     Self {
       F_arity_primary: value.F_arity_primary,
       F_arity_secondary: value.F_arity_secondary,
@@ -208,26 +190,15 @@ where
       augmented_circuit_params_primary: value.augmented_circuit_params_primary,
       augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-      _p: PhantomData,
     }
   }
 }
 
-impl<E1, E2, C1, C2> SimpleDigestible for PublicParams<E1, E2, C1, C2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-{
-}
+impl<E1> SimpleDigestible for PublicParams<E1> where E1: CurveCycleEquipped {}
 
-impl<E1, E2, C1, C2> PublicParams<E1, E2, C1, C2>
+impl<E1> PublicParams<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
 {
   /// Set up builder to create `PublicParams` for a pair of circuits `C1` and `C2`.
   ///
@@ -272,11 +243,11 @@ where
   ///
   /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2);
   /// ```
-  pub fn setup(
+  pub fn setup<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<<Dual<E1> as Engine>::Scalar>>(
     c_primary: &C1,
     c_secondary: &C2,
     ck_hint1: &CommitmentKeyHint<E1>,
-    ck_hint2: &CommitmentKeyHint<E2>,
+    ck_hint2: &CommitmentKeyHint<Dual<E1>>,
   ) -> Self {
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
@@ -284,17 +255,18 @@ where
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
 
     let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
-    let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
+    let ro_consts_secondary: ROConstants<Dual<E1>> = ROConstants::<Dual<E1>>::default();
 
     let F_arity_primary = c_primary.arity();
     let F_arity_secondary = c_secondary.arity();
 
     // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
-    let ro_consts_circuit_primary: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
+    let ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>> =
+      ROConstantsCircuit::<Dual<E1>>::default();
     let ro_consts_circuit_secondary: ROConstantsCircuit<E1> = ROConstantsCircuit::<E1>::default();
 
     // Initialize ck for the primary
-    let circuit_primary: NovaAugmentedCircuit<'_, E2, C1> = NovaAugmentedCircuit::new(
+    let circuit_primary: NovaAugmentedCircuit<'_, Dual<E1>, C1> = NovaAugmentedCircuit::new(
       &augmented_circuit_params_primary,
       None,
       c_primary,
@@ -313,7 +285,7 @@ where
       c_secondary,
       ro_consts_circuit_secondary.clone(),
     );
-    let mut cs: ShapeCS<E2> = ShapeCS::new();
+    let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let ck_secondary = Arc::new(ck_secondary);
@@ -333,7 +305,6 @@ where
       augmented_circuit_params_primary,
       augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-      _p: Default::default(),
     }
   }
 
@@ -381,47 +352,40 @@ pub struct ResourceBuffer<E: Engine> {
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RecursiveSNARK<E1, E2, C1, C2>
+pub struct RecursiveSNARK<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
 {
   z0_primary: Vec<E1::Scalar>,
-  z0_secondary: Vec<E2::Scalar>,
+  z0_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
   r_W_primary: RelaxedR1CSWitness<E1>,
   r_U_primary: RelaxedR1CSInstance<E1>,
-  r_W_secondary: RelaxedR1CSWitness<E2>,
-  r_U_secondary: RelaxedR1CSInstance<E2>,
-  l_w_secondary: R1CSWitness<E2>,
-  l_u_secondary: R1CSInstance<E2>,
+  r_W_secondary: RelaxedR1CSWitness<Dual<E1>>,
+  r_U_secondary: RelaxedR1CSInstance<Dual<E1>>,
+  l_w_secondary: R1CSWitness<Dual<E1>>,
+  l_u_secondary: R1CSInstance<Dual<E1>>,
 
   /// Buffer for memory needed by the primary fold-step
   buffer_primary: ResourceBuffer<E1>,
   /// Buffer for memory needed by the secondary fold-step
-  buffer_secondary: ResourceBuffer<E2>,
+  buffer_secondary: ResourceBuffer<Dual<E1>>,
 
   i: usize,
   zi_primary: Vec<E1::Scalar>,
-  zi_secondary: Vec<E2::Scalar>,
-  _p: PhantomData<(C1, C2)>,
+  zi_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
 }
 
-impl<E1, E2, C1, C2> RecursiveSNARK<E1, E2, C1, C2>
+impl<E1> RecursiveSNARK<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
 {
   /// Create new instance of recursive SNARK
-  pub fn new(
-    pp: &PublicParams<E1, E2, C1, C2>,
+  pub fn new<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<<Dual<E1> as Engine>::Scalar>>(
+    pp: &PublicParams<E1>,
     c_primary: &C1,
     c_secondary: &C2,
     z0_primary: &[E1::Scalar],
-    z0_secondary: &[E2::Scalar],
+    z0_secondary: &[<Dual<E1> as Engine>::Scalar],
   ) -> Result<Self, NovaError> {
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
       return Err(NovaError::InvalidInitialInputLength);
@@ -432,7 +396,7 @@ where
 
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
-    let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
+    let inputs_primary: NovaAugmentedCircuitInputs<Dual<E1>> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<E1>(pp.digest()),
       E1::Scalar::ZERO,
       z0_primary.to_vec(),
@@ -442,7 +406,7 @@ where
       None,
     );
 
-    let circuit_primary: NovaAugmentedCircuit<'_, E2, C1> = NovaAugmentedCircuit::new(
+    let circuit_primary: NovaAugmentedCircuit<'_, Dual<E1>, C1> = NovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_primary,
       Some(inputs_primary),
       c_primary,
@@ -453,10 +417,10 @@ where
       cs_primary.r1cs_instance_and_witness(r1cs_primary, &pp.ck_primary)?;
 
     // base case for the secondary
-    let mut cs_secondary = SatisfyingAssignment::<E2>::new();
+    let mut cs_secondary = SatisfyingAssignment::<Dual<E1>>::new();
     let inputs_secondary: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
-      E2::Scalar::ZERO,
+      <Dual<E1> as Engine>::Scalar::ZERO,
       z0_secondary.to_vec(),
       None,
       None,
@@ -486,8 +450,8 @@ where
     // IVC proof for the secondary circuit
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
-    let r_W_secondary = RelaxedR1CSWitness::<E2>::default(r1cs_secondary);
-    let r_U_secondary = RelaxedR1CSInstance::<E2>::default(&pp.ck_secondary, r1cs_secondary);
+    let r_W_secondary = RelaxedR1CSWitness::<Dual<E1>>::default(r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::<Dual<E1>>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
@@ -502,7 +466,7 @@ where
     let zi_secondary = zi_secondary
       .iter()
       .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
-      .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
+      .collect::<Result<Vec<<Dual<E1> as Engine>::Scalar>, _>>()?;
 
     let buffer_primary = ResourceBuffer {
       l_w: None,
@@ -517,7 +481,7 @@ where
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_secondary.num_cons),
       ABC_Z_2: R1CSResult::default(r1cs_secondary.num_cons),
-      T: r1cs::default_T::<E2>(r1cs_secondary.num_cons),
+      T: r1cs::default_T::<Dual<E1>>(r1cs_secondary.num_cons),
     };
 
     Ok(Self {
@@ -535,16 +499,15 @@ where
       i: 0,
       zi_primary,
       zi_secondary,
-      _p: Default::default(),
     })
   }
 
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
   /// by executing a step of the incremental computation
   #[tracing::instrument(skip_all, name = "nova::RecursiveSNARK::prove_step")]
-  pub fn prove_step(
+  pub fn prove_step<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<<Dual<E1> as Engine>::Scalar>>(
     &mut self,
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1>,
     c_primary: &C1,
     c_secondary: &C2,
   ) -> Result<(), NovaError> {
@@ -578,17 +541,17 @@ where
       pp.circuit_shape_primary.r1cs_shape.num_io + 1,
       pp.circuit_shape_primary.r1cs_shape.num_vars,
     );
-    let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
+    let inputs_primary: NovaAugmentedCircuitInputs<Dual<E1>> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<E1>(pp.digest()),
       E1::Scalar::from(self.i as u64),
       self.z0_primary.to_vec(),
       Some(self.zi_primary.clone()),
       Some(r_U_secondary_i),
       Some(l_u_secondary_i),
-      Some(Commitment::<E2>::decompress(&nifs_secondary.comm_T)?),
+      Some(Commitment::<Dual<E1>>::decompress(&nifs_secondary.comm_T)?),
     );
 
-    let circuit_primary: NovaAugmentedCircuit<'_, E2, C1> = NovaAugmentedCircuit::new(
+    let circuit_primary: NovaAugmentedCircuit<'_, Dual<E1>, C1> = NovaAugmentedCircuit::new(
       &pp.augmented_circuit_params_primary,
       Some(inputs_primary),
       c_primary,
@@ -615,13 +578,13 @@ where
       &mut self.buffer_primary.ABC_Z_2,
     )?;
 
-    let mut cs_secondary = SatisfyingAssignment::<E2>::with_capacity(
+    let mut cs_secondary = SatisfyingAssignment::<Dual<E1>>::with_capacity(
       pp.circuit_shape_secondary.r1cs_shape.num_io + 1,
       pp.circuit_shape_secondary.r1cs_shape.num_vars,
     );
     let inputs_secondary: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
       pp.digest(),
-      E2::Scalar::from(self.i as u64),
+      <Dual<E1> as Engine>::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
       Some(r_U_primary_i),
@@ -649,7 +612,7 @@ where
     self.zi_secondary = zi_secondary
       .iter()
       .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
-      .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
+      .collect::<Result<Vec<<Dual<E1> as Engine>::Scalar>, _>>()?;
 
     self.l_u_secondary = l_u_secondary;
     self.l_w_secondary = l_w_secondary;
@@ -662,11 +625,11 @@ where
   /// Verify the correctness of the `RecursiveSNARK`
   pub fn verify(
     &self,
-    pp: &PublicParams<E1, E2, C1, C2>,
+    pp: &PublicParams<E1>,
     num_steps: usize,
     z0_primary: &[E1::Scalar],
-    z0_secondary: &[E2::Scalar],
-  ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), NovaError> {
+    z0_secondary: &[<Dual<E1> as Engine>::Scalar],
+  ) -> Result<(Vec<E1::Scalar>, Vec<<Dual<E1> as Engine>::Scalar>), NovaError> {
     // number of steps cannot be zero
     let is_num_steps_zero = num_steps == 0;
 
@@ -691,7 +654,7 @@ where
 
     // check if the output hashes in R1CS instances point to the right running instances
     let (hash_primary, hash_secondary) = {
-      let mut hasher = <E2 as Engine>::RO::new(
+      let mut hasher = <Dual<E1> as Engine>::RO::new(
         pp.ro_consts_secondary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
       );
@@ -710,7 +673,7 @@ where
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_secondary,
       );
       hasher2.absorb(scalar_as_base::<E1>(pp.digest()));
-      hasher2.absorb(E2::Scalar::from(num_steps as u64));
+      hasher2.absorb(<Dual<E1> as Engine>::Scalar::from(num_steps as u64));
       for e in z0_secondary {
         hasher2.absorb(*e);
       }
@@ -726,7 +689,7 @@ where
     };
 
     if hash_primary != self.l_u_secondary.X[0]
-      || hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.X[1])
+      || hash_secondary != scalar_as_base::<Dual<E1>>(self.l_u_secondary.X[1])
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -769,7 +732,7 @@ where
   }
 
   /// Get the outputs after the last step of computation.
-  pub fn outputs(&self) -> (&[E1::Scalar], &[E2::Scalar]) {
+  pub fn outputs(&self) -> (&[E1::Scalar], &[<Dual<E1> as Engine>::Scalar]) {
     (&self.zi_primary, &self.zi_secondary)
   }
 
@@ -781,87 +744,65 @@ where
 
 /// A type that holds the prover key for `CompressedSNARK`
 #[derive(Clone, Debug)]
-pub struct ProverKey<E1, E2, C1, C2, S1, S2>
+pub struct ProverKey<E1, S1, S2>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
   S1: RelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   pk_primary: S1::ProverKey,
   pk_secondary: S2::ProverKey,
-  _p: PhantomData<(C1, C2)>,
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
 #[derive(Debug, Clone, Serialize)]
 #[serde(bound = "")]
-pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
+pub struct VerifierKey<E1, S1, S2>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
   S1: RelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   F_arity_primary: usize,
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
-  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_secondary: ROConstants<Dual<E1>>,
   pp_digest: E1::Scalar,
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
-  _p: PhantomData<(C1, C2)>,
 }
 
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
+pub struct CompressedSNARK<E1, S1, S2>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
   S1: RelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   r_U_primary: RelaxedR1CSInstance<E1>,
   r_W_snark_primary: S1,
 
-  r_U_secondary: RelaxedR1CSInstance<E2>,
-  l_u_secondary: R1CSInstance<E2>,
-  nifs_secondary: NIFS<E2>,
+  r_U_secondary: RelaxedR1CSInstance<Dual<E1>>,
+  l_u_secondary: R1CSInstance<Dual<E1>>,
+  nifs_secondary: NIFS<Dual<E1>>,
   f_W_snark_secondary: S2,
 
   zn_primary: Vec<E1::Scalar>,
-  zn_secondary: Vec<E2::Scalar>,
-
-  _p: PhantomData<(C1, C2)>,
+  zn_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
 }
 
-impl<E1, E2, C1, C2, S1, S2> CompressedSNARK<E1, E2, C1, C2, S1, S2>
+impl<E1, S1, S2> CompressedSNARK<E1, S1, S2>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
+  E1: CurveCycleEquipped,
   S1: RelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   /// Creates prover and verifier keys for `CompressedSNARK`
   pub fn setup(
-    pp: &PublicParams<E1, E2, C1, C2>,
-  ) -> Result<
-    (
-      ProverKey<E1, E2, C1, C2, S1, S2>,
-      VerifierKey<E1, E2, C1, C2, S1, S2>,
-    ),
-    NovaError,
-  > {
+    pp: &PublicParams<E1>,
+  ) -> Result<(ProverKey<E1, S1, S2>, VerifierKey<E1, S1, S2>), NovaError> {
     let (pk_primary, vk_primary) =
       S1::setup(pp.ck_primary.clone(), &pp.circuit_shape_primary.r1cs_shape)?;
     let (pk_secondary, vk_secondary) = S2::setup(
@@ -872,7 +813,6 @@ where
     let pk = ProverKey {
       pk_primary,
       pk_secondary,
-      _p: Default::default(),
     };
 
     let vk = VerifierKey {
@@ -883,7 +823,6 @@ where
       pp_digest: pp.digest(),
       vk_primary,
       vk_secondary,
-      _p: Default::default(),
     };
 
     Ok((pk, vk))
@@ -891,9 +830,9 @@ where
 
   /// Create a new `CompressedSNARK`
   pub fn prove(
-    pp: &PublicParams<E1, E2, C1, C2>,
-    pk: &ProverKey<E1, E2, C1, C2, S1, S2>,
-    recursive_snark: &RecursiveSNARK<E1, E2, C1, C2>,
+    pp: &PublicParams<E1>,
+    pk: &ProverKey<E1, S1, S2>,
+    recursive_snark: &RecursiveSNARK<E1>,
   ) -> Result<Self, NovaError> {
     // fold the secondary circuit's instance with its running instance
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
@@ -940,19 +879,17 @@ where
 
       zn_primary: recursive_snark.zi_primary.clone(),
       zn_secondary: recursive_snark.zi_secondary.clone(),
-
-      _p: Default::default(),
     })
   }
 
   /// Verify the correctness of the `CompressedSNARK`
   pub fn verify(
     &self,
-    vk: &VerifierKey<E1, E2, C1, C2, S1, S2>,
+    vk: &VerifierKey<E1, S1, S2>,
     num_steps: usize,
     z0_primary: &[E1::Scalar],
-    z0_secondary: &[E2::Scalar],
-  ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), NovaError> {
+    z0_secondary: &[<Dual<E1> as Engine>::Scalar],
+  ) -> Result<(Vec<E1::Scalar>, Vec<<Dual<E1> as Engine>::Scalar>), NovaError> {
     // the number of steps cannot be zero
     if num_steps == 0 {
       return Err(NovaError::ProofVerifyError);
@@ -968,7 +905,7 @@ where
 
     // check if the output hashes in R1CS instances point to the right running instances
     let (hash_primary, hash_secondary) = {
-      let mut hasher = <E2 as Engine>::RO::new(
+      let mut hasher = <Dual<E1> as Engine>::RO::new(
         vk.ro_consts_secondary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_primary,
       );
@@ -987,7 +924,7 @@ where
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_secondary,
       );
       hasher2.absorb(scalar_as_base::<E1>(vk.pp_digest));
-      hasher2.absorb(E2::Scalar::from(num_steps as u64));
+      hasher2.absorb(<Dual<E1> as Engine>::Scalar::from(num_steps as u64));
       for e in z0_secondary {
         hasher2.absorb(*e);
       }
@@ -1003,7 +940,7 @@ where
     };
 
     if hash_primary != self.l_u_secondary.X[0]
-      || hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.X[1])
+      || hash_secondary != scalar_as_base::<Dual<E1>>(self.l_u_secondary.X[1])
     {
       return Err(NovaError::ProofVerifyError);
     }
@@ -1042,20 +979,16 @@ where
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.
-pub fn circuit_digest<
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C: StepCircuit<E1::Scalar>,
->(
+pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
   circuit: &C,
 ) -> E1::Scalar {
   let augmented_circuit_params = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-  let ro_consts_circuit: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();
+  let ro_consts_circuit: ROConstantsCircuit<Dual<E1>> = ROConstantsCircuit::<Dual<E1>>::default();
 
   // Initialize ck for the primary
-  let augmented_circuit: NovaAugmentedCircuit<'_, E2, C> =
+  let augmented_circuit: NovaAugmentedCircuit<'_, Dual<E1>, C> =
     NovaAugmentedCircuit::new(&augmented_circuit_params, None, circuit, ro_consts_circuit);
   let mut cs: ShapeCS<E1> = ShapeCS::new();
   let _ = augmented_circuit.synthesize(&mut cs);
@@ -1136,24 +1069,23 @@ mod tests {
     }
   }
 
-  fn test_pp_digest_with<E1, E2, T1, T2, EE1, EE2>(circuit1: &T1, circuit2: &T2, expected: &Expect)
+  fn test_pp_digest_with<E1, T1, T2, EE1, EE2>(circuit1: &T1, circuit2: &T2, expected: &Expect)
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
     E1::GE: DlogGroup,
-    E2::GE: DlogGroup,
+    <Dual<E1> as Engine>::GE: DlogGroup,
     T1: StepCircuit<E1::Scalar>,
-    T2: StepCircuit<E2::Scalar>,
+    T2: StepCircuit<<Dual<E1> as Engine>::Scalar>,
     EE1: EvaluationEngineTrait<E1>,
-    EE2: EvaluationEngineTrait<E2>,
+    EE2: EvaluationEngineTrait<Dual<E1>>,
     // this is due to the reliance on Abomonation
     <E1::Scalar as PrimeField>::Repr: Abomonation,
-    <E2::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
   {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let ck_hint1 = &*SPrime::<E1, EE1>::ck_floor();
-    let ck_hint2 = &*SPrime::<E2, EE2>::ck_floor();
-    let pp = PublicParams::<E1, E2, T1, T2>::setup(circuit1, circuit2, ck_hint1, ck_hint2);
+    let ck_hint2 = &*SPrime::<Dual<E1>, EE2>::ck_floor();
+    let pp = PublicParams::<E1>::setup(circuit1, circuit2, ck_hint1, ck_hint2);
 
     let digest_str = pp
       .digest()
@@ -1174,13 +1106,13 @@ mod tests {
     let trivial_circuit2 = TrivialCircuit::<<VestaEngine as Engine>::Scalar>::default();
     let cubic_circuit1 = CubicCircuit::<<PallasEngine as Engine>::Scalar>::default();
 
-    test_pp_digest_with::<PallasEngine, VestaEngine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1,
       &trivial_circuit2,
       &expect!["492fd902cd7174159bc9a6f827d92eb54ff25efa9d0673dffdb0efd02995df01"],
     );
 
-    test_pp_digest_with::<PallasEngine, VestaEngine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1,
       &trivial_circuit2,
       &expect!["9b0701d9422658e3f74a85ab3e485c06f3ecca9c2b1800aab80004034d754f01"],
@@ -1193,22 +1125,22 @@ mod tests {
     // These tests should not need be different on the "asm" feature for bn256.
     // See https://github.com/privacy-scaling-explorations/halo2curves/issues/100 for why they are - closing the issue there
     // should eliminate the discrepancy here.
-    test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       &expect!["1267235eb3d139e466dd9c814eaf73f01b063ccb4cad04848c0eb62f079a9601"],
     );
-    test_pp_digest_with::<Bn256Engine, GrumpkinEngine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       &expect!["57afac2edd20d39b202151906e41154ba186c9dde497448d1332dc6de2f76302"],
     );
-    test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
+    test_pp_digest_with::<Bn256EngineZM, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       &expect!["070d247d83e17411d65c12260980ebcc59df88d3882d84eb62e6ab466e381503"],
     );
-    test_pp_digest_with::<Bn256EngineZM, GrumpkinEngine, _, _, ZMPCS<Bn256, _>, EE<_>>(
+    test_pp_digest_with::<Bn256EngineZM, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
       &expect!["47c2caa008323b588b47ab8b6c0e94f980599188abe117c4d21ffff81494f303"],
@@ -1218,33 +1150,27 @@ mod tests {
     let trivial_circuit2_secp = TrivialCircuit::<<Secq256k1Engine as Engine>::Scalar>::default();
     let cubic_circuit1_secp = CubicCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
 
-    test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
       &expect!["04b5d1798be6d74b3701390b87078e70ebf3ddaad80c375319f320cedf8bca00"],
     );
-    test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
       &expect!["346b5f27cf24c79386f4de7a8bfb58970181ae7f0de7d2e3f10ad5dfd8fc2302"],
     );
   }
 
-  fn test_ivc_trivial_with<E1, E2>()
+  fn test_ivc_trivial_with<E1>()
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
   {
     let test_circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
-    let test_circuit2 = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
+    let test_circuit2 = TrivialCircuit::<<Dual<E1> as Engine>::Scalar>::default();
 
     // produce public parameters
-    let pp = PublicParams::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &test_circuit1,
       &test_circuit2,
       &*default_ck_hint(),
@@ -1258,7 +1184,7 @@ mod tests {
       &test_circuit1,
       &test_circuit2,
       &[<E1 as Engine>::Scalar::ZERO],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     )
     .unwrap();
 
@@ -1271,33 +1197,27 @@ mod tests {
       &pp,
       num_steps,
       &[<E1 as Engine>::Scalar::ZERO],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     );
     assert!(res.is_ok());
   }
 
   #[test]
   fn test_ivc_trivial() {
-    test_ivc_trivial_with::<PallasEngine, VestaEngine>();
-    test_ivc_trivial_with::<Bn256Engine, GrumpkinEngine>();
-    test_ivc_trivial_with::<Secp256k1Engine, Secq256k1Engine>();
+    test_ivc_trivial_with::<PallasEngine>();
+    test_ivc_trivial_with::<Bn256Engine>();
+    test_ivc_trivial_with::<Secp256k1Engine>();
   }
 
-  fn test_ivc_nontrivial_with<E1, E2>()
+  fn test_ivc_nontrivial_with<E1>()
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
   {
     let circuit_primary = TrivialCircuit::default();
     let circuit_secondary = CubicCircuit::default();
 
     // produce public parameters
-    let pp = PublicParams::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),
@@ -1307,17 +1227,12 @@ mod tests {
     let num_steps = 3;
 
     // produce a recursive SNARK
-    let mut recursive_snark = RecursiveSNARK::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::new(
+    let mut recursive_snark = RecursiveSNARK::<E1>::new(
       &pp,
       &circuit_primary,
       &circuit_secondary,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     )
     .unwrap();
 
@@ -1330,7 +1245,7 @@ mod tests {
         &pp,
         i + 1,
         &[<E1 as Engine>::Scalar::ONE],
-        &[<E2 as Engine>::Scalar::ZERO],
+        &[<Dual<E1> as Engine>::Scalar::ZERO],
       );
       assert!(res.is_ok());
     }
@@ -1340,7 +1255,7 @@ mod tests {
       &pp,
       num_steps,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     );
     assert!(res.is_ok());
 
@@ -1348,41 +1263,38 @@ mod tests {
 
     // sanity: check the claimed output with a direct computation of the same
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
-    let mut zn_secondary_direct = vec![<E2 as Engine>::Scalar::ZERO];
+    let mut zn_secondary_direct = vec![<Dual<E1> as Engine>::Scalar::ZERO];
     for _i in 0..num_steps {
       zn_secondary_direct = circuit_secondary.clone().output(&zn_secondary_direct);
     }
     assert_eq!(zn_secondary, zn_secondary_direct);
-    assert_eq!(zn_secondary, vec![<E2 as Engine>::Scalar::from(2460515u64)]);
+    assert_eq!(
+      zn_secondary,
+      vec![<Dual<E1> as Engine>::Scalar::from(2460515u64)]
+    );
   }
 
   #[test]
   fn test_ivc_nontrivial() {
-    test_ivc_nontrivial_with::<PallasEngine, VestaEngine>();
-    test_ivc_nontrivial_with::<Bn256Engine, GrumpkinEngine>();
-    test_ivc_nontrivial_with::<Secp256k1Engine, Secq256k1Engine>();
+    test_ivc_nontrivial_with::<PallasEngine>();
+    test_ivc_nontrivial_with::<Bn256Engine>();
+    test_ivc_nontrivial_with::<Secp256k1Engine>();
   }
 
-  fn test_ivc_nontrivial_with_compression_with<E1, E2, EE1, EE2>()
+  fn test_ivc_nontrivial_with_compression_with<E1, EE1, EE2>()
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
     EE1: EvaluationEngineTrait<E1>,
-    EE2: EvaluationEngineTrait<E2>,
+    EE2: EvaluationEngineTrait<Dual<E1>>,
     // this is due to the reliance on Abomonation
     <E1::Scalar as PrimeField>::Repr: Abomonation,
-    <E2::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
   {
     let circuit_primary = TrivialCircuit::default();
     let circuit_secondary = CubicCircuit::default();
 
     // produce public parameters
-    let pp = PublicParams::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),
@@ -1392,17 +1304,12 @@ mod tests {
     let num_steps = 3;
 
     // produce a recursive SNARK
-    let mut recursive_snark = RecursiveSNARK::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::new(
+    let mut recursive_snark = RecursiveSNARK::<E1>::new(
       &pp,
       &circuit_primary,
       &circuit_secondary,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     )
     .unwrap();
 
@@ -1416,7 +1323,7 @@ mod tests {
       &pp,
       num_steps,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     );
     assert!(res.is_ok());
 
@@ -1424,19 +1331,21 @@ mod tests {
 
     // sanity: check the claimed output with a direct computation of the same
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
-    let mut zn_secondary_direct = vec![<E2 as Engine>::Scalar::ZERO];
+    let mut zn_secondary_direct = vec![<Dual<E1> as Engine>::Scalar::ZERO];
     for _i in 0..num_steps {
       zn_secondary_direct = circuit_secondary.clone().output(&zn_secondary_direct);
     }
     assert_eq!(zn_secondary, zn_secondary_direct);
-    assert_eq!(zn_secondary, vec![<E2 as Engine>::Scalar::from(2460515u64)]);
+    assert_eq!(
+      zn_secondary,
+      vec![<Dual<E1> as Engine>::Scalar::from(2460515u64)]
+    );
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res =
-      CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1445,71 +1354,54 @@ mod tests {
       &vk,
       num_steps,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     );
     assert!(res.is_ok());
   }
 
   #[test]
   fn test_ivc_nontrivial_with_compression() {
-    test_ivc_nontrivial_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_compression_with::<
-      Bn256EngineZM,
-      GrumpkinEngine,
-      ZMPCS<Bn256, _>,
-      EE<_>,
-    >();
+    test_ivc_nontrivial_with_compression_with::<PallasEngine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
 
     test_ivc_nontrivial_with_spark_compression_with::<
       Bn256EngineKZG,
-      GrumpkinEngine,
       provider::hyperkzg::EvaluationEngine<Bn256, _>,
       EE<_>,
     >();
   }
 
-  fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()
+  fn test_ivc_nontrivial_with_spark_compression_with<E1, EE1, EE2>()
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
     EE1: EvaluationEngineTrait<E1>,
-    EE2: EvaluationEngineTrait<E2>,
+    EE2: EvaluationEngineTrait<Dual<E1>>,
     // this is due to the reliance on Abomonation
     <E1::Scalar as PrimeField>::Repr: Abomonation,
-    <E2::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
   {
     let circuit_primary = TrivialCircuit::default();
     let circuit_secondary = CubicCircuit::default();
 
     // produce public parameters, which we'll use with a spark-compressed SNARK
-    let pp = PublicParams::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*SPrime::<E1, EE1>::ck_floor(),
-      &*SPrime::<E2, EE2>::ck_floor(),
+      &*SPrime::<_, EE2>::ck_floor(),
     );
 
     let num_steps = 3;
 
     // produce a recursive SNARK
-    let mut recursive_snark = RecursiveSNARK::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::new(
+    let mut recursive_snark = RecursiveSNARK::<E1>::new(
       &pp,
       &circuit_primary,
       &circuit_secondary,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     )
     .unwrap();
 
@@ -1523,7 +1415,7 @@ mod tests {
       &pp,
       num_steps,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     );
     assert!(res.is_ok());
 
@@ -1531,24 +1423,23 @@ mod tests {
 
     // sanity: check the claimed output with a direct computation of the same
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
-    let mut zn_secondary_direct = vec![<E2 as Engine>::Scalar::ZERO];
+    let mut zn_secondary_direct = vec![<Dual<E1> as Engine>::Scalar::ZERO];
     for _i in 0..num_steps {
       zn_secondary_direct = CubicCircuit::default().output(&zn_secondary_direct);
     }
     assert_eq!(zn_secondary, zn_secondary_direct);
-    assert_eq!(zn_secondary, vec![<E2 as Engine>::Scalar::from(2460515u64)]);
+    assert_eq!(
+      zn_secondary,
+      vec![<Dual<E1> as Engine>::Scalar::from(2460515u64)]
+    );
 
     // run the compressed snark with Spark compiler
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) =
-      CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, SPrime<E1, EE1>, SPrime<_, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::prove(
-      &pp,
-      &pk,
-      &recursive_snark,
-    );
+    let res =
+      CompressedSNARK::<_, SPrime<E1, EE1>, SPrime<_, EE2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1557,34 +1448,27 @@ mod tests {
       &vk,
       num_steps,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     );
     assert!(res.is_ok());
   }
 
   #[test]
   fn test_ivc_nontrivial_with_spark_compression() {
-    test_ivc_nontrivial_with_spark_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>(
-    );
-    test_ivc_nontrivial_with_spark_compression_with::<
-      Bn256EngineZM,
-      GrumpkinEngine,
-      ZMPCS<Bn256, _>,
-      EE<_>,
-    >();
+    test_ivc_nontrivial_with_spark_compression_with::<PallasEngine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
   }
 
-  fn test_ivc_nondet_with_compression_with<E1, E2, EE1, EE2>()
+  fn test_ivc_nondet_with_compression_with<E1, EE1, EE2>()
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
     EE1: EvaluationEngineTrait<E1>,
-    EE2: EvaluationEngineTrait<E2>,
+    EE2: EvaluationEngineTrait<Dual<E1>>,
     // this is due to the reliance on Abomonation
     <E1::Scalar as PrimeField>::Repr: Abomonation,
-    <E2::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
   {
     // y is a non-deterministic advice representing the fifth root of the input at a step.
     #[derive(Clone, Debug)]
@@ -1650,12 +1534,7 @@ mod tests {
     let circuit_secondary = TrivialCircuit::default();
 
     // produce public parameters
-    let pp = PublicParams::<
-      E1,
-      E2,
-      FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &circuit_secondary,
       &*default_ck_hint(),
@@ -1666,20 +1545,10 @@ mod tests {
 
     // produce non-deterministic advice
     let (z0_primary, roots) = FifthRootCheckingCircuit::new(num_steps);
-    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
+    let z0_secondary = vec![<Dual<E1> as Engine>::Scalar::ZERO];
 
     // produce a recursive SNARK
-    let mut recursive_snark: RecursiveSNARK<
-      E1,
-      E2,
-      FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    > = RecursiveSNARK::<
-      E1,
-      E2,
-      FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::new(
+    let mut recursive_snark = RecursiveSNARK::<E1>::new(
       &pp,
       &roots[0],
       &circuit_secondary,
@@ -1698,11 +1567,10 @@ mod tests {
     assert!(res.is_ok());
 
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res =
-      CompressedSNARK::<_, _, _, _, S<E1, EE1>, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1713,28 +1581,21 @@ mod tests {
 
   #[test]
   fn test_ivc_nondet_with_compression() {
-    test_ivc_nondet_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
-    test_ivc_nondet_with_compression_with::<Bn256Engine, GrumpkinEngine, EE<_>, EE<_>>();
-    test_ivc_nondet_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
-    test_ivc_nondet_with_compression_with::<Bn256EngineZM, GrumpkinEngine, ZMPCS<Bn256, _>, EE<_>>(
-    );
+    test_ivc_nondet_with_compression_with::<PallasEngine, EE<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
   }
 
-  fn test_ivc_base_with<E1, E2>()
+  fn test_ivc_base_with<E1>()
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
   {
     let test_circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
-    let test_circuit2 = CubicCircuit::<<E2 as Engine>::Scalar>::default();
+    let test_circuit2 = CubicCircuit::<<Dual<E1> as Engine>::Scalar>::default();
 
     // produce public parameters
-    let pp = PublicParams::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
+    let pp = PublicParams::<E1>::setup(
       &test_circuit1,
       &test_circuit2,
       &*default_ck_hint(),
@@ -1744,17 +1605,12 @@ mod tests {
     let num_steps = 1;
 
     // produce a recursive SNARK
-    let mut recursive_snark = RecursiveSNARK::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::new(
+    let mut recursive_snark = RecursiveSNARK::<E1>::new(
       &pp,
       &test_circuit1,
       &test_circuit2,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     )
     .unwrap();
 
@@ -1768,20 +1624,20 @@ mod tests {
       &pp,
       num_steps,
       &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
+      &[<Dual<E1> as Engine>::Scalar::ZERO],
     );
     assert!(res.is_ok());
 
     let (zn_primary, zn_secondary) = res.unwrap();
 
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
-    assert_eq!(zn_secondary, vec![<E2 as Engine>::Scalar::from(5u64)]);
+    assert_eq!(zn_secondary, vec![<Dual<E1> as Engine>::Scalar::from(5u64)]);
   }
 
   #[test]
   fn test_ivc_base() {
-    test_ivc_base_with::<PallasEngine, VestaEngine>();
-    test_ivc_base_with::<Bn256Engine, GrumpkinEngine>();
-    test_ivc_base_with::<Secp256k1Engine, Secq256k1Engine>();
+    test_ivc_base_with::<PallasEngine>();
+    test_ivc_base_with::<Bn256Engine>();
+    test_ivc_base_with::<Secp256k1Engine>();
   }
 }
