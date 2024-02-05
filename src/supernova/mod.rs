@@ -14,7 +14,7 @@ use crate::{
   scalar_as_base,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
-    AbsorbInROTrait, CurveCycleEquipped, Engine, ROConstants, ROConstantsCircuit, ROTrait, Dual,
+    AbsorbInROTrait, CurveCycleEquipped, Dual, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
   Commitment, CommitmentKey, R1CSWithArity,
 };
@@ -717,10 +717,7 @@ where
   /// executing a step of the incremental computation
   #[allow(clippy::too_many_arguments)]
   #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
-  pub fn prove_step<
-    C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<<Dual<E1> as Engine>::Scalar>,
-  >(
+  pub fn prove_step<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<<Dual<E1> as Engine>::Scalar>>(
     &mut self,
     pp: &PublicParams<E1>,
     c_primary: &C1,

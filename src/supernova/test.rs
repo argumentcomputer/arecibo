@@ -496,18 +496,17 @@ fn test_recursive_circuit_with<E1>(
   let zero1 = <<Dual<E1> as Engine>::Base as Field>::ZERO;
   let z0 = vec![zero1; arity1];
   let mut cs1 = SatisfyingAssignment::<E1>::new();
-  let inputs1: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>> =
-    SuperNovaAugmentedCircuitInputs::new(
-      scalar_as_base::<E1>(zero1), // pass zero for testing
-      zero1,
-      &z0,
-      None,
-      None,
-      None,
-      None,
-      Some(zero1),
-      zero1,
-    );
+  let inputs1: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>> = SuperNovaAugmentedCircuitInputs::new(
+    scalar_as_base::<E1>(zero1), // pass zero for testing
+    zero1,
+    &z0,
+    None,
+    None,
+    None,
+    None,
+    Some(zero1),
+    zero1,
+  );
   let step_circuit = TrivialTestCircuit::default();
   let circuit1: SuperNovaAugmentedCircuit<
     '_,

@@ -451,8 +451,7 @@ where
     let l_w_secondary = w_secondary;
     let l_u_secondary = u_secondary;
     let r_W_secondary = RelaxedR1CSWitness::<Dual<E1>>::default(r1cs_secondary);
-    let r_U_secondary =
-      RelaxedR1CSInstance::<Dual<E1>>::default(&pp.ck_secondary, r1cs_secondary);
+    let r_U_secondary = RelaxedR1CSInstance::<Dual<E1>>::default(&pp.ck_secondary, r1cs_secondary);
 
     assert!(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
@@ -506,10 +505,7 @@ where
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
   /// by executing a step of the incremental computation
   #[tracing::instrument(skip_all, name = "nova::RecursiveSNARK::prove_step")]
-  pub fn prove_step<
-    C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<<Dual<E1> as Engine>::Scalar>,
-  >(
+  pub fn prove_step<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<<Dual<E1> as Engine>::Scalar>>(
     &mut self,
     pp: &PublicParams<E1>,
     c_primary: &C1,
@@ -552,9 +548,7 @@ where
       Some(self.zi_primary.clone()),
       Some(r_U_secondary_i),
       Some(l_u_secondary_i),
-      Some(Commitment::<Dual<E1>>::decompress(
-        &nifs_secondary.comm_T,
-      )?),
+      Some(Commitment::<Dual<E1>>::decompress(&nifs_secondary.comm_T)?),
     );
 
     let circuit_primary: NovaAugmentedCircuit<'_, Dual<E1>, C1> = NovaAugmentedCircuit::new(
@@ -991,8 +985,7 @@ pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
   let augmented_circuit_params = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by G2 because the type alias uses G2::Base = G1::Scalar
-  let ro_consts_circuit: ROConstantsCircuit<Dual<E1>> =
-    ROConstantsCircuit::<Dual<E1>>::default();
+  let ro_consts_circuit: ROConstantsCircuit<Dual<E1>> = ROConstantsCircuit::<Dual<E1>>::default();
 
   // Initialize ck for the primary
   let augmented_circuit: NovaAugmentedCircuit<'_, Dual<E1>, C> =
@@ -1638,10 +1631,7 @@ mod tests {
     let (zn_primary, zn_secondary) = res.unwrap();
 
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
-    assert_eq!(
-      zn_secondary,
-      vec![<Dual<E1> as Engine>::Scalar::from(5u64)]
-    );
+    assert_eq!(zn_secondary, vec![<Dual<E1> as Engine>::Scalar::from(5u64)]);
   }
 
   #[test]

@@ -7,7 +7,7 @@ pub mod targets;
 use anyhow::anyhow;
 use arecibo::{
   supernova::{NonUniformCircuit, StepCircuit, TrivialTestCircuit},
-  traits::{CurveCycleEquipped, Engine, Dual},
+  traits::{CurveCycleEquipped, Dual, Engine},
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;

@@ -392,11 +392,8 @@ mod tests {
   {
     let tc1 = TrivialCircuit::default();
     // Initialize the shape and ck for the primary
-    let circuit1: NovaAugmentedCircuit<
-      '_,
-      Dual<E1>,
-      TrivialCircuit<<Dual<E1> as Engine>::Base>,
-    > = NovaAugmentedCircuit::new(primary_params, None, &tc1, ro_consts1.clone());
+    let circuit1: NovaAugmentedCircuit<'_, Dual<E1>, TrivialCircuit<<Dual<E1> as Engine>::Base>> =
+      NovaAugmentedCircuit::new(primary_params, None, &tc1, ro_consts1.clone());
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint());
@@ -425,11 +422,8 @@ mod tests {
       None,
       None,
     );
-    let circuit1: NovaAugmentedCircuit<
-      '_,
-      Dual<E1>,
-      TrivialCircuit<<Dual<E1> as Engine>::Base>,
-    > = NovaAugmentedCircuit::new(primary_params, Some(inputs1), &tc1, ro_consts1);
+    let circuit1: NovaAugmentedCircuit<'_, Dual<E1>, TrivialCircuit<<Dual<E1> as Engine>::Base>> =
+      NovaAugmentedCircuit::new(primary_params, Some(inputs1), &tc1, ro_consts1);
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1).unwrap();
     // Make sure that this is satisfiable

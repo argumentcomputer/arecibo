@@ -6,7 +6,7 @@ use crate::{
   r1cs::{R1CSInstance, RelaxedR1CSWitness},
   traits::{
     snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-    AbsorbInROTrait, CurveCycleEquipped, Engine, ROTrait, Dual,
+    AbsorbInROTrait, CurveCycleEquipped, Dual, Engine, ROTrait,
   },
 };
 use crate::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};

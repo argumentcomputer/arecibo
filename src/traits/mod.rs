@@ -57,11 +57,11 @@ pub trait Engine: Clone + Copy + Debug + Send + Sync + Sized + Eq + PartialEq {
 
 /// This is a convenience trait to pair engines which fields are in a curve cycle relationship
 pub trait CurveCycleEquipped: Engine {
-  /// The secondary Engine of `Self`
+  /// The secondary `Engine` of `Self`
   type Secondary: Engine<Base = <Self as Engine>::Scalar, Scalar = <Self as Engine>::Base>;
 }
 
-/// Convenience projection to the Secondary Engine of a CurveCycleEquipped
+/// Convenience projection to the secondary `Engine` of a `CurveCycleEquipped`
 pub type Dual<E> = <E as CurveCycleEquipped>::Secondary;
 
 /// A helper trait to absorb different objects in RO
