@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use super::gadgets::{emulated, AllocatedFoldingData};
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct AugmentedCircuitParams {
   limb_width: usize,
   n_limbs: usize,

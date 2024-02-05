@@ -39,7 +39,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 /// TODO: docs
-#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
 where
