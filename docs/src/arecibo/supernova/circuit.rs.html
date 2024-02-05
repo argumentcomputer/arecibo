@@ -878,6 +878,11 @@
 <a href="#878" id="878">878</a>
 <a href="#879" id="879">879</a>
 <a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Supernova implementation support arbitrary argumented circuits and running instances.
 //! There are two Verification Circuits for each argumented circuit: The primary and the secondary.
 //! Each of them is over a Pasta curve but
@@ -1589,38 +1594,39 @@
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::utils::scalar_as_base,
     provider::{
-      poseidon::PoseidonConstantsCircuit,
-      {Bn256Engine, GrumpkinEngine}, {PallasEngine, VestaEngine},
-      {Secp256k1Engine, Secq256k1Engine},
+      poseidon::PoseidonConstantsCircuit, Bn256Engine, GrumpkinEngine, PallasEngine,
+      Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     supernova::circuit::TrivialTestCircuit,
-    traits::snark::default_ck_hint,
+    traits::{snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
   <span class="kw">use </span>expect_test::{expect, Expect};
 
   <span class="comment">// In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
-  </span><span class="kw">fn </span>test_supernova_recursive_circuit_with&lt;E1, E2&gt;(
+  </span><span class="kw">fn </span>test_supernova_recursive_circuit_with&lt;E1&gt;(
     primary_params: <span class="kw-2">&amp;</span>SuperNovaAugmentedCircuitParams,
     secondary_params: <span class="kw-2">&amp;</span>SuperNovaAugmentedCircuitParams,
-    ro_consts1: ROConstantsCircuit&lt;E2&gt;,
+    ro_consts1: ROConstantsCircuit&lt;Dual&lt;E1&gt;&gt;,
     ro_consts2: ROConstantsCircuit&lt;E1&gt;,
     num_constraints_primary: <span class="kw-2">&amp;</span>Expect,
     num_constraints_secondary: <span class="kw-2">&amp;</span>Expect,
     num_augmented_circuits: usize,
   ) <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+    </span>E1: CurveCycleEquipped,
   {
     <span class="kw">let </span>tc1 = TrivialTestCircuit::default();
     <span class="comment">// Initialize the shape and ck for the primary
-    </span><span class="kw">let </span>circuit1: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E2, TrivialTestCircuit&lt;&lt;E2 <span class="kw">as </span>Engine&gt;::Base&gt;&gt; =
-      SuperNovaAugmentedCircuit::new(
-        primary_params,
-        <span class="prelude-val">None</span>,
-        <span class="kw-2">&amp;</span>tc1,
-        ro_consts1.clone(),
-        num_augmented_circuits,
-      );
+    </span><span class="kw">let </span>circuit1: SuperNovaAugmentedCircuit&lt;
+      <span class="lifetime">&#39;_</span>,
+      Dual&lt;E1&gt;,
+      TrivialTestCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Base&gt;,
+    &gt; = SuperNovaAugmentedCircuit::new(
+      primary_params,
+      <span class="prelude-val">None</span>,
+      <span class="kw-2">&amp;</span>tc1,
+      ro_consts1.clone(),
+      num_augmented_circuits,
+    );
     <span class="kw">let </span><span class="kw-2">mut </span>cs: TestShapeCS&lt;E1&gt; = TestShapeCS::new();
     <span class="kw">let _ </span>= circuit1.synthesize(<span class="kw-2">&amp;mut </span>cs);
     <span class="kw">let </span>(shape1, ck1) = cs.r1cs_shape_and_key(<span class="kw-2">&amp;*</span>default_ck_hint());
@@ -1637,35 +1643,39 @@
         ro_consts2.clone(),
         num_augmented_circuits,
       );
-    <span class="kw">let </span><span class="kw-2">mut </span>cs: TestShapeCS&lt;E2&gt; = TestShapeCS::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>cs: TestShapeCS&lt;Dual&lt;E1&gt;&gt; = TestShapeCS::new();
     <span class="kw">let _ </span>= circuit2.synthesize(<span class="kw-2">&amp;mut </span>cs);
     <span class="kw">let </span>(shape2, ck2) = cs.r1cs_shape_and_key(<span class="kw-2">&amp;*</span>default_ck_hint());
 
     num_constraints_secondary.assert_eq(<span class="kw-2">&amp;</span>cs.num_constraints().to_string());
 
     <span class="comment">// Execute the base case for the primary
-    </span><span class="kw">let </span>zero1 = &lt;&lt;E2 <span class="kw">as </span>Engine&gt;::Base <span class="kw">as </span>Field&gt;::ZERO;
+    </span><span class="kw">let </span>zero1 = &lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Base <span class="kw">as </span>Field&gt;::ZERO;
     <span class="kw">let </span><span class="kw-2">mut </span>cs1 = SatisfyingAssignment::&lt;E1&gt;::new();
     <span class="kw">let </span>vzero1 = <span class="macro">vec!</span>[zero1];
-    <span class="kw">let </span>inputs1: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E2&gt; = SuperNovaAugmentedCircuitInputs::new(
-      scalar_as_base::&lt;E1&gt;(zero1), <span class="comment">// pass zero for testing
-      </span>zero1,
-      <span class="kw-2">&amp;</span>vzero1,
-      <span class="prelude-val">None</span>,
-      <span class="prelude-val">None</span>,
-      <span class="prelude-val">None</span>,
-      <span class="prelude-val">None</span>,
-      <span class="prelude-val">Some</span>(zero1),
-      zero1,
-    );
-    <span class="kw">let </span>circuit1: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E2, TrivialTestCircuit&lt;&lt;E2 <span class="kw">as </span>Engine&gt;::Base&gt;&gt; =
-      SuperNovaAugmentedCircuit::new(
-        primary_params,
-        <span class="prelude-val">Some</span>(inputs1),
-        <span class="kw-2">&amp;</span>tc1,
-        ro_consts1,
-        num_augmented_circuits,
+    <span class="kw">let </span>inputs1: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;&gt; =
+      SuperNovaAugmentedCircuitInputs::new(
+        scalar_as_base::&lt;E1&gt;(zero1), <span class="comment">// pass zero for testing
+        </span>zero1,
+        <span class="kw-2">&amp;</span>vzero1,
+        <span class="prelude-val">None</span>,
+        <span class="prelude-val">None</span>,
+        <span class="prelude-val">None</span>,
+        <span class="prelude-val">None</span>,
+        <span class="prelude-val">Some</span>(zero1),
+        zero1,
       );
+    <span class="kw">let </span>circuit1: SuperNovaAugmentedCircuit&lt;
+      <span class="lifetime">&#39;_</span>,
+      Dual&lt;E1&gt;,
+      TrivialTestCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Base&gt;,
+    &gt; = SuperNovaAugmentedCircuit::new(
+      primary_params,
+      <span class="prelude-val">Some</span>(inputs1),
+      <span class="kw-2">&amp;</span>tc1,
+      ro_consts1,
+      num_augmented_circuits,
+    );
     <span class="kw">let _ </span>= circuit1.synthesize(<span class="kw-2">&amp;mut </span>cs1);
     <span class="kw">let </span>(inst1, witness1) = cs1.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape1, <span class="kw-2">&amp;</span>ck1).unwrap();
     <span class="comment">// Make sure that this is satisfiable
@@ -1673,10 +1683,10 @@
 
     <span class="comment">// Execute the base case for the secondary
     </span><span class="kw">let </span>zero2 = &lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Base <span class="kw">as </span>Field&gt;::ZERO;
-    <span class="kw">let </span><span class="kw-2">mut </span>cs2 = SatisfyingAssignment::&lt;E2&gt;::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>cs2 = SatisfyingAssignment::&lt;Dual&lt;E1&gt;&gt;::new();
     <span class="kw">let </span>vzero2 = <span class="macro">vec!</span>[zero2];
     <span class="kw">let </span>inputs2: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E1&gt; = SuperNovaAugmentedCircuitInputs::new(
-      scalar_as_base::&lt;E2&gt;(zero2), <span class="comment">// pass zero for testing
+      scalar_as_base::&lt;Dual&lt;E1&gt;&gt;(zero2), <span class="comment">// pass zero for testing
       </span>zero2,
       <span class="kw-2">&amp;</span>vzero2,
       <span class="prelude-val">None</span>,
@@ -1708,7 +1718,7 @@
     <span class="kw">let </span>ro_consts1: ROConstantsCircuit&lt;VestaEngine&gt; = PoseidonConstantsCircuit::default();
     <span class="kw">let </span>ro_consts2: ROConstantsCircuit&lt;PallasEngine&gt; = PoseidonConstantsCircuit::default();
 
-    test_supernova_recursive_circuit_with::&lt;PallasEngine, VestaEngine&gt;(
+    test_supernova_recursive_circuit_with::&lt;PallasEngine&gt;(
       <span class="kw-2">&amp;</span>params1,
       <span class="kw-2">&amp;</span>params2,
       ro_consts1,
@@ -1727,7 +1737,7 @@
     <span class="kw">let </span>ro_consts1: ROConstantsCircuit&lt;GrumpkinEngine&gt; = PoseidonConstantsCircuit::default();
     <span class="kw">let </span>ro_consts2: ROConstantsCircuit&lt;Bn256Engine&gt; = PoseidonConstantsCircuit::default();
 
-    test_supernova_recursive_circuit_with::&lt;Bn256Engine, GrumpkinEngine&gt;(
+    test_supernova_recursive_circuit_with::&lt;Bn256Engine&gt;(
       <span class="kw-2">&amp;</span>params1,
       <span class="kw-2">&amp;</span>params2,
       ro_consts1,
@@ -1746,7 +1756,7 @@
     <span class="kw">let </span>ro_consts1: ROConstantsCircuit&lt;Secq256k1Engine&gt; = PoseidonConstantsCircuit::default();
     <span class="kw">let </span>ro_consts2: ROConstantsCircuit&lt;Secp256k1Engine&gt; = PoseidonConstantsCircuit::default();
 
-    test_supernova_recursive_circuit_with::&lt;Secp256k1Engine, Secq256k1Engine&gt;(
+    test_supernova_recursive_circuit_with::&lt;Secp256k1Engine&gt;(
       <span class="kw-2">&amp;</span>params1,
       <span class="kw-2">&amp;</span>params2,
       ro_consts1,

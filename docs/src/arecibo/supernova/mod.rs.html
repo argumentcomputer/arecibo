@@ -1193,48 +1193,9 @@
 <a href="#1193" id="1193">1193</a>
 <a href="#1194" id="1194">1194</a>
 <a href="#1195" id="1195">1195</a>
-<a href="#1196" id="1196">1196</a>
-<a href="#1197" id="1197">1197</a>
-<a href="#1198" id="1198">1198</a>
-<a href="#1199" id="1199">1199</a>
-<a href="#1200" id="1200">1200</a>
-<a href="#1201" id="1201">1201</a>
-<a href="#1202" id="1202">1202</a>
-<a href="#1203" id="1203">1203</a>
-<a href="#1204" id="1204">1204</a>
-<a href="#1205" id="1205">1205</a>
-<a href="#1206" id="1206">1206</a>
-<a href="#1207" id="1207">1207</a>
-<a href="#1208" id="1208">1208</a>
-<a href="#1209" id="1209">1209</a>
-<a href="#1210" id="1210">1210</a>
-<a href="#1211" id="1211">1211</a>
-<a href="#1212" id="1212">1212</a>
-<a href="#1213" id="1213">1213</a>
-<a href="#1214" id="1214">1214</a>
-<a href="#1215" id="1215">1215</a>
-<a href="#1216" id="1216">1216</a>
-<a href="#1217" id="1217">1217</a>
-<a href="#1218" id="1218">1218</a>
-<a href="#1219" id="1219">1219</a>
-<a href="#1220" id="1220">1220</a>
-<a href="#1221" id="1221">1221</a>
-<a href="#1222" id="1222">1222</a>
-<a href="#1223" id="1223">1223</a>
-<a href="#1224" id="1224">1224</a>
-<a href="#1225" id="1225">1225</a>
-<a href="#1226" id="1226">1226</a>
-<a href="#1227" id="1227">1227</a>
-<a href="#1228" id="1228">1228</a>
-<a href="#1229" id="1229">1229</a>
-<a href="#1230" id="1230">1230</a>
-<a href="#1231" id="1231">1231</a>
-<a href="#1232" id="1232">1232</a>
-<a href="#1233" id="1233">1233</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;./Readme.md&quot;</span>)]
 
-</span><span class="kw">use </span>std::marker::PhantomData;
-<span class="kw">use </span>std::ops::Index;
+</span><span class="kw">use </span>std::ops::Index;
 
 <span class="kw">use crate</span>::{
   bellpepper::shape_cs::ShapeCS,
@@ -1248,7 +1209,7 @@
   scalar_as_base,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
-    AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
+    AbsorbInROTrait, CurveCycleEquipped, Dual, Engine, ROConstants, ROConstantsCircuit, ROTrait,
   },
   Commitment, CommitmentKey, R1CSWithArity,
 };
@@ -1315,31 +1276,27 @@
 <span class="doccomment">/// A vector of [`R1CSWithArity`] adjoined to a set of [`PublicParams`]
 </span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
-</span><span class="kw">pub struct </span>PublicParams&lt;E1, E2, C1, C2&gt;
+</span><span class="kw">pub struct </span>PublicParams&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   <span class="doccomment">/// The internal circuit shapes
   </span>circuit_shapes: Vec&lt;R1CSWithArity&lt;E1&gt;&gt;,
 
   ro_consts_primary: ROConstants&lt;E1&gt;,
-  ro_consts_circuit_primary: ROConstantsCircuit&lt;E2&gt;,
+  ro_consts_circuit_primary: ROConstantsCircuit&lt;Dual&lt;E1&gt;&gt;,
   ck_primary: Arc&lt;CommitmentKey&lt;E1&gt;&gt;, <span class="comment">// This is shared between all circuit params
   </span>augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants&lt;E2&gt;,
+  ro_consts_secondary: ROConstants&lt;Dual&lt;E1&gt;&gt;,
   ro_consts_circuit_secondary: ROConstantsCircuit&lt;E1&gt;,
-  ck_secondary: Arc&lt;CommitmentKey&lt;E2&gt;&gt;,
-  circuit_shape_secondary: R1CSWithArity&lt;E2&gt;,
+  ck_secondary: Arc&lt;CommitmentKey&lt;Dual&lt;E1&gt;&gt;&gt;,
+  circuit_shape_secondary: R1CSWithArity&lt;Dual&lt;E1&gt;&gt;,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   <span class="doccomment">/// Digest constructed from this `PublicParams`&#39; parameters
   </span><span class="attr">#[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
   </span>digest: OnceCell&lt;E1::Scalar&gt;,
-  _p: PhantomData&lt;(C1, C2)&gt;,
 }
 
 <span class="doccomment">/// Auxiliary [`PublicParams`] information about the commitment keys and
@@ -1347,20 +1304,19 @@
 /// [`PublicParams`] downstream in lurk.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
-</span><span class="kw">pub struct </span>AuxParams&lt;E1, E2&gt;
+</span><span class="kw">pub struct </span>AuxParams&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   ro_consts_primary: ROConstants&lt;E1&gt;,
-  ro_consts_circuit_primary: ROConstantsCircuit&lt;E2&gt;,
+  ro_consts_circuit_primary: ROConstantsCircuit&lt;Dual&lt;E1&gt;&gt;,
   ck_primary: Arc&lt;CommitmentKey&lt;E1&gt;&gt;, <span class="comment">// This is shared between all circuit params
   </span>augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants&lt;E2&gt;,
+  ro_consts_secondary: ROConstants&lt;Dual&lt;E1&gt;&gt;,
   ro_consts_circuit_secondary: ROConstantsCircuit&lt;E1&gt;,
-  ck_secondary: Arc&lt;CommitmentKey&lt;E2&gt;&gt;,
-  circuit_shape_secondary: R1CSWithArity&lt;E2&gt;,
+  ck_secondary: Arc&lt;CommitmentKey&lt;Dual&lt;E1&gt;&gt;&gt;,
+  circuit_shape_secondary: R1CSWithArity&lt;Dual&lt;E1&gt;&gt;,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   digest: E1::Scalar,
@@ -1371,25 +1327,23 @@
 #[derive(Debug, Clone, PartialEq, Abomonation)]
 #[abomonation_bounds(
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
   &lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
-  &lt;E2::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
+  &lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
 )]
-</span><span class="kw">pub struct </span>FlatAuxParams&lt;E1, E2&gt;
+</span><span class="kw">pub struct </span>FlatAuxParams&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   ro_consts_primary: ROConstants&lt;E1&gt;,
-  ro_consts_circuit_primary: ROConstantsCircuit&lt;E2&gt;,
+  ro_consts_circuit_primary: ROConstantsCircuit&lt;Dual&lt;E1&gt;&gt;,
   ck_primary: CommitmentKey&lt;E1&gt;, <span class="comment">// This is shared between all circuit params
   </span>augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants&lt;E2&gt;,
+  ro_consts_secondary: ROConstants&lt;Dual&lt;E1&gt;&gt;,
   ro_consts_circuit_secondary: ROConstantsCircuit&lt;E1&gt;,
-  ck_secondary: CommitmentKey&lt;E2&gt;,
-  circuit_shape_secondary: R1CSWithArity&lt;E2&gt;,
+  ck_secondary: CommitmentKey&lt;Dual&lt;E1&gt;&gt;,
+  circuit_shape_secondary: R1CSWithArity&lt;Dual&lt;E1&gt;&gt;,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   <span class="attr">#[abomonate_with(&lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr)]
@@ -1397,14 +1351,13 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
-</span><span class="kw">impl</span>&lt;E1, E2&gt; TryFrom&lt;AuxParams&lt;E1, E2&gt;&gt; <span class="kw">for </span>FlatAuxParams&lt;E1, E2&gt;
+</span><span class="kw">impl</span>&lt;E1&gt; TryFrom&lt;AuxParams&lt;E1&gt;&gt; <span class="kw">for </span>FlatAuxParams&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
 
-  <span class="kw">fn </span>try_from(value: AuxParams&lt;E1, E2&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+  <span class="kw">fn </span>try_from(value: AuxParams&lt;E1&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
     <span class="kw">let </span>ck_primary =
       Arc::try_unwrap(value.ck_primary).map_err(|<span class="kw">_</span>| <span class="string">&quot;Failed to unwrap Arc for ck_primary&quot;</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>ck_secondary =
@@ -1425,12 +1378,11 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
-</span><span class="kw">impl</span>&lt;E1, E2&gt; From&lt;FlatAuxParams&lt;E1, E2&gt;&gt; <span class="kw">for </span>AuxParams&lt;E1, E2&gt;
+</span><span class="kw">impl</span>&lt;E1&gt; From&lt;FlatAuxParams&lt;E1&gt;&gt; <span class="kw">for </span>AuxParams&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
-  <span class="kw">fn </span>from(value: FlatAuxParams&lt;E1, E2&gt;) -&gt; <span class="self">Self </span>{
+  <span class="kw">fn </span>from(value: FlatAuxParams&lt;E1&gt;) -&gt; <span class="self">Self </span>{
     <span class="self">Self </span>{
       ro_consts_primary: value.ro_consts_primary,
       ro_consts_circuit_primary: value.ro_consts_circuit_primary,
@@ -1446,12 +1398,9 @@
   }
 }
 
-<span class="kw">impl</span>&lt;E1, E2, C1, C2&gt; Index&lt;usize&gt; <span class="kw">for </span>PublicParams&lt;E1, E2, C1, C2&gt;
+<span class="kw">impl</span>&lt;E1&gt; Index&lt;usize&gt; <span class="kw">for </span>PublicParams&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   <span class="kw">type </span>Output = R1CSWithArity&lt;E1&gt;;
 
@@ -1460,21 +1409,11 @@
   }
 }
 
-<span class="kw">impl</span>&lt;E1, E2, C1, C2&gt; SimpleDigestible <span class="kw">for </span>PublicParams&lt;E1, E2, C1, C2&gt;
-<span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
-{
-}
+<span class="kw">impl</span>&lt;E1&gt; SimpleDigestible <span class="kw">for </span>PublicParams&lt;E1&gt; <span class="kw">where </span>E1: CurveCycleEquipped {}
 
-<span class="kw">impl</span>&lt;E1, E2, C1, C2&gt; PublicParams&lt;E1, E2, C1, C2&gt;
+<span class="kw">impl</span>&lt;E1&gt; PublicParams&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   <span class="doccomment">/// Construct a new [`PublicParams`]
   ///
@@ -1494,10 +1433,10 @@
   /// * `ck_hint1`: A `CommitmentKeyHint` for `E1`, which is a function that provides a hint
   ///    for the number of generators required in the commitment scheme for the primary circuit.
   /// * `ck_hint2`: A `CommitmentKeyHint` for `E2`, similar to `ck_hint1`, but for the secondary circuit.
-  </span><span class="kw">pub fn </span>setup&lt;NC: NonUniformCircuit&lt;E1, E2, C1, C2&gt;&gt;(
+  </span><span class="kw">pub fn </span>setup&lt;NC: NonUniformCircuit&lt;E1&gt;&gt;(
     non_uniform_circuit: <span class="kw-2">&amp;</span>NC,
     ck_hint1: <span class="kw-2">&amp;</span>CommitmentKeyHint&lt;E1&gt;,
-    ck_hint2: <span class="kw-2">&amp;</span>CommitmentKeyHint&lt;E2&gt;,
+    ck_hint2: <span class="kw-2">&amp;</span>CommitmentKeyHint&lt;Dual&lt;E1&gt;&gt;,
   ) -&gt; <span class="self">Self </span>{
     <span class="kw">let </span>num_circuits = non_uniform_circuit.num_circuits();
 
@@ -1505,20 +1444,22 @@
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">true</span>);
     <span class="kw">let </span>ro_consts_primary: ROConstants&lt;E1&gt; = ROConstants::&lt;E1&gt;::default();
     <span class="comment">// ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
-    </span><span class="kw">let </span>ro_consts_circuit_primary: ROConstantsCircuit&lt;E2&gt; = ROConstantsCircuit::&lt;E2&gt;::default();
+    </span><span class="kw">let </span>ro_consts_circuit_primary: ROConstantsCircuit&lt;Dual&lt;E1&gt;&gt; =
+      ROConstantsCircuit::&lt;Dual&lt;E1&gt;&gt;::default();
 
     <span class="kw">let </span>circuit_shapes = (<span class="number">0</span>..num_circuits)
       .map(|i| {
         <span class="kw">let </span>c_primary = non_uniform_circuit.primary_circuit(i);
         <span class="kw">let </span>F_arity = c_primary.arity();
         <span class="comment">// Initialize ck for the primary
-        </span><span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E2, C1&gt; = SuperNovaAugmentedCircuit::new(
-          <span class="kw-2">&amp;</span>augmented_circuit_params_primary,
-          <span class="prelude-val">None</span>,
-          <span class="kw-2">&amp;</span>c_primary,
-          ro_consts_circuit_primary.clone(),
-          num_circuits,
-        );
+        </span><span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, NC::C1&gt; =
+          SuperNovaAugmentedCircuit::new(
+            <span class="kw-2">&amp;</span>augmented_circuit_params_primary,
+            <span class="prelude-val">None</span>,
+            <span class="kw-2">&amp;</span>c_primary,
+            ro_consts_circuit_primary.clone(),
+            num_circuits,
+          );
         <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;E1&gt; = ShapeCS::new();
         circuit_primary
           .synthesize(<span class="kw-2">&amp;mut </span>cs)
@@ -1535,19 +1476,20 @@
 
     <span class="kw">let </span>augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">false</span>);
-    <span class="kw">let </span>ro_consts_secondary: ROConstants&lt;E2&gt; = ROConstants::&lt;E2&gt;::default();
+    <span class="kw">let </span>ro_consts_secondary = ROConstants::&lt;Dual&lt;E1&gt;&gt;::default();
     <span class="kw">let </span>c_secondary = non_uniform_circuit.secondary_circuit();
     <span class="kw">let </span>F_arity_secondary = c_secondary.arity();
     <span class="kw">let </span>ro_consts_circuit_secondary: ROConstantsCircuit&lt;E1&gt; = ROConstantsCircuit::&lt;E1&gt;::default();
 
-    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C2&gt; = SuperNovaAugmentedCircuit::new(
-      <span class="kw-2">&amp;</span>augmented_circuit_params_secondary,
-      <span class="prelude-val">None</span>,
-      <span class="kw-2">&amp;</span>c_secondary,
-      ro_consts_circuit_secondary.clone(),
-      num_circuits,
-    );
-    <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;E2&gt; = ShapeCS::new();
+    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, NC::C2&gt; =
+      SuperNovaAugmentedCircuit::new(
+        <span class="kw-2">&amp;</span>augmented_circuit_params_secondary,
+        <span class="prelude-val">None</span>,
+        <span class="kw-2">&amp;</span>c_secondary,
+        ro_consts_circuit_secondary.clone(),
+        num_circuits,
+      );
+    <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;Dual&lt;E1&gt;&gt; = ShapeCS::new();
     circuit_secondary
       .synthesize(<span class="kw-2">&amp;mut </span>cs)
       .expect(<span class="string">&quot;circuit synthesis failed&quot;</span>);
@@ -1567,7 +1509,6 @@
       circuit_shape_secondary,
       augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-      _p: PhantomData,
     };
 
     <span class="comment">// make sure to initialize the `OnceCell` and compute the digest
@@ -1577,7 +1518,7 @@
   }
 
   <span class="doccomment">/// Breaks down an instance of [`PublicParams`] into the circuit params and auxiliary params.
-  </span><span class="kw">pub fn </span>into_parts(<span class="self">self</span>) -&gt; (Vec&lt;R1CSWithArity&lt;E1&gt;&gt;, AuxParams&lt;E1, E2&gt;) {
+  </span><span class="kw">pub fn </span>into_parts(<span class="self">self</span>) -&gt; (Vec&lt;R1CSWithArity&lt;E1&gt;&gt;, AuxParams&lt;E1&gt;) {
     <span class="kw">let </span>digest = <span class="self">self</span>.digest();
 
     <span class="kw">let </span><span class="self">Self </span>{
@@ -1592,7 +1533,6 @@
       circuit_shape_secondary,
       augmented_circuit_params_secondary,
       digest: _digest,
-      _p,
     } = <span class="self">self</span>;
 
     <span class="kw">let </span>aux_params = AuxParams {
@@ -1612,7 +1552,7 @@
   }
 
   <span class="doccomment">/// Create a [`PublicParams`] from a vector of raw [`R1CSWithArity`] and auxiliary params.
-  </span><span class="kw">pub fn </span>from_parts(circuit_shapes: Vec&lt;R1CSWithArity&lt;E1&gt;&gt;, aux_params: AuxParams&lt;E1, E2&gt;) -&gt; <span class="self">Self </span>{
+  </span><span class="kw">pub fn </span>from_parts(circuit_shapes: Vec&lt;R1CSWithArity&lt;E1&gt;&gt;, aux_params: AuxParams&lt;E1&gt;) -&gt; <span class="self">Self </span>{
     <span class="kw">let </span>pp = <span class="self">Self </span>{
       circuit_shapes,
       ro_consts_primary: aux_params.ro_consts_primary,
@@ -1625,7 +1565,6 @@
       circuit_shape_secondary: aux_params.circuit_shape_secondary,
       augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-      _p: PhantomData,
     };
     <span class="macro">assert_eq!</span>(
       aux_params.digest,
@@ -1639,7 +1578,7 @@
   /// We don&#39;t check that the `aux_params.digest` is a valid digest for the created params.
   </span><span class="kw">pub fn </span>from_parts_unchecked(
     circuit_shapes: Vec&lt;R1CSWithArity&lt;E1&gt;&gt;,
-    aux_params: AuxParams&lt;E1, E2&gt;,
+    aux_params: AuxParams&lt;E1&gt;,
   ) -&gt; <span class="self">Self </span>{
     <span class="self">Self </span>{
       circuit_shapes,
@@ -1653,7 +1592,6 @@
       circuit_shape_secondary: aux_params.circuit_shape_secondary,
       augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
       digest: aux_params.digest.into(),
-      _p: PhantomData,
     }
   }
 
@@ -1722,10 +1660,9 @@
 <span class="doccomment">/// A SNARK that proves the correct execution of an non-uniform incremental computation
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
-</span><span class="kw">pub struct </span>RecursiveSNARK&lt;E1, E2&gt;
+</span><span class="kw">pub struct </span>RecursiveSNARK&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   <span class="comment">// Cached digest of the public parameters
   </span>pp_digest: E1::Scalar,
@@ -1745,7 +1682,7 @@
   <span class="doccomment">/// Buffer for memory needed by the primary fold-step
   </span>buffer_primary: ResourceBuffer&lt;E1&gt;,
   <span class="doccomment">/// Buffer for memory needed by the secondary fold-step
-  </span>buffer_secondary: ResourceBuffer&lt;E2&gt;,
+  </span>buffer_secondary: ResourceBuffer&lt;Dual&lt;E1&gt;&gt;,
 
   <span class="comment">// Relaxed instances for the primary circuits
   // Entries are `None` if the circuit has not been executed yet
@@ -1753,34 +1690,29 @@
   r_U_primary: Vec&lt;<span class="prelude-ty">Option</span>&lt;RelaxedR1CSInstance&lt;E1&gt;&gt;&gt;,
 
   <span class="comment">// Inputs and outputs of the secondary circuit
-  </span>z0_secondary: Vec&lt;E2::Scalar&gt;,
-  zi_secondary: Vec&lt;E2::Scalar&gt;,
+  </span>z0_secondary: Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  zi_secondary: Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;,
   <span class="comment">// Relaxed instance for the secondary circuit
-  </span>r_W_secondary: RelaxedR1CSWitness&lt;E2&gt;,
-  r_U_secondary: RelaxedR1CSInstance&lt;E2&gt;,
+  </span>r_W_secondary: RelaxedR1CSWitness&lt;Dual&lt;E1&gt;&gt;,
+  r_U_secondary: RelaxedR1CSInstance&lt;Dual&lt;E1&gt;&gt;,
   <span class="comment">// Proof for the secondary circuit to be accumulated into r_secondary in the next iteration
-  </span>l_w_secondary: R1CSWitness&lt;E2&gt;,
-  l_u_secondary: R1CSInstance&lt;E2&gt;,
+  </span>l_w_secondary: R1CSWitness&lt;Dual&lt;E1&gt;&gt;,
+  l_u_secondary: R1CSInstance&lt;Dual&lt;E1&gt;&gt;,
 }
 
-<span class="kw">impl</span>&lt;E1, E2&gt; RecursiveSNARK&lt;E1, E2&gt;
+<span class="kw">impl</span>&lt;E1&gt; RecursiveSNARK&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   <span class="doccomment">/// iterate base step to get new instance of recursive SNARK
   </span><span class="attr">#[allow(clippy::too_many_arguments)]
-  </span><span class="kw">pub fn </span>new&lt;
-    C0: NonUniformCircuit&lt;E1, E2, C1, C2&gt;,
-    C1: StepCircuit&lt;E1::Scalar&gt;,
-    C2: StepCircuit&lt;E2::Scalar&gt;,
-  &gt;(
-    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1, E2, C1, C2&gt;,
+  </span><span class="kw">pub fn </span>new&lt;C0: NonUniformCircuit&lt;E1&gt;&gt;(
+    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
     non_uniform_circuit: <span class="kw-2">&amp;</span>C0,
-    c_primary: <span class="kw-2">&amp;</span>C1,
-    c_secondary: <span class="kw-2">&amp;</span>C2,
+    c_primary: <span class="kw-2">&amp;</span>C0::C1,
+    c_secondary: <span class="kw-2">&amp;</span>C0::C2,
     z0_primary: <span class="kw-2">&amp;</span>[E1::Scalar],
-    z0_secondary: <span class="kw-2">&amp;</span>[E2::Scalar],
+    z0_secondary: <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar],
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SuperNovaError&gt; {
     <span class="kw">let </span>num_augmented_circuits = non_uniform_circuit.num_circuits();
     <span class="kw">let </span>circuit_index = non_uniform_circuit.initial_circuit_index();
@@ -1807,7 +1739,7 @@
     <span class="comment">// base case for the primary
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs_primary = SatisfyingAssignment::&lt;E1&gt;::new();
     <span class="kw">let </span>program_counter = E1::Scalar::from(circuit_index <span class="kw">as </span>u64);
-    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E2&gt; =
+    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::&lt;E1&gt;(pp.digest()),
         E1::Scalar::ZERO,
@@ -1820,13 +1752,14 @@
         </span>E1::Scalar::ZERO,      <span class="comment">// u_index is always zero for the primary circuit
       </span>);
 
-    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E2, C1&gt; = SuperNovaAugmentedCircuit::new(
-      <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
-      <span class="prelude-val">Some</span>(inputs_primary),
-      c_primary,
-      pp.ro_consts_circuit_primary.clone(),
-      num_augmented_circuits,
-    );
+    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C0::C1&gt; =
+      SuperNovaAugmentedCircuit::new(
+        <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
+        <span class="prelude-val">Some</span>(inputs_primary),
+        c_primary,
+        pp.ro_consts_circuit_primary.clone(),
+        num_augmented_circuits,
+      );
 
     <span class="kw">let </span>(zi_primary_pc_next, zi_primary) =
       circuit_primary.synthesize(<span class="kw-2">&amp;mut </span>cs_primary).map_err(|err| {
@@ -1846,12 +1779,12 @@
       })<span class="question-mark">?</span>;
 
     <span class="comment">// base case for the secondary
-    </span><span class="kw">let </span><span class="kw-2">mut </span>cs_secondary = SatisfyingAssignment::&lt;E2&gt;::new();
-    <span class="kw">let </span>u_primary_index = E2::Scalar::from(circuit_index <span class="kw">as </span>u64);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>cs_secondary = SatisfyingAssignment::&lt;Dual&lt;E1&gt;&gt;::new();
+    <span class="kw">let </span>u_primary_index = &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(circuit_index <span class="kw">as </span>u64);
     <span class="kw">let </span>inputs_secondary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E1&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
-        E2::Scalar::ZERO,
+        &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO,
         z0_secondary,
         <span class="prelude-val">None</span>,             <span class="comment">// zi = None for basecase
         </span><span class="prelude-val">None</span>,             <span class="comment">// U = Empty list of accumulators for the primary circuits
@@ -1860,13 +1793,15 @@
         </span><span class="prelude-val">None</span>,             <span class="comment">// program_counter is always None for secondary circuit
         </span>u_primary_index,  <span class="comment">// index of the circuit proof u_primary
       </span>);
-    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C2&gt; = SuperNovaAugmentedCircuit::new(
-      <span class="kw-2">&amp;</span>pp.augmented_circuit_params_secondary,
-      <span class="prelude-val">Some</span>(inputs_secondary),
-      c_secondary,
-      pp.ro_consts_circuit_secondary.clone(),
-      num_augmented_circuits,
-    );
+
+    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C0::C2&gt; =
+      SuperNovaAugmentedCircuit::new(
+        <span class="kw-2">&amp;</span>pp.augmented_circuit_params_secondary,
+        <span class="prelude-val">Some</span>(inputs_secondary),
+        c_secondary,
+        pp.ro_consts_circuit_secondary.clone(),
+        num_augmented_circuits,
+      );
     <span class="kw">let </span>(<span class="kw">_</span>, zi_secondary) = circuit_secondary
       .synthesize(<span class="kw-2">&amp;mut </span>cs_secondary)
       .map_err(NovaError::from)<span class="question-mark">?</span>;
@@ -1894,7 +1829,7 @@
     <span class="kw">let </span>l_u_secondary = u_secondary;
 
     <span class="comment">// Initialize relaxed instance/witness pair for the secondary circuit proofs
-    </span><span class="kw">let </span>r_W_secondary: RelaxedR1CSWitness&lt;E2&gt; = RelaxedR1CSWitness::&lt;E2&gt;::default(r1cs_secondary);
+    </span><span class="kw">let </span>r_W_secondary = RelaxedR1CSWitness::&lt;Dual&lt;E1&gt;&gt;::default(r1cs_secondary);
     <span class="kw">let </span>r_U_secondary = RelaxedR1CSInstance::default(<span class="kw-2">&amp;*</span>pp.ck_secondary, r1cs_secondary);
 
     <span class="comment">// Outputs of the two circuits and next program counter thus far.
@@ -1915,7 +1850,7 @@
         v.get_value()
           .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
       })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;&lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;, SuperNovaError&gt;&gt;()<span class="question-mark">?</span>;
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;, SuperNovaError&gt;&gt;()<span class="question-mark">?</span>;
 
     <span class="comment">// handle the base case by initialize U_next in next round
     </span><span class="kw">let </span>r_W_primary_initial_list = (<span class="number">0</span>..num_augmented_circuits)
@@ -1947,7 +1882,7 @@
       l_u: <span class="prelude-val">None</span>,
       ABC_Z_1: R1CSResult::default(r1cs_secondary.num_cons),
       ABC_Z_2: R1CSResult::default(r1cs_secondary.num_cons),
-      T: r1cs::default_T::&lt;E2&gt;(r1cs_secondary.num_cons),
+      T: r1cs::default_T::&lt;Dual&lt;E1&gt;&gt;(r1cs_secondary.num_cons),
     };
 
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
@@ -1977,9 +1912,9 @@
   <span class="doccomment">/// executing a step of the incremental computation
   </span><span class="attr">#[allow(clippy::too_many_arguments)]
   #[tracing::instrument(skip_all, name = <span class="string">&quot;supernova::RecursiveSNARK::prove_step&quot;</span>)]
-  </span><span class="kw">pub fn </span>prove_step&lt;C1: StepCircuit&lt;E1::Scalar&gt;, C2: StepCircuit&lt;E2::Scalar&gt;&gt;(
+  </span><span class="kw">pub fn </span>prove_step&lt;C1: StepCircuit&lt;E1::Scalar&gt;, C2: StepCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;&gt;(
     <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1, E2, C1, C2&gt;,
+    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
     c_primary: <span class="kw-2">&amp;</span>C1,
     c_secondary: <span class="kw-2">&amp;</span>C2,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SuperNovaError&gt; {
@@ -2018,9 +1953,9 @@
       pp[circuit_index].r1cs_shape.num_io + <span class="number">1</span>,
       pp[circuit_index].r1cs_shape.num_vars,
     );
-    <span class="kw">let </span>T: &lt;&lt;E2 <span class="kw">as </span>Engine&gt;::CE <span class="kw">as </span>CommitmentEngineTrait&lt;E2&gt;&gt;::Commitment =
-      Commitment::&lt;E2&gt;::decompress(<span class="kw-2">&amp;</span>nifs_secondary.comm_T).map_err(SuperNovaError::NovaError)<span class="question-mark">?</span>;
-    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E2&gt; =
+    <span class="kw">let </span>T = Commitment::&lt;Dual&lt;E1&gt;&gt;::decompress(<span class="kw-2">&amp;</span>nifs_secondary.comm_T)
+      .map_err(SuperNovaError::NovaError)<span class="question-mark">?</span>;
+    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::&lt;E1&gt;(<span class="self">self</span>.pp_digest),
         E1::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64),
@@ -2033,13 +1968,14 @@
         E1::Scalar::ZERO,
       );
 
-    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E2, C1&gt; = SuperNovaAugmentedCircuit::new(
-      <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
-      <span class="prelude-val">Some</span>(inputs_primary),
-      c_primary,
-      pp.ro_consts_circuit_primary.clone(),
-      <span class="self">self</span>.num_augmented_circuits,
-    );
+    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C1&gt; =
+      SuperNovaAugmentedCircuit::new(
+        <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
+        <span class="prelude-val">Some</span>(inputs_primary),
+        c_primary,
+        pp.ro_consts_circuit_primary.clone(),
+        <span class="self">self</span>.num_augmented_circuits,
+      );
 
     <span class="kw">let </span>(zi_primary_pc_next, zi_primary) = circuit_primary
       .synthesize(<span class="kw-2">&amp;mut </span>cs_primary)
@@ -2087,7 +2023,7 @@
     )
     .map_err(SuperNovaError::NovaError)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span><span class="kw-2">mut </span>cs_secondary = SatisfyingAssignment::&lt;E2&gt;::with_capacity(
+    <span class="kw">let </span><span class="kw-2">mut </span>cs_secondary = SatisfyingAssignment::&lt;Dual&lt;E1&gt;&gt;::with_capacity(
       pp.circuit_shape_secondary.r1cs_shape.num_io + <span class="number">1</span>,
       pp.circuit_shape_secondary.r1cs_shape.num_vars,
     );
@@ -2096,14 +2032,14 @@
     <span class="kw">let </span>inputs_secondary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E1&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         <span class="self">self</span>.pp_digest,
-        E2::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64),
+        &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64),
         <span class="kw-2">&amp;</span><span class="self">self</span>.z0_secondary,
         <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.zi_secondary),
         <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>r_U_primary_i),
         <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>l_u_primary),
         <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>binding),
         <span class="prelude-val">None</span>, <span class="comment">// pc is always None for secondary circuit
-        </span>E2::Scalar::from(circuit_index <span class="kw">as </span>u64),
+        </span>&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(circuit_index <span class="kw">as </span>u64),
       );
 
     <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C2&gt; = SuperNovaAugmentedCircuit::new(
@@ -2143,7 +2079,7 @@
         v.get_value()
           .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
       })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;&lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;, SuperNovaError&gt;&gt;()<span class="question-mark">?</span>;
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;, SuperNovaError&gt;&gt;()<span class="question-mark">?</span>;
 
     <span class="kw">if </span>zi_primary.len() != pp[circuit_index].F_arity
       || zi_secondary.len() != pp.circuit_shape_secondary.F_arity
@@ -2164,12 +2100,12 @@
   }
 
   <span class="doccomment">/// verify recursive snark
-  </span><span class="kw">pub fn </span>verify&lt;C1: StepCircuit&lt;E1::Scalar&gt;, C2: StepCircuit&lt;E2::Scalar&gt;&gt;(
+  </span><span class="kw">pub fn </span>verify(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
-    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1, E2, C1, C2&gt;,
+    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
     z0_primary: <span class="kw-2">&amp;</span>[E1::Scalar],
-    z0_secondary: <span class="kw-2">&amp;</span>[E2::Scalar],
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;E1::Scalar&gt;, Vec&lt;E2::Scalar&gt;), SuperNovaError&gt; {
+    z0_secondary: <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar],
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;E1::Scalar&gt;, Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;), SuperNovaError&gt; {
     <span class="comment">// number of steps cannot be zero
     </span><span class="kw">if </span><span class="self">self</span>.i == <span class="number">0 </span>{
       <span class="macro">debug!</span>(<span class="string">&quot;must verify on valid RecursiveSNARK where i &gt; 0&quot;</span>);
@@ -2249,7 +2185,7 @@
         <span class="bool-val">true</span>, <span class="comment">// is_primary
       </span>);
 
-      <span class="kw">let </span><span class="kw-2">mut </span>hasher = &lt;E2 <span class="kw">as </span>Engine&gt;::RO::new(pp.ro_consts_secondary.clone(), num_absorbs);
+      <span class="kw">let </span><span class="kw-2">mut </span>hasher = &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::RO::new(pp.ro_consts_secondary.clone(), num_absorbs);
       hasher.absorb(<span class="self">self</span>.pp_digest);
       hasher.absorb(E1::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64));
       hasher.absorb(<span class="self">self</span>.program_counter);
@@ -2274,7 +2210,7 @@
       </span>);
       <span class="kw">let </span><span class="kw-2">mut </span>hasher = &lt;E1 <span class="kw">as </span>Engine&gt;::RO::new(pp.ro_consts_primary.clone(), num_absorbs);
       hasher.absorb(scalar_as_base::&lt;E1&gt;(<span class="self">self</span>.pp_digest));
-      hasher.absorb(E2::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64));
+      hasher.absorb(&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64));
 
       <span class="kw">for </span>e <span class="kw">in </span>z0_secondary {
         hasher.absorb(<span class="kw-2">*</span>e);
@@ -2301,7 +2237,7 @@
       );
       <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
-    <span class="kw">if </span>hash_secondary != scalar_as_base::&lt;E2&gt;(<span class="self">self</span>.l_u_secondary.X[<span class="number">1</span>]) {
+    <span class="kw">if </span>hash_secondary != scalar_as_base::&lt;Dual&lt;E1&gt;&gt;(<span class="self">self</span>.l_u_secondary.X[<span class="number">1</span>]) {
       <span class="macro">debug!</span>(
         <span class="string">&quot;hash_secondary {:?} not equal l_u_secondary.X[1] {:?}&quot;</span>,
         hash_secondary, <span class="self">self</span>.l_u_secondary.X[<span class="number">1</span>]
@@ -2364,13 +2300,15 @@
 <span class="doccomment">/// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
 /// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
 /// `self.num_circuits()`.
-</span><span class="kw">pub trait </span>NonUniformCircuit&lt;E1, E2, C1, C2&gt;
+</span><span class="kw">pub trait </span>NonUniformCircuit&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
+  <span class="doccomment">/// The type of the step-circuits on the primary
+  </span><span class="kw">type </span>C1: StepCircuit&lt;E1::Scalar&gt;;
+  <span class="doccomment">/// The type of the step-circuits on the secondary
+  </span><span class="kw">type </span>C2: StepCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;;
+
   <span class="doccomment">/// Initial circuit index, defaults to zero.
   </span><span class="kw">fn </span>initial_circuit_index(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
     <span class="number">0
@@ -2380,19 +2318,16 @@
   </span><span class="kw">fn </span>num_circuits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
 
   <span class="doccomment">/// Return a new instance of the primary circuit at `index`.
-  </span><span class="kw">fn </span>primary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>, circuit_index: usize) -&gt; C1;
+  </span><span class="kw">fn </span>primary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>, circuit_index: usize) -&gt; <span class="self">Self</span>::C1;
 
   <span class="doccomment">/// Return a new instance of the secondary circuit.
-  </span><span class="kw">fn </span>secondary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; C2;
+  </span><span class="kw">fn </span>secondary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::C2;
 }
 
 <span class="doccomment">/// Extension trait to simplify getting scalar form of initial circuit index.
-</span><span class="kw">trait </span>InitialProgramCounter&lt;E1, E2, C1, C2&gt;: NonUniformCircuit&lt;E1, E2, C1, C2&gt;
+</span><span class="kw">trait </span>InitialProgramCounter&lt;E1&gt;: NonUniformCircuit&lt;E1&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
 {
   <span class="doccomment">/// Initial program counter is the initial circuit index as a `Scalar`.
   </span><span class="kw">fn </span>initial_program_counter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E1::Scalar {
@@ -2400,25 +2335,13 @@
   }
 }
 
-<span class="kw">impl</span>&lt;E1, E2, C1, C2, T: NonUniformCircuit&lt;E1, E2, C1, C2&gt;&gt; InitialProgramCounter&lt;E1, E2, C1, C2&gt;
-  <span class="kw">for </span>T
-<span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
-{
-}
+<span class="kw">impl</span>&lt;E1: CurveCycleEquipped, T: NonUniformCircuit&lt;E1&gt;&gt; InitialProgramCounter&lt;E1&gt; <span class="kw">for </span>T {}
 
 <span class="doccomment">/// Compute the circuit digest of a supernova [`StepCircuit`].
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.
-</span><span class="kw">pub fn </span>circuit_digest&lt;
-  E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C: StepCircuit&lt;E1::Scalar&gt;,
-&gt;(
+</span><span class="kw">pub fn </span>circuit_digest&lt;E1: CurveCycleEquipped, C: StepCircuit&lt;E1::Scalar&gt;&gt;(
   circuit: <span class="kw-2">&amp;</span>C,
   num_augmented_circuits: usize,
 ) -&gt; E1::Scalar {
@@ -2426,16 +2349,17 @@
     SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">true</span>);
 
   <span class="comment">// ro_consts_circuit are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
-  </span><span class="kw">let </span>ro_consts_circuit: ROConstantsCircuit&lt;E2&gt; = ROConstantsCircuit::&lt;E2&gt;::default();
+  </span><span class="kw">let </span>ro_consts_circuit = ROConstantsCircuit::&lt;Dual&lt;E1&gt;&gt;::default();
 
   <span class="comment">// Initialize ck for the primary
-  </span><span class="kw">let </span>augmented_circuit: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E2, C&gt; = SuperNovaAugmentedCircuit::new(
-    <span class="kw-2">&amp;</span>augmented_circuit_params,
-    <span class="prelude-val">None</span>,
-    circuit,
-    ro_consts_circuit,
-    num_augmented_circuits,
-  );
+  </span><span class="kw">let </span>augmented_circuit: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C&gt; =
+    SuperNovaAugmentedCircuit::new(
+      <span class="kw-2">&amp;</span>augmented_circuit_params,
+      <span class="prelude-val">None</span>,
+      circuit,
+      ro_consts_circuit,
+      num_augmented_circuits,
+    );
   <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;E1&gt; = ShapeCS::new();
   <span class="kw">let _ </span>= augmented_circuit.synthesize(<span class="kw-2">&amp;mut </span>cs);
 

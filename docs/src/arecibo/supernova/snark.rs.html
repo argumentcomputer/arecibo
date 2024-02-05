@@ -704,151 +704,80 @@
 <a href="#704" id="704">704</a>
 <a href="#705" id="705">705</a>
 <a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
-<a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
-<a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
-<a href="#748" id="748">748</a>
-<a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines a final compressing SNARK for supernova proofs
 
 </span><span class="kw">use super</span>::{error::SuperNovaError, PublicParams, RecursiveSNARK};
 <span class="kw">use crate</span>::{
   constants::NUM_HASH_BITS,
   r1cs::{R1CSInstance, RelaxedR1CSWitness},
-  supernova::StepCircuit,
   traits::{
     snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-    AbsorbInROTrait, Engine, ROTrait,
+    AbsorbInROTrait, CurveCycleEquipped, Dual, Engine, ROTrait,
   },
 };
 <span class="kw">use crate</span>::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
 
 <span class="kw">use </span>ff::PrimeField;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>std::marker::PhantomData;
 
 <span class="doccomment">/// A type that holds the prover key for `CompressedSNARK`
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>ProverKey&lt;E1, E2, C1, C2, S1, S2&gt;
+</span><span class="kw">pub struct </span>ProverKey&lt;E1, S1, S2&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-  S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
+  S2: RelaxedR1CSSNARKTrait&lt;Dual&lt;E1&gt;&gt;,
 {
   pk_primary: S1::ProverKey,
   pk_secondary: S2::ProverKey,
-  _p: PhantomData&lt;(C1, C2)&gt;,
 }
 
 <span class="doccomment">/// A type that holds the verifier key for `CompressedSNARK`
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>VerifierKey&lt;E1, E2, C1, C2, S1, S2&gt;
+</span><span class="kw">pub struct </span>VerifierKey&lt;E1, S1, S2&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-  S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
+  S2: RelaxedR1CSSNARKTrait&lt;Dual&lt;E1&gt;&gt;,
 {
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
-  _p: PhantomData&lt;(C1, C2)&gt;,
 }
 
 <span class="doccomment">/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
-</span><span class="kw">pub struct </span>CompressedSNARK&lt;E1, E2, C1, C2, S1, S2&gt;
+</span><span class="kw">pub struct </span>CompressedSNARK&lt;E1, S1, S2&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-  S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
+  S2: RelaxedR1CSSNARKTrait&lt;Dual&lt;E1&gt;&gt;,
 {
   r_U_primary: Vec&lt;RelaxedR1CSInstance&lt;E1&gt;&gt;,
   r_W_snark_primary: S1,
 
-  r_U_secondary: RelaxedR1CSInstance&lt;E2&gt;,
-  l_u_secondary: R1CSInstance&lt;E2&gt;,
-  nifs_secondary: NIFS&lt;E2&gt;,
+  r_U_secondary: RelaxedR1CSInstance&lt;Dual&lt;E1&gt;&gt;,
+  l_u_secondary: R1CSInstance&lt;Dual&lt;E1&gt;&gt;,
+  nifs_secondary: NIFS&lt;Dual&lt;E1&gt;&gt;,
   f_W_snark_secondary: S2,
 
   num_steps: usize,
   program_counter: E1::Scalar,
 
   zn_primary: Vec&lt;E1::Scalar&gt;,
-  zn_secondary: Vec&lt;E2::Scalar&gt;,
-  _p: PhantomData&lt;(E1, E2, C1, C2, S1, S2)&gt;,
+  zn_secondary: Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;,
 }
 
-<span class="kw">impl</span>&lt;E1, E2, C1, C2, S1, S2&gt; CompressedSNARK&lt;E1, E2, C1, C2, S1, S2&gt;
+<span class="kw">impl</span>&lt;E1, S1, S2&gt; CompressedSNARK&lt;E1, S1, S2&gt;
 <span class="kw">where
-  </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  C1: StepCircuit&lt;E1::Scalar&gt;,
-  C2: StepCircuit&lt;E2::Scalar&gt;,
+  </span>E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-  S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
+  S2: RelaxedR1CSSNARKTrait&lt;Dual&lt;E1&gt;&gt;,
 {
   <span class="doccomment">/// Creates prover and verifier keys for `CompressedSNARK`
   </span><span class="kw">pub fn </span>setup(
-    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1, E2, C1, C2&gt;,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;
-    (
-      ProverKey&lt;E1, E2, C1, C2, S1, S2&gt;,
-      VerifierKey&lt;E1, E2, C1, C2, S1, S2&gt;,
-    ),
-    SuperNovaError,
-  &gt; {
+    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;(ProverKey&lt;E1, S1, S2&gt;, VerifierKey&lt;E1, S1, S2&gt;), SuperNovaError&gt; {
     <span class="kw">let </span>(pk_primary, vk_primary) = S1::setup(pp.ck_primary.clone(), pp.primary_r1cs_shapes())<span class="question-mark">?</span>;
 
     <span class="kw">let </span>(pk_secondary, vk_secondary) = S2::setup(
@@ -859,12 +788,10 @@
     <span class="kw">let </span>prover_key = ProverKey {
       pk_primary,
       pk_secondary,
-      _p: PhantomData,
     };
     <span class="kw">let </span>verifier_key = VerifierKey {
       vk_primary,
       vk_secondary,
-      _p: PhantomData,
     };
 
     <span class="prelude-val">Ok</span>((prover_key, verifier_key))
@@ -872,9 +799,9 @@
 
   <span class="doccomment">/// Create a new `CompressedSNARK`
   </span><span class="kw">pub fn </span>prove(
-    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1, E2, C1, C2&gt;,
-    pk: <span class="kw-2">&amp;</span>ProverKey&lt;E1, E2, C1, C2, S1, S2&gt;,
-    recursive_snark: <span class="kw-2">&amp;</span>RecursiveSNARK&lt;E1, E2&gt;,
+    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
+    pk: <span class="kw-2">&amp;</span>ProverKey&lt;E1, S1, S2&gt;,
+    recursive_snark: <span class="kw-2">&amp;</span>RecursiveSNARK&lt;E1&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SuperNovaError&gt; {
     <span class="comment">// fold the secondary circuit&#39;s instance
     </span><span class="kw">let </span>res_secondary = NIFS::prove(
@@ -948,8 +875,6 @@
 
       zn_primary: recursive_snark.zi_primary.clone(),
       zn_secondary: recursive_snark.zi_secondary.clone(),
-
-      _p: PhantomData,
     };
 
     <span class="prelude-val">Ok</span>(compressed_snark)
@@ -958,11 +883,11 @@
   <span class="doccomment">/// Verify the correctness of the `CompressedSNARK`
   </span><span class="kw">pub fn </span>verify(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
-    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1, E2, C1, C2&gt;,
-    vk: <span class="kw-2">&amp;</span>VerifierKey&lt;E1, E2, C1, C2, S1, S2&gt;,
+    pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
+    vk: <span class="kw-2">&amp;</span>VerifierKey&lt;E1, S1, S2&gt;,
     z0_primary: <span class="kw-2">&amp;</span>[E1::Scalar],
-    z0_secondary: <span class="kw-2">&amp;</span>[E2::Scalar],
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;E1::Scalar&gt;, Vec&lt;E2::Scalar&gt;), SuperNovaError&gt; {
+    z0_secondary: <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar],
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;E1::Scalar&gt;, Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;), SuperNovaError&gt; {
     <span class="kw">let </span>last_circuit_idx = field_as_usize(<span class="self">self</span>.program_counter);
 
     <span class="kw">let </span>num_field_primary_ro = <span class="number">3 </span><span class="comment">// params_next, i_new, program_counter_new
@@ -980,7 +905,7 @@
     // witnesses provided by the prover
     </span><span class="kw">let </span>(hash_primary, hash_secondary) = {
       <span class="kw">let </span><span class="kw-2">mut </span>hasher =
-        &lt;E2 <span class="kw">as </span>Engine&gt;::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
+        &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
 
       hasher.absorb(pp.digest());
       hasher.absorb(E1::Scalar::from(<span class="self">self</span>.num_steps <span class="kw">as </span>u64));
@@ -1000,7 +925,7 @@
         &lt;E1 <span class="kw">as </span>Engine&gt;::RO::new(pp.ro_consts_primary.clone(), num_field_secondary_ro);
 
       hasher2.absorb(scalar_as_base::&lt;E1&gt;(pp.digest()));
-      hasher2.absorb(E2::Scalar::from(<span class="self">self</span>.num_steps <span class="kw">as </span>u64));
+      hasher2.absorb(&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="self">self</span>.num_steps <span class="kw">as </span>u64));
 
       <span class="kw">for </span>e <span class="kw">in </span>z0_secondary {
         hasher2.absorb(<span class="kw-2">*</span>e);
@@ -1025,7 +950,7 @@
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::ProofVerifyError.into());
     }
 
-    <span class="kw">if </span>hash_secondary != scalar_as_base::&lt;E2&gt;(<span class="self">self</span>.l_u_secondary.X[<span class="number">1</span>]) {
+    <span class="kw">if </span>hash_secondary != scalar_as_base::&lt;Dual&lt;E1&gt;&gt;(<span class="self">self</span>.l_u_secondary.X[<span class="number">1</span>]) {
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::ProofVerifyError.into());
     }
 
@@ -1063,17 +988,15 @@
 </span><span class="kw">mod </span>test {
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use crate</span>::{
-    provider::{
-      ipa_pc, Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine,
-      VestaEngine,
-    },
+    provider::{ipa_pc, Bn256Engine, PallasEngine, Secp256k1Engine},
     spartan::{batched, batched_ppsnark, snark::RelaxedR1CSSNARK},
-    supernova::{circuit::TrivialSecondaryCircuit, NonUniformCircuit},
+    supernova::{circuit::TrivialSecondaryCircuit, NonUniformCircuit, StepCircuit},
   };
 
   <span class="kw">use </span>abomonation::Abomonation;
   <span class="kw">use </span>bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
   <span class="kw">use </span>ff::{Field, PrimeField};
+  <span class="kw">use </span>std::marker::PhantomData;
 
   <span class="kw">type </span>EE&lt;E&gt; = ipa_pc::EvaluationEngine&lt;E&gt;;
   <span class="kw">type </span>S1&lt;E&gt; = batched::BatchedRelaxedR1CSSNARK&lt;E, EE&lt;E&gt;&gt;;
@@ -1220,12 +1143,10 @@
     }
   }
 
-  <span class="kw">impl</span>&lt;E1, E2&gt; NonUniformCircuit&lt;E1, E2, <span class="self">Self</span>, TrivialSecondaryCircuit&lt;E2::Scalar&gt;&gt;
-    <span class="kw">for </span>TestCircuit&lt;E1&gt;
-  <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  {
+  <span class="kw">impl</span>&lt;E1: CurveCycleEquipped&gt; NonUniformCircuit&lt;E1&gt; <span class="kw">for </span>TestCircuit&lt;E1&gt; {
+    <span class="kw">type </span>C1 = <span class="self">Self</span>;
+    <span class="kw">type </span>C2 = TrivialSecondaryCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;;
+
     <span class="kw">fn </span>num_circuits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
       <span class="number">2
     </span>}
@@ -1238,19 +1159,18 @@
       }
     }
 
-    <span class="kw">fn </span>secondary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TrivialSecondaryCircuit&lt;E2::Scalar&gt; {
+    <span class="kw">fn </span>secondary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::C2 {
       Default::default()
     }
   }
 
-  <span class="kw">fn </span>test_nivc_trivial_with_compression_with&lt;E1, E2, S1, S2&gt;()
+  <span class="kw">fn </span>test_nivc_trivial_with_compression_with&lt;E1, S1, S2&gt;()
   <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+    </span>E1: CurveCycleEquipped,
     S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-    S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
+    S2: RelaxedR1CSSNARKTrait&lt;Dual&lt;E1&gt;&gt;,
     &lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
-    &lt;E2::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
+    &lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
   {
     <span class="kw">const </span>NUM_STEPS: usize = <span class="number">6</span>;
 
@@ -1260,7 +1180,7 @@
     <span class="kw">let </span>pp = PublicParams::setup(<span class="kw-2">&amp;</span>test_circuits[<span class="number">0</span>], <span class="kw-2">&amp;*</span>S1::ck_floor(), <span class="kw-2">&amp;*</span>S2::ck_floor());
 
     <span class="kw">let </span>z0_primary = <span class="macro">vec!</span>[E1::Scalar::from(<span class="number">17u64</span>)];
-    <span class="kw">let </span>z0_secondary = <span class="macro">vec!</span>[&lt;E2 <span class="kw">as </span>Engine&gt;::Scalar::ZERO];
+    <span class="kw">let </span>z0_secondary = <span class="macro">vec!</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO];
 
     <span class="kw">let </span><span class="kw-2">mut </span>recursive_snark = RecursiveSNARK::new(
       <span class="kw-2">&amp;</span>pp,
@@ -1281,7 +1201,7 @@
       <span class="macro">assert!</span>(verify_res.is_ok());
     }
 
-    <span class="kw">let </span>(prover_key, verifier_key) = CompressedSNARK::&lt;<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, S1, S2&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
+    <span class="kw">let </span>(prover_key, verifier_key) = CompressedSNARK::&lt;<span class="kw">_</span>, S1, S2&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
 
     <span class="kw">let </span>compressed_prove_res = CompressedSNARK::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>prover_key, <span class="kw-2">&amp;</span>recursive_snark);
 
@@ -1298,13 +1218,13 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_nivc_trivial_with_compression() {
     <span class="comment">// ppSNARK
-    </span>test_nivc_trivial_with_compression_with::&lt;PallasEngine, VestaEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_nivc_trivial_with_compression_with::&lt;Bn256Engine, GrumpkinEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_nivc_trivial_with_compression_with::&lt;Secp256k1Engine, Secq256k1Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    </span>test_nivc_trivial_with_compression_with::&lt;PallasEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_nivc_trivial_with_compression_with::&lt;Bn256Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_nivc_trivial_with_compression_with::&lt;Secp256k1Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="comment">// classic SNARK
-    </span>test_nivc_trivial_with_compression_with::&lt;PallasEngine, VestaEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_nivc_trivial_with_compression_with::&lt;Bn256Engine, GrumpkinEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_nivc_trivial_with_compression_with::&lt;Secp256k1Engine, Secq256k1Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    </span>test_nivc_trivial_with_compression_with::&lt;PallasEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_nivc_trivial_with_compression_with::&lt;Bn256Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_nivc_trivial_with_compression_with::&lt;Secp256k1Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
   }
 
   <span class="attr">#[derive(Clone)]
@@ -1406,12 +1326,10 @@
     }
   }
 
-  <span class="kw">impl</span>&lt;E1, E2&gt; NonUniformCircuit&lt;E1, E2, <span class="self">Self</span>, TrivialSecondaryCircuit&lt;E2::Scalar&gt;&gt;
-    <span class="kw">for </span>BigTestCircuit&lt;E1&gt;
-  <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-  {
+  <span class="kw">impl</span>&lt;E1: CurveCycleEquipped&gt; NonUniformCircuit&lt;E1&gt; <span class="kw">for </span>BigTestCircuit&lt;E1&gt; {
+    <span class="kw">type </span>C1 = <span class="self">Self</span>;
+    <span class="kw">type </span>C2 = TrivialSecondaryCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;;
+
     <span class="kw">fn </span>num_circuits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
       <span class="number">2
     </span>}
@@ -1424,19 +1342,18 @@
       }
     }
 
-    <span class="kw">fn </span>secondary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TrivialSecondaryCircuit&lt;E2::Scalar&gt; {
+    <span class="kw">fn </span>secondary_circuit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::C2 {
       Default::default()
     }
   }
 
-  <span class="kw">fn </span>test_compression_with_circuit_size_difference_with&lt;E1, E2, S1, S2&gt;()
+  <span class="kw">fn </span>test_compression_with_circuit_size_difference_with&lt;E1, S1, S2&gt;()
   <span class="kw">where
-    </span>E1: Engine&lt;Base = &lt;E2 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
-    E2: Engine&lt;Base = &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;,
+    </span>E1: CurveCycleEquipped,
     S1: BatchedRelaxedR1CSSNARKTrait&lt;E1&gt;,
-    S2: RelaxedR1CSSNARKTrait&lt;E2&gt;,
+    S2: RelaxedR1CSSNARKTrait&lt;Dual&lt;E1&gt;&gt;,
     &lt;E1::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
-    &lt;E2::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
+    &lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation,
   {
     <span class="kw">const </span>NUM_STEPS: usize = <span class="number">4</span>;
 
@@ -1446,7 +1363,7 @@
     <span class="kw">let </span>pp = PublicParams::setup(<span class="kw-2">&amp;</span>test_circuits[<span class="number">0</span>], <span class="kw-2">&amp;*</span>S1::ck_floor(), <span class="kw-2">&amp;*</span>S2::ck_floor());
 
     <span class="kw">let </span>z0_primary = <span class="macro">vec!</span>[E1::Scalar::from(<span class="number">17u64</span>)];
-    <span class="kw">let </span>z0_secondary = <span class="macro">vec!</span>[&lt;E2 <span class="kw">as </span>Engine&gt;::Scalar::ZERO];
+    <span class="kw">let </span>z0_secondary = <span class="macro">vec!</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO];
 
     <span class="kw">let </span><span class="kw-2">mut </span>recursive_snark = RecursiveSNARK::new(
       <span class="kw-2">&amp;</span>pp,
@@ -1467,7 +1384,7 @@
       <span class="macro">assert!</span>(verify_res.is_ok());
     }
 
-    <span class="kw">let </span>(prover_key, verifier_key) = CompressedSNARK::&lt;<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, S1, S2&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
+    <span class="kw">let </span>(prover_key, verifier_key) = CompressedSNARK::&lt;<span class="kw">_</span>, S1, S2&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
 
     <span class="kw">let </span>compressed_prove_res = CompressedSNARK::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>prover_key, <span class="kw-2">&amp;</span>recursive_snark);
 
@@ -1484,26 +1401,13 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_compression_with_circuit_size_difference() {
     <span class="comment">// ppSNARK
-    </span>test_compression_with_circuit_size_difference_with::&lt;PallasEngine, VestaEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;(
-    );
-    test_compression_with_circuit_size_difference_with::&lt;Bn256Engine, GrumpkinEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;(
-    );
-    test_compression_with_circuit_size_difference_with::&lt;
-      Secp256k1Engine,
-      Secq256k1Engine,
-      S1PP&lt;<span class="kw">_</span>&gt;,
-      S2&lt;<span class="kw">_</span>&gt;,
-    &gt;();
+    </span>test_compression_with_circuit_size_difference_with::&lt;PallasEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_compression_with_circuit_size_difference_with::&lt;Bn256Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_compression_with_circuit_size_difference_with::&lt;Secp256k1Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="comment">// classic SNARK
-    </span>test_compression_with_circuit_size_difference_with::&lt;PallasEngine, VestaEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_compression_with_circuit_size_difference_with::&lt;Bn256Engine, GrumpkinEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;(
-    );
-    test_compression_with_circuit_size_difference_with::&lt;
-      Secp256k1Engine,
-      Secq256k1Engine,
-      S1&lt;<span class="kw">_</span>&gt;,
-      S2&lt;<span class="kw">_</span>&gt;,
-    &gt;();
+    </span>test_compression_with_circuit_size_difference_with::&lt;PallasEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_compression_with_circuit_size_difference_with::&lt;Bn256Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_compression_with_circuit_size_difference_with::&lt;Secp256k1Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
   }
 }
 </code></pre></div></section></main></body></html>

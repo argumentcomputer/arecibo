@@ -164,6 +164,15 @@
 <a href="#164" id="164">164</a>
 <a href="#165" id="165">165</a>
 <a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines various traits required by the users of the library to implement.
 </span><span class="kw">use </span><span class="kw">crate</span>::errors::NovaError;
 <span class="kw">use </span>abomonation::Abomonation;
@@ -220,6 +229,15 @@
   <span class="doccomment">/// A type that defines a commitment engine over scalars in the group
   </span><span class="kw">type </span>CE: CommitmentEngineTrait&lt;<span class="self">Self</span>&gt;;
 }
+
+<span class="doccomment">/// This is a convenience trait to pair engines which fields are in a curve cycle relationship
+</span><span class="kw">pub trait </span>CurveCycleEquipped: Engine {
+  <span class="doccomment">/// The secondary `Engine` of `Self`
+  </span><span class="kw">type </span>Secondary: Engine&lt;Base = &lt;<span class="self">Self </span><span class="kw">as </span>Engine&gt;::Scalar, Scalar = &lt;<span class="self">Self </span><span class="kw">as </span>Engine&gt;::Base&gt;;
+}
+
+<span class="doccomment">/// Convenience projection to the secondary `Engine` of a `CurveCycleEquipped`
+</span><span class="kw">pub type </span>Dual&lt;E&gt; = &lt;E <span class="kw">as </span>CurveCycleEquipped&gt;::Secondary;
 
 <span class="doccomment">/// A helper trait to absorb different objects in RO
 </span><span class="kw">pub trait </span>AbsorbInROTrait&lt;E: Engine&gt; {
