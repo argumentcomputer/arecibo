@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use super::gadgets::{emulated, AllocatedFoldingData};
 
-#[derive(Clone, PartialEq, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct AugmentedCircuitParams {
   limb_width: usize,
   n_limbs: usize,
@@ -397,7 +397,7 @@ where
 
     let U_p = data_p.U.fold_with_r1cs(
       cs.namespace(|| "fold u_p into U_p"),
-      &pp_digest,
+      pp_digest,
       W_new.clone(),
       E_new.clone(),
       &data_p.u_W,
