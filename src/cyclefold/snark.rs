@@ -9,13 +9,19 @@ use crate::{
     shape_cs::ShapeCS,
     solver::SatisfyingAssignment,
   },
-  constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
+  constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   cyclefold::circuit::{CyclefoldCircuit, CyclefoldCircuitInputs},
   errors::NovaError,
   gadgets::utils::scalar_as_base,
   nifs::NIFS,
-  r1cs::{CommitmentKeyHint, R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
-  traits::{circuit::StepCircuit, commitment::CommitmentTrait, Engine, ROConstantsCircuit},
+  r1cs::{
+    self, CommitmentKeyHint, R1CSInstance, R1CSResult, R1CSWitness, RelaxedR1CSInstance,
+    RelaxedR1CSWitness,
+  },
+  traits::{
+    circuit::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROConstantsCircuit,
+    ROTrait,
+  },
   Commitment, CommitmentKey, DigestComputer, R1CSWithArity, ROConstants, ResourceBuffer,
   SimpleDigestible,
 };
@@ -26,7 +32,7 @@ use super::nova_circuit::{
 
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
-use bellpepper_core::SynthesisError;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::{PrimeField, PrimeFieldBits};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -188,11 +194,83 @@ where
 {
   /// TODO: docs
   pub fn new(
-    _pp: &PublicParams<E1, E2, C1>,
-    _c_primary: &C1,
-    _z0_primary: &[E1::Scalar],
+    pp: &PublicParams<E1, E2, C1>,
+    c_primary: &C1,
+    z0_primary: &[E1::Scalar],
   ) -> Result<Self, NovaError> {
-    todo!()
+    if z0_primary.len() != pp.F_arity_primary {
+      return Err(NovaError::InvalidInitialInputLength);
+    }
+
+    let r1cs_primary = &pp.circuit_shape_primary.r1cs_shape;
+    let r1cs_cyclefold = &pp.circuit_shape_cyclefold.r1cs_shape;
+
+    let r_U_cyclefold = RelaxedR1CSInstance::default(&pp.ck_cyclefold, r1cs_cyclefold);
+    let r_W_cyclefold = RelaxedR1CSWitness::default(r1cs_cyclefold);
+
+    let mut cs_primary = SatisfyingAssignment::<E1>::new();
+    let inputs_primary: AugmentedCircuitInputs<E2, E1> = AugmentedCircuitInputs::new(
+      scalar_as_base::<E1>(pp.digest()),
+      <E2 as Engine>::Base::from(0u64),
+      z0_primary.to_vec(),
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+    );
+
+    let circuit_primary = AugmentedCircuit::new(
+      &pp.augmented_circuit_params,
+      pp.ro_consts_circuit_primary.clone(),
+      Some(inputs_primary),
+      c_primary,
+    );
+
+    let zi_primary = circuit_primary.synthesize(&mut cs_primary)?;
+    let (l_u_primary, l_w_primary) =
+      cs_primary.r1cs_instance_and_witness(r1cs_primary, &pp.ck_primary)?;
+
+    let r_U_primary =
+      RelaxedR1CSInstance::from_r1cs_instance(&pp.ck_primary, r1cs_primary, l_u_primary);
+    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary);
+
+    let zi_primary = zi_primary
+      .iter()
+      .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
+      .collect::<Result<Vec<_>, _>>()?;
+
+    let buffer_primary = ResourceBuffer {
+      l_w: None,
+      l_u: None,
+      ABC_Z_1: R1CSResult::default(r1cs_primary.num_cons),
+      ABC_Z_2: R1CSResult::default(r1cs_primary.num_cons),
+      T: r1cs::default_T::<E1>(r1cs_primary.num_cons),
+    };
+
+    let buffer_cyclefold = ResourceBuffer {
+      l_w: None,
+      l_u: None,
+      ABC_Z_1: R1CSResult::default(r1cs_cyclefold.num_cons),
+      ABC_Z_2: R1CSResult::default(r1cs_cyclefold.num_cons),
+      T: r1cs::default_T::<E2>(r1cs_cyclefold.num_cons),
+    };
+
+    Ok(Self {
+      z0_primary: z0_primary.to_vec(),
+      r_W_primary,
+      r_U_primary,
+      l_w_primary,
+      l_u_primary,
+      r_W_cyclefold,
+      r_U_cyclefold,
+      buffer_primary,
+      buffer_cyclefold,
+      i: 1,
+      zi_primary,
+      _p: PhantomData,
+    })
   }
 
   /// TODO: docs
@@ -362,11 +440,92 @@ where
   /// TODO: docs
   pub fn verify(
     &self,
-    _pp: &PublicParams<E1, E2, C1>,
-    _num_steps: usize,
-    _z0_primary: &[E1::Scalar],
+    pp: &PublicParams<E1, E2, C1>,
+    num_steps: usize,
+    z0_primary: &[E1::Scalar],
   ) -> Result<Vec<E1::Scalar>, NovaError> {
-    todo!()
+    // number of steps cannot be zero
+    let is_num_steps_zero = num_steps == 0;
+
+    // check if the provided proof has executed num_steps
+    let is_num_steps_not_match = self.i != num_steps;
+
+    // check if the initial inputs match
+    let is_inputs_not_match = self.z0_primary != z0_primary;
+
+    // check if the (relaxed) R1CS instances have two public outputs
+    let is_instance_has_two_outpus = self.r_U_primary.X.len() != 2;
+
+    if is_num_steps_zero
+      || is_num_steps_not_match
+      || is_inputs_not_match
+      || is_instance_has_two_outpus
+    {
+      return Err(NovaError::ProofVerifyError);
+    }
+
+    let (hash_primary, hash_cyclefold) = {
+      let mut hasher = <E1 as Engine>::RO::new(
+        pp.ro_consts_primary.clone(),
+        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
+      );
+      hasher.absorb(pp.digest());
+      hasher.absorb(E1::Scalar::from(num_steps as u64));
+      for e in z0_primary {
+        hasher.absorb(*e);
+      }
+      for e in &self.zi_primary {
+        hasher.absorb(*e);
+      }
+      self.r_U_primary.absorb_in_ro(&mut hasher);
+      let hash_primary = hasher.squeeze(NUM_HASH_BITS);
+
+      let mut hasher =
+        <E1 as Engine>::RO::new(pp.ro_consts_cyclefold.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+      hasher.absorb(pp.digest());
+      self.r_U_cyclefold.absorb_in_ro(&mut hasher);
+      let hash_cyclefold = hasher.squeeze(NUM_HASH_BITS);
+
+      (hash_primary, hash_cyclefold)
+    };
+
+    if hash_primary != self.l_u_primary.X[0] || hash_cyclefold != self.l_u_primary.X[1] {
+      return Err(NovaError::ProofVerifyError);
+    }
+
+    let (res_r_primary, (res_l_primary, res_r_cyclefold)) = rayon::join(
+      || {
+        pp.circuit_shape_primary.r1cs_shape.is_sat_relaxed(
+          &pp.ck_primary,
+          &self.r_U_primary,
+          &self.r_W_primary,
+        )
+      },
+      || {
+        rayon::join(
+          || {
+            pp.circuit_shape_primary.r1cs_shape.is_sat(
+              &pp.ck_primary,
+              &self.l_u_primary,
+              &self.l_w_primary,
+            )
+          },
+          || {
+            pp.circuit_shape_cyclefold.r1cs_shape.is_sat_relaxed(
+              &pp.ck_cyclefold,
+              &self.r_U_cyclefold,
+              &self.r_W_cyclefold,
+            )
+          },
+        )
+      },
+    );
+
+    res_r_primary?;
+    res_l_primary?;
+    res_r_cyclefold?;
+
+    Ok(self.zi_primary.clone())
   }
 }
 
