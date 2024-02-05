@@ -7,7 +7,7 @@ pub mod targets;
 use anyhow::anyhow;
 use arecibo::{
   supernova::{NonUniformCircuit, StepCircuit, TrivialTestCircuit},
-  traits::{CurveCycleEquipped, Engine, SecEng},
+  traits::{CurveCycleEquipped, Engine, Dual},
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
@@ -94,7 +94,7 @@ where
   E1: CurveCycleEquipped,
 {
   type C1 = NonTrivialTestCircuit<E1::Scalar>;
-  type C2 = TrivialTestCircuit<<SecEng<E1> as Engine>::Scalar>;
+  type C2 = TrivialTestCircuit<<Dual<E1> as Engine>::Scalar>;
 
   fn num_circuits(&self) -> usize {
     self.num_circuits

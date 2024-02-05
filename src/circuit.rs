@@ -375,7 +375,7 @@ mod tests {
       poseidon::PoseidonConstantsCircuit, Bn256Engine, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
-    traits::{circuit::TrivialCircuit, snark::default_ck_hint, CurveCycleEquipped, SecEng},
+    traits::{circuit::TrivialCircuit, snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
   use expect_test::{expect, Expect};
 
@@ -383,7 +383,7 @@ mod tests {
   fn test_recursive_circuit_with<E1>(
     primary_params: &NovaAugmentedCircuitParams,
     secondary_params: &NovaAugmentedCircuitParams,
-    ro_consts1: ROConstantsCircuit<SecEng<E1>>,
+    ro_consts1: ROConstantsCircuit<Dual<E1>>,
     ro_consts2: ROConstantsCircuit<E1>,
     expected_num_constraints_primary: &Expect,
     expected_num_constraints_secondary: &Expect,
@@ -394,8 +394,8 @@ mod tests {
     // Initialize the shape and ck for the primary
     let circuit1: NovaAugmentedCircuit<
       '_,
-      SecEng<E1>,
-      TrivialCircuit<<SecEng<E1> as Engine>::Base>,
+      Dual<E1>,
+      TrivialCircuit<<Dual<E1> as Engine>::Base>,
     > = NovaAugmentedCircuit::new(primary_params, None, &tc1, ro_consts1.clone());
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
@@ -407,16 +407,16 @@ mod tests {
     // Initialize the shape and ck for the secondary
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
       NovaAugmentedCircuit::new(secondary_params, None, &tc2, ro_consts2.clone());
-    let mut cs: TestShapeCS<SecEng<E1>> = TestShapeCS::new();
+    let mut cs: TestShapeCS<Dual<E1>> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
     let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
     expected_num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
     // Execute the base case for the primary
-    let zero1 = <<SecEng<E1> as Engine>::Base as Field>::ZERO;
+    let zero1 = <<Dual<E1> as Engine>::Base as Field>::ZERO;
     let mut cs1 = SatisfyingAssignment::<E1>::new();
-    let inputs1: NovaAugmentedCircuitInputs<SecEng<E1>> = NovaAugmentedCircuitInputs::new(
+    let inputs1: NovaAugmentedCircuitInputs<Dual<E1>> = NovaAugmentedCircuitInputs::new(
       scalar_as_base::<E1>(zero1), // pass zero for testing
       zero1,
       vec![zero1],
@@ -427,8 +427,8 @@ mod tests {
     );
     let circuit1: NovaAugmentedCircuit<
       '_,
-      SecEng<E1>,
-      TrivialCircuit<<SecEng<E1> as Engine>::Base>,
+      Dual<E1>,
+      TrivialCircuit<<Dual<E1> as Engine>::Base>,
     > = NovaAugmentedCircuit::new(primary_params, Some(inputs1), &tc1, ro_consts1);
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1).unwrap();
@@ -437,9 +437,9 @@ mod tests {
 
     // Execute the base case for the secondary
     let zero2 = <<E1 as Engine>::Base as Field>::ZERO;
-    let mut cs2 = SatisfyingAssignment::<SecEng<E1>>::new();
+    let mut cs2 = SatisfyingAssignment::<Dual<E1>>::new();
     let inputs2: NovaAugmentedCircuitInputs<E1> = NovaAugmentedCircuitInputs::new(
-      scalar_as_base::<SecEng<E1>>(zero2), // pass zero for testing
+      scalar_as_base::<Dual<E1>>(zero2), // pass zero for testing
       zero2,
       vec![zero2],
       None,

@@ -6,7 +6,7 @@ use crate::{
   r1cs::{R1CSInstance, RelaxedR1CSWitness},
   traits::{
     snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-    AbsorbInROTrait, CurveCycleEquipped, Engine, ROTrait, SecEng,
+    AbsorbInROTrait, CurveCycleEquipped, Engine, ROTrait, Dual,
   },
 };
 use crate::{errors::NovaError, scalar_as_base, RelaxedR1CSInstance, NIFS};
@@ -20,7 +20,7 @@ pub struct ProverKey<E1, S1, S2>
 where
   E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<SecEng<E1>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   pk_primary: S1::ProverKey,
   pk_secondary: S2::ProverKey,
@@ -32,7 +32,7 @@ pub struct VerifierKey<E1, S1, S2>
 where
   E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<SecEng<E1>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
@@ -45,28 +45,28 @@ pub struct CompressedSNARK<E1, S1, S2>
 where
   E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<SecEng<E1>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   r_U_primary: Vec<RelaxedR1CSInstance<E1>>,
   r_W_snark_primary: S1,
 
-  r_U_secondary: RelaxedR1CSInstance<SecEng<E1>>,
-  l_u_secondary: R1CSInstance<SecEng<E1>>,
-  nifs_secondary: NIFS<SecEng<E1>>,
+  r_U_secondary: RelaxedR1CSInstance<Dual<E1>>,
+  l_u_secondary: R1CSInstance<Dual<E1>>,
+  nifs_secondary: NIFS<Dual<E1>>,
   f_W_snark_secondary: S2,
 
   num_steps: usize,
   program_counter: E1::Scalar,
 
   zn_primary: Vec<E1::Scalar>,
-  zn_secondary: Vec<<SecEng<E1> as Engine>::Scalar>,
+  zn_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
 }
 
 impl<E1, S1, S2> CompressedSNARK<E1, S1, S2>
 where
   E1: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<SecEng<E1>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   /// Creates prover and verifier keys for `CompressedSNARK`
   pub fn setup(
@@ -180,8 +180,8 @@ where
     pp: &PublicParams<E1>,
     vk: &VerifierKey<E1, S1, S2>,
     z0_primary: &[E1::Scalar],
-    z0_secondary: &[<SecEng<E1> as Engine>::Scalar],
-  ) -> Result<(Vec<E1::Scalar>, Vec<<SecEng<E1> as Engine>::Scalar>), SuperNovaError> {
+    z0_secondary: &[<Dual<E1> as Engine>::Scalar],
+  ) -> Result<(Vec<E1::Scalar>, Vec<<Dual<E1> as Engine>::Scalar>), SuperNovaError> {
     let last_circuit_idx = field_as_usize(self.program_counter);
 
     let num_field_primary_ro = 3 // params_next, i_new, program_counter_new
@@ -199,7 +199,7 @@ where
     // witnesses provided by the prover
     let (hash_primary, hash_secondary) = {
       let mut hasher =
-        <SecEng<E1> as Engine>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
+        <Dual<E1> as Engine>::RO::new(pp.ro_consts_secondary.clone(), num_field_primary_ro);
 
       hasher.absorb(pp.digest());
       hasher.absorb(E1::Scalar::from(self.num_steps as u64));
@@ -219,7 +219,7 @@ where
         <E1 as Engine>::RO::new(pp.ro_consts_primary.clone(), num_field_secondary_ro);
 
       hasher2.absorb(scalar_as_base::<E1>(pp.digest()));
-      hasher2.absorb(<SecEng<E1> as Engine>::Scalar::from(self.num_steps as u64));
+      hasher2.absorb(<Dual<E1> as Engine>::Scalar::from(self.num_steps as u64));
 
       for e in z0_secondary {
         hasher2.absorb(*e);
@@ -244,7 +244,7 @@ where
       return Err(NovaError::ProofVerifyError.into());
     }
 
-    if hash_secondary != scalar_as_base::<SecEng<E1>>(self.l_u_secondary.X[1]) {
+    if hash_secondary != scalar_as_base::<Dual<E1>>(self.l_u_secondary.X[1]) {
       return Err(NovaError::ProofVerifyError.into());
     }
 
@@ -439,7 +439,7 @@ mod test {
 
   impl<E1: CurveCycleEquipped> NonUniformCircuit<E1> for TestCircuit<E1> {
     type C1 = Self;
-    type C2 = TrivialSecondaryCircuit<<SecEng<E1> as Engine>::Scalar>;
+    type C2 = TrivialSecondaryCircuit<<Dual<E1> as Engine>::Scalar>;
 
     fn num_circuits(&self) -> usize {
       2
@@ -462,9 +462,9 @@ mod test {
   where
     E1: CurveCycleEquipped,
     S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-    S2: RelaxedR1CSSNARKTrait<SecEng<E1>>,
+    S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
     <E1::Scalar as PrimeField>::Repr: Abomonation,
-    <<SecEng<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
   {
     const NUM_STEPS: usize = 6;
 
@@ -474,7 +474,7 @@ mod test {
     let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
 
     let z0_primary = vec![E1::Scalar::from(17u64)];
-    let z0_secondary = vec![<SecEng<E1> as Engine>::Scalar::ZERO];
+    let z0_secondary = vec![<Dual<E1> as Engine>::Scalar::ZERO];
 
     let mut recursive_snark = RecursiveSNARK::new(
       &pp,
@@ -622,7 +622,7 @@ mod test {
 
   impl<E1: CurveCycleEquipped> NonUniformCircuit<E1> for BigTestCircuit<E1> {
     type C1 = Self;
-    type C2 = TrivialSecondaryCircuit<<SecEng<E1> as Engine>::Scalar>;
+    type C2 = TrivialSecondaryCircuit<<Dual<E1> as Engine>::Scalar>;
 
     fn num_circuits(&self) -> usize {
       2
@@ -645,9 +645,9 @@ mod test {
   where
     E1: CurveCycleEquipped,
     S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-    S2: RelaxedR1CSSNARKTrait<SecEng<E1>>,
+    S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
     <E1::Scalar as PrimeField>::Repr: Abomonation,
-    <<SecEng<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
   {
     const NUM_STEPS: usize = 4;
 
@@ -657,7 +657,7 @@ mod test {
     let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
 
     let z0_primary = vec![E1::Scalar::from(17u64)];
-    let z0_secondary = vec![<SecEng<E1> as Engine>::Scalar::ZERO];
+    let z0_secondary = vec![<Dual<E1> as Engine>::Scalar::ZERO];
 
     let mut recursive_snark = RecursiveSNARK::new(
       &pp,

@@ -225,7 +225,7 @@ where
 fn print_constraints_name_on_error_index<
   E1,
   C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<<SecEng<E1> as Engine>::Scalar>,
+  C2: StepCircuit<<Dual<E1> as Engine>::Scalar>,
 >(
   err: &SuperNovaError,
   pp: &PublicParams<E1>,
@@ -237,7 +237,7 @@ fn print_constraints_name_on_error_index<
 {
   match err {
     SuperNovaError::UnSatIndex(msg, index) if *msg == "r_primary" => {
-      let circuit_primary: SuperNovaAugmentedCircuit<'_, SecEng<E1>, C1> =
+      let circuit_primary: SuperNovaAugmentedCircuit<'_, Dual<E1>, C1> =
         SuperNovaAugmentedCircuit::new(
           &pp.augmented_circuit_params_primary,
           None,
@@ -259,7 +259,7 @@ fn print_constraints_name_on_error_index<
         pp.ro_consts_circuit_secondary.clone(),
         num_augmented_circuits,
       );
-      let mut cs: TestShapeCS<SecEng<E1>> = TestShapeCS::new();
+      let mut cs: TestShapeCS<Dual<E1>> = TestShapeCS::new();
       let _ = circuit_secondary.synthesize(&mut cs);
       cs.constraints
         .get(*index)
@@ -316,7 +316,7 @@ where
   E1: CurveCycleEquipped,
 {
   type C1 = TestROMCircuit<E1::Scalar>;
-  type C2 = TrivialSecondaryCircuit<<SecEng<E1> as Engine>::Scalar>;
+  type C2 = TrivialSecondaryCircuit<<Dual<E1> as Engine>::Scalar>;
 
   fn num_circuits(&self) -> usize {
     2
@@ -384,7 +384,7 @@ where
       .iter()
       .map(|opcode| <E1 as Engine>::Scalar::from(*opcode as u64)),
   );
-  let z0_secondary = vec![<SecEng<E1> as Engine>::Scalar::ONE];
+  let z0_secondary = vec![<Dual<E1> as Engine>::Scalar::ONE];
 
   let mut recursive_snark_option: Option<RecursiveSNARK<E1>> = None;
 
@@ -452,7 +452,7 @@ fn test_trivial_nivc() {
 fn test_recursive_circuit_with<E1>(
   primary_params: &SuperNovaAugmentedCircuitParams,
   secondary_params: &SuperNovaAugmentedCircuitParams,
-  ro_consts1: ROConstantsCircuit<SecEng<E1>>,
+  ro_consts1: ROConstantsCircuit<Dual<E1>>,
   ro_consts2: ROConstantsCircuit<E1>,
   num_constraints_primary: &Expect,
   num_constraints_secondary: &Expect,
@@ -464,8 +464,8 @@ fn test_recursive_circuit_with<E1>(
   let arity1 = step_circuit1.arity();
   let circuit1: SuperNovaAugmentedCircuit<
     '_,
-    SecEng<E1>,
-    TrivialTestCircuit<<SecEng<E1> as Engine>::Base>,
+    Dual<E1>,
+    TrivialTestCircuit<<Dual<E1> as Engine>::Base>,
   > = SuperNovaAugmentedCircuit::new(primary_params, None, &step_circuit1, ro_consts1.clone(), 2);
   let mut cs: ShapeCS<E1> = ShapeCS::new();
   if let Err(e) = circuit1.synthesize(&mut cs) {
@@ -485,7 +485,7 @@ fn test_recursive_circuit_with<E1>(
       ro_consts2.clone(),
       2,
     );
-  let mut cs: ShapeCS<SecEng<E1>> = ShapeCS::new();
+  let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
   if let Err(e) = circuit2.synthesize(&mut cs) {
     panic!("{}", e)
   }
@@ -493,10 +493,10 @@ fn test_recursive_circuit_with<E1>(
   num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
   // Execute the base case for the primary
-  let zero1 = <<SecEng<E1> as Engine>::Base as Field>::ZERO;
+  let zero1 = <<Dual<E1> as Engine>::Base as Field>::ZERO;
   let z0 = vec![zero1; arity1];
   let mut cs1 = SatisfyingAssignment::<E1>::new();
-  let inputs1: SuperNovaAugmentedCircuitInputs<'_, SecEng<E1>> =
+  let inputs1: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>> =
     SuperNovaAugmentedCircuitInputs::new(
       scalar_as_base::<E1>(zero1), // pass zero for testing
       zero1,
@@ -511,8 +511,8 @@ fn test_recursive_circuit_with<E1>(
   let step_circuit = TrivialTestCircuit::default();
   let circuit1: SuperNovaAugmentedCircuit<
     '_,
-    SecEng<E1>,
-    TrivialTestCircuit<<SecEng<E1> as Engine>::Base>,
+    Dual<E1>,
+    TrivialTestCircuit<<Dual<E1> as Engine>::Base>,
   > = SuperNovaAugmentedCircuit::new(primary_params, Some(inputs1), &step_circuit, ro_consts1, 2);
   if let Err(e) = circuit1.synthesize(&mut cs1) {
     panic!("{}", e)
@@ -524,9 +524,9 @@ fn test_recursive_circuit_with<E1>(
   // Execute the base case for the secondary
   let zero2 = <<E1 as Engine>::Base as Field>::ZERO;
   let z0 = vec![zero2; arity2];
-  let mut cs2 = SatisfyingAssignment::<SecEng<E1>>::new();
+  let mut cs2 = SatisfyingAssignment::<Dual<E1>>::new();
   let inputs2: SuperNovaAugmentedCircuitInputs<'_, E1> = SuperNovaAugmentedCircuitInputs::new(
-    scalar_as_base::<SecEng<E1>>(zero2), // pass zero for testing
+    scalar_as_base::<Dual<E1>>(zero2), // pass zero for testing
     zero2,
     &z0,
     None,
@@ -801,7 +801,7 @@ where
   E1: CurveCycleEquipped,
 {
   type C1 = Self;
-  type C2 = TrivialSecondaryCircuit<<SecEng<E1> as Engine>::Scalar>;
+  type C2 = TrivialSecondaryCircuit<<Dual<E1> as Engine>::Scalar>;
 
   fn num_circuits(&self) -> usize {
     2
@@ -825,7 +825,7 @@ where
   E1: CurveCycleEquipped,
   // this is due to the reliance on Abomonation
   <<E1 as Engine>::Scalar as PrimeField>::Repr: Abomonation,
-  <<SecEng<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+  <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
 {
   let circuit_secondary = TrivialSecondaryCircuit::default();
 
@@ -834,7 +834,7 @@ where
   // produce non-deterministic hint
   let (z0_primary, roots) = RootCheckingCircuit::new(num_steps);
   assert_eq!(num_steps, roots.len());
-  let z0_secondary = vec![<SecEng<E1> as Engine>::Scalar::ZERO];
+  let z0_secondary = vec![<Dual<E1> as Engine>::Scalar::ZERO];
 
   // produce public parameters
   let pp = PublicParams::<E1>::setup(&roots[0], &*default_ck_hint(), &*default_ck_hint());

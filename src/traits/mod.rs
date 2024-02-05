@@ -62,7 +62,7 @@ pub trait CurveCycleEquipped: Engine {
 }
 
 /// Convenience projection to the Secondary Engine of a CurveCycleEquipped
-pub type SecEng<E> = <E as CurveCycleEquipped>::Secondary;
+pub type Dual<E> = <E as CurveCycleEquipped>::Secondary;
 
 /// A helper trait to absorb different objects in RO
 pub trait AbsorbInROTrait<E: Engine> {

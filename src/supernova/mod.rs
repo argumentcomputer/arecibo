@@ -14,7 +14,7 @@ use crate::{
   scalar_as_base,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
-    AbsorbInROTrait, CurveCycleEquipped, Engine, ROConstants, ROConstantsCircuit, ROTrait, SecEng,
+    AbsorbInROTrait, CurveCycleEquipped, Engine, ROConstants, ROConstantsCircuit, ROTrait, Dual,
   },
   Commitment, CommitmentKey, R1CSWithArity,
 };
@@ -89,14 +89,14 @@ where
   circuit_shapes: Vec<R1CSWithArity<E1>>,
 
   ro_consts_primary: ROConstants<E1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<SecEng<E1>>,
+  ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>>,
   ck_primary: Arc<CommitmentKey<E1>>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants<SecEng<E1>>,
+  ro_consts_secondary: ROConstants<Dual<E1>>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: Arc<CommitmentKey<SecEng<E1>>>,
-  circuit_shape_secondary: R1CSWithArity<SecEng<E1>>,
+  ck_secondary: Arc<CommitmentKey<Dual<E1>>>,
+  circuit_shape_secondary: R1CSWithArity<Dual<E1>>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   /// Digest constructed from this `PublicParams`' parameters
@@ -114,14 +114,14 @@ where
   E1: CurveCycleEquipped,
 {
   ro_consts_primary: ROConstants<E1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<SecEng<E1>>,
+  ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>>,
   ck_primary: Arc<CommitmentKey<E1>>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants<SecEng<E1>>,
+  ro_consts_secondary: ROConstants<Dual<E1>>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: Arc<CommitmentKey<SecEng<E1>>>,
-  circuit_shape_secondary: R1CSWithArity<SecEng<E1>>,
+  ck_secondary: Arc<CommitmentKey<Dual<E1>>>,
+  circuit_shape_secondary: R1CSWithArity<Dual<E1>>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   digest: E1::Scalar,
@@ -134,21 +134,21 @@ where
 where
   E1: CurveCycleEquipped,
   <E1::Scalar as PrimeField>::Repr: Abomonation,
-  <<SecEng<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+  <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
 )]
 pub struct FlatAuxParams<E1>
 where
   E1: CurveCycleEquipped,
 {
   ro_consts_primary: ROConstants<E1>,
-  ro_consts_circuit_primary: ROConstantsCircuit<SecEng<E1>>,
+  ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>>,
   ck_primary: CommitmentKey<E1>, // This is shared between all circuit params
   augmented_circuit_params_primary: SuperNovaAugmentedCircuitParams,
 
-  ro_consts_secondary: ROConstants<SecEng<E1>>,
+  ro_consts_secondary: ROConstants<Dual<E1>>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
-  ck_secondary: CommitmentKey<SecEng<E1>>,
-  circuit_shape_secondary: R1CSWithArity<SecEng<E1>>,
+  ck_secondary: CommitmentKey<Dual<E1>>,
+  circuit_shape_secondary: R1CSWithArity<Dual<E1>>,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
   #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
@@ -241,7 +241,7 @@ where
   pub fn setup<NC: NonUniformCircuit<E1>>(
     non_uniform_circuit: &NC,
     ck_hint1: &CommitmentKeyHint<E1>,
-    ck_hint2: &CommitmentKeyHint<SecEng<E1>>,
+    ck_hint2: &CommitmentKeyHint<Dual<E1>>,
   ) -> Self {
     let num_circuits = non_uniform_circuit.num_circuits();
 
@@ -249,15 +249,15 @@ where
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
     // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
-    let ro_consts_circuit_primary: ROConstantsCircuit<SecEng<E1>> =
-      ROConstantsCircuit::<SecEng<E1>>::default();
+    let ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>> =
+      ROConstantsCircuit::<Dual<E1>>::default();
 
     let circuit_shapes = (0..num_circuits)
       .map(|i| {
         let c_primary = non_uniform_circuit.primary_circuit(i);
         let F_arity = c_primary.arity();
         // Initialize ck for the primary
-        let circuit_primary: SuperNovaAugmentedCircuit<'_, SecEng<E1>, NC::C1> =
+        let circuit_primary: SuperNovaAugmentedCircuit<'_, Dual<E1>, NC::C1> =
           SuperNovaAugmentedCircuit::new(
             &augmented_circuit_params_primary,
             None,
@@ -281,7 +281,7 @@ where
 
     let augmented_circuit_params_secondary =
       SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
-    let ro_consts_secondary = ROConstants::<SecEng<E1>>::default();
+    let ro_consts_secondary = ROConstants::<Dual<E1>>::default();
     let c_secondary = non_uniform_circuit.secondary_circuit();
     let F_arity_secondary = c_secondary.arity();
     let ro_consts_circuit_secondary: ROConstantsCircuit<E1> = ROConstantsCircuit::<E1>::default();
@@ -294,7 +294,7 @@ where
         ro_consts_circuit_secondary.clone(),
         num_circuits,
       );
-    let mut cs: ShapeCS<SecEng<E1>> = ShapeCS::new();
+    let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
     circuit_secondary
       .synthesize(&mut cs)
       .expect("circuit synthesis failed");
@@ -487,7 +487,7 @@ where
   /// Buffer for memory needed by the primary fold-step
   buffer_primary: ResourceBuffer<E1>,
   /// Buffer for memory needed by the secondary fold-step
-  buffer_secondary: ResourceBuffer<SecEng<E1>>,
+  buffer_secondary: ResourceBuffer<Dual<E1>>,
 
   // Relaxed instances for the primary circuits
   // Entries are `None` if the circuit has not been executed yet
@@ -495,14 +495,14 @@ where
   r_U_primary: Vec<Option<RelaxedR1CSInstance<E1>>>,
 
   // Inputs and outputs of the secondary circuit
-  z0_secondary: Vec<<SecEng<E1> as Engine>::Scalar>,
-  zi_secondary: Vec<<SecEng<E1> as Engine>::Scalar>,
+  z0_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
+  zi_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
   // Relaxed instance for the secondary circuit
-  r_W_secondary: RelaxedR1CSWitness<SecEng<E1>>,
-  r_U_secondary: RelaxedR1CSInstance<SecEng<E1>>,
+  r_W_secondary: RelaxedR1CSWitness<Dual<E1>>,
+  r_U_secondary: RelaxedR1CSInstance<Dual<E1>>,
   // Proof for the secondary circuit to be accumulated into r_secondary in the next iteration
-  l_w_secondary: R1CSWitness<SecEng<E1>>,
-  l_u_secondary: R1CSInstance<SecEng<E1>>,
+  l_w_secondary: R1CSWitness<Dual<E1>>,
+  l_u_secondary: R1CSInstance<Dual<E1>>,
 }
 
 impl<E1> RecursiveSNARK<E1>
@@ -517,7 +517,7 @@ where
     c_primary: &C0::C1,
     c_secondary: &C0::C2,
     z0_primary: &[E1::Scalar],
-    z0_secondary: &[<SecEng<E1> as Engine>::Scalar],
+    z0_secondary: &[<Dual<E1> as Engine>::Scalar],
   ) -> Result<Self, SuperNovaError> {
     let num_augmented_circuits = non_uniform_circuit.num_circuits();
     let circuit_index = non_uniform_circuit.initial_circuit_index();
@@ -544,7 +544,7 @@ where
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
     let program_counter = E1::Scalar::from(circuit_index as u64);
-    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, SecEng<E1>> =
+    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<E1>(pp.digest()),
         E1::Scalar::ZERO,
@@ -557,7 +557,7 @@ where
         E1::Scalar::ZERO,      // u_index is always zero for the primary circuit
       );
 
-    let circuit_primary: SuperNovaAugmentedCircuit<'_, SecEng<E1>, C0::C1> =
+    let circuit_primary: SuperNovaAugmentedCircuit<'_, Dual<E1>, C0::C1> =
       SuperNovaAugmentedCircuit::new(
         &pp.augmented_circuit_params_primary,
         Some(inputs_primary),
@@ -584,12 +584,12 @@ where
       })?;
 
     // base case for the secondary
-    let mut cs_secondary = SatisfyingAssignment::<SecEng<E1>>::new();
-    let u_primary_index = <SecEng<E1> as Engine>::Scalar::from(circuit_index as u64);
+    let mut cs_secondary = SatisfyingAssignment::<Dual<E1>>::new();
+    let u_primary_index = <Dual<E1> as Engine>::Scalar::from(circuit_index as u64);
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, E1> =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
-        <SecEng<E1> as Engine>::Scalar::ZERO,
+        <Dual<E1> as Engine>::Scalar::ZERO,
         z0_secondary,
         None,             // zi = None for basecase
         None,             // U = Empty list of accumulators for the primary circuits
@@ -634,7 +634,7 @@ where
     let l_u_secondary = u_secondary;
 
     // Initialize relaxed instance/witness pair for the secondary circuit proofs
-    let r_W_secondary = RelaxedR1CSWitness::<SecEng<E1>>::default(r1cs_secondary);
+    let r_W_secondary = RelaxedR1CSWitness::<Dual<E1>>::default(r1cs_secondary);
     let r_U_secondary = RelaxedR1CSInstance::default(&*pp.ck_secondary, r1cs_secondary);
 
     // Outputs of the two circuits and next program counter thus far.
@@ -655,7 +655,7 @@ where
         v.get_value()
           .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
       })
-      .collect::<Result<Vec<<SecEng<E1> as Engine>::Scalar>, SuperNovaError>>()?;
+      .collect::<Result<Vec<<Dual<E1> as Engine>::Scalar>, SuperNovaError>>()?;
 
     // handle the base case by initialize U_next in next round
     let r_W_primary_initial_list = (0..num_augmented_circuits)
@@ -687,7 +687,7 @@ where
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_secondary.num_cons),
       ABC_Z_2: R1CSResult::default(r1cs_secondary.num_cons),
-      T: r1cs::default_T::<SecEng<E1>>(r1cs_secondary.num_cons),
+      T: r1cs::default_T::<Dual<E1>>(r1cs_secondary.num_cons),
     };
 
     Ok(Self {
@@ -719,7 +719,7 @@ where
   #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
   pub fn prove_step<
     C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<<SecEng<E1> as Engine>::Scalar>,
+    C2: StepCircuit<<Dual<E1> as Engine>::Scalar>,
   >(
     &mut self,
     pp: &PublicParams<E1>,
@@ -761,9 +761,9 @@ where
       pp[circuit_index].r1cs_shape.num_io + 1,
       pp[circuit_index].r1cs_shape.num_vars,
     );
-    let T = Commitment::<SecEng<E1>>::decompress(&nifs_secondary.comm_T)
+    let T = Commitment::<Dual<E1>>::decompress(&nifs_secondary.comm_T)
       .map_err(SuperNovaError::NovaError)?;
-    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, SecEng<E1>> =
+    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<E1>(self.pp_digest),
         E1::Scalar::from(self.i as u64),
@@ -776,7 +776,7 @@ where
         E1::Scalar::ZERO,
       );
 
-    let circuit_primary: SuperNovaAugmentedCircuit<'_, SecEng<E1>, C1> =
+    let circuit_primary: SuperNovaAugmentedCircuit<'_, Dual<E1>, C1> =
       SuperNovaAugmentedCircuit::new(
         &pp.augmented_circuit_params_primary,
         Some(inputs_primary),
@@ -831,7 +831,7 @@ where
     )
     .map_err(SuperNovaError::NovaError)?;
 
-    let mut cs_secondary = SatisfyingAssignment::<SecEng<E1>>::with_capacity(
+    let mut cs_secondary = SatisfyingAssignment::<Dual<E1>>::with_capacity(
       pp.circuit_shape_secondary.r1cs_shape.num_io + 1,
       pp.circuit_shape_secondary.r1cs_shape.num_vars,
     );
@@ -840,14 +840,14 @@ where
     let inputs_secondary: SuperNovaAugmentedCircuitInputs<'_, E1> =
       SuperNovaAugmentedCircuitInputs::new(
         self.pp_digest,
-        <SecEng<E1> as Engine>::Scalar::from(self.i as u64),
+        <Dual<E1> as Engine>::Scalar::from(self.i as u64),
         &self.z0_secondary,
         Some(&self.zi_secondary),
         Some(&r_U_primary_i),
         Some(&l_u_primary),
         Some(&binding),
         None, // pc is always None for secondary circuit
-        <SecEng<E1> as Engine>::Scalar::from(circuit_index as u64),
+        <Dual<E1> as Engine>::Scalar::from(circuit_index as u64),
       );
 
     let circuit_secondary: SuperNovaAugmentedCircuit<'_, E1, C2> = SuperNovaAugmentedCircuit::new(
@@ -887,7 +887,7 @@ where
         v.get_value()
           .ok_or(NovaError::from(SynthesisError::AssignmentMissing).into())
       })
-      .collect::<Result<Vec<<SecEng<E1> as Engine>::Scalar>, SuperNovaError>>()?;
+      .collect::<Result<Vec<<Dual<E1> as Engine>::Scalar>, SuperNovaError>>()?;
 
     if zi_primary.len() != pp[circuit_index].F_arity
       || zi_secondary.len() != pp.circuit_shape_secondary.F_arity
@@ -912,8 +912,8 @@ where
     &self,
     pp: &PublicParams<E1>,
     z0_primary: &[E1::Scalar],
-    z0_secondary: &[<SecEng<E1> as Engine>::Scalar],
-  ) -> Result<(Vec<E1::Scalar>, Vec<<SecEng<E1> as Engine>::Scalar>), SuperNovaError> {
+    z0_secondary: &[<Dual<E1> as Engine>::Scalar],
+  ) -> Result<(Vec<E1::Scalar>, Vec<<Dual<E1> as Engine>::Scalar>), SuperNovaError> {
     // number of steps cannot be zero
     if self.i == 0 {
       debug!("must verify on valid RecursiveSNARK where i > 0");
@@ -993,7 +993,7 @@ where
         true, // is_primary
       );
 
-      let mut hasher = <SecEng<E1> as Engine>::RO::new(pp.ro_consts_secondary.clone(), num_absorbs);
+      let mut hasher = <Dual<E1> as Engine>::RO::new(pp.ro_consts_secondary.clone(), num_absorbs);
       hasher.absorb(self.pp_digest);
       hasher.absorb(E1::Scalar::from(self.i as u64));
       hasher.absorb(self.program_counter);
@@ -1018,7 +1018,7 @@ where
       );
       let mut hasher = <E1 as Engine>::RO::new(pp.ro_consts_primary.clone(), num_absorbs);
       hasher.absorb(scalar_as_base::<E1>(self.pp_digest));
-      hasher.absorb(<SecEng<E1> as Engine>::Scalar::from(self.i as u64));
+      hasher.absorb(<Dual<E1> as Engine>::Scalar::from(self.i as u64));
 
       for e in z0_secondary {
         hasher.absorb(*e);
@@ -1045,7 +1045,7 @@ where
       );
       return Err(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
-    if hash_secondary != scalar_as_base::<SecEng<E1>>(self.l_u_secondary.X[1]) {
+    if hash_secondary != scalar_as_base::<Dual<E1>>(self.l_u_secondary.X[1]) {
       debug!(
         "hash_secondary {:?} not equal l_u_secondary.X[1] {:?}",
         hash_secondary, self.l_u_secondary.X[1]
@@ -1115,7 +1115,7 @@ where
   /// The type of the step-circuits on the primary
   type C1: StepCircuit<E1::Scalar>;
   /// The type of the step-circuits on the secondary
-  type C2: StepCircuit<<SecEng<E1> as Engine>::Scalar>;
+  type C2: StepCircuit<<Dual<E1> as Engine>::Scalar>;
 
   /// Initial circuit index, defaults to zero.
   fn initial_circuit_index(&self) -> usize {
@@ -1157,10 +1157,10 @@ pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
     SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
 
   // ro_consts_circuit are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
-  let ro_consts_circuit = ROConstantsCircuit::<SecEng<E1>>::default();
+  let ro_consts_circuit = ROConstantsCircuit::<Dual<E1>>::default();
 
   // Initialize ck for the primary
-  let augmented_circuit: SuperNovaAugmentedCircuit<'_, SecEng<E1>, C> =
+  let augmented_circuit: SuperNovaAugmentedCircuit<'_, Dual<E1>, C> =
     SuperNovaAugmentedCircuit::new(
       &augmented_circuit_params,
       None,
