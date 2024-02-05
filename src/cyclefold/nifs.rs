@@ -16,7 +16,8 @@ use crate::{
   Commitment, CommitmentKey, CompressedCommitment,
 };
 
-fn absorb_commitment<E1, E2>(comm: &Commitment<E1>, ro: &mut E2::RO)
+/// TODO: Docs
+pub fn absorb_commitment<E1, E2>(comm: &Commitment<E1>, ro: &mut E2::RO)
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
