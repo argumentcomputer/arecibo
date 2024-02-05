@@ -26,8 +26,9 @@ use crate::{
   SimpleDigestible,
 };
 
-use super::nova_circuit::{
-  AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams, FoldingData,
+use super::{
+  nifs::absorb_commitment,
+  nova_circuit::{AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams, FoldingData},
 };
 
 use abomonation::Abomonation;
@@ -233,8 +234,8 @@ where
       cs_primary.r1cs_instance_and_witness(r1cs_primary, &pp.ck_primary)?;
 
     let r_U_primary =
-      RelaxedR1CSInstance::from_r1cs_instance(&pp.ck_primary, r1cs_primary, l_u_primary);
-    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary);
+      RelaxedR1CSInstance::from_r1cs_instance(&pp.ck_primary, r1cs_primary, l_u_primary.clone());
+    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary.clone());
 
     let zi_primary = zi_primary
       .iter()
@@ -465,7 +466,7 @@ where
     }
 
     let (hash_primary, hash_cyclefold) = {
-      let mut hasher = <E1 as Engine>::RO::new(
+      let mut hasher = <E2 as Engine>::RO::new(
         pp.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
       );
@@ -477,11 +478,11 @@ where
       for e in &self.zi_primary {
         hasher.absorb(*e);
       }
-      self.r_U_primary.absorb_in_ro(&mut hasher);
+      absorb_relaxed_r1cs::<E1, E2>(&self.r_U_primary, &mut hasher);
       let hash_primary = hasher.squeeze(NUM_HASH_BITS);
 
       let mut hasher =
-        <E1 as Engine>::RO::new(pp.ro_consts_cyclefold.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+        <E2 as Engine>::RO::new(pp.ro_consts_cyclefold.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
       hasher.absorb(pp.digest());
       self.r_U_cyclefold.absorb_in_ro(&mut hasher);
       let hash_cyclefold = hasher.squeeze(NUM_HASH_BITS);
@@ -489,7 +490,11 @@ where
       (hash_primary, hash_cyclefold)
     };
 
-    if hash_primary != self.l_u_primary.X[0] || hash_cyclefold != self.l_u_primary.X[1] {
+    // TODO: This seems like it might be a bad sign, I don't know if I should need to use
+    // `scalar_as_base` here
+    if scalar_as_base::<E2>(hash_primary) != self.l_u_primary.X[0]
+      || scalar_as_base::<E2>(hash_cyclefold) != self.l_u_primary.X[1]
+    {
       return Err(NovaError::ProofVerifyError);
     }
 
@@ -527,6 +532,19 @@ where
 
     Ok(self.zi_primary.clone())
   }
+}
+
+fn absorb_relaxed_r1cs<E1, E2>(U: &RelaxedR1CSInstance<E1>, ro: &mut E2::RO)
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+{
+  absorb_commitment::<E1, E2>(&U.comm_W, ro);
+  absorb_commitment::<E1, E2>(&U.comm_E, ro);
+  for e in &U.X {
+    ro.absorb(*e);
+  }
+  ro.absorb(U.u);
 }
 
 #[cfg(test)]
