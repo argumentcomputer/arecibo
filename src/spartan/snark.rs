@@ -23,33 +23,26 @@ use crate::{
   CommitmentKey,
 };
 
-use abomonation::Abomonation;
-use abomonation_derive::Abomonation;
 use ff::Field;
 use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
-
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// A type that represents the prover's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
+#[derive(Debug, Clone)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
-  #[abomonate_with(<E::Scalar as ff::PrimeField>::Repr)]
   vk_digest: E::Scalar, // digest of the verifier's key
 }
 
 /// A type that represents the verifier's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   vk_ee: EE::VerifierKey,
   S: R1CSShape<E>,
-  #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E::Scalar>,
 }
@@ -96,15 +89,12 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   eval_arg: EE::EvaluationArgument,
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as ff::PrimeField>::Repr: Abomonation,
-{
+impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
 
   fn setup(
-    ck: &CommitmentKey<E>,
+    ck: Arc<CommitmentKey<E>>,
     S: &R1CSShape<E>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     let (pk_ee, vk_ee) = EE::setup(ck);

@@ -36,14 +36,13 @@ use crate::{
   },
   zip_with, Commitment, CommitmentKey, CompressedCommitment,
 };
-use abomonation::Abomonation;
-use abomonation_derive::Abomonation;
 use core::cmp::max;
-use ff::{Field, PrimeField};
+use ff::Field;
 use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use super::polys::masked_eq::MaskedEqPolynomial;
 use crate::constants::NUM_CHALLENGE_BITS;
@@ -59,35 +58,26 @@ fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar>
 }
 
 /// A type that holds `R1CSShape` in a form amenable to memory checking
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkRepr<E: Engine> {
   pub(in crate::spartan) N: usize, // size of the vectors
 
   // dense representation
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) row: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) col: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) val_A: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) val_B: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) val_C: Vec<E::Scalar>,
 
   // timestamp polynomials
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) ts_row: Vec<E::Scalar>,
-  #[abomonate_with(Vec<<E::Scalar as PrimeField>::Repr>)]
   pub(in crate::spartan) ts_col: Vec<E::Scalar>,
 }
 
 /// A type that holds a commitment to a sparse polynomial
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
 pub struct R1CSShapeSparkCommitment<E: Engine> {
   pub(in crate::spartan) N: usize, // size of each vector
 
@@ -262,32 +252,30 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
 }
 
 /// A type that represents the prover's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
+#[derive(Debug, Clone)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
   S_repr: R1CSShapeSparkRepr<E>,
   S_comm: R1CSShapeSparkCommitment<E>,
-  #[abomonate_with(<E::Scalar as PrimeField>::Repr)]
   vk_digest: E::Scalar, // digest of verifier's key
 }
 
 /// A type that represents the verifier's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as PrimeField>::Repr: Abomonation)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(bound = "EE::VerifierKey: Serialize")]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   num_cons: usize,
   num_vars: usize,
   vk_ee: EE::VerifierKey,
   S_comm: R1CSShapeSparkCommitment<E>,
-  #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E::Scalar>,
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E, EE> {}
+impl<E: Engine, EE: EvaluationEngineTrait<E>> SimpleDigestible for VerifierKey<E, EE> where
+  EE::VerifierKey: Serialize
+{
+}
 
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
 /// The proof is produced using Spartan's combination of the sum-check and
@@ -344,10 +332,7 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   eval_arg: EE::EvaluationArgument,
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
-{
+impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARK<E, EE> {
   fn prove_helper<T1, T2, T3, T4>(
     mem_row: &mut T1,
     mem_col: &mut T1,
@@ -507,10 +492,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
   }
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as PrimeField>::Repr: Abomonation,
-{
+impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
 
@@ -522,20 +504,20 @@ where
   }
 
   fn setup(
-    ck: &CommitmentKey<E>,
+    ck: Arc<CommitmentKey<E>>,
     S: &R1CSShape<E>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     // check the provided commitment key meets minimal requirements
     if ck.length() < Self::ck_floor()(S) {
       return Err(NovaError::InvalidCommitmentKeyLength);
     }
-    let (pk_ee, vk_ee) = EE::setup(ck);
+    let (pk_ee, vk_ee) = EE::setup(ck.clone());
 
     // pad the R1CS matrices
     let S = S.pad();
 
     let S_repr = R1CSShapeSparkRepr::new(&S);
-    let S_comm = S_repr.commit(ck);
+    let S_comm = S_repr.commit(&*ck);
 
     let vk = VerifierKey::new(S.num_cons, S.num_vars, S_comm.clone(), vk_ee);
 

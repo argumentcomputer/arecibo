@@ -3,6 +3,7 @@
 //!
 
 use crate::{
+  digest::SimpleDigestible,
   errors::{NovaError, PCSError},
   provider::{
     non_hiding_kzg::{
@@ -18,7 +19,6 @@ use crate::{
   },
   Commitment,
 };
-use abomonation_derive::Abomonation;
 use ff::{BatchInvert, Field, PrimeField, PrimeFieldBits};
 use group::{Curve, Group as _};
 use itertools::Itertools as _;
@@ -29,17 +29,13 @@ use rayon::{
 };
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
 
 /// `ZMProverKey` is used to generate a proof
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
-#[abomonation_omit_bounds]
-#[serde(bound(
-  serialize = "E::G1Affine: Serialize",
-  deserialize = "E::G1Affine: Deserialize<'de>"
-))]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ZMProverKey<E: Engine> {
   commit_pp: KZGProverKey<E>,
   open_pp: KZGProverKey<E>,
@@ -47,16 +43,18 @@ pub struct ZMProverKey<E: Engine> {
 
 /// `ZMVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Abomonation)]
-#[abomonation_omit_bounds]
-#[serde(bound(
-  serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",
-  deserialize = "E::G1Affine: Deserialize<'de>, E::G2Affine: Deserialize<'de>"
-))]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(bound(serialize = "E::G1Affine: Serialize, E::G2Affine: Serialize",))]
 pub struct ZMVerifierKey<E: Engine> {
   vp: KZGVerifierKey<E>,
-  #[abomonate_with([u64; 16])] // this is a hack; we just assume the size of the element.
   s_offset_h: E::G2Affine,
+}
+
+impl<E: Engine> SimpleDigestible for ZMVerifierKey<E>
+where
+  E::G1Affine: Serialize,
+  E::G2Affine: Serialize,
+{
 }
 
 /// Trim the universal parameters to specialize the public parameters
@@ -65,23 +63,18 @@ pub struct ZMVerifierKey<E: Engine> {
 /// be in range `1..params.len()`
 ///
 /// # Panics
-/// If `supported_size` is greater than `self.max_degree()`, or `self.max_degree()` is zero.
+/// If `params.max_degree() < 2 * max_degree + 1`
 //
 // TODO: important, we need a better way to handle that the commitment key should be 2^max_degree sized,
 // see the runtime error in commit() below
-fn trim<E: Engine>(
-  params: &UniversalKZGParam<E>,
+fn trim_zeromorph<E: Engine>(
+  params: Arc<UniversalKZGParam<E>>,
   max_degree: usize,
 ) -> (ZMProverKey<E>, ZMVerifierKey<E>) {
-  let (commit_pp, vp) = params.trim(max_degree);
-  let offset = params.powers_of_g.len() - max_degree;
-  let open_pp = {
-    let offset_powers_of_g1 = params.powers_of_g[offset..].to_vec();
-    KZGProverKey {
-      powers_of_g: offset_powers_of_g1,
-    }
-  };
+  let (commit_pp, vp) = crate::provider::non_hiding_kzg::trim(params.clone(), max_degree);
+  let offset = params.max_degree() - max_degree;
   let s_offset_h = params.powers_of_h[offset];
+  let open_pp = KZGProverKey::new(params, offset, max_degree);
 
   (
     ZMProverKey { commit_pp, open_pp },
@@ -90,7 +83,7 @@ fn trim<E: Engine>(
 }
 
 /// Commitments
-#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ZMCommitment<E: Engine>(
   /// the actual commitment is an affine point.
   E::G1Affine,
@@ -135,8 +128,8 @@ pub struct ZMProof<E: Engine> {
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 /// Zeromorph Polynomial Commitment Scheme on multilinear polynomials.
-/// Note: this is non-hiding, which is why we will implement the EvaluationEngineTrait on this token struct,
-/// as we will have several impls for the trait pegged on the same instance of a pairing::Engine.
+/// Note: this is non-hiding, which is why we will implement the `EvaluationEngineTrait` on this token struct,
+/// as we will have several impls for the trait pegged on the same instance of a `pairing::Engine`.
 #[allow(clippy::upper_case_acronyms)]
 pub struct ZMPCS<E, NE> {
   #[doc(hidden)]
@@ -160,7 +153,7 @@ where
     poly: &MultilinearPolynomial<E::Fr>,
   ) -> Result<ZMCommitment<E>, NovaError> {
     let pp = pp.borrow();
-    if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
+    if pp.commit_pp.powers_of_g().len() < poly.Z.len() {
       return Err(PCSError::LengthError.into());
     }
     UVKZGPCS::commit(&pp.commit_pp, UVKZGPoly::ref_cast(&poly.Z)).map(|c| c.into())
@@ -179,7 +172,7 @@ where
     transcript.dom_sep(Self::protocol_name());
 
     let pp = pp.borrow();
-    if pp.commit_pp.powers_of_g.len() < poly.Z.len() {
+    if pp.commit_pp.powers_of_g().len() < poly.Z.len() {
       return Err(NovaError::PCSError(PCSError::LengthError));
     }
 
@@ -321,7 +314,7 @@ where
 ///
 /// where `poly(point)` is the evaluation of `poly` at `point`, and each `q_k` is a polynomial in `k` variables.
 ///
-/// Since our evaluations are presented in order reverse from the coefficients, if we want to interpret index q_k
+/// Since our evaluations are presented in order reverse from the coefficients, if we want to interpret index `q_k`
 /// to be the k-th coefficient in the polynomials returned here, the equality that holds is:
 ///
 /// ```text
@@ -475,8 +468,9 @@ where
 
   type EvaluationArgument = ZMProof<E>;
 
-  fn setup(ck: &UniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
-    trim(ck, ck.length() - 1)
+  fn setup(ck: Arc<UniversalKZGParam<E>>) -> (Self::ProverKey, Self::VerifierKey) {
+    let len = ck.length() - 1;
+    trim_zeromorph(ck, len)
   }
 
   fn prove(
@@ -515,9 +509,6 @@ where
 
 #[cfg(test)]
 mod test {
-  use std::borrow::Borrow;
-  use std::iter;
-
   use ff::{Field, PrimeField, PrimeFieldBits};
   use group::Curve;
   use halo2curves::bn256::Bn256;
@@ -527,82 +518,25 @@ mod test {
   use rand::thread_rng;
   use rand_chacha::ChaCha20Rng;
   use rand_core::SeedableRng;
+  use std::borrow::Borrow;
+  use std::sync::Arc;
 
   use super::quotients;
 
   use crate::{
     errors::PCSError,
     provider::{
-      keccak::Keccak256Transcript,
-      non_hiding_kzg::{KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS},
-      non_hiding_zeromorph::{
-        batched_lifted_degree_quotient, eval_and_quotient_scalars, trim, ZMEvaluation, ZMPCS,
+      non_hiding_kzg::{
+        trim, KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS,
       },
+      non_hiding_zeromorph::{batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMPCS},
       traits::DlogGroup,
       util::test_utils::prove_verify_from_num_vars,
-      Bn256Engine, Bn256EngineZM,
+      Bn256EngineZM,
     },
     spartan::polys::multilinear::MultilinearPolynomial,
-    traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait},
     NovaError,
   };
-
-  fn commit_open_verify_with<E: MultiMillerLoop, NE: NovaEngine<GE = E::G1, Scalar = E::Fr>>()
-  where
-    E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
-    <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>, // Note: due to the move of the bound TranscriptReprTrait<G> on G::Base from Group to Engine
-    E::Fr: PrimeFieldBits,
-  {
-    let max_vars = 16;
-    let mut rng = thread_rng();
-    let max_poly_size = 1 << (max_vars + 1);
-    let universal_setup = UniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, max_poly_size);
-
-    for num_vars in 3..max_vars {
-      // Setup
-      let (pp, vk) = {
-        let poly_size = 1 << (num_vars + 1);
-
-        trim(&universal_setup, poly_size)
-      };
-
-      // Commit and open
-      let mut transcript = Keccak256Transcript::<NE>::new(b"test");
-      let poly = MultilinearPolynomial::<E::Fr>::random(num_vars, &mut thread_rng());
-      let comm = ZMPCS::<E, NE>::commit(&pp, &poly).unwrap();
-      let point = iter::from_fn(|| transcript.squeeze(b"pt").ok())
-        .take(num_vars)
-        .collect::<Vec<_>>();
-      let eval = ZMEvaluation(poly.evaluate(&point));
-
-      let mut transcript_prover = Keccak256Transcript::<NE>::new(b"test");
-      let proof = ZMPCS::open(&pp, &comm, &poly, &point, &eval, &mut transcript_prover).unwrap();
-
-      // Verify
-      let mut transcript_verifier = Keccak256Transcript::<NE>::new(b"test");
-      let result = ZMPCS::verify(
-        &vk,
-        &mut transcript_verifier,
-        &comm,
-        point.as_slice(),
-        &eval,
-        &proof,
-      );
-
-      // check both random oracles are synced, as expected
-      assert_eq!(
-        transcript_prover.squeeze(b"test"),
-        transcript_verifier.squeeze(b"test")
-      );
-
-      result.unwrap();
-    }
-  }
-
-  #[test]
-  fn test_commit_open_verify() {
-    commit_open_verify_with::<Bn256, Bn256Engine>();
-  }
 
   #[test]
   fn test_multiple_polynomial_size() {
@@ -830,12 +764,12 @@ mod test {
   {
     let prover_param = prover_param.borrow();
 
-    if poly.degree() > prover_param.powers_of_g.len() {
+    if poly.degree() > prover_param.powers_of_g().len() {
       return Err(NovaError::PCSError(PCSError::LengthError));
     }
 
     // We use following filter to optimise MSM for cases where scalars contain a lot of zeroes
-    let initial_bases = &prover_param.powers_of_g.as_slice()[..poly.coeffs.len()].to_vec();
+    let initial_bases = &prover_param.powers_of_g()[..poly.coeffs.len()].to_vec();
     let mut scalars = vec![];
     let mut bases = vec![];
     for (index, scalar) in poly.coeffs.iter().enumerate() {
@@ -875,8 +809,10 @@ mod test {
 
     let (q_hat, offset) = batched_lifted_degree_quotient(E::Fr::random(&mut rng), &quotients_polys);
 
-    let pp = UniversalKZGParam::<E>::gen_srs_for_testing(&mut rng, degree);
-    let (ck, _vk) = pp.trim(degree);
+    let pp = Arc::new(UniversalKZGParam::<E>::gen_srs_for_testing(
+      &mut rng, degree,
+    ));
+    let (ck, _vk) = trim(pp, degree);
 
     let commitment_expected = UVKZGPCS::commit(&ck, &q_hat)?;
     let commitment_actual_1 = commit_filtered(&ck, &q_hat)?;

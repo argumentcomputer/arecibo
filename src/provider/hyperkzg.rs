@@ -1,5 +1,5 @@
 //! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
-//! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in https://eprint.iacr.org/2022/420.pdf).
+//! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `<https://eprint.iacr.org/2022/420.pdf>`).
 //! However, there are some key differences:
 //! (1) HyperKZG works with multilinear polynomials represented in evaluation form (rather than in coefficient form in Gemini's transformation).
 //! This means that Spartan's polynomial IOP can use commit to its polynomials as-is without incurring any interpolations or FFTs.
@@ -10,7 +10,7 @@ use crate::{
   errors::NovaError,
   provider::{
     kzg_commitment::KZGCommitmentEngine,
-    non_hiding_kzg::{KZGProverKey, KZGVerifierKey, UniversalKZGParam},
+    non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
     util::iterators::DoubleEndedIteratorExt as _,
@@ -31,6 +31,7 @@ use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::*;
 use ref_cast::RefCast as _;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Provides an implementation of a polynomial evaluation argument
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,7 +46,7 @@ pub struct EvaluationArgument<E: Engine> {
 }
 
 /// Provides an implementation of a polynomial evaluation engine using KZG
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct EvaluationEngine<E, NE> {
   _p: PhantomData<(E, NE)>,
 }
@@ -121,8 +122,9 @@ where
   type ProverKey = KZGProverKey<E>;
   type VerifierKey = KZGVerifierKey<E>;
 
-  fn setup(ck: &UniversalKZGParam<E>) -> (Self::ProverKey, Self::VerifierKey) {
-    ck.trim(ck.length() - 1)
+  fn setup(ck: Arc<UniversalKZGParam<E>>) -> (Self::ProverKey, Self::VerifierKey) {
+    let len = ck.length() - 1;
+    trim(ck, len)
   }
 
   fn prove(
@@ -200,7 +202,10 @@ where
       let B = kzg_compute_batch_polynomial(f, q);
 
       // Now open B at u0, ..., u_{t-1}
-      let w = u.par_iter().map(|ui| kzg_open(&B, *ui)).collect::<Vec<_>>();
+      let w = u
+        .into_par_iter()
+        .map(|ui| kzg_open(&B, *ui))
+        .collect::<Vec<_>>();
 
       // The prover computes the challenge to keep the transcript in the same
       // state as that of the verifier
@@ -428,7 +433,9 @@ mod tests {
     let n = 4;
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-    let (pk, _vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+    let ck = Arc::new(ck);
+    let (pk, _vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
 
     // poly is in eval. representation; evaluated at [(0,0), (0,1), (1,0), (1,1)]
     let poly = vec![Fr::from(1), Fr::from(2), Fr::from(2), Fr::from(4)];
@@ -464,7 +471,9 @@ mod tests {
     fn test_inner(n: usize, poly: &[Fr], point: &[Fr], eval: Fr) -> Result<(), NovaError> {
       let ck: CommitmentKey<NE> =
         <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-      let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+      let ck = Arc::new(ck);
+      let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+        EvaluationEngine::<E, NE>::setup(ck.clone());
 
       // make a commitment
       let C = KZGCommitmentEngine::commit(&ck, poly);
@@ -522,7 +531,9 @@ mod tests {
 
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) = EvaluationEngine::<E, NE>::setup(&ck);
+    let ck = Arc::new(ck);
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
 
     // make a commitment
     let C = KZGCommitmentEngine::commit(&ck, &poly);

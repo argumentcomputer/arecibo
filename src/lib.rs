@@ -54,6 +54,7 @@ use r1cs::{
   CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use traits::{
   circuit::StepCircuit,
   commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -81,7 +82,7 @@ impl<E: Engine> R1CSWithArity<E> {
     }
   }
 
-  /// Return the [R1CSWithArity]' digest.
+  /// Return the [`R1CSWithArity`]' digest.
   pub fn digest(&self) -> E::Scalar {
     let dc: DigestComputer<'_, <E as Engine>::Scalar, Self> = DigestComputer::new(self);
     dc.digest().expect("Failure in computing digest")
@@ -89,6 +90,37 @@ impl<E: Engine> R1CSWithArity<E> {
 }
 
 /// A type that holds public parameters of Nova
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct PublicParams<E1, E2, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  F_arity_primary: usize,
+  F_arity_secondary: usize,
+  ro_consts_primary: ROConstants<E1>,
+  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  ck_primary: Arc<CommitmentKey<E1>>,
+  circuit_shape_primary: R1CSWithArity<E1>,
+  ro_consts_secondary: ROConstants<E2>,
+  ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
+  ck_secondary: Arc<CommitmentKey<E2>>,
+  circuit_shape_secondary: R1CSWithArity<E2>,
+  augmented_circuit_params_primary: NovaAugmentedCircuitParams,
+  augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
+  #[serde(skip, default = "OnceCell::new")]
+  digest: OnceCell<E1::Scalar>,
+  _p: PhantomData<(C1, C2)>,
+}
+
+// Ensure to include necessary crates and features in your Cargo.toml
+// e.g., abomonation, serde, etc., with the appropriate feature flags.
+
+/// A version of [`crate::PublicParams`] that is amenable to fast ser/de using Abomonation
+#[cfg(feature = "abomonate")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
@@ -100,7 +132,7 @@ where
   <E1::Scalar as PrimeField>::Repr: Abomonation,
   <E2::Scalar as PrimeField>::Repr: Abomonation,
 )]
-pub struct PublicParams<E1, E2, C1, C2>
+pub struct FlatPublicParams<E1, E2, C1, C2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -119,10 +151,68 @@ where
   circuit_shape_secondary: R1CSWithArity<E2>,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  #[abomonation_skip]
-  #[serde(skip, default = "OnceCell::new")]
-  digest: OnceCell<E1::Scalar>,
   _p: PhantomData<(C1, C2)>,
+}
+
+#[cfg(feature = "abomonate")]
+impl<E1, E2, C1, C2> TryFrom<PublicParams<E1, E2, C1, C2>> for FlatPublicParams<E1, E2, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  type Error = &'static str;
+
+  fn try_from(value: PublicParams<E1, E2, C1, C2>) -> Result<Self, Self::Error> {
+    let ck_primary =
+      Arc::try_unwrap(value.ck_primary).map_err(|_| "Failed to unwrap Arc for ck_primary")?;
+    let ck_secondary =
+      Arc::try_unwrap(value.ck_secondary).map_err(|_| "Failed to unwrap Arc for ck_secondary")?;
+    Ok(Self {
+      F_arity_primary: value.F_arity_primary,
+      F_arity_secondary: value.F_arity_secondary,
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary,
+      circuit_shape_primary: value.circuit_shape_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary,
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      _p: PhantomData,
+    })
+  }
+}
+
+#[cfg(feature = "abomonate")]
+impl<E1, E2, C1, C2> From<FlatPublicParams<E1, E2, C1, C2>> for PublicParams<E1, E2, C1, C2>
+where
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  C1: StepCircuit<E1::Scalar>,
+  C2: StepCircuit<E2::Scalar>,
+{
+  fn from(value: FlatPublicParams<E1, E2, C1, C2>) -> Self {
+    Self {
+      F_arity_primary: value.F_arity_primary,
+      F_arity_secondary: value.F_arity_secondary,
+      ro_consts_primary: value.ro_consts_primary,
+      ro_consts_circuit_primary: value.ro_consts_circuit_primary,
+      ck_primary: Arc::new(value.ck_primary),
+      circuit_shape_primary: value.circuit_shape_primary,
+      ro_consts_secondary: value.ro_consts_secondary,
+      ro_consts_circuit_secondary: value.ro_consts_circuit_secondary,
+      ck_secondary: Arc::new(value.ck_secondary),
+      circuit_shape_secondary: value.circuit_shape_secondary,
+      augmented_circuit_params_primary: value.augmented_circuit_params_primary,
+      augmented_circuit_params_secondary: value.augmented_circuit_params_secondary,
+      digest: OnceCell::new(),
+      _p: PhantomData,
+    }
+  }
 }
 
 impl<E1, E2, C1, C2> SimpleDigestible for PublicParams<E1, E2, C1, C2>
@@ -215,6 +305,7 @@ where
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
+    let ck_primary = Arc::new(ck_primary);
     let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     // Initialize ck for the secondary
@@ -227,6 +318,7 @@ where
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
+    let ck_secondary = Arc::new(ck_secondary);
     let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
     Self {
@@ -388,7 +480,7 @@ where
     let l_u_primary = u_primary;
     let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary);
     let r_U_primary = RelaxedR1CSInstance::from_r1cs_instance(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp.circuit_shape_primary.r1cs_shape,
       l_u_primary,
     );
@@ -471,7 +563,7 @@ where
 
     // fold the secondary circuit's instance
     let nifs_secondary = NIFS::prove_mut(
-      &pp.ck_secondary,
+      &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -512,7 +604,7 @@ where
 
     // fold the primary circuit's instance
     let nifs_primary = NIFS::prove_mut(
-      &pp.ck_primary,
+      &*pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
       &pp.circuit_shape_primary.r1cs_shape,
@@ -690,9 +782,7 @@ where
 }
 
 /// A type that holds the prover key for `CompressedSNARK`
-#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_omit_bounds]
+#[derive(Clone, Debug)]
 pub struct ProverKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -708,18 +798,8 @@ where
 }
 
 /// A type that holds the verifier key for `CompressedSNARK`
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-    C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<E2::Scalar>,
-    S1: RelaxedR1CSSNARKTrait<E1>,
-    S2: RelaxedR1CSSNARKTrait<E2>,
-    <E1::Scalar as PrimeField>::Repr: Abomonation,
-  )]
 pub struct VerifierKey<E1, E2, C1, C2, S1, S2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -733,7 +813,6 @@ where
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
   ro_consts_secondary: ROConstants<E2>,
-  #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
   pp_digest: E1::Scalar,
   vk_primary: S1::VerifierKey,
   vk_secondary: S2::VerifierKey,
@@ -741,7 +820,7 @@ where
 }
 
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct CompressedSNARK<E1, E2, C1, C2, S1, S2>
 where
@@ -785,9 +864,12 @@ where
     ),
     NovaError,
   > {
-    let (pk_primary, vk_primary) = S1::setup(&pp.ck_primary, &pp.circuit_shape_primary.r1cs_shape)?;
-    let (pk_secondary, vk_secondary) =
-      S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
+    let (pk_primary, vk_primary) =
+      S1::setup(pp.ck_primary.clone(), &pp.circuit_shape_primary.r1cs_shape)?;
+    let (pk_secondary, vk_secondary) = S2::setup(
+      pp.ck_secondary.clone(),
+      &pp.circuit_shape_secondary.r1cs_shape,
+    )?;
 
     let pk = ProverKey {
       pk_primary,
@@ -817,7 +899,7 @@ where
   ) -> Result<Self, NovaError> {
     // fold the secondary circuit's instance with its running instance
     let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
-      &pp.ck_secondary,
+      &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
       &pp.circuit_shape_secondary.r1cs_shape,
@@ -958,300 +1040,6 @@ where
   }
 }
 
-/// A type that holds the prover key for `CompressedSNARK`
-#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_omit_bounds]
-pub struct ProverKeyV2<E1, E2, C1, C2, S1, S2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-  S1: RelaxedR1CSSNARKTraitV2<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
-{
-  pk_primary: S1::ProverKey,
-  pk_secondary: S2::ProverKey,
-  _p: PhantomData<(C1, C2)>,
-}
-
-/// A type that holds the verifier key for `CompressedSNARK`
-#[derive(Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-    C1: StepCircuit<E1::Scalar>,
-    C2: StepCircuit<E2::Scalar>,
-    S1: RelaxedR1CSSNARKTraitV2<E1>,
-    S2: RelaxedR1CSSNARKTrait<E2>,
-    <E1::Scalar as PrimeField>::Repr: Abomonation,
-  )]
-pub struct VerifierKeyV2<E1, E2, C1, C2, S1, S2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-  S1: RelaxedR1CSSNARKTraitV2<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
-{
-  F_arity_primary: usize,
-  F_arity_secondary: usize,
-  ro_consts_primary: ROConstants<E1>,
-  ro_consts_secondary: ROConstants<E2>,
-  #[abomonate_with(<E1::Scalar as PrimeField>::Repr)]
-  pp_digest: E1::Scalar,
-  vk_primary: S1::VerifierKey,
-  vk_secondary: S2::VerifierKey,
-  _p: PhantomData<(C1, C2)>,
-}
-
-/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-/// and support lookup argument
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct CompressedSNARKV2<E1, E2, C1, C2, S1, S2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-  S1: RelaxedR1CSSNARKTraitV2<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
-{
-  r_U_primary: RelaxedR1CSInstance<E1>,
-  r_W_snark_primary: S1,
-
-  r_U_secondary: RelaxedR1CSInstance<E2>,
-  l_u_secondary: R1CSInstance<E2>,
-  nifs_secondary: NIFS<E2>,
-  f_W_snark_secondary: S2,
-
-  zn_primary: Vec<E1::Scalar>,
-  zn_secondary: Vec<E2::Scalar>,
-
-  _p: PhantomData<(C1, C2)>,
-}
-
-impl<E1, E2, C1, C2, S1, S2> CompressedSNARKV2<E1, E2, C1, C2, S1, S2>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-  C2: StepCircuit<E2::Scalar>,
-  S1: RelaxedR1CSSNARKTraitV2<E1>,
-  S2: RelaxedR1CSSNARKTrait<E2>,
-{
-  /// Creates prover and verifier keys for `CompressedSNARK`
-  pub fn setup(
-    pp: &PublicParams<E1, E2, C1, C2>,
-    initial_table: &Lookup<E1::Scalar>,
-  ) -> Result<
-    (
-      ProverKeyV2<E1, E2, C1, C2, S1, S2>,
-      VerifierKeyV2<E1, E2, C1, C2, S1, S2>,
-    ),
-    NovaError,
-  >
-  where
-    <E1 as Engine>::Scalar: Ord,
-  {
-    let (pk_primary, vk_primary) = S1::setup(
-      &pp.ck_primary,
-      &pp.circuit_shape_primary.r1cs_shape,
-      initial_table,
-    )?;
-    let (pk_secondary, vk_secondary) =
-      S2::setup(&pp.ck_secondary, &pp.circuit_shape_secondary.r1cs_shape)?;
-
-    let pk = ProverKeyV2 {
-      pk_primary,
-      pk_secondary,
-      _p: Default::default(),
-    };
-
-    let vk = VerifierKeyV2 {
-      F_arity_primary: pp.F_arity_primary,
-      F_arity_secondary: pp.F_arity_secondary,
-      ro_consts_primary: pp.ro_consts_primary.clone(),
-      ro_consts_secondary: pp.ro_consts_secondary.clone(),
-      pp_digest: pp.digest(),
-      vk_primary,
-      vk_secondary,
-      _p: Default::default(),
-    };
-
-    Ok((pk, vk))
-  }
-
-  /// Create a new `CompressedSNARK`
-  pub fn prove(
-    pp: &PublicParams<E1, E2, C1, C2>,
-    pk: &ProverKeyV2<E1, E2, C1, C2, S1, S2>,
-    recursive_snark: &RecursiveSNARK<E1, E2, C1, C2>,
-    challenges: (E1::Scalar, E1::Scalar),
-    RW_acc: E1::Scalar,
-    initial_table: &Lookup<E1::Scalar>,
-    final_table: &Lookup<E1::Scalar>,
-  ) -> Result<Self, NovaError> {
-    // fold the secondary circuit's instance with its running instance
-    let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
-      &pp.ck_secondary,
-      &pp.ro_consts_secondary,
-      &scalar_as_base::<E1>(pp.digest()),
-      &pp.circuit_shape_secondary.r1cs_shape,
-      &recursive_snark.r_U_secondary,
-      &recursive_snark.r_W_secondary,
-      &recursive_snark.l_u_secondary,
-      &recursive_snark.l_w_secondary,
-    )?;
-
-    // create SNARKs proving the knowledge of f_W_primary and f_W_secondary
-    let (r_W_snark_primary, f_W_snark_secondary) = rayon::join(
-      || {
-        S1::prove(
-          &pp.ck_primary,
-          &pk.pk_primary,
-          &pp.circuit_shape_primary.r1cs_shape,
-          &recursive_snark.r_U_primary,
-          &recursive_snark.r_W_primary,
-          challenges,
-          RW_acc,
-          initial_table.clone(),
-          final_table.clone(),
-        )
-      },
-      || {
-        S2::prove(
-          &pp.ck_secondary,
-          &pk.pk_secondary,
-          &pp.circuit_shape_secondary.r1cs_shape,
-          &f_U_secondary,
-          &f_W_secondary,
-        )
-      },
-    );
-
-    Ok(Self {
-      r_U_primary: recursive_snark.r_U_primary.clone(),
-      r_W_snark_primary: r_W_snark_primary?,
-
-      r_U_secondary: recursive_snark.r_U_secondary.clone(),
-      l_u_secondary: recursive_snark.l_u_secondary.clone(),
-      nifs_secondary,
-      f_W_snark_secondary: f_W_snark_secondary?,
-
-      zn_primary: recursive_snark.zi_primary.clone(),
-      zn_secondary: recursive_snark.zi_secondary.clone(),
-
-      _p: Default::default(),
-    })
-  }
-
-  /// Verify the correctness of the `CompressedSNARK`
-  pub fn verify(
-    &self,
-    vk: &VerifierKeyV2<E1, E2, C1, C2, S1, S2>,
-    num_steps: usize,
-    z0_primary: &[E1::Scalar],
-    z0_secondary: &[E2::Scalar],
-    lookup_intermediate_gamma: E1::Scalar,
-    RW_acc: E1::Scalar,
-    challenges: (E1::Scalar, E1::Scalar),
-  ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), NovaError> {
-    // the number of steps cannot be zero
-    if num_steps == 0 {
-      return Err(NovaError::ProofVerifyError);
-    }
-
-    // check if the (relaxed) R1CS instances have two public outputs
-    if self.l_u_secondary.X.len() != 2
-      || self.r_U_primary.X.len() != 2
-      || self.r_U_secondary.X.len() != 2
-    {
-      return Err(NovaError::ProofVerifyError);
-    }
-
-    // check if the output hashes in R1CS instances point to the right running instances
-    let (hash_primary, hash_secondary) = {
-      let mut hasher = <E2 as Engine>::RO::new(
-        vk.ro_consts_secondary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_primary,
-      );
-      hasher.absorb(vk.pp_digest);
-      hasher.absorb(E1::Scalar::from(num_steps as u64));
-      for e in z0_primary {
-        hasher.absorb(*e);
-      }
-      for e in &self.zn_primary {
-        hasher.absorb(*e);
-      }
-      self.r_U_secondary.absorb_in_ro(&mut hasher);
-
-      let mut hasher2 = <E1 as Engine>::RO::new(
-        vk.ro_consts_primary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_secondary,
-      );
-      hasher2.absorb(scalar_as_base::<E1>(vk.pp_digest));
-      hasher2.absorb(E2::Scalar::from(num_steps as u64));
-      for e in z0_secondary {
-        hasher2.absorb(*e);
-      }
-      for e in &self.zn_secondary {
-        hasher2.absorb(*e);
-      }
-      self.r_U_primary.absorb_in_ro(&mut hasher2);
-
-      (
-        hasher.squeeze(NUM_HASH_BITS),
-        hasher2.squeeze(NUM_HASH_BITS),
-      )
-    };
-
-    if hash_primary != self.l_u_secondary.X[0]
-      || hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.X[1])
-    {
-      return Err(NovaError::ProofVerifyError);
-    }
-
-    // fold the secondary's running instance with the last instance to get a folded instance
-    let f_U_secondary = self.nifs_secondary.verify(
-      &vk.ro_consts_secondary,
-      &scalar_as_base::<E1>(vk.pp_digest),
-      &self.r_U_secondary,
-      &self.l_u_secondary,
-    )?;
-
-    // check the satisfiability of the folded instances using
-    // SNARKs proving the knowledge of their satisfying witnesses
-    let (res_primary, res_secondary) = rayon::join(
-      || {
-        self.r_W_snark_primary.verify::<E2>(
-          &vk.vk_primary,
-          &self.r_U_primary,
-          lookup_intermediate_gamma,
-          RW_acc,
-          challenges.clone(),
-        )
-      },
-      || {
-        self
-          .f_W_snark_secondary
-          .verify(&vk.vk_secondary, &f_U_secondary)
-      },
-    );
-
-    res_primary?;
-    res_secondary?;
-
-    Ok((self.zn_primary.clone(), self.zn_secondary.clone()))
-  }
-}
-
-/// Compute the circuit digest of a [StepCircuit].
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.
 /// It will synthesize and digest the full `circuit` given.

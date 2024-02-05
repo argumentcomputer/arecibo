@@ -6,11 +6,10 @@
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-use abomonation::Abomonation;
-use abomonation_derive::Abomonation;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
+use std::sync::Arc;
 
 use super::{
   compute_eval_table_sparse,
@@ -41,7 +40,7 @@ use crate::{
 /// A succinct proof of knowledge of a witness to a batch of relaxed R1CS instances
 /// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   sc_proof_outer: SumcheckProof<E>,
@@ -59,23 +58,18 @@ pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
 }
 
 /// A type that represents the prover's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
-#[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
+#[derive(Debug)]
 pub struct ProverKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   pk_ee: EE::ProverKey,
-  #[abomonate_with(<E::Scalar as ff::PrimeField>::Repr)]
   vk_digest: E::Scalar, // digest of the verifier's key
 }
 
 /// A type that represents the verifier's key
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
+#[derive(Debug, Serialize)]
 #[serde(bound = "")]
-#[abomonation_bounds(where <E::Scalar as ff::PrimeField>::Repr: Abomonation)]
 pub struct VerifierKey<E: Engine, EE: EvaluationEngineTrait<E>> {
   vk_ee: EE::VerifierKey,
   S: Vec<R1CSShape<E>>,
-  #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E::Scalar>,
 }
@@ -108,15 +102,13 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> DigestHelperTrait<E> for VerifierK
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   for BatchedRelaxedR1CSSNARK<E, EE>
-where
-  <E::Scalar as ff::PrimeField>::Repr: Abomonation,
 {
   type ProverKey = ProverKey<E, EE>;
 
   type VerifierKey = VerifierKey<E, EE>;
 
   fn setup(
-    ck: &CommitmentKey<E>,
+    ck: Arc<CommitmentKey<E>>,
     S: Vec<&R1CSShape<E>>,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     let (pk_ee, vk_ee) = EE::setup(ck);

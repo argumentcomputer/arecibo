@@ -31,7 +31,7 @@ pub struct SparseMatrix<F: PrimeField> {
   pub cols: usize,
 }
 
-/// [SparseMatrix]s are often large, and this helps with cloning bottlenecks
+/// [`SparseMatrix`]s are often large, and this helps with cloning bottlenecks
 impl<F: PrimeField> Clone for SparseMatrix<F> {
   fn clone(&self) -> Self {
     Self {
