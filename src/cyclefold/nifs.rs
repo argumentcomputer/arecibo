@@ -52,6 +52,7 @@ where
 }
 
 /// A SNARK that holds the proof of a step of an incremental computation
+#[derive(Debug)]
 pub struct NIFS<E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,

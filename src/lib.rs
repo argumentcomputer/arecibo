@@ -29,8 +29,6 @@ pub mod cyclefold;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
-use traits::circuit::TrivialCircuit;
-use traits::recursive::RecursiveSNARKTrait;
 use traits::{CurveCycleEquipped, Dual};
 
 use crate::digest::{DigestComputer, SimpleDigestible};
@@ -757,92 +755,6 @@ where
   /// The number of steps which have been executed thus far.
   pub fn num_steps(&self) -> usize {
     self.i
-  }
-}
-
-impl<E1, E2, C> RecursiveSNARKTrait<E1, E2, C>
-  for RecursiveSNARK<E1, E2, C, TrivialCircuit<E2::Scalar>>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C: StepCircuit<E1::Scalar>,
-{
-  type PublicParams = PublicParams<E1, E2, C, TrivialCircuit<E2::Scalar>>;
-
-  type Proof = Self;
-
-  fn new(
-    pp: &Self::PublicParams,
-    c_primary: &C,
-    z0_primary: &[<E1 as Engine>::Scalar],
-  ) -> Result<Self::Proof, NovaError> {
-    let c_secondary = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
-    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
-
-    Self::Proof::new(&pp, c_primary, &c_secondary, z0_primary, &z0_secondary)
-  }
-
-  fn prove_step(
-    proof: &mut Self::Proof,
-    pp: &Self::PublicParams,
-    c_primary: &C,
-  ) -> Result<(), NovaError> {
-    let c_secondary = TrivialCircuit::default();
-    proof.prove_step(&pp, c_primary, &c_secondary)
-  }
-
-  fn verify(
-    proof: &Self::Proof,
-    pp: &Self::PublicParams,
-    z0_primary: &[<E1 as Engine>::Scalar],
-  ) -> Result<Vec<<E1 as Engine>::Scalar>, NovaError> {
-    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
-    proof
-      .verify(&pp, proof.num_steps(), z0_primary, &z0_secondary)
-      .map(|(zi_primary, _)| zi_primary)
-  }
-}
-
-impl<E1, E2, C> RecursiveSNARKTrait<E1, E2, C>
-  for RecursiveSNARK<E1, E2, C, TrivialCircuit<E2::Scalar>>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C: StepCircuit<E1::Scalar>,
-{
-  type PublicParams = PublicParams<E1, E2, C, TrivialCircuit<E2::Scalar>>;
-
-  type Proof = Self;
-
-  fn new(
-    pp: &Self::PublicParams,
-    c_primary: &C,
-    z0_primary: &[<E1 as Engine>::Scalar],
-  ) -> Result<Self::Proof, NovaError> {
-    let c_secondary = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
-    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
-
-    Self::Proof::new(&pp, c_primary, &c_secondary, z0_primary, &z0_secondary)
-  }
-
-  fn prove_step(
-    proof: &mut Self::Proof,
-    pp: &Self::PublicParams,
-    c_primary: &C,
-  ) -> Result<(), NovaError> {
-    let c_secondary = TrivialCircuit::default();
-    proof.prove_step(&pp, c_primary, &c_secondary)
-  }
-
-  fn verify(
-    proof: &Self::Proof,
-    pp: &Self::PublicParams,
-    z0_primary: &[<E1 as Engine>::Scalar],
-  ) -> Result<Vec<<E1 as Engine>::Scalar>, NovaError> {
-    let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO; pp.F_arity_secondary];
-    proof
-      .verify(&pp, proof.num_steps(), z0_primary, &z0_secondary)
-      .map(|(zi_primary, _)| zi_primary)
   }
 }
 
