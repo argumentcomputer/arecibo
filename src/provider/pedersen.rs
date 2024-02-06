@@ -30,7 +30,9 @@ where
   E: Engine,
   E::GE: DlogGroup<ScalarExt = E::Scalar>,
 {
-  #[abomonate_with(Vec<[u64; 8]>)] // this is a hack; we just assume the size of the element.
+  // this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  #[abomonate_with(Vec<[u64; 8]>)]
   ck: Vec<<E::GE as PrimeCurve>::Affine>,
 }
 
@@ -49,7 +51,9 @@ where
 #[serde(bound = "")]
 #[abomonation_omit_bounds]
 pub struct Commitment<E: Engine> {
-  #[abomonate_with(Vec<[u64; 12]>)] // this is a hack; we just assume the size of the element.
+  // this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  #[abomonate_with(Vec<[u64; 12]>)]
   pub(crate) comm: E::GE,
 }
 

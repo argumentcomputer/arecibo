@@ -63,6 +63,11 @@ macro_rules! impl_traits {
     $base_str:literal,
     $large_msm_method: ident
   ) => {
+    // These compile-time assertions check important assumptions in the memory representation
+    // of group data that supports the use of Abomonation.
+    static_assertions::assert_eq_size!($name::Affine, [u64; 8]);
+    static_assertions::assert_eq_size!($name::Point, [u64; 12]);
+
     impl Group for $name::Point {
       type Base = $name::Base;
       type Scalar = $name::Scalar;
