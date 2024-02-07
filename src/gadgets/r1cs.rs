@@ -23,7 +23,7 @@ use itertools::Itertools as _;
 /// An Allocated R1CS Instance
 #[derive(Clone)]
 pub struct AllocatedR1CSInstance<E: Engine> {
-  pub(crate) W: AllocatedPoint<E>,
+  pub(crate) W: AllocatedPoint<E::GE>,
   pub(crate) X0: AllocatedNum<E::Base>,
   pub(crate) X1: AllocatedNum<E::Base>,
 }
@@ -59,8 +59,8 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
 /// An Allocated Relaxed R1CS Instance
 #[derive(Clone)]
 pub struct AllocatedRelaxedR1CSInstance<E: Engine> {
-  pub(crate) W: AllocatedPoint<E>,
-  pub(crate) E: AllocatedPoint<E>,
+  pub(crate) W: AllocatedPoint<E::GE>,
+  pub(crate) E: AllocatedPoint<E::GE>,
   pub(crate) u: AllocatedNum<E::Base>,
   pub(crate) X0: BigNat<E::Base>,
   pub(crate) X1: BigNat<E::Base>,
@@ -231,7 +231,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     mut cs: CS,
     params: &AllocatedNum<E::Base>, // hash of R1CSShape of F'
     u: &AllocatedR1CSInstance<E>,
-    T: &AllocatedPoint<E>,
+    T: &AllocatedPoint<E::GE>,
     ro_consts: ROConstantsCircuit<E>,
     limb_width: usize,
     n_limbs: usize,
@@ -404,12 +404,12 @@ pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
 }
 
 /// c = cond ? a: b, where a, b: `AllocatedPoint`
-pub fn conditionally_select_point<E: Engine, CS: ConstraintSystem<<E as Engine>::Base>>(
+pub fn conditionally_select_point<G: Group, CS: ConstraintSystem<G::Base>>(
   mut cs: CS,
-  a: &AllocatedPoint<E>,
-  b: &AllocatedPoint<E>,
+  a: &AllocatedPoint<G>,
+  b: &AllocatedPoint<G>,
   condition: &Boolean,
-) -> Result<AllocatedPoint<E>, SynthesisError> {
+) -> Result<AllocatedPoint<G>, SynthesisError> {
   let c = AllocatedPoint {
     x: conditionally_select(
       cs.namespace(|| "x = cond ? a.x : b.x"),

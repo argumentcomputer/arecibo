@@ -119,7 +119,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       Vec<AllocatedNum<E::Base>>,
       AllocatedRelaxedR1CSInstance<E>,
       AllocatedR1CSInstance<E>,
-      AllocatedPoint<E>,
+      AllocatedPoint<E::GE>,
     ),
     SynthesisError,
   > {
@@ -214,7 +214,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     z_i: &[AllocatedNum<E::Base>],
     U: &AllocatedRelaxedR1CSInstance<E>,
     u: &AllocatedR1CSInstance<E>,
-    T: &AllocatedPoint<E>,
+    T: &AllocatedPoint<E::GE>,
     arity: usize,
   ) -> Result<(AllocatedRelaxedR1CSInstance<E>, AllocatedBit), SynthesisError> {
     // Check that u.x[0] = Hash(params, U, i, z0, zi)
