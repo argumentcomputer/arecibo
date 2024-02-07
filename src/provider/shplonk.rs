@@ -13,7 +13,7 @@ use crate::{CommitmentEngineTrait, NovaError};
 use ff::{Field, PrimeFieldBits};
 use group::prime::PrimeCurveAffine;
 use group::{Curve, Group as group_Group};
-use pairing::{Engine, MultiMillerLoop};
+use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -259,10 +259,20 @@ where
 
     let C_K = C_P.to_curve() - (C_Q * D.evaluate(&a) + vk.g * R_x.evaluate(&a));
 
-    // TODO switch to multi-miller-loop
-    let left = E::pairing(&C_H, &(vk.beta_h.to_curve() - vk.h * a).to_affine());
-    let right = E::pairing(&C_K.to_affine(), &vk.h);
-    assert_eq!(left, right);
+    let pairing_inputs: Vec<(E::G1Affine, E::G2Prepared)> = vec![
+      (C_H.into(), vk.beta_h.into()),
+      ((C_H * (-a) - C_K).to_affine(), vk.h.into()),
+    ];
+
+    let pairing_input_refs = pairing_inputs
+        .iter()
+        .map(|(a, b)| (a, b))
+        .collect::<Vec<_>>();
+
+    let pairing_result = E::multi_miller_loop(pairing_input_refs.as_slice()).final_exponentiation();
+    if pairing_result.is_identity().unwrap_u8() == 0x00 {
+      return Err(NovaError::ProofVerifyError);
+    }
     Ok(())
   }
 }
