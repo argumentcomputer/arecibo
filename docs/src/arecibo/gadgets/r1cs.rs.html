@@ -457,7 +457,7 @@
 <span class="doccomment">/// An Allocated R1CS Instance
 </span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>AllocatedR1CSInstance&lt;E: Engine&gt; {
-  <span class="kw">pub</span>(<span class="kw">crate</span>) W: AllocatedPoint&lt;E&gt;,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) W: AllocatedPoint&lt;E::GE&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) X0: AllocatedNum&lt;E::Base&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) X1: AllocatedNum&lt;E::Base&gt;,
 }
@@ -493,8 +493,8 @@
 <span class="doccomment">/// An Allocated Relaxed R1CS Instance
 </span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>AllocatedRelaxedR1CSInstance&lt;E: Engine&gt; {
-  <span class="kw">pub</span>(<span class="kw">crate</span>) W: AllocatedPoint&lt;E&gt;,
-  <span class="kw">pub</span>(<span class="kw">crate</span>) E: AllocatedPoint&lt;E&gt;,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) W: AllocatedPoint&lt;E::GE&gt;,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) E: AllocatedPoint&lt;E::GE&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) u: AllocatedNum&lt;E::Base&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) X0: BigNat&lt;E::Base&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) X1: BigNat&lt;E::Base&gt;,
@@ -665,7 +665,7 @@
     <span class="kw-2">mut </span>cs: CS,
     params: <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;, <span class="comment">// hash of R1CSShape of F&#39;
     </span>u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E&gt;,
-    T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E&gt;,
+    T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E::GE&gt;,
     ro_consts: ROConstantsCircuit&lt;E&gt;,
     limb_width: usize,
     n_limbs: usize,
@@ -838,12 +838,12 @@
 }
 
 <span class="doccomment">/// c = cond ? a: b, where a, b: `AllocatedPoint`
-</span><span class="kw">pub fn </span>conditionally_select_point&lt;E: Engine, CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
+</span><span class="kw">pub fn </span>conditionally_select_point&lt;G: Group, CS: ConstraintSystem&lt;G::Base&gt;&gt;(
   <span class="kw-2">mut </span>cs: CS,
-  a: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E&gt;,
-  b: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E&gt;,
+  a: <span class="kw-2">&amp;</span>AllocatedPoint&lt;G&gt;,
+  b: <span class="kw-2">&amp;</span>AllocatedPoint&lt;G&gt;,
   condition: <span class="kw-2">&amp;</span>Boolean,
-) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;E&gt;, SynthesisError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;G&gt;, SynthesisError&gt; {
   <span class="kw">let </span>c = AllocatedPoint {
     x: conditionally_select(
       cs.namespace(|| <span class="string">&quot;x = cond ? a.x : b.x&quot;</span>),

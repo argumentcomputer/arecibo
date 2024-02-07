@@ -1182,11 +1182,6 @@
 <a href="#1182" id="1182">1182</a>
 <a href="#1183" id="1183">1183</a>
 <a href="#1184" id="1184">1184</a>
-<a href="#1185" id="1185">1185</a>
-<a href="#1186" id="1186">1186</a>
-<a href="#1187" id="1187">1187</a>
-<a href="#1188" id="1188">1188</a>
-<a href="#1189" id="1189">1189</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements various elliptic curve gadgets
 </span><span class="attr">#![allow(non_snake_case)]
 </span><span class="kw">use crate</span>::{
@@ -1195,7 +1190,7 @@
     select_num_or_one, select_num_or_zero, select_num_or_zero2, select_one_or_diff2,
     select_one_or_num2, select_zero_or_num2,
   },
-  traits::{Engine, Group},
+  traits::Group,
 };
 <span class="kw">use </span>bellpepper::gadgets::Assignment;
 <span class="kw">use </span>bellpepper_core::{
@@ -1207,33 +1202,30 @@
 
 <span class="doccomment">/// `AllocatedPoint` provides an elliptic curve abstraction inside a circuit.
 </span><span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>AllocatedPoint&lt;E: Engine&gt; {
-  <span class="kw">pub</span>(<span class="kw">crate</span>) x: AllocatedNum&lt;E::Base&gt;,
-  <span class="kw">pub</span>(<span class="kw">crate</span>) y: AllocatedNum&lt;E::Base&gt;,
-  <span class="kw">pub</span>(<span class="kw">crate</span>) is_infinity: AllocatedNum&lt;E::Base&gt;,
+</span><span class="kw">pub struct </span>AllocatedPoint&lt;G: Group&gt; {
+  <span class="kw">pub</span>(<span class="kw">crate</span>) x: AllocatedNum&lt;G::Base&gt;,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) y: AllocatedNum&lt;G::Base&gt;,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) is_infinity: AllocatedNum&lt;G::Base&gt;,
 }
 
-<span class="kw">impl</span>&lt;E&gt; AllocatedPoint&lt;E&gt;
-<span class="kw">where
-  </span>E: Engine,
-{
+<span class="kw">impl</span>&lt;G: Group&gt; AllocatedPoint&lt;G&gt; {
   <span class="doccomment">/// Allocates a new point on the curve using coordinates provided by `coords`.
   /// If coords = None, it allocates the default infinity point
-  </span><span class="kw">pub fn </span>alloc&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>alloc&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
-    coords: <span class="prelude-ty">Option</span>&lt;(E::Base, E::Base, bool)&gt;,
+    coords: <span class="prelude-ty">Option</span>&lt;(G::Base, G::Base, bool)&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="kw">let </span>x = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;x&quot;</span>), || {
-      <span class="prelude-val">Ok</span>(coords.map_or(E::Base::ZERO, |c| c.<span class="number">0</span>))
+      <span class="prelude-val">Ok</span>(coords.map_or(G::Base::ZERO, |c| c.<span class="number">0</span>))
     })<span class="question-mark">?</span>;
     <span class="kw">let </span>y = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;y&quot;</span>), || {
-      <span class="prelude-val">Ok</span>(coords.map_or(E::Base::ZERO, |c| c.<span class="number">1</span>))
+      <span class="prelude-val">Ok</span>(coords.map_or(G::Base::ZERO, |c| c.<span class="number">1</span>))
     })<span class="question-mark">?</span>;
     <span class="kw">let </span>is_infinity = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;is_infinity&quot;</span>), || {
       <span class="prelude-val">Ok</span>(<span class="kw">if </span>coords.map_or(<span class="bool-val">true</span>, |c| c.<span class="number">2</span>) {
-        E::Base::ONE
+        G::Base::ONE
       } <span class="kw">else </span>{
-        E::Base::ZERO
+        G::Base::ZERO
       })
     })<span class="question-mark">?</span>;
     cs.enforce(
@@ -1249,7 +1241,7 @@
   <span class="doccomment">/// checks if `self` is on the curve or if it is infinity
   </span><span class="kw">pub fn </span>check_on_curve&lt;CS&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;(), SynthesisError&gt;
   <span class="kw">where
-    </span>CS: ConstraintSystem&lt;E::Base&gt;,
+    </span>CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="comment">// check that (x,y) is on the curve if it is not infinity
     // we will check that (1- is_infinity) * y^2 = (1-is_infinity) * (x^3 + Ax + B)
@@ -1259,13 +1251,13 @@
     <span class="kw">let </span>x_cube = <span class="self">self</span>.x.mul(cs.namespace(|| <span class="string">&quot;x_cube&quot;</span>), <span class="kw-2">&amp;</span>x_square)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>rhs = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;rhs&quot;</span>), || {
-      <span class="kw">if </span><span class="kw-2">*</span><span class="self">self</span>.is_infinity.get_value().get()<span class="question-mark">? </span>== E::Base::ONE {
-        <span class="prelude-val">Ok</span>(E::Base::ZERO)
+      <span class="kw">if </span><span class="kw-2">*</span><span class="self">self</span>.is_infinity.get_value().get()<span class="question-mark">? </span>== G::Base::ONE {
+        <span class="prelude-val">Ok</span>(G::Base::ZERO)
       } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(
           <span class="kw-2">*</span>x_cube.get_value().get()<span class="question-mark">?
-            </span>+ <span class="kw-2">*</span><span class="self">self</span>.x.get_value().get()<span class="question-mark">? </span>* E::GE::group_params().<span class="number">0
-            </span>+ E::GE::group_params().<span class="number">1</span>,
+            </span>+ <span class="kw-2">*</span><span class="self">self</span>.x.get_value().get()<span class="question-mark">? </span>* G::group_params().<span class="number">0
+            </span>+ G::group_params().<span class="number">1</span>,
         )
       }
     })<span class="question-mark">?</span>;
@@ -1274,8 +1266,8 @@
       || <span class="string">&quot;rhs = (1-is_infinity) * (x^3 + Ax + B)&quot;</span>,
       |lc| {
         lc + x_cube.get_variable()
-          + (E::GE::group_params().<span class="number">0</span>, <span class="self">self</span>.x.get_variable())
-          + (E::GE::group_params().<span class="number">1</span>, CS::one())
+          + (G::group_params().<span class="number">0</span>, <span class="self">self</span>.x.get_variable())
+          + (G::group_params().<span class="number">1</span>, CS::one())
       },
       |lc| lc + CS::one() - <span class="self">self</span>.is_infinity.get_variable(),
       |lc| lc + rhs.get_variable(),
@@ -1293,7 +1285,7 @@
   }
 
   <span class="doccomment">/// Allocates a default point on the curve, set to the identity point.
-  </span><span class="kw">pub fn </span>default&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
+  </span><span class="kw">pub fn </span>default&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="kw">let </span>zero = alloc_zero(cs.namespace(|| <span class="string">&quot;zero&quot;</span>));
     <span class="kw">let </span>one = alloc_one(cs.namespace(|| <span class="string">&quot;one&quot;</span>));
 
@@ -1308,15 +1300,15 @@
   </span><span class="kw">pub const fn </span>get_coordinates(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
   ) -&gt; (
-    <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;,
-    <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;,
-    <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;,
+    <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;,
+    <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;,
+    <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;,
   ) {
     (<span class="kw-2">&amp;</span><span class="self">self</span>.x, <span class="kw-2">&amp;</span><span class="self">self</span>.y, <span class="kw-2">&amp;</span><span class="self">self</span>.is_infinity)
   }
 
   <span class="doccomment">/// Negates the provided point
-  </span><span class="kw">pub fn </span>negate&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
+  </span><span class="kw">pub fn </span>negate&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="kw">let </span>y = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;y&quot;</span>), || <span class="prelude-val">Ok</span>(-<span class="kw-2">*</span><span class="self">self</span>.y.get_value().get()<span class="question-mark">?</span>))<span class="question-mark">?</span>;
 
     cs.enforce(
@@ -1334,7 +1326,7 @@
   }
 
   <span class="doccomment">/// Add two points (may be equal)
-  </span><span class="kw">pub fn </span>add&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>add&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
     other: <span class="kw-2">&amp;</span><span class="self">Self</span>,
@@ -1383,7 +1375,7 @@
 
   <span class="doccomment">/// Adds other point to this point and returns the result. Assumes that the two points are
   /// different and that both `other.is_infinity` and `this.is_infinity` are bits
-  </span><span class="kw">pub fn </span>add_internal&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>add_internal&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
     other: <span class="kw-2">&amp;</span><span class="self">Self</span>,
@@ -1401,9 +1393,9 @@
     // NOT(NOT(self.is_ifninity) AND NOT(other.is_infinity))
     </span><span class="kw">let </span>at_least_one_inf = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;at least one inf&quot;</span>), || {
       <span class="prelude-val">Ok</span>(
-        E::Base::ONE
-          - (E::Base::ONE - <span class="kw-2">*</span><span class="self">self</span>.is_infinity.get_value().get()<span class="question-mark">?</span>)
-            * (E::Base::ONE - <span class="kw-2">*</span>other.is_infinity.get_value().get()<span class="question-mark">?</span>),
+        G::Base::ONE
+          - (G::Base::ONE - <span class="kw-2">*</span><span class="self">self</span>.is_infinity.get_value().get()<span class="question-mark">?</span>)
+            * (G::Base::ONE - <span class="kw-2">*</span>other.is_infinity.get_value().get()<span class="question-mark">?</span>),
       )
     })<span class="question-mark">?</span>;
     cs.enforce(
@@ -1417,7 +1409,7 @@
     </span><span class="kw">let </span>x_diff_is_actual =
       AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;allocate x_diff_is_actual&quot;</span>), || {
         <span class="prelude-val">Ok</span>(<span class="kw">if </span><span class="kw-2">*</span>equal_x.get_value().get()<span class="question-mark">? </span>{
-          E::Base::ONE
+          G::Base::ONE
         } <span class="kw">else </span>{
           <span class="kw-2">*</span>at_least_one_inf.get_value().get()<span class="question-mark">?
         </span>})
@@ -1439,9 +1431,9 @@
     )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>lambda = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;lambda&quot;</span>), || {
-      <span class="kw">let </span>x_diff_inv = <span class="kw">if </span><span class="kw-2">*</span>x_diff_is_actual.get_value().get()<span class="question-mark">? </span>== E::Base::ONE {
+      <span class="kw">let </span>x_diff_inv = <span class="kw">if </span><span class="kw-2">*</span>x_diff_is_actual.get_value().get()<span class="question-mark">? </span>== G::Base::ONE {
         <span class="comment">// Set to default
-        </span>E::Base::ONE
+        </span>G::Base::ONE
       } <span class="kw">else </span>{
         <span class="comment">// Set to the actual inverse
         </span>(<span class="kw-2">*</span>other.x.get_value().get()<span class="question-mark">? </span>- <span class="kw-2">*</span><span class="self">self</span>.x.get_value().get()<span class="question-mark">?</span>)
@@ -1546,13 +1538,13 @@
   }
 
   <span class="doccomment">/// Doubles the supplied point.
-  </span><span class="kw">pub fn </span>double&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
+  </span><span class="kw">pub fn </span>double&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="comment">//*************************************************************/
-    // lambda = (E::Base::from(3) * self.x * self.x + E::GE::A())
-    //  * (E::Base::from(2)) * self.y).invert().unwrap();
+    // lambda = (G::Base::from(3) * self.x * self.x + G::GG::A())
+    //  * (G::Base::from(2)) * self.y).invert().unwrap();
     /*************************************************************/
 
-    // Compute tmp = (E::Base::ONE + E::Base::ONE)* self.y ? self != inf : 1
+    // Compute tmp = (G::Base::ONE + G::Base::ONE)* self.y ? self != inf : 1
     </span><span class="kw">let </span>tmp_actual = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;tmp_actual&quot;</span>), || {
       <span class="prelude-val">Ok</span>(<span class="kw-2">*</span><span class="self">self</span>.y.get_value().get()<span class="question-mark">? </span>+ <span class="kw-2">*</span><span class="self">self</span>.y.get_value().get()<span class="question-mark">?</span>)
     })<span class="question-mark">?</span>;
@@ -1565,35 +1557,35 @@
 
     <span class="kw">let </span>tmp = select_one_or_num2(cs.namespace(|| <span class="string">&quot;tmp&quot;</span>), <span class="kw-2">&amp;</span>tmp_actual, <span class="kw-2">&amp;</span><span class="self">self</span>.is_infinity)<span class="question-mark">?</span>;
 
-    <span class="comment">// Now compute lambda as (E::Base::from(3) * self.x * self.x + E::GE::A()) * tmp_inv
+    <span class="comment">// Now compute lambda as (G::Base::from(3) * self.x * self.x + G::GG::A()) * tmp_inv
 
     </span><span class="kw">let </span>prod_1 = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;alloc prod 1&quot;</span>), || {
-      <span class="prelude-val">Ok</span>(E::Base::from(<span class="number">3</span>) * <span class="self">self</span>.x.get_value().get()<span class="question-mark">? </span>* <span class="self">self</span>.x.get_value().get()<span class="question-mark">?</span>)
+      <span class="prelude-val">Ok</span>(G::Base::from(<span class="number">3</span>) * <span class="self">self</span>.x.get_value().get()<span class="question-mark">? </span>* <span class="self">self</span>.x.get_value().get()<span class="question-mark">?</span>)
     })<span class="question-mark">?</span>;
     cs.enforce(
       || <span class="string">&quot;Check prod 1&quot;</span>,
-      |lc| lc + (E::Base::from(<span class="number">3</span>), <span class="self">self</span>.x.get_variable()),
+      |lc| lc + (G::Base::from(<span class="number">3</span>), <span class="self">self</span>.x.get_variable()),
       |lc| lc + <span class="self">self</span>.x.get_variable(),
       |lc| lc + prod_1.get_variable(),
     );
 
     <span class="kw">let </span>lambda = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;alloc lambda&quot;</span>), || {
-      <span class="kw">let </span>tmp_inv = <span class="kw">if </span><span class="kw-2">*</span><span class="self">self</span>.is_infinity.get_value().get()<span class="question-mark">? </span>== E::Base::ONE {
+      <span class="kw">let </span>tmp_inv = <span class="kw">if </span><span class="kw-2">*</span><span class="self">self</span>.is_infinity.get_value().get()<span class="question-mark">? </span>== G::Base::ONE {
         <span class="comment">// Return default value 1
-        </span>E::Base::ONE
+        </span>G::Base::ONE
       } <span class="kw">else </span>{
         <span class="comment">// Return the actual inverse
         </span>(<span class="kw-2">*</span>tmp.get_value().get()<span class="question-mark">?</span>).invert().unwrap()
       };
 
-      <span class="prelude-val">Ok</span>(tmp_inv * (<span class="kw-2">*</span>prod_1.get_value().get()<span class="question-mark">? </span>+ E::GE::group_params().<span class="number">0</span>))
+      <span class="prelude-val">Ok</span>(tmp_inv * (<span class="kw-2">*</span>prod_1.get_value().get()<span class="question-mark">? </span>+ G::group_params().<span class="number">0</span>))
     })<span class="question-mark">?</span>;
 
     cs.enforce(
       || <span class="string">&quot;Check lambda&quot;</span>,
       |lc| lc + tmp.get_variable(),
       |lc| lc + lambda.get_variable(),
-      |lc| lc + prod_1.get_variable() + (E::GE::group_params().<span class="number">0</span>, CS::one()),
+      |lc| lc + prod_1.get_variable() + (G::group_params().<span class="number">0</span>, CS::one()),
     );
 
     <span class="comment">/*************************************************************/
@@ -1650,12 +1642,12 @@
   <span class="doccomment">/// A gadget for scalar multiplication, optimized to use incomplete addition law.
   /// The optimization here is analogous to &lt;https://github.com/arkworks-rs/r1cs-std/blob/6d64f379a27011b3629cf4c9cb38b7b7b695d5a0/src/groups/curves/short_weierstrass/mod.rs#L295&gt;,
   /// except we use complete addition law over affine coordinates instead of projective coordinates for the tail bits
-  </span><span class="kw">pub fn </span>scalar_mul&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>scalar_mul&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
     scalar_bits: <span class="kw-2">&amp;</span>[AllocatedBit],
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
-    <span class="kw">let </span>split_len = core::cmp::min(scalar_bits.len(), (E::Base::NUM_BITS - <span class="number">2</span>) <span class="kw">as </span>usize);
+    <span class="kw">let </span>split_len = core::cmp::min(scalar_bits.len(), (G::Base::NUM_BITS - <span class="number">2</span>) <span class="kw">as </span>usize);
     <span class="kw">let </span>(incomplete_bits, complete_bits) = scalar_bits.split_at(split_len);
 
     <span class="comment">// we convert AllocatedPoint into AllocatedPointNonInfinity; we deal with the case where self.is_infinity = 1 below
@@ -1739,7 +1731,7 @@
   }
 
   <span class="doccomment">/// If condition outputs a otherwise outputs b
-  </span><span class="kw">pub fn </span>conditionally_select&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>conditionally_select&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
     a: <span class="kw-2">&amp;</span><span class="self">Self</span>,
     b: <span class="kw-2">&amp;</span><span class="self">Self</span>,
@@ -1760,7 +1752,7 @@
   }
 
   <span class="doccomment">/// If condition outputs a otherwise infinity
-  </span><span class="kw">pub fn </span>select_point_or_infinity&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>select_point_or_infinity&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
     a: <span class="kw-2">&amp;</span><span class="self">Self</span>,
     condition: <span class="kw-2">&amp;</span>Boolean,
@@ -1781,24 +1773,21 @@
 
 <span class="attr">#[derive(Clone, Debug)]
 </span><span class="doccomment">/// `AllocatedPoint` but one that is guaranteed to be not infinity
-</span><span class="kw">pub struct </span>AllocatedPointNonInfinity&lt;E: Engine&gt; {
-  x: AllocatedNum&lt;E::Base&gt;,
-  y: AllocatedNum&lt;E::Base&gt;,
+</span><span class="kw">pub struct </span>AllocatedPointNonInfinity&lt;G: Group&gt; {
+  x: AllocatedNum&lt;G::Base&gt;,
+  y: AllocatedNum&lt;G::Base&gt;,
 }
 
-<span class="kw">impl</span>&lt;E&gt; AllocatedPointNonInfinity&lt;E&gt;
-<span class="kw">where
-  </span>E: Engine,
-{
+<span class="kw">impl</span>&lt;G: Group&gt; AllocatedPointNonInfinity&lt;G&gt; {
   <span class="doccomment">/// Creates a new `AllocatedPointNonInfinity` from the specified coordinates
-  </span><span class="kw">pub const fn </span>new(x: AllocatedNum&lt;E::Base&gt;, y: AllocatedNum&lt;E::Base&gt;) -&gt; <span class="self">Self </span>{
+  </span><span class="kw">pub const fn </span>new(x: AllocatedNum&lt;G::Base&gt;, y: AllocatedNum&lt;G::Base&gt;) -&gt; <span class="self">Self </span>{
     <span class="self">Self </span>{ x, y }
   }
 
   <span class="doccomment">/// Allocates a new point on the curve using coordinates provided by `coords`.
-  </span><span class="kw">pub fn </span>alloc&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>alloc&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
-    coords: <span class="prelude-ty">Option</span>&lt;(E::Base, E::Base)&gt;,
+    coords: <span class="prelude-ty">Option</span>&lt;(G::Base, G::Base)&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="kw">let </span>x = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;x&quot;</span>), || {
       coords.map_or(<span class="prelude-val">Err</span>(SynthesisError::AssignmentMissing), |c| <span class="prelude-val">Ok</span>(c.<span class="number">0</span>))
@@ -1811,7 +1800,7 @@
   }
 
   <span class="doccomment">/// Turns an `AllocatedPoint` into an `AllocatedPointNonInfinity` (assumes it is not infinity)
-  </span><span class="kw">pub fn </span>from_allocated_point(p: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E&gt;) -&gt; <span class="self">Self </span>{
+  </span><span class="kw">pub fn </span>from_allocated_point(p: <span class="kw-2">&amp;</span>AllocatedPoint&lt;G&gt;) -&gt; <span class="self">Self </span>{
     <span class="self">Self </span>{
       x: p.x.clone(),
       y: p.y.clone(),
@@ -1821,8 +1810,8 @@
   <span class="doccomment">/// Returns an `AllocatedPoint` from an `AllocatedPointNonInfinity`
   </span><span class="kw">pub fn </span>to_allocated_point(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
-    is_infinity: <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;E&gt;, SynthesisError&gt; {
+    is_infinity: <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;,
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;G&gt;, SynthesisError&gt; {
     <span class="prelude-val">Ok</span>(AllocatedPoint {
       x: <span class="self">self</span>.x.clone(),
       y: <span class="self">self</span>.y.clone(),
@@ -1831,19 +1820,19 @@
   }
 
   <span class="doccomment">/// Returns coordinates associated with the point.
-  </span><span class="kw">pub const fn </span>get_coordinates(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;, <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;) {
+  </span><span class="kw">pub const fn </span>get_coordinates(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;, <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;) {
     (<span class="kw-2">&amp;</span><span class="self">self</span>.x, <span class="kw-2">&amp;</span><span class="self">self</span>.y)
   }
 
   <span class="doccomment">/// Add two points assuming self != +/- other
   </span><span class="kw">pub fn </span>add_incomplete&lt;CS&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>cs: CS, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt;
   <span class="kw">where
-    </span>CS: ConstraintSystem&lt;E::Base&gt;,
+    </span>CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="comment">// allocate a free variable that an honest prover sets to lambda = (y2-y1)/(x2-x1)
     </span><span class="kw">let </span>lambda = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;lambda&quot;</span>), || {
       <span class="kw">if </span><span class="kw-2">*</span>other.x.get_value().get()<span class="question-mark">? </span>== <span class="kw-2">*</span><span class="self">self</span>.x.get_value().get()<span class="question-mark">? </span>{
-        <span class="prelude-val">Ok</span>(E::Base::ONE)
+        <span class="prelude-val">Ok</span>(G::Base::ONE)
       } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(
           (<span class="kw-2">*</span>other.y.get_value().get()<span class="question-mark">? </span>- <span class="kw-2">*</span><span class="self">self</span>.y.get_value().get()<span class="question-mark">?</span>)
@@ -1898,7 +1887,7 @@
   }
 
   <span class="doccomment">/// doubles the point; since this is called with a point not at infinity, it is guaranteed to be not infinity
-  </span><span class="kw">pub fn </span>double_incomplete&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>double_incomplete&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
@@ -1907,10 +1896,10 @@
     </span><span class="kw">let </span>x_sq = <span class="self">self</span>.x.square(cs.namespace(|| <span class="string">&quot;x_sq&quot;</span>))<span class="question-mark">?</span>;
 
     <span class="kw">let </span>lambda = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;lambda&quot;</span>), || {
-      <span class="kw">let </span>n = E::Base::from(<span class="number">3</span>) * x_sq.get_value().get()<span class="question-mark">? </span>+ E::GE::group_params().<span class="number">0</span>;
-      <span class="kw">let </span>d = E::Base::from(<span class="number">2</span>) * <span class="kw-2">*</span><span class="self">self</span>.y.get_value().get()<span class="question-mark">?</span>;
-      <span class="kw">if </span>d == E::Base::ZERO {
-        <span class="prelude-val">Ok</span>(E::Base::ONE)
+      <span class="kw">let </span>n = G::Base::from(<span class="number">3</span>) * x_sq.get_value().get()<span class="question-mark">? </span>+ G::group_params().<span class="number">0</span>;
+      <span class="kw">let </span>d = G::Base::from(<span class="number">2</span>) * <span class="kw-2">*</span><span class="self">self</span>.y.get_value().get()<span class="question-mark">?</span>;
+      <span class="kw">if </span>d == G::Base::ZERO {
+        <span class="prelude-val">Ok</span>(G::Base::ONE)
       } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(n * d.invert().unwrap())
       }
@@ -1918,8 +1907,8 @@
     cs.enforce(
       || <span class="string">&quot;Check that lambda is computed correctly&quot;</span>,
       |lc| lc + lambda.get_variable(),
-      |lc| lc + (E::Base::from(<span class="number">2</span>), <span class="self">self</span>.y.get_variable()),
-      |lc| lc + (E::Base::from(<span class="number">3</span>), x_sq.get_variable()) + (E::GE::group_params().<span class="number">0</span>, CS::one()),
+      |lc| lc + (G::Base::from(<span class="number">2</span>), <span class="self">self</span>.y.get_variable()),
+      |lc| lc + (G::Base::from(<span class="number">3</span>), x_sq.get_variable()) + (G::group_params().<span class="number">0</span>, CS::one()),
     );
 
     <span class="kw">let </span>x = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;x&quot;</span>), || {
@@ -1934,7 +1923,7 @@
       || <span class="string">&quot;check that x is correct&quot;</span>,
       |lc| lc + lambda.get_variable(),
       |lc| lc + lambda.get_variable(),
-      |lc| lc + x.get_variable() + (E::Base::from(<span class="number">2</span>), <span class="self">self</span>.x.get_variable()),
+      |lc| lc + x.get_variable() + (G::Base::from(<span class="number">2</span>), <span class="self">self</span>.x.get_variable()),
     );
 
     <span class="kw">let </span>y = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;y&quot;</span>), || {
@@ -1955,7 +1944,7 @@
   }
 
   <span class="doccomment">/// If condition outputs a otherwise outputs b
-  </span><span class="kw">pub fn </span>conditionally_select&lt;CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>conditionally_select&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
     a: <span class="kw-2">&amp;</span><span class="self">Self</span>,
     b: <span class="kw-2">&amp;</span><span class="self">Self</span>,
@@ -1974,14 +1963,15 @@
   <span class="kw">use crate</span>::{
     bellpepper::{
       r1cs::{NovaShape, NovaWitness},
-      {solver::SatisfyingAssignment, test_shape_cs::TestShapeCS},
+      solver::SatisfyingAssignment,
+      test_shape_cs::TestShapeCS,
     },
     provider::{
       bn256_grumpkin::{bn256, grumpkin},
       secp_secq::{secp256k1, secq256k1},
-      Bn256Engine, GrumpkinEngine, Secp256k1Engine, Secq256k1Engine, {PallasEngine, VestaEngine},
+      Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
-    traits::snark::default_ck_hint,
+    traits::{snark::default_ck_hint, Engine},
   };
   <span class="kw">use </span>expect_test::{expect, Expect};
   <span class="kw">use </span>ff::{Field, PrimeFieldBits};
@@ -1989,21 +1979,21 @@
   <span class="kw">use </span>rand::rngs::OsRng;
 
   <span class="attr">#[derive(Debug, Clone)]
-  </span><span class="kw">pub struct </span>Point&lt;E: Engine&gt; {
-    x: E::Base,
-    y: E::Base,
+  </span><span class="kw">pub struct </span>Point&lt;G: Group&gt; {
+    x: G::Base,
+    y: G::Base,
     is_infinity: bool,
   }
 
-  <span class="kw">impl</span>&lt;E: Engine&gt; Point&lt;E&gt; {
-    <span class="kw">pub fn </span>new(x: E::Base, y: E::Base, is_infinity: bool) -&gt; <span class="self">Self </span>{
+  <span class="kw">impl</span>&lt;G: Group&gt; Point&lt;G&gt; {
+    <span class="kw">pub fn </span>new(x: G::Base, y: G::Base, is_infinity: bool) -&gt; <span class="self">Self </span>{
       <span class="self">Self </span>{ x, y, is_infinity }
     }
 
     <span class="kw">pub fn </span>random_vartime() -&gt; <span class="self">Self </span>{
       <span class="kw">loop </span>{
-        <span class="kw">let </span>x = E::Base::random(<span class="kw-2">&amp;mut </span>OsRng);
-        <span class="kw">let </span>y = (x.square() * x + E::GE::group_params().<span class="number">1</span>).sqrt();
+        <span class="kw">let </span>x = G::Base::random(<span class="kw-2">&amp;mut </span>OsRng);
+        <span class="kw">let </span>y = (x.square() * x + G::group_params().<span class="number">1</span>).sqrt();
         <span class="kw">if </span>y.is_some().unwrap_u8() == <span class="number">1 </span>{
           <span class="kw">return </span><span class="self">Self </span>{
             x,
@@ -2023,8 +2013,8 @@
         } <span class="kw">else </span>{
           <span class="comment">// if self.x == other.x and self.y != other.y then return infinity
           </span><span class="self">Self </span>{
-            x: E::Base::ZERO,
-            y: E::Base::ZERO,
+            x: G::Base::ZERO,
+            y: G::Base::ZERO,
             is_infinity: <span class="bool-val">true</span>,
           }
         }
@@ -2056,16 +2046,16 @@
     <span class="kw">pub fn </span>double(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
       <span class="kw">if </span><span class="self">self</span>.is_infinity {
         <span class="kw">return </span><span class="self">Self </span>{
-          x: E::Base::ZERO,
-          y: E::Base::ZERO,
+          x: G::Base::ZERO,
+          y: G::Base::ZERO,
           is_infinity: <span class="bool-val">true</span>,
         };
       }
 
-      <span class="kw">let </span>lambda = E::Base::from(<span class="number">3</span>)
+      <span class="kw">let </span>lambda = G::Base::from(<span class="number">3</span>)
         * <span class="self">self</span>.x
         * <span class="self">self</span>.x
-        * ((E::Base::ONE + E::Base::ONE) * <span class="self">self</span>.y).invert().unwrap();
+        * ((G::Base::ONE + G::Base::ONE) * <span class="self">self</span>.y).invert().unwrap();
       <span class="kw">let </span>x = lambda * lambda - <span class="self">self</span>.x - <span class="self">self</span>.x;
       <span class="kw">let </span>y = lambda * (<span class="self">self</span>.x - x) - <span class="self">self</span>.y;
       <span class="self">Self </span>{
@@ -2075,10 +2065,10 @@
       }
     }
 
-    <span class="kw">pub fn </span>scalar_mul(<span class="kw-2">&amp;</span><span class="self">self</span>, scalar: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>scalar_mul(<span class="kw-2">&amp;</span><span class="self">self</span>, scalar: <span class="kw-2">&amp;</span>G::Scalar) -&gt; <span class="self">Self </span>{
       <span class="kw">let </span><span class="kw-2">mut </span>res = <span class="self">Self </span>{
-        x: E::Base::ZERO,
-        y: E::Base::ZERO,
+        x: G::Base::ZERO,
+        y: G::Base::ZERO,
         is_infinity: <span class="bool-val">true</span>,
       };
 
@@ -2094,17 +2084,17 @@
   }
 
   <span class="comment">// Allocate a random point. Only used for testing
-  </span><span class="kw">pub fn </span>alloc_random_point&lt;E: Engine, CS: ConstraintSystem&lt;E::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>alloc_random_point&lt;G: Group, CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;E&gt;, SynthesisError&gt; {
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;G&gt;, SynthesisError&gt; {
     <span class="comment">// get a random point
-    </span><span class="kw">let </span>p = Point::&lt;E&gt;::random_vartime();
+    </span><span class="kw">let </span>p = Point::&lt;G&gt;::random_vartime();
     AllocatedPoint::alloc(cs.namespace(|| <span class="string">&quot;alloc p&quot;</span>), <span class="prelude-val">Some</span>((p.x, p.y, p.is_infinity)))
   }
 
   <span class="doccomment">/// Make the point io
-  </span><span class="kw">pub fn </span>inputize_allocted_point&lt;E: Engine, CS: ConstraintSystem&lt;E::Base&gt;&gt;(
-    p: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E&gt;,
+  </span><span class="kw">pub fn </span>inputize_allocted_point&lt;G: Group, CS: ConstraintSystem&lt;G::Base&gt;&gt;(
+    p: <span class="kw-2">&amp;</span>AllocatedPoint&lt;G&gt;,
     <span class="kw-2">mut </span>cs: CS,
   ) {
     <span class="kw">let _ </span>= p.x.inputize(cs.namespace(|| <span class="string">&quot;Input point.x&quot;</span>));
@@ -2116,27 +2106,27 @@
 
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ecc_ops() {
-    test_ecc_ops_with::&lt;pallas::Affine, PallasEngine&gt;();
-    test_ecc_ops_with::&lt;vesta::Affine, VestaEngine&gt;();
+    test_ecc_ops_with::&lt;pallas::Affine, &lt;PallasEngine <span class="kw">as </span>Engine&gt;::GE&gt;();
+    test_ecc_ops_with::&lt;vesta::Affine, &lt;VestaEngine <span class="kw">as </span>Engine&gt;::GE&gt;();
 
-    test_ecc_ops_with::&lt;bn256::Affine, Bn256Engine&gt;();
-    test_ecc_ops_with::&lt;grumpkin::Affine, GrumpkinEngine&gt;();
+    test_ecc_ops_with::&lt;bn256::Affine, &lt;Bn256Engine <span class="kw">as </span>Engine&gt;::GE&gt;();
+    test_ecc_ops_with::&lt;grumpkin::Affine, &lt;GrumpkinEngine <span class="kw">as </span>Engine&gt;::GE&gt;();
 
-    test_ecc_ops_with::&lt;secp256k1::Affine, Secp256k1Engine&gt;();
-    test_ecc_ops_with::&lt;secq256k1::Affine, Secq256k1Engine&gt;();
+    test_ecc_ops_with::&lt;secp256k1::Affine, &lt;Secp256k1Engine <span class="kw">as </span>Engine&gt;::GE&gt;();
+    test_ecc_ops_with::&lt;secq256k1::Affine, &lt;Secq256k1Engine <span class="kw">as </span>Engine&gt;::GE&gt;();
   }
 
-  <span class="kw">fn </span>test_ecc_ops_with&lt;C, E&gt;()
+  <span class="kw">fn </span>test_ecc_ops_with&lt;C, G&gt;()
   <span class="kw">where
-    </span>E: Engine,
-    C: CurveAffine&lt;Base = E::Base, ScalarExt = E::Scalar&gt;,
+    </span>G: Group,
+    C: CurveAffine&lt;Base = G::Base, ScalarExt = G::Scalar&gt;,
   {
     <span class="comment">// perform some curve arithmetic
-    </span><span class="kw">let </span>a = Point::&lt;E&gt;::random_vartime();
-    <span class="kw">let </span>b = Point::&lt;E&gt;::random_vartime();
+    </span><span class="kw">let </span>a = Point::&lt;G&gt;::random_vartime();
+    <span class="kw">let </span>b = Point::&lt;G&gt;::random_vartime();
     <span class="kw">let </span>c = a.add(<span class="kw-2">&amp;</span>b);
     <span class="kw">let </span>d = a.double();
-    <span class="kw">let </span>s = &lt;E <span class="kw">as </span>Engine&gt;::Scalar::random(<span class="kw-2">&amp;mut </span>OsRng);
+    <span class="kw">let </span>s = G::Scalar::random(<span class="kw-2">&amp;mut </span>OsRng);
     <span class="kw">let </span>e = a.scalar_mul(<span class="kw-2">&amp;</span>s);
 
     <span class="comment">// perform the same computation by translating to curve types
@@ -2179,15 +2169,15 @@
     <span class="macro">assert_eq!</span>(e_curve, e_curve_2);
   }
 
-  <span class="kw">fn </span>synthesize_smul&lt;E, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; (AllocatedPoint&lt;E&gt;, AllocatedPoint&lt;E&gt;, E::Scalar)
+  <span class="kw">fn </span>synthesize_smul&lt;G, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; (AllocatedPoint&lt;G&gt;, AllocatedPoint&lt;G&gt;, G::Scalar)
   <span class="kw">where
-    </span>E: Engine,
-    CS: ConstraintSystem&lt;E::Base&gt;,
+    </span>G: Group,
+    CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="kw">let </span>a = alloc_random_point(cs.namespace(|| <span class="string">&quot;a&quot;</span>)).unwrap();
     inputize_allocted_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
 
-    <span class="kw">let </span>s = E::Scalar::random(<span class="kw-2">&amp;mut </span>OsRng);
+    <span class="kw">let </span>s = G::Scalar::random(<span class="kw-2">&amp;mut </span>OsRng);
     <span class="comment">// Allocate bits for s
     </span><span class="kw">let </span>bits: Vec&lt;AllocatedBit&gt; = s
       .to_le_bits()
@@ -2226,22 +2216,22 @@
   {
     <span class="comment">// First create the shape
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs: TestShapeCS&lt;E2&gt; = TestShapeCS::new();
-    <span class="kw">let _ </span>= synthesize_smul::&lt;E1, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize&quot;</span>));
+    <span class="kw">let _ </span>= synthesize_smul::&lt;E1::GE, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize&quot;</span>));
     expected_constraints.assert_eq(<span class="kw-2">&amp;</span>cs.num_constraints().to_string());
     expected_variables.assert_eq(<span class="kw-2">&amp;</span>cs.num_aux().to_string());
     <span class="kw">let </span>(shape, ck) = cs.r1cs_shape_and_key(<span class="kw-2">&amp;*</span>default_ck_hint());
 
     <span class="comment">// Then the satisfying assignment
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs = SatisfyingAssignment::&lt;E2&gt;::new();
-    <span class="kw">let </span>(a, e, s) = synthesize_smul::&lt;E1, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize&quot;</span>));
+    <span class="kw">let </span>(a, e, s) = synthesize_smul::&lt;E1::GE, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize&quot;</span>));
     <span class="kw">let </span>(inst, witness) = cs.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape, <span class="kw-2">&amp;</span>ck).unwrap();
 
-    <span class="kw">let </span>a_p: Point&lt;E1&gt; = Point::new(
+    <span class="kw">let </span>a_p: Point&lt;E1::GE&gt; = Point::new(
       a.x.get_value().unwrap(),
       a.y.get_value().unwrap(),
       a.is_infinity.get_value().unwrap() == &lt;E1 <span class="kw">as </span>Engine&gt;::Base::ONE,
     );
-    <span class="kw">let </span>e_p: Point&lt;E1&gt; = Point::new(
+    <span class="kw">let </span>e_p: Point&lt;E1::GE&gt; = Point::new(
       e.x.get_value().unwrap(),
       e.y.get_value().unwrap(),
       e.is_infinity.get_value().unwrap() == &lt;E1 <span class="kw">as </span>Engine&gt;::Base::ONE,
@@ -2252,10 +2242,10 @@
     </span><span class="macro">assert!</span>(shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).is_ok());
   }
 
-  <span class="kw">fn </span>synthesize_add_equal&lt;E, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; (AllocatedPoint&lt;E&gt;, AllocatedPoint&lt;E&gt;)
+  <span class="kw">fn </span>synthesize_add_equal&lt;G, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; (AllocatedPoint&lt;G&gt;, AllocatedPoint&lt;G&gt;)
   <span class="kw">where
-    </span>E: Engine,
-    CS: ConstraintSystem&lt;E::Base&gt;,
+    </span>G: Group,
+    CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="kw">let </span>a = alloc_random_point(cs.namespace(|| <span class="string">&quot;a&quot;</span>)).unwrap();
     inputize_allocted_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
@@ -2283,20 +2273,20 @@
   {
     <span class="comment">// First create the shape
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs: TestShapeCS&lt;E2&gt; = TestShapeCS::new();
-    <span class="kw">let _ </span>= synthesize_add_equal::&lt;E1, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add equal&quot;</span>));
+    <span class="kw">let _ </span>= synthesize_add_equal::&lt;E1::GE, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add equal&quot;</span>));
     <span class="macro">println!</span>(<span class="string">&quot;Number of constraints: {}&quot;</span>, cs.num_constraints());
     <span class="kw">let </span>(shape, ck) = cs.r1cs_shape_and_key(<span class="kw-2">&amp;*</span>default_ck_hint());
 
     <span class="comment">// Then the satisfying assignment
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs = SatisfyingAssignment::&lt;E2&gt;::new();
-    <span class="kw">let </span>(a, e) = synthesize_add_equal::&lt;E1, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add equal&quot;</span>));
+    <span class="kw">let </span>(a, e) = synthesize_add_equal::&lt;E1::GE, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add equal&quot;</span>));
     <span class="kw">let </span>(inst, witness) = cs.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape, <span class="kw-2">&amp;</span>ck).unwrap();
-    <span class="kw">let </span>a_p: Point&lt;E1&gt; = Point::new(
+    <span class="kw">let </span>a_p: Point&lt;E1::GE&gt; = Point::new(
       a.x.get_value().unwrap(),
       a.y.get_value().unwrap(),
       a.is_infinity.get_value().unwrap() == &lt;E1 <span class="kw">as </span>Engine&gt;::Base::ONE,
     );
-    <span class="kw">let </span>e_p: Point&lt;E1&gt; = Point::new(
+    <span class="kw">let </span>e_p: Point&lt;E1::GE&gt; = Point::new(
       e.x.get_value().unwrap(),
       e.y.get_value().unwrap(),
       e.is_infinity.get_value().unwrap() == &lt;E1 <span class="kw">as </span>Engine&gt;::Base::ONE,
@@ -2307,16 +2297,16 @@
     </span><span class="macro">assert!</span>(shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).is_ok());
   }
 
-  <span class="kw">fn </span>synthesize_add_negation&lt;E, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; AllocatedPoint&lt;E&gt;
+  <span class="kw">fn </span>synthesize_add_negation&lt;G, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; AllocatedPoint&lt;G&gt;
   <span class="kw">where
-    </span>E: Engine,
-    CS: ConstraintSystem&lt;E::Base&gt;,
+    </span>G: Group,
+    CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="kw">let </span>a = alloc_random_point(cs.namespace(|| <span class="string">&quot;a&quot;</span>)).unwrap();
     inputize_allocted_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
     <span class="kw">let </span>b = <span class="kw-2">&amp;mut </span>a.clone();
     b.y = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;allocate negation of a&quot;</span>), || {
-      <span class="prelude-val">Ok</span>(E::Base::ZERO)
+      <span class="prelude-val">Ok</span>(G::Base::ZERO)
     })
     .unwrap();
     inputize_allocted_point(b, cs.namespace(|| <span class="string">&quot;inputize b&quot;</span>));
@@ -2357,16 +2347,16 @@
   {
     <span class="comment">// First create the shape
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs: TestShapeCS&lt;E2&gt; = TestShapeCS::new();
-    <span class="kw">let _ </span>= synthesize_add_negation::&lt;E1, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add equal&quot;</span>));
+    <span class="kw">let _ </span>= synthesize_add_negation::&lt;E1::GE, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add equal&quot;</span>));
     expected_constraints.assert_eq(<span class="kw-2">&amp;</span>cs.num_constraints().to_string());
     expected_variables.assert_eq(<span class="kw-2">&amp;</span>cs.num_aux().to_string());
     <span class="kw">let </span>(shape, ck) = cs.r1cs_shape_and_key(<span class="kw-2">&amp;*</span>default_ck_hint());
 
     <span class="comment">// Then the satisfying assignment
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs = SatisfyingAssignment::&lt;E2&gt;::new();
-    <span class="kw">let </span>e = synthesize_add_negation::&lt;E1, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add negation&quot;</span>));
+    <span class="kw">let </span>e = synthesize_add_negation::&lt;E1::GE, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;synthesize add negation&quot;</span>));
     <span class="kw">let </span>(inst, witness) = cs.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape, <span class="kw-2">&amp;</span>ck).unwrap();
-    <span class="kw">let </span>e_p: Point&lt;E1&gt; = Point::new(
+    <span class="kw">let </span>e_p: Point&lt;E1::GE&gt; = Point::new(
       e.x.get_value().unwrap(),
       e.y.get_value().unwrap(),
       e.is_infinity.get_value().unwrap() == &lt;E1 <span class="kw">as </span>Engine&gt;::Base::ONE,

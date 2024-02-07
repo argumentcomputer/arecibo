@@ -622,7 +622,7 @@
       Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;,
       AllocatedRelaxedR1CSInstance&lt;E&gt;,
       AllocatedR1CSInstance&lt;E&gt;,
-      AllocatedPoint&lt;E&gt;,
+      AllocatedPoint&lt;E::GE&gt;,
     ),
     SynthesisError,
   &gt; {
@@ -717,7 +717,7 @@
     z_i: <span class="kw-2">&amp;</span>[AllocatedNum&lt;E::Base&gt;],
     U: <span class="kw-2">&amp;</span>AllocatedRelaxedR1CSInstance&lt;E&gt;,
     u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E&gt;,
-    T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E&gt;,
+    T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E::GE&gt;,
     arity: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(AllocatedRelaxedR1CSInstance&lt;E&gt;, AllocatedBit), SynthesisError&gt; {
     <span class="comment">// Check that u.x[0] = Hash(params, U, i, z0, zi)
