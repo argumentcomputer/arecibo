@@ -1,6 +1,6 @@
 use crate::gadgets::utils::alloc_zero;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
-use crate::provider::Bn256Engine;
+use crate::provider::Bn256EngineIPA;
 use crate::provider::PallasEngine;
 use crate::provider::Secp256k1Engine;
 use crate::provider::VestaEngine;
@@ -613,9 +613,9 @@ fn test_supernova_pp_digest() {
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
     OPCODE_1,
   ]; // Rom can be arbitrary length.
-  let test_rom_grumpkin = TestROM::<Bn256Engine>::new(rom);
+  let test_rom_grumpkin = TestROM::<Bn256EngineIPA>::new(rom);
 
-  test_pp_digest_with::<Bn256Engine, _>(
+  test_pp_digest_with::<Bn256EngineIPA, _>(
     &test_rom_grumpkin,
     &expect!["c335819a49075ca959121d1dd016f944ee742c61122074be7a487ba814c40f00"],
   );
@@ -875,6 +875,6 @@ where
 #[test]
 fn test_nivc_nondet() {
   test_nivc_nondet_with::<PallasEngine>();
-  test_nivc_nondet_with::<Bn256Engine>();
+  test_nivc_nondet_with::<Bn256EngineIPA>();
   test_nivc_nondet_with::<Secp256k1Engine>();
 }

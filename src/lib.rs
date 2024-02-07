@@ -1017,7 +1017,7 @@ mod tests {
   use super::*;
   use crate::{
     provider::{
-      non_hiding_zeromorph::ZMPCS, Bn256Engine, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
+      non_hiding_zeromorph::ZMPCS, Bn256EngineIPA, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
       Secp256k1Engine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
@@ -1124,13 +1124,13 @@ mod tests {
       &expect!["83ef7f741c983bfc9193f1ba387b4966ca8d0818acac65583e30d72593b0f600"],
     );
 
-    test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Bn256EngineIPA, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
       &expect!["09e1cc324b4469aec5abc55d48d8add5d161cbb70aa023f78e171c58e3199600"],
     );
 
-    test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Bn256EngineIPA, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
       &expect!["7602bf1fdf3d86b8a7228de4c163e11cc3908b93412548f8cf3ebc1bc638fd00"],
@@ -1191,7 +1191,7 @@ mod tests {
   #[test]
   fn test_ivc_trivial() {
     test_ivc_trivial_with::<PallasEngine>();
-    test_ivc_trivial_with::<Bn256Engine>();
+    test_ivc_trivial_with::<Bn256EngineIPA>();
     test_ivc_trivial_with::<Secp256k1Engine>();
   }
 
@@ -1263,7 +1263,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial() {
     test_ivc_nontrivial_with::<PallasEngine>();
-    test_ivc_nontrivial_with::<Bn256Engine>();
+    test_ivc_nontrivial_with::<Bn256EngineKZG>();
     test_ivc_nontrivial_with::<Secp256k1Engine>();
   }
 
@@ -1362,7 +1362,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_compression() {
     test_ivc_nontrivial_with_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<
@@ -1387,7 +1387,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_spark_compression() {
     test_ivc_nontrivial_with_spark_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<
@@ -1416,7 +1416,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_batched_compression() {
     test_ivc_nontrivial_with_batched_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_batched_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
     test_ivc_nontrivial_with_batched_compression_with::<
@@ -1443,7 +1443,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_batched_spark_compression() {
     test_ivc_nontrivial_with_batched_spark_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>(
     );
@@ -1575,7 +1575,7 @@ mod tests {
   #[test]
   fn test_ivc_nondet_with_compression() {
     test_ivc_nondet_with_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nondet_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
   }
@@ -1630,7 +1630,7 @@ mod tests {
   #[test]
   fn test_ivc_base() {
     test_ivc_base_with::<PallasEngine>();
-    test_ivc_base_with::<Bn256Engine>();
+    test_ivc_base_with::<Bn256EngineKZG>();
     test_ivc_base_with::<Secp256k1Engine>();
   }
 }

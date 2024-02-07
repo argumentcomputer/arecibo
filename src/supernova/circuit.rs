@@ -714,7 +714,7 @@ mod tests {
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::utils::scalar_as_base,
     provider::{
-      poseidon::PoseidonConstantsCircuit, Bn256Engine, GrumpkinEngine, PallasEngine,
+      poseidon::PoseidonConstantsCircuit, Bn256EngineIPA, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     supernova::circuit::TrivialTestCircuit,
@@ -855,9 +855,9 @@ mod tests {
     let params1 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let params2 = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<GrumpkinEngine> = PoseidonConstantsCircuit::default();
-    let ro_consts2: ROConstantsCircuit<Bn256Engine> = PoseidonConstantsCircuit::default();
+    let ro_consts2: ROConstantsCircuit<Bn256EngineIPA> = PoseidonConstantsCircuit::default();
 
-    test_supernova_recursive_circuit_with::<Bn256Engine>(
+    test_supernova_recursive_circuit_with::<Bn256EngineIPA>(
       &params1,
       &params2,
       ro_consts1,

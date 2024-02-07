@@ -25,7 +25,7 @@ use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-pub(crate) use self::sparse::SparseMatrix;
+pub(crate) use sparse::SparseMatrix;
 
 /// A type that holds the shape of the R1CS matrices
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
@@ -827,7 +827,7 @@ mod tests {
 
   use super::*;
   use crate::{
-    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{Bn256EngineIPA, Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     r1cs::sparse::SparseMatrix,
     traits::Engine,
   };
@@ -910,7 +910,7 @@ mod tests {
   #[test]
   fn test_pad_tiny_r1cs() {
     test_pad_tiny_r1cs_with::<PallasEngine>();
-    test_pad_tiny_r1cs_with::<Bn256Engine>();
+    test_pad_tiny_r1cs_with::<Bn256EngineKZG>();
     test_pad_tiny_r1cs_with::<Secp256k1Engine>();
   }
 
@@ -931,6 +931,6 @@ mod tests {
 
   #[test]
   fn test_random_r1cs() {
-    test_random_r1cs_with::<Bn256Engine>();
+    test_random_r1cs_with::<Bn256EngineIPA>();
   }
 }
