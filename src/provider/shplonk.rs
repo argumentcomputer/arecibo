@@ -13,8 +13,9 @@ use crate::{CommitmentEngineTrait, NovaError};
 use ff::{Field, PrimeFieldBits};
 use group::{Curve, Group as group_Group};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{
+  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::marker::PhantomData;
 
@@ -226,20 +227,43 @@ where
     pi: &EvaluationArgument<E>,
   ) -> Result<(), NovaError> {
     let r = HyperKZG::<E, NE>::compute_challenge(&pi.comms, transcript);
+    let u = vec![r, -r, r * r];
+
+    if pi.evals.len() != u.len() {
+      return Err(NovaError::ProofVerifyError);
+    }
+    if pi.R_x.len() != u.len() {
+      return Err(NovaError::ProofVerifyError);
+    }
 
     let q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
     let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, pi.comms.len());
+
+    let R_x = UVKZGPoly::new(pi.R_x.clone());
+
+    for (i, evals_i) in pi.evals.iter().enumerate() {
+      let mut batched_eval = E::Fr::ZERO;
+      evals_i.iter().zip(q_powers.iter()).for_each(|(eval, q_i)| {
+        batched_eval = batched_eval + *eval * q_i;
+      });
+
+      // here we check correlation between R polynomial and batched evals, e.g.:
+      // 1) R(r) == eval at r
+      // 2) R(-r) == eval at -r
+      // 3) R(r^2) == eval at r^2
+      if batched_eval != R_x.evaluate(&u[i]) {
+        return Err(NovaError::ProofVerifyError);
+      }
+    }
+
     let C_P = q_powers
       .iter()
       .zip(pi.comms.iter())
       .fold(E::G1::identity(), |acc, (q_i, C_i)| acc + *C_i * q_i);
 
-    let r_squared = r * r;
-
-    // C_H, C_Q, R_x come from prover
     let C_Q = pi.C_Q;
     let C_H = pi.C_H;
-    let R_x = UVKZGPoly::new(pi.R_x.clone());
+    let r_squared = u[2];
 
     // D = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
     let D = UVKZGPoly::new(vec![
