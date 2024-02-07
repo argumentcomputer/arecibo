@@ -11,7 +11,6 @@ use crate::traits::evaluation::EvaluationEngineTrait;
 use crate::traits::{Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait};
 use crate::{CommitmentEngineTrait, NovaError};
 use ff::{Field, PrimeFieldBits};
-use group::prime::PrimeCurveAffine;
 use group::{Curve, Group as group_Group};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::iter::IndexedParallelIterator;
@@ -32,7 +31,6 @@ pub struct EvaluationArgument<E: Engine> {
   comms: Vec<E::G1Affine>,
   evals: Vec<Vec<E::Fr>>,
   R_x: Vec<E::Fr>,
-  C_P: E::G1Affine,
   C_Q: E::G1Affine,
   C_H: E::G1Affine,
 }
@@ -55,8 +53,8 @@ where
   E::Fr: TranscriptReprTrait<E::G1>,
   E::G1Affine: TranscriptReprTrait<E::G1>,
 {
-  fn compute_a(c: &[E::G1Affine], transcript: &mut impl TranscriptEngineTrait<NE>) -> E::Fr {
-    transcript.absorb(b"C_P_C_Q", &c.to_vec().as_slice());
+  fn compute_a(c_q: &E::G1Affine, transcript: &mut impl TranscriptEngineTrait<NE>) -> E::Fr {
+    transcript.absorb(b"C_Q", c_q);
     transcript.squeeze(b"a").unwrap()
   }
 
@@ -185,13 +183,7 @@ where
     // Phase 3
     // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
     let q = HyperKZG::<E, NE>::get_batch_challenge(&evals, transcript);
-    let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, polys.len());
     let batched_Pi: UniPoly<E::Fr> = polys.into_iter().map(UniPoly::new).rlc(&q);
-
-    let C_P = q_powers
-      .iter()
-      .zip(comms.iter())
-      .fold(E::G1::identity(), |acc, (q_i, C_i)| acc + *C_i * q_i);
 
     // Q(x), R(x) = P(x) / D(x), where D(x) = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
     let D = UVKZGPoly::new(vec![u[2] * u[2], -u[2], -u[2], E::Fr::from(1)]);
@@ -201,7 +193,7 @@ where
       .comm
       .to_affine();
 
-    let a = Self::compute_a(&vec![C_P.to_affine(), C_Q], transcript);
+    let a = Self::compute_a(&C_Q, transcript);
 
     // K(x) = P(x) - Q(x) * D(a) - R(a), note that R(a) should be subtracted from a free term of polynomial
     let K_x = Self::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
@@ -219,7 +211,6 @@ where
       comms,
       evals,
       R_x: R_x.coeffs,
-      C_P: C_P.into(),
       C_Q,
       C_H,
     })
@@ -236,13 +227,16 @@ where
   ) -> Result<(), NovaError> {
     let r = HyperKZG::<E, NE>::compute_challenge(&pi.comms, transcript);
 
-    // TODO: verifier needs to check that evals are valid. Ask Adrian for additional clarification
-    let _q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
+    let q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
+    let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, pi.comms.len());
+    let C_P = q_powers
+      .iter()
+      .zip(pi.comms.iter())
+      .fold(E::G1::identity(), |acc, (q_i, C_i)| acc + *C_i * q_i);
 
     let r_squared = r * r;
 
-    // C_H, C_P, C_Q, R_x come from prover
-    let C_P = pi.C_P;
+    // C_H, C_Q, R_x come from prover
     let C_Q = pi.C_Q;
     let C_H = pi.C_H;
     let R_x = UVKZGPoly::new(pi.R_x.clone());
@@ -255,9 +249,9 @@ where
       E::Fr::from(1),
     ]);
 
-    let a = Self::compute_a(&vec![C_P, C_Q], transcript);
+    let a = Self::compute_a(&C_Q, transcript);
 
-    let C_K = C_P.to_curve() - (C_Q * D.evaluate(&a) + vk.g * R_x.evaluate(&a));
+    let C_K = C_P - (C_Q * D.evaluate(&a) + vk.g * R_x.evaluate(&a));
 
     let pairing_inputs: Vec<(E::G1Affine, E::G2Prepared)> = vec![
       (C_H.into(), vk.beta_h.into()),
@@ -265,9 +259,9 @@ where
     ];
 
     let pairing_input_refs = pairing_inputs
-        .iter()
-        .map(|(a, b)| (a, b))
-        .collect::<Vec<_>>();
+      .iter()
+      .map(|(a, b)| (a, b))
+      .collect::<Vec<_>>();
 
     let pairing_result = E::multi_miller_loop(pairing_input_refs.as_slice()).final_exponentiation();
     if pairing_result.is_identity().unwrap_u8() == 0x00 {
