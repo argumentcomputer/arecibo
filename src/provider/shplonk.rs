@@ -20,6 +20,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use crate::provider::hyperkzg::EvaluationEngine as HyperKZG;
+use itertools::Itertools;
 use ref_cast::RefCast as _;
 use std::sync::Arc;
 
@@ -177,7 +178,7 @@ where
 
     // Phase 1 (similar to hyperkzg)
     let polys = Self::compute_pi_polynomials(hat_P, point, eval);
-    let comms = Self::compute_commitments(&ck, C, &polys);
+    let comms = Self::compute_commitments(ck, C, &polys);
 
     // Phase 2 (similar to hyperkzg)
     let r = HyperKZG::<E, NE>::compute_challenge(&comms, transcript);
@@ -231,7 +232,7 @@ where
     pi: &EvaluationArgument<E>,
   ) -> Result<(), NovaError> {
     let r = HyperKZG::<E, NE>::compute_challenge(&pi.comms, transcript);
-    let u = vec![r, -r, r * r];
+    let u = [r, -r, r * r];
 
     if pi.evals.len() != u.len() {
       return Err(NovaError::ProofVerifyError);
@@ -265,9 +266,12 @@ where
       }
 
       let mut batched_eval = E::Fr::ZERO;
-      evals_i.iter().zip(q_powers.iter()).for_each(|(eval, q_i)| {
-        batched_eval = batched_eval + *eval * q_i;
-      });
+      evals_i
+        .iter()
+        .zip_eq(q_powers.iter())
+        .for_each(|(eval, q_i)| {
+          batched_eval += *eval * q_i;
+        });
 
       // here we check correlation between R polynomial and batched evals, e.g.:
       // 1) R(r) == eval at r
@@ -284,9 +288,10 @@ where
     // P_i+1(r^2) == (1 - point_i) * P_i_even + point_i * P_i_odd -> should hold, according to Shplonk
     let mut point = point.to_vec();
     point.reverse();
+    #[allow(clippy::disallowed_methods)]
     for (index, ((eval_r, eval_minus_r), eval_r_squared)) in evals_at_r
       .iter()
-      .zip(evals_at_minus_r.iter())
+      .zip_eq(evals_at_minus_r.iter())
       // TODO: Ask Adrian if we need evals_at_r_squared[0] for some additional checks
       .zip(evals_at_r_squared[1..].iter())
       .enumerate()
@@ -301,7 +306,7 @@ where
 
     let C_P = q_powers
       .iter()
-      .zip(pi.comms.iter())
+      .zip_eq(pi.comms.iter())
       .fold(E::G1::identity(), |acc, (q_i, C_i)| acc + *C_i * q_i);
 
     let C_Q = pi.C_Q;
@@ -321,10 +326,11 @@ where
     let C_K = C_P - (C_Q * D.evaluate(&a) + vk.g * R_x.evaluate(&a));
 
     let pairing_inputs: Vec<(E::G1Affine, E::G2Prepared)> = vec![
-      (C_H.into(), vk.beta_h.into()),
+      (C_H, vk.beta_h.into()),
       ((C_H * (-a) - C_K).to_affine(), vk.h.into()),
     ];
 
+    #[allow(clippy::map_identity)]
     let pairing_input_refs = pairing_inputs
       .iter()
       .map(|(a, b)| (a, b))
@@ -344,6 +350,7 @@ mod tests {
   use crate::traits::TranscriptEngineTrait;
   use crate::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
   use halo2curves::bn256::G1;
+  use itertools::Itertools;
 
   type E = halo2curves::bn256::Bn256;
   type NE = crate::provider::Bn256EngineKZG;
@@ -357,7 +364,7 @@ mod tests {
     eval: &Fr,
   ) {
     let polys = EvaluationEngine::<E, NE>::compute_pi_polynomials(poly, point, eval);
-    let comms = EvaluationEngine::<E, NE>::compute_commitments(&ck, &C, &polys);
+    let comms = EvaluationEngine::<E, NE>::compute_commitments(ck, C, &polys);
 
     let q = Fr::from(8165763);
     let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, polys.len());
@@ -380,8 +387,8 @@ mod tests {
     let K_x = EvaluationEngine::<E, NE>::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
 
     let mut C_P = G1::identity();
-    q_powers.iter().zip(comms.iter()).for_each(|(q_i, C_i)| {
-      C_P = C_P + (*C_i * q_i);
+    q_powers.iter().zip_eq(comms.iter()).for_each(|(q_i, C_i)| {
+      C_P += *C_i * q_i;
     });
 
     let C_Q =
@@ -477,7 +484,7 @@ mod tests {
     let polys = EvaluationEngine::<E, NE>::compute_pi_polynomials(poly, point, eval);
 
     let q = Fr::from(97652);
-    let u = vec![Fr::from(10), Fr::from(20), Fr::from(50)];
+    let u = [Fr::from(10), Fr::from(20), Fr::from(50)];
 
     let batched_Pi: UniPoly<Fr> = polys.clone().into_iter().map(UniPoly::new).rlc(&q);
 
@@ -486,12 +493,12 @@ mod tests {
       let evals = polys
         .clone()
         .into_iter()
-        .map(|poly| UniPoly::new(poly).evaluate(&evaluation_scalar))
+        .map(|poly| UniPoly::new(poly).evaluate(evaluation_scalar))
         .collect::<Vec<Fr>>();
 
       let expected = evals
         .iter()
-        .zip(q_powers.iter())
+        .zip_eq(q_powers.iter())
         .map(|(eval, q)| eval * q)
         .collect::<Vec<Fr>>()
         .into_iter()
@@ -631,7 +638,7 @@ mod tests {
       EvaluationEngine::<E, NE>::setup(ck.clone());
 
     // make a commitment
-    let C: Commitment<NE> = KZGCommitmentEngine::commit(&ck, &poly);
+    let C: Commitment<NE> = KZGCommitmentEngine::commit(&ck, poly);
 
     let mut prover_transcript = Keccak256Transcript::new(b"TestEval");
     let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
