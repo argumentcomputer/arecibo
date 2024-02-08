@@ -45,7 +45,7 @@ use crate::{
 pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   sc_proof_outer: SumcheckProof<E>,
   // Claims ([Azᵢ(τᵢ)], [Bzᵢ(τᵢ)], [Czᵢ(τᵢ)])
-  claims_outer: (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>),
+  claims_outer: Vec<(E::Scalar, E::Scalar, E::Scalar)>,
   // [Eᵢ(r_x)]
   evals_E: Vec<E::Scalar>,
   sc_proof_inner: SumcheckProof<E>,
@@ -369,12 +369,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       &batched_u.e,
     )?;
 
-    let (evals_Az, evals_Bz, evals_Cz): (Vec<_>, Vec<_>, Vec<_>) =
-      evals_Az_Bz_Cz.into_iter().multiunzip();
-
     Ok(Self {
       sc_proof_outer,
-      claims_outer: (evals_Az, evals_Bz, evals_Cz),
+      claims_outer: evals_Az_Bz_Cz,
       evals_E,
       sc_proof_inner,
       evals_W,
@@ -437,20 +434,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Extract evaluations into a vector [(Azᵢ, Bzᵢ, Czᵢ, Eᵢ)]
     // TODO: This is a multizip, simplify
-    let ABCE_evals = zip_with!(
-      iter,
-      (
-        self.evals_E,
-        self.claims_outer.0,
-        self.claims_outer.1,
-        self.claims_outer.2
-      ),
-      |eval_E, claim_Az, claim_Bz, claim_Cz| (*claim_Az, *claim_Bz, *claim_Cz, *eval_E)
-    )
-    .collect::<Vec<_>>();
+    let ABCE_evals = || self.claims_outer.iter().zip_eq(self.evals_E.iter());
 
     // Add evaluations of Az, Bz, Cz, E to transcript
-    for (claim_Az, claim_Bz, claim_Cz, eval_E) in ABCE_evals.iter() {
+    for ((claim_Az, claim_Bz, claim_Cz), eval_E) in ABCE_evals() {
       transcript.absorb(
         b"claims_outer",
         &[*claim_Az, *claim_Bz, *claim_Cz, *eval_E].as_slice(),
@@ -463,14 +450,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = zip_with!(
-      (
-        ABCE_evals.iter(),
-        U.iter(),
-        evals_tau,
-        outer_r_powers.iter()
-      ),
+      (ABCE_evals(), U.iter(), evals_tau, outer_r_powers.iter()),
       |ABCE_eval, u, eval_tau, r| {
-        let (claim_Az, claim_Bz, claim_Cz, eval_E) = ABCE_eval;
+        let ((claim_Az, claim_Bz, claim_Cz), eval_E) = ABCE_eval;
         *r * eval_tau * (*claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
       }
     )
@@ -487,10 +469,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Compute inner claims Mzᵢ = (Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ),
     // which are batched by Sumcheck into one claim:  ∑ᵢ r³ⁱ⋅Mzᵢ
-    let claims_inner = ABCE_evals
-      .into_iter()
-      .map(|(claim_Az, claim_Bz, claim_Cz, _)| {
-        claim_Az + inner_r * claim_Bz + inner_r_square * claim_Cz
+    let claims_inner = self
+      .claims_outer
+      .iter()
+      .map(|(claim_Az, claim_Bz, claim_Cz)| {
+        *claim_Az + inner_r * claim_Bz + inner_r_square * claim_Cz
       })
       .collect::<Vec<_>>();
 
