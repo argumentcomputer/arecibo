@@ -37,7 +37,7 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
     assert_eq!(self.r.len(), rx.len());
     (0..rx.len())
       .map(|i| self.r[i] * rx[i] + (Scalar::ONE - self.r[i]) * (Scalar::ONE - rx[i]))
-      .fold(Scalar::ONE, |acc, item| acc * item)
+      .product()
   }
 
   /// Evaluates the `EqPolynomial` at all the `2^|r|` points in its domain.

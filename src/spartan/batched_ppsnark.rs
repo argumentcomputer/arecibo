@@ -903,14 +903,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
         let num_rounds_i = rand_sc.len();
         let num_vars_log = num_vars.log_2();
 
-        let eq_rho = {
-          let rho_coords = PowPolynomial::new(&rho, num_rounds_i).coordinates();
-          EqPolynomial::new(rho_coords).evaluate(rand_sc)
-        };
+        let eq_rho = PowPolynomial::new(&rho, num_rounds_i).evaluate(rand_sc);
 
         let (eq_tau, eq_masked_tau) = {
-          let tau_coords = PowPolynomial::new(&tau, num_rounds_i).coordinates();
-          let eq_tau = EqPolynomial::new(tau_coords);
+          let eq_tau: EqPolynomial<_> = PowPolynomial::new(&tau, num_rounds_i).into();
 
           let eq_tau_at_rand = eq_tau.evaluate(rand_sc);
           let eq_masked_tau = MaskedEqPolynomial::new(&eq_tau, num_vars_log).evaluate(rand_sc);

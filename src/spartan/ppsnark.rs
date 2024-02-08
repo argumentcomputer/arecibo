@@ -885,12 +885,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
     // verify claim_sc_final
     let claim_sc_final_expected = {
-      let rand_eq_bound_rand_sc = {
-        let poly_eq_coords = PowPolynomial::new(&rho, num_rounds_sc).coordinates();
-        EqPolynomial::new(poly_eq_coords).evaluate(&rand_sc)
-      };
-      let taus_coords = PowPolynomial::new(&tau, num_rounds_sc).coordinates();
-      let eq_tau = EqPolynomial::new(taus_coords);
+      let rand_eq_bound_rand_sc = PowPolynomial::new(&rho, num_rounds_sc).evaluate(&rand_sc);
+      let eq_tau: EqPolynomial<_> = PowPolynomial::new(&tau, num_rounds_sc).into();
 
       let taus_bound_rand_sc = eq_tau.evaluate(&rand_sc);
       let taus_masked_bound_rand_sc =

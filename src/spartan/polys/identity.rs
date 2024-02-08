@@ -24,6 +24,6 @@ impl<Scalar: PrimeField> IdentityPolynomial<Scalar> {
         power_of_two *= 2;
         result
       })
-      .fold(Scalar::ZERO, |acc, item| acc + item)
+      .sum()
   }
 }
