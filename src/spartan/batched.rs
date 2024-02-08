@@ -403,14 +403,14 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let num_rounds_y_max = *num_rounds_y.iter().max().unwrap();
 
     // Define τ polynomials of the appropriate size for each instance
-    let polys_tau = {
-      let tau = transcript.squeeze(b"t")?;
+    let tau = transcript.squeeze(b"t")?;
+    let all_taus = PowPolynomial::squares(&tau, num_rounds_x_max);
 
-      num_rounds_x
-        .iter()
-        .map(|&num_rounds| PowPolynomial::new(&tau, num_rounds))
-        .collect::<Vec<_>>()
-    };
+    let polys_tau = num_rounds_x
+      .iter()
+      .map(|&num_rounds_x| PowPolynomial::evals_with_powers(&all_taus, num_rounds_x))
+      .map(MultilinearPolynomial::new)
+      .collect::<Vec<_>>();
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
