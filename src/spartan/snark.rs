@@ -444,10 +444,10 @@ pub(in crate::spartan) fn batch_eval_prove<E: Engine>(
   let num_rounds = u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
 
   // Check polynomials match number of variables, i.e. |Pᵢ| = 2^nᵢ
-  w_vec
-    .iter()
-    .zip_eq(num_rounds.iter())
-    .for_each(|(w, num_vars)| assert_eq!(w.p.len(), 1 << num_vars));
+  zip_with_for_each!(iter, (w_vec, num_rounds), |w, num_vars| assert_eq!(
+    w.p.len(),
+    1 << num_vars
+  ));
 
   // generate a challenge, and powers of it for random linear combination
   let rho = transcript.squeeze(b"r")?;

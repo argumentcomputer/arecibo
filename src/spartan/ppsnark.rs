@@ -604,14 +604,12 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
         );
 
         // a sum-check instance to prove the second claim
-        let val = pk
-          .S_repr
-          .val_A
-          .par_iter()
-          .zip_eq(pk.S_repr.val_B.par_iter())
-          .zip_eq(pk.S_repr.val_C.par_iter())
-          .map(|((v_a, v_b), v_c)| *v_a + c * *v_b + c * c * *v_c)
-          .collect::<Vec<E::Scalar>>();
+        let val = zip_with!(
+          par_iter,
+          (pk.S_repr.val_A, pk.S_repr.val_B, pk.S_repr.val_C),
+          |v_a, v_b, v_c| *v_a + c * *v_b + c * c * *v_c
+        )
+        .collect::<Vec<E::Scalar>>();
         let inner_sc_inst = InnerSumcheckInstance {
           claim: eval_Az_at_tau + c * eval_Bz_at_tau + c * c * eval_Cz_at_tau,
           poly_L_row: MultilinearPolynomial::new(L_row.clone()),
