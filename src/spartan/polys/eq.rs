@@ -16,7 +16,7 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, Parall
 /// For instance, for e = 6 (with a binary representation of 0b110), the vector r would be [1, 1, 0].
 #[derive(Debug)]
 pub struct EqPolynomial<Scalar> {
-  pub(crate) r: Vec<Scalar>,
+  pub(in crate::spartan) r: Vec<Scalar>,
 }
 
 impl<Scalar: PrimeField> EqPolynomial<Scalar> {
@@ -43,6 +43,7 @@ impl<Scalar: PrimeField> EqPolynomial<Scalar> {
   /// Evaluates the `EqPolynomial` at all the `2^|r|` points in its domain.
   ///
   /// Returns a vector of Scalars, each corresponding to the polynomial evaluation at a specific point.
+  #[must_use = "this returns an expensive vector and leaves self unchanged"]
   pub fn evals(&self) -> Vec<Scalar> {
     Self::evals_from_points(&self.r)
   }

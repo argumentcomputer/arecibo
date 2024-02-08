@@ -192,6 +192,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // N[i] = max(|Aᵢ|+|Bᵢ|+|Cᵢ|, 2*num_varsᵢ, num_consᵢ)
     let N = pk.S_repr.iter().map(|s| s.N).collect::<Vec<_>>();
     assert!(N.iter().all(|&Ni| Ni.is_power_of_two()));
+    let N_max = *N.iter().max().unwrap();
 
     let num_instances = U.len();
 
@@ -247,13 +248,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Compute eq(tau) for each instance in log2(Ni) variables
     let tau = transcript.squeeze(b"t")?;
+    let all_taus = PowPolynomial::squares(&tau, N_max.log_2());
+
     let (polys_tau, coords_tau): (Vec<_>, Vec<_>) = N
-      .iter()
+      .par_iter()
       .map(|&N_i| {
         let log_Ni = N_i.log_2();
-        let poly = PowPolynomial::new(&tau, log_Ni);
-        let evals = poly.evals();
-        let coords = poly.coordinates();
+        let eqp: EqPolynomial<_> = all_taus[..log_Ni].iter().cloned().collect();
+        let evals = eqp.evals();
+        let coords = eqp.r;
         (evals, coords)
       })
       .unzip();
