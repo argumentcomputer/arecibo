@@ -75,7 +75,8 @@ where
 
       polys.push(Pi);
     }
-    // TODO: Ask Adrian, whether we can skip adding eval to polys as we did in HyperKZG
+
+    // TODO avoid including last constant polynomial, known to verifier
     polys.push(vec![*eval]);
 
     assert_eq!(polys.len(), 1 + (hat_P.len() as f32).log2().ceil() as usize);
@@ -88,6 +89,7 @@ where
     C: &Commitment<NE>,
     polys: &[Vec<E::Fr>],
   ) -> Vec<E::G1Affine> {
+    // TODO avoid computing commitment to constant polynomial
     let mut comms: Vec<E::G1Affine> = (1..polys.len())
       .into_par_iter()
       .map(|i| {
@@ -96,11 +98,13 @@ where
           .to_affine()
       })
       .collect();
+    // TODO avoid inserting commitment known to verifier
     comms.insert(0, C.comm.to_affine());
     comms
   }
 
   fn compute_evals(polys: &[Vec<E::Fr>], u: &[E::Fr]) -> Vec<Vec<E::Fr>> {
+    // TODO: avoid computing eval to a constant polynomial
     let mut v = vec![vec!(E::Fr::ZERO; polys.len()); u.len()];
     v.par_iter_mut().enumerate().for_each(|(i, v_i)| {
       // for each point u
@@ -235,6 +239,11 @@ where
     if pi.R_x.len() != u.len() {
       return Err(NovaError::ProofVerifyError);
     }
+
+    // TODO:
+    // insert _P_of_x into every pi.evals_i[last]
+    // insert _C into pi.comms[0]
+    // compute commitment for eval and insert it into pi.comms[last]
 
     let q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
     let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, pi.comms.len());
