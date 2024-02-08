@@ -27,11 +27,15 @@ use crate::{
 pub struct UniversalKZGParam<E: Engine> {
   /// Group elements of the form `{ β^i G }`, where `i` ranges from 0 to
   /// `degree`.
-  #[abomonate_with(Vec<[u64; 8]>)] // // this is a hack; we just assume the size of the element.
+  // this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  #[abomonate_with(Vec<[u64; 8]>)]
   pub powers_of_g: Vec<E::G1Affine>,
   /// Group elements of the form `{ β^i H }`, where `i` ranges from 0 to
   /// `degree`.
-  #[abomonate_with(Vec<[u64; 16]>)] // this is a hack; we just assume the size of the element.
+  // this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  #[abomonate_with(Vec<[u64; 16]>)]
   pub powers_of_h: Vec<E::G2Affine>,
 }
 
