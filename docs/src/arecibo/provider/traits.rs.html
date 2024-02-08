@@ -191,6 +191,11 @@
 <a href="#191" id="191">191</a>
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::traits::{Group, TranscriptReprTrait};
 <span class="kw">use </span>group::prime::PrimeCurveAffine;
 <span class="kw">use </span>group::{prime::PrimeCurve, GroupEncoding};
@@ -256,6 +261,11 @@
     <span class="macro-nonterminal">$base_str</span>:literal,
     <span class="macro-nonterminal">$large_msm_method</span>: ident
   ) =&gt; {
+    <span class="comment">// These compile-time assertions check important assumptions in the memory representation
+    // of group data that supports the use of Abomonation.
+    </span><span class="macro">static_assertions::assert_eq_size!</span>(<span class="macro-nonterminal">$name::Affine</span>, [u64; <span class="number">8</span>]);
+    <span class="macro">static_assertions::assert_eq_size!</span>(<span class="macro-nonterminal">$name::Point</span>, [u64; <span class="number">12</span>]);
+
     <span class="kw">impl </span>Group <span class="kw">for </span><span class="macro-nonterminal">$name::Point </span>{
       <span class="kw">type </span>Base = <span class="macro-nonterminal">$name::Base</span>;
       <span class="kw">type </span>Scalar = <span class="macro-nonterminal">$name::Scalar</span>;

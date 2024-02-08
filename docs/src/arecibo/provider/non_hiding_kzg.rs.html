@@ -523,6 +523,10 @@
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
 <a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Non-hiding variant of KZG10 scheme for univariate polynomials.
 </span><span class="kw">use crate</span>::{digest::SimpleDigestible, zip_with_for_each};
 <span class="kw">use </span>abomonation_derive::Abomonation;
@@ -552,12 +556,16 @@
 </span><span class="kw">pub struct </span>UniversalKZGParam&lt;E: Engine&gt; {
   <span class="doccomment">/// Group elements of the form `{ β^i G }`, where `i` ranges from 0 to
   /// `degree`.
-  </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">8</span>]</span>&gt;)] <span class="comment">// // this is a hack; we just assume the size of the element.
-  </span><span class="kw">pub </span>powers_of_g: Vec&lt;E::G1Affine&gt;,
+  </span><span class="comment">// this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">8</span>]</span>&gt;)]
+  <span class="kw">pub </span>powers_of_g: Vec&lt;E::G1Affine&gt;,
   <span class="doccomment">/// Group elements of the form `{ β^i H }`, where `i` ranges from 0 to
   /// `degree`.
-  </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">16</span>]</span>&gt;)] <span class="comment">// this is a hack; we just assume the size of the element.
-  </span><span class="kw">pub </span>powers_of_h: Vec&lt;E::G2Affine&gt;,
+  </span><span class="comment">// this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">16</span>]</span>&gt;)]
+  <span class="kw">pub </span>powers_of_h: Vec&lt;E::G2Affine&gt;,
 }
 
 <span class="kw">impl</span>&lt;E: Engine&gt; PartialEq <span class="kw">for </span>UniversalKZGParam&lt;E&gt; {

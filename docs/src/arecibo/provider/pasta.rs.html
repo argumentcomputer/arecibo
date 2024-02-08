@@ -223,6 +223,11 @@
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the Nova traits for `pallas::Point`, `pallas::Scalar`, `vesta::Point`, `vesta::Scalar`.
 </span><span class="kw">use crate</span>::{
   provider::{traits::DlogGroup, util::msm::cpu_best_msm},
@@ -259,6 +264,11 @@
     <span class="macro-nonterminal">$order_str</span>:literal,
     <span class="macro-nonterminal">$base_str</span>:literal
   ) =&gt; {
+    <span class="comment">// These compile-time assertions check important assumptions in the memory representation
+    // of group data that supports the use of Abomonation.
+    </span><span class="macro">static_assertions::assert_eq_size!</span>(<span class="macro-nonterminal">$name::Affine</span>, [u64; <span class="number">8</span>]);
+    <span class="macro">static_assertions::assert_eq_size!</span>(<span class="macro-nonterminal">$name::Point</span>, [u64; <span class="number">12</span>]);
+
     <span class="kw">impl </span>Group <span class="kw">for </span><span class="macro-nonterminal">$name::Point </span>{
       <span class="kw">type </span>Base = <span class="macro-nonterminal">$name::Base</span>;
       <span class="kw">type </span>Scalar = <span class="macro-nonterminal">$name::Scalar</span>;

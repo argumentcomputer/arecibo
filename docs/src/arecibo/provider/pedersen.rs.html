@@ -307,6 +307,10 @@
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module provides an implementation of a commitment engine
 </span><span class="kw">use crate</span>::{
   errors::NovaError,
@@ -339,8 +343,10 @@
   </span>E: Engine,
   E::GE: DlogGroup&lt;ScalarExt = E::Scalar&gt;,
 {
-  <span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">8</span>]</span>&gt;)] <span class="comment">// this is a hack; we just assume the size of the element.
-  </span>ck: Vec&lt;&lt;E::GE <span class="kw">as </span>PrimeCurve&gt;::Affine&gt;,
+  <span class="comment">// this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">8</span>]</span>&gt;)]
+  ck: Vec&lt;&lt;E::GE <span class="kw">as </span>PrimeCurve&gt;::Affine&gt;,
 }
 
 <span class="kw">impl</span>&lt;E&gt; Len <span class="kw">for </span>CommitmentKey&lt;E&gt;
@@ -358,8 +364,10 @@
 #[serde(bound = <span class="string">&quot;&quot;</span>)]
 #[abomonation_omit_bounds]
 </span><span class="kw">pub struct </span>Commitment&lt;E: Engine&gt; {
-  <span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">12</span>]</span>&gt;)] <span class="comment">// this is a hack; we just assume the size of the element.
-  </span><span class="kw">pub</span>(<span class="kw">crate</span>) comm: E::GE,
+  <span class="comment">// this is a hack; we just assume the size of the element.
+  // Look for the static assertions in provider macros for a justification
+  </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">12</span>]</span>&gt;)]
+  <span class="kw">pub</span>(<span class="kw">crate</span>) comm: E::GE,
 }
 
 <span class="doccomment">/// A type that holds a compressed commitment

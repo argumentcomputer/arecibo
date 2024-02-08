@@ -102,6 +102,10 @@
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the Nova traits for `bn256::Point`, `bn256::Scalar`, `grumpkin::Point`, `grumpkin::Scalar`.
 </span><span class="kw">use crate</span>::{
   impl_traits,
@@ -114,12 +118,16 @@
 <span class="attr">#[cfg(any(target_arch = <span class="string">&quot;x86_64&quot;</span>, target_arch = <span class="string">&quot;aarch64&quot;</span>))]
 </span><span class="kw">use </span>grumpkin_msm::{bn256 <span class="kw">as </span>bn256_msm, grumpkin <span class="kw">as </span>grumpkin_msm};
 <span class="comment">// Remove this when https://github.com/zcash/pasta_curves/issues/41 resolves
-</span><span class="kw">use </span>halo2curves::{CurveAffine, CurveExt};
+</span><span class="kw">use </span>halo2curves::{bn256::G2Affine, CurveAffine, CurveExt};
 <span class="kw">use </span>num_bigint::BigInt;
 <span class="kw">use </span>num_traits::Num;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>sha3::Shake256;
 <span class="kw">use </span>std::io::Read;
+
+<span class="comment">// Thus compile-time assertions checks important assumptions in the memory representation
+// of group data that supports the use of Abomonation.
+</span><span class="macro">static_assertions::assert_eq_size!</span>(G2Affine, [u64; <span class="number">16</span>]);
 
 <span class="doccomment">/// Re-exports that give access to the standard aliases used in the code base, for bn256
 </span><span class="kw">pub mod </span>bn256 {
