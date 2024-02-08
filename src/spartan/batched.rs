@@ -156,9 +156,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    for u in U.iter() {
-      transcript.absorb(b"U", u);
-    }
+    transcript.absorb(b"U", &U);
 
     let (polys_W, polys_E): (Vec<_>, Vec<_>) = W.into_iter().map(|w| (w.W, w.E)).unzip();
 
@@ -395,9 +393,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    for u in U.iter() {
-      transcript.absorb(b"U", u);
-    }
+    transcript.absorb(b"U", &U);
 
     let num_instances = U.len();
 
@@ -468,14 +464,14 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = zip_with!(
       (
-        ABCE_evals.iter().copied(),
+        ABCE_evals.iter(),
         U.iter(),
         evals_tau,
         outer_r_powers.iter()
       ),
       |ABCE_eval, u, eval_tau, r| {
         let (claim_Az, claim_Bz, claim_Cz, eval_E) = ABCE_eval;
-        *r * eval_tau * (claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
+        *r * eval_tau * (*claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
       }
     )
     .sum::<E::Scalar>();

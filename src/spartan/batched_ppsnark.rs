@@ -208,9 +208,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    for u in U.iter() {
-      transcript.absorb(b"U", u);
-    }
+    transcript.absorb(b"U", &U);
 
     // Append public inputs to Wᵢ: Zᵢ = [Wᵢ, uᵢ, Xᵢ]
     let polys_Z = zip_with!(par_iter, (W, U, N), |W, U, Ni| {
@@ -765,9 +763,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    for u in U.iter() {
-      transcript.absorb(b"U", u);
-    }
+    transcript.absorb(b"U", &U);
 
     // Decompress commitments
     let comms_Az_Bz_Cz = self
