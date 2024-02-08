@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
-use std::sync::Arc;
+use std::{iter, sync::Arc};
 
 use super::{
   compute_eval_table_sparse,
@@ -494,15 +494,17 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let evals_Z = zip_with!(iter, (self.evals_W, U, r_y), |eval_W, U, r_y| {
       let eval_X = {
         // constant term
-        let mut poly_X = vec![(0, U.u)];
-        //remaining inputs
-        poly_X.extend(
-          U.X
+        let poly_X = iter::once((0, U.u))
+          .chain(
+            //remaining inputs
+            U.X
             .iter()
             .enumerate()
-            .map(|(i, x_i)| (i + 1, *x_i))
-            .collect::<Vec<(usize, E::Scalar)>>(),
-        );
+            // filter_map uses the sparsity of the polynomial, if irrelevant
+            // we should replace by UniPoly
+            .filter_map(|(i, x_i)| (!x_i.is_zero_vartime()).then_some((i + 1, *x_i))),
+          )
+          .collect();
         SparsePolynomial::new(r_y.len() - 1, poly_X).evaluate(&r_y[1..])
       };
       (E::Scalar::ONE - r_y[0]) * eval_W + r_y[0] * eval_X

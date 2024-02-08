@@ -937,13 +937,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
           let X = {
             // constant term
-            let mut poly_X = vec![(0, U.u)];
-            //remaining inputs
-            poly_X.extend(
-              (0..U.X.len())
-                .map(|i| (i + 1, U.X[i]))
-                .collect::<Vec<(usize, E::Scalar)>>(),
-            );
+            let poly_X = std::iter::once((0, U.u))
+              .chain(
+                //remaining inputs
+                (0..U.X.len())
+                // filter_map uses the sparsity of the polynomial, if irrelevant
+                // we should replace by UniPoly
+                .filter_map(|i| (!U.X[i].is_zero_vartime()).then_some((i + 1, U.X[i]))),
+              )
+              .collect();
             SparsePolynomial::new(num_vars_log, poly_X).evaluate(&rand_sc_unpad[1..])
           };
 
