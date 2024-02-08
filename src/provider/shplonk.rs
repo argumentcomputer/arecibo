@@ -222,7 +222,7 @@ where
     vk: &KZGVerifierKey<E>,
     transcript: &mut <NE as NovaEngine>::TE,
     _C: &Commitment<NE>,
-    _point: &[E::Fr],
+    point: &[E::Fr],
     _P_of_x: &E::Fr,
     pi: &EvaluationArgument<E>,
   ) -> Result<(), NovaError> {
@@ -241,7 +241,20 @@ where
 
     let R_x = UVKZGPoly::new(pi.R_x.clone());
 
+    let mut evals_at_r = vec![];
+    let mut evals_at_minus_r = vec![];
+    let mut evals_at_r_squared = vec![];
     for (i, evals_i) in pi.evals.iter().enumerate() {
+      if i == 0 {
+        evals_at_r = evals_i.clone();
+      }
+      if i == 1 {
+        evals_at_minus_r = evals_i.clone();
+      }
+      if i == 2 {
+        evals_at_r_squared = evals_i.clone();
+      }
+
       let mut batched_eval = E::Fr::ZERO;
       evals_i.iter().zip(q_powers.iter()).for_each(|(eval, q_i)| {
         batched_eval = batched_eval + *eval * q_i;
@@ -252,6 +265,27 @@ where
       // 2) R(-r) == eval at -r
       // 3) R(r^2) == eval at r^2
       if batched_eval != R_x.evaluate(&u[i]) {
+        return Err(NovaError::ProofVerifyError);
+      }
+    }
+
+    // here we check that Pi polynomials were correctly constructed by the prover, using 'r' as a random point, e.g:
+    // P_i_even = P_i(r) + P_i(-r) * 1/2
+    // P_i_odd = P_i(r) - P_i(-r) * 1/2*r
+    // P_i+1(r^2) == (1 - point_i) * P_i_even + point_i * P_i_odd -> should hold, according to Shplonk
+    let mut point = point.to_vec();
+    point.reverse();
+    for (index, ((eval_r, eval_minus_r), eval_r_squared)) in evals_at_r
+      .iter()
+      .zip(evals_at_minus_r.iter())
+      // TODO: Ask Adrian if we need evals_at_r_squared[0] for some additional checks
+      .zip(evals_at_r_squared[1..].iter())
+      .enumerate()
+    {
+      let even = (*eval_r + eval_minus_r) * (E::Fr::from(2).invert().unwrap());
+      let odd = (*eval_r - eval_minus_r) * ((E::Fr::from(2) * r).invert().unwrap());
+
+      if *eval_r_squared != ((E::Fr::ONE - point[index]) * even) + (point[index] * odd) {
         return Err(NovaError::ProofVerifyError);
       }
     }
@@ -511,7 +545,7 @@ mod tests {
     let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
 
     // eval = 57
-    let eval = Fr::from(56);
+    let eval = Fr::from(57);
 
     let ck: CommitmentKey<NE> =
       <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
@@ -537,5 +571,74 @@ mod tests {
       &proof
     )
     .is_ok());
+  }
+
+  #[test]
+  fn test_shplonk_pcs_negative() {
+    let n = 8;
+    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+    // point = [4,3,8]
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+    // eval = 57
+    let eval = Fr::from(57);
+
+    // eval = 57
+    let eval1 = Fr::from(56); // wrong eval
+    test_negative_inner(n, &poly, &point, &eval1);
+
+    // point = [4,3,8]
+    let point1 = vec![Fr::from(4), Fr::from(3), Fr::from(7)]; // wrong point
+    test_negative_inner(n, &poly, &point1, &eval);
+
+    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
+    let poly1 = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(200),
+      Fr::from(100),
+    ]; // wrong poly
+    test_negative_inner(n, &poly1, &point, &eval);
+  }
+
+  fn test_negative_inner(n: usize, poly: &[Fr], point: &[Fr], eval: &Fr) {
+    let ck: CommitmentKey<NE> =
+      <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
+    let ck = Arc::new(ck);
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
+
+    // make a commitment
+    let C: Commitment<NE> = KZGCommitmentEngine::commit(&ck, &poly);
+
+    let mut prover_transcript = Keccak256Transcript::new(b"TestEval");
+    let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
+
+    let proof =
+      EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut prover_transcript, &C, poly, point, eval)
+        .unwrap();
+
+    assert!(EvaluationEngine::<E, NE>::verify(
+      &vk,
+      &mut verifier_transcript,
+      &C,
+      point,
+      eval,
+      &proof
+    )
+    .is_err());
   }
 }
