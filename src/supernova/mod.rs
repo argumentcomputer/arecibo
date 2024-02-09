@@ -714,6 +714,16 @@ where
     })
   }
 
+  /// Inputs of the primary circuits
+  pub fn z0_primary(&self) -> &Vec<E1::Scalar> {
+    &self.z0_primary
+  }
+
+  /// Outputs of the primary circuits
+  pub fn zi_primary(&self) -> &Vec<E1::Scalar> {
+    &self.zi_primary
+  }
+
   /// executing a step of the incremental computation
   #[allow(clippy::too_many_arguments)]
   #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
