@@ -66,7 +66,7 @@ where
     com: &[E::G1Affine],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
-    transcript.absorb(b"c", &com.to_vec().as_slice());
+    transcript.absorb(b"c", &com);
     transcript.squeeze(b"c").unwrap()
   }
 
@@ -90,9 +90,8 @@ where
     transcript.squeeze(b"r").unwrap()
   }
 
-  /// TODO: write doc
+  /// Compute powers of q : (1, q, q^2, ..., q^(k-1))
   pub fn batch_challenge_powers(q: E::Fr, k: usize) -> Vec<E::Fr> {
-    // Compute powers of q : (1, q, q^2, ..., q^(k-1))
     std::iter::successors(Some(E::Fr::ONE), |&x| Some(x * q))
       .take(k)
       .collect()

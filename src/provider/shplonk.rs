@@ -1,7 +1,5 @@
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
-use crate::provider::non_hiding_kzg::{
-  trim, KZGProverKey, KZGVerifierKey, UVKZGPoly, UniversalKZGParam,
-};
+use crate::provider::non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam};
 use crate::provider::pedersen::Commitment;
 use crate::provider::traits::DlogGroup;
 use crate::provider::util::iterators::DoubleEndedIteratorExt;
@@ -20,6 +18,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use crate::provider::hyperkzg::EvaluationEngine as HyperKZG;
+use group::prime::PrimeCurveAffine;
 use itertools::Itertools;
 use ref_cast::RefCast as _;
 use std::sync::Arc;
@@ -68,11 +67,12 @@ where
       let Pi_len = polys[i].len() / 2;
       let mut Pi = vec![E::Fr::ZERO; Pi_len];
 
-      #[allow(clippy::needless_range_loop)]
-      Pi.par_iter_mut().enumerate().for_each(|(j, Pi_j)| {
-        *Pi_j =
-          point[point.len() - i - 1] * (polys[i][2 * j + 1] - polys[i][2 * j]) + polys[i][2 * j];
-      });
+      (0..Pi_len)
+        .into_par_iter()
+        .map(|j| {
+          point[point.len() - i - 1] * (polys[i][2 * j + 1] - polys[i][2 * j]) + polys[i][2 * j]
+        })
+        .collect_into_vec(&mut Pi);
 
       polys.push(Pi);
     }
@@ -91,17 +91,16 @@ where
     polys: &[Vec<E::Fr>],
   ) -> Vec<E::G1Affine> {
     // TODO avoid computing commitment to constant polynomial
-    let mut comms: Vec<E::G1Affine> = (1..polys.len())
+    let mut comms: Vec<NE::GE> = (1..polys.len())
       .into_par_iter()
-      .map(|i| {
-        <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i])
-          .comm
-          .to_affine()
-      })
+      .map(|i| <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i]).comm)
       .collect();
     // TODO avoid inserting commitment known to verifier
-    comms.insert(0, C.comm.to_affine());
-    comms
+    comms.insert(0, C.comm);
+
+    let mut comms_affine: Vec<E::G1Affine> = vec![E::G1Affine::identity(); comms.len()];
+    NE::GE::batch_normalize(&comms, &mut comms_affine);
+    comms_affine
   }
 
   fn compute_evals(polys: &[Vec<E::Fr>], u: &[E::Fr]) -> Vec<Vec<E::Fr>> {
@@ -127,7 +126,7 @@ where
     let mut tmp = Q_x.clone();
     tmp *= &D.evaluate(&a);
     tmp[0] += &R_x.evaluate(&a);
-    tmp = UVKZGPoly::new(
+    tmp = UniPoly::new(
       tmp
         .coeffs
         .into_iter()
@@ -192,7 +191,7 @@ where
     let batched_Pi: UniPoly<E::Fr> = polys.into_iter().map(UniPoly::new).rlc(&q);
 
     // Q(x), R(x) = P(x) / D(x), where D(x) = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
-    let D = UVKZGPoly::new(vec![u[2] * u[2], -u[2], -u[2], E::Fr::from(1)]);
+    let D = UniPoly::new(vec![u[2] * u[2], -u[2], -u[2], E::Fr::from(1)]);
     let (Q_x, R_x) = batched_Pi.divide_with_q_and_r(&D).unwrap();
 
     let C_Q = <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &Q_x.coeffs)
@@ -206,7 +205,7 @@ where
 
     // TODO: since this is a usual KZG10 we should use it as utility instead
     // H(x) = K(x) / (x - a)
-    let divisor = UVKZGPoly::new(vec![-a, E::Fr::from(1)]);
+    let divisor = UniPoly::new(vec![-a, E::Fr::from(1)]);
     let (H_x, _) = K_x.divide_with_q_and_r(&divisor).unwrap();
 
     let C_H = <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &H_x.coeffs)
@@ -247,9 +246,9 @@ where
     // compute commitment for eval and insert it into pi.comms[last]
 
     let q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
-    let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, pi.comms.len());
+    //let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, pi.comms.len());
 
-    let R_x = UVKZGPoly::new(pi.R_x.clone());
+    let R_x = UniPoly::new(pi.R_x.clone());
 
     let mut evals_at_r = vec![];
     let mut evals_at_minus_r = vec![];
@@ -265,13 +264,7 @@ where
         evals_at_r_squared = evals_i.clone();
       }
 
-      let mut batched_eval = E::Fr::ZERO;
-      evals_i
-        .iter()
-        .zip_eq(q_powers.iter())
-        .for_each(|(eval, q_i)| {
-          batched_eval += *eval * q_i;
-        });
+      let batched_eval = UniPoly::ref_cast(evals_i).evaluate(&q);
 
       // here we check correlation between R polynomial and batched evals, e.g.:
       // 1) R(r) == eval at r
@@ -304,17 +297,13 @@ where
       }
     }
 
-    let C_P = q_powers
-      .iter()
-      .zip_eq(pi.comms.iter())
-      .fold(E::G1::identity(), |acc, (q_i, C_i)| acc + *C_i * q_i);
-
+    let C_P: E::G1 = pi.comms.iter().map(|comm| comm.to_curve()).rlc(&q);
     let C_Q = pi.C_Q;
     let C_H = pi.C_H;
     let r_squared = u[2];
 
     // D = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
-    let D = UVKZGPoly::new(vec![
+    let D = UniPoly::new(vec![
       r_squared * r_squared,
       -r_squared,
       -r_squared,
@@ -374,7 +363,7 @@ mod tests {
     let r_squared = r * r;
 
     let divident = batched_Pi.clone();
-    let D = UVKZGPoly::new(vec![
+    let D = UniPoly::new(vec![
       r_squared * r_squared,
       -r_squared,
       -r_squared,
@@ -422,7 +411,7 @@ mod tests {
     let r_squared = r * r;
 
     let divident = batched_Pi.clone();
-    let D = UVKZGPoly::new(vec![
+    let D = UniPoly::new(vec![
       r_squared * r_squared,
       -r_squared,
       -r_squared,
@@ -447,7 +436,7 @@ mod tests {
 
     let divident = batched_Pi.clone();
     // D(x) = (x - r) * (x + r) * (x - r^2)
-    let D = UVKZGPoly::new(vec![
+    let D = UniPoly::new(vec![
       r_squared * r_squared,
       -r_squared,
       -r_squared,
@@ -464,7 +453,7 @@ mod tests {
 
     // Check that Q(x) = (P(x) - R(x)) / D(x)
     let mut P_x = batched_Pi.clone();
-    let minus_R_x = UVKZGPoly::new(
+    let minus_R_x = UniPoly::new(
       R_x
         .clone()
         .coeffs
