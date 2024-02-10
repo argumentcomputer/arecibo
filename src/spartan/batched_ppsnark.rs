@@ -177,22 +177,12 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     W: &[RelaxedR1CSWitness<E>],
   ) -> Result<Self, NovaError> {
     // Pad shapes so that num_vars = num_cons = Nᵢ and check the sizes are correct
-    let S = S
-      .par_iter()
-      .map(|s| {
-        let s = s.pad();
-        if s.is_regular_shape() {
-          Ok(s)
-        } else {
-          Err(NovaError::InternalError)
-        }
-      })
-      .collect::<Result<Vec<_>, _>>()?;
+    let S = S.par_iter().map(|s| s.pad()).collect::<Vec<_>>();
 
     // N[i] = max(|Aᵢ|+|Bᵢ|+|Cᵢ|, 2*num_varsᵢ, num_consᵢ)
-    let N = pk.S_repr.iter().map(|s| s.N).collect::<Vec<_>>();
-    assert!(N.iter().all(|&Ni| Ni.is_power_of_two()));
-    let N_max = *N.iter().max().unwrap();
+    let Nis = pk.S_repr.iter().map(|s| s.N).collect::<Vec<_>>();
+    assert!(Nis.iter().all(|&Ni| Ni.is_power_of_two()));
+    let N_max = *Nis.iter().max().unwrap();
 
     let num_instances = U.len();
 
@@ -200,7 +190,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let W = zip_with!(par_iter, (W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
 
     // number of rounds of sum-check
-    let num_rounds_sc = N.iter().max().unwrap().log_2();
+    let num_rounds_sc = N_max.log_2();
 
     // Initialize transcript with vk || [Uᵢ]
     let mut transcript = E::TE::new(b"BatchedRelaxedR1CSSNARK");
@@ -212,7 +202,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     transcript.absorb(b"U", &U);
 
     // Append public inputs to Wᵢ: Zᵢ = [Wᵢ, uᵢ, Xᵢ]
-    let polys_Z = zip_with!(par_iter, (W, U, N), |W, U, Ni| {
+    let polys_Z = zip_with!(par_iter, (W, U, Nis), |W, U, Ni| {
       // poly_Z will be resized later, so we preallocate the correct capacity
       let mut poly_Z = Vec::with_capacity(*Ni);
       poly_Z.extend(W.W.iter().chain([&U.u]).chain(U.X.iter()));
@@ -250,7 +240,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let tau = transcript.squeeze(b"t")?;
     let all_taus = PowPolynomial::squares(&tau, N_max.log_2());
 
-    let (polys_tau, coords_tau): (Vec<_>, Vec<_>) = N
+    let (polys_tau, coords_tau): (Vec<_>, Vec<_>) = Nis
       .par_iter()
       .map(|&N_i| {
         let log_Ni = N_i.log_2();
@@ -264,7 +254,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Pad [Az, Bz, Cz] to Ni
     polys_Az_Bz_Cz
       .par_iter_mut()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .for_each(|(az_bz_cz, &Ni)| {
         az_bz_cz
           .par_iter_mut()
@@ -299,7 +289,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // Pad Zᵢ, E to Nᵢ
     let polys_Z = polys_Z
       .into_par_iter()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .map(|(mut poly_Z, &Ni)| {
         poly_Z.resize(Ni, E::Scalar::ZERO);
         poly_Z
@@ -310,7 +300,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // but it makes it easier to handle the batching at the end.
     let polys_E = polys_E
       .into_par_iter()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .map(|(mut poly_E, &Ni)| {
         poly_E.resize(Ni, E::Scalar::ZERO);
         poly_E
@@ -319,7 +309,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     let polys_W = polys_W
       .into_par_iter()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .map(|(mut poly_W, &Ni)| {
         poly_W.resize(Ni, E::Scalar::ZERO);
         poly_W
@@ -331,7 +321,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     // L_col(i) = z(col(i)) for all i in [0..Nᵢ]
     let polys_L_row_col = zip_with!(
       par_iter,
-      (S, N, polys_Z, polys_tau),
+      (S, Nis, polys_Z, polys_tau),
       |S, Ni, poly_Z, poly_tau| {
         let mut L_row = vec![poly_tau[0]; *Ni]; // we place mem_row[0] since resized row is appended with 0s
         let mut L_col = vec![poly_Z[Ni - 1]; *Ni]; // we place mem_col[Ni-1] since resized col is appended with Ni-1
@@ -496,13 +486,12 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
       // Sample new random variable for eq polynomial
       let rho = transcript.squeeze(b"r")?;
-      let N_max = N.iter().max().unwrap();
       let all_rhos = PowPolynomial::squares(&rho, N_max.log_2());
 
       let instances = zip_with!(
         (
           pk.S_repr.par_iter(),
-          N.par_iter(),
+          Nis.par_iter(),
           polys_mem_oracles.par_iter(),
           mem_aux.into_par_iter()
         ),

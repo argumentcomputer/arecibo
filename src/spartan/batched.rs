@@ -134,17 +134,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   ) -> Result<Self, NovaError> {
     let num_instances = U.len();
     // Pad shapes and ensure their sizes are correct
-    let S = S
-      .iter()
-      .map(|s| {
-        let s = s.pad();
-        if s.is_regular_shape() {
-          Ok(s)
-        } else {
-          Err(NovaError::InternalError)
-        }
-      })
-      .collect::<Result<Vec<_>, _>>()?;
+    let S = S.iter().map(|s| s.pad()).collect::<Vec<_>>();
 
     // Pad (W,E) for each instance
     let W = zip_with!(iter, (W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
