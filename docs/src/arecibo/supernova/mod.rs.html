@@ -1193,6 +1193,16 @@
 <a href="#1193" id="1193">1193</a>
 <a href="#1194" id="1194">1194</a>
 <a href="#1195" id="1195">1195</a>
+<a href="#1196" id="1196">1196</a>
+<a href="#1197" id="1197">1197</a>
+<a href="#1198" id="1198">1198</a>
+<a href="#1199" id="1199">1199</a>
+<a href="#1200" id="1200">1200</a>
+<a href="#1201" id="1201">1201</a>
+<a href="#1202" id="1202">1202</a>
+<a href="#1203" id="1203">1203</a>
+<a href="#1204" id="1204">1204</a>
+<a href="#1205" id="1205">1205</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;./Readme.md&quot;</span>)]
 
 </span><span class="kw">use </span>std::ops::Index;
@@ -1907,6 +1917,16 @@
       l_w_secondary,
       l_u_secondary,
     })
+  }
+
+  <span class="doccomment">/// Inputs of the primary circuits
+  </span><span class="kw">pub fn </span>z0_primary(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;E1::Scalar&gt; {
+    <span class="kw-2">&amp;</span><span class="self">self</span>.z0_primary
+  }
+
+  <span class="doccomment">/// Outputs of the primary circuits
+  </span><span class="kw">pub fn </span>zi_primary(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;E1::Scalar&gt; {
+    <span class="kw-2">&amp;</span><span class="self">self</span>.zi_primary
   }
 
   <span class="doccomment">/// executing a step of the incremental computation
