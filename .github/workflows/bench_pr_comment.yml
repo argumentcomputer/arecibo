@@ -1,4 +1,4 @@
-# Creates a PR benchmark comment with a comparison to main
+# Creates a PR benchmark comment with a comparison to the base branch
 name: Benchmark pull requests
 on:
   issue_comment:
@@ -9,46 +9,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  gpu-benchmark:
-    name: run benchmarks on GPU
-    runs-on: [self-hosted, gpu-bench]
+  benchmark:
+    name: Comparative PR benchmark comment
     if:
       github.event.issue.pull_request
       && github.event.issue.state == 'open'
-      && contains(github.event.comment.body, '!gpu-benchmark')
+      && contains(github.event.comment.body, '!benchmark')
       && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
-    steps:
-      # Set up GPU env
-      - uses: actions/checkout@v4
-        with:
-          repository: lurk-lab/ci-workflows
-      - uses: ./.github/actions/gpu-setup
-        with:
-          gpu-framework: 'cuda'
-      - uses: ./.github/actions/ci-env
-      # Get base branch of the PR
-      - uses: xt0rted/pull-request-comment-branch@v2
-        id: comment-branch
-      - uses: actions/checkout@v4
-      - name: Checkout PR branch
-        run: gh pr checkout $PR_NUMBER
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
-      # Install dependencies
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Set output type
-        run: |
-          echo "ARECIBO_BENCH_OUTPUT=pr-comment" >> $GITHUB_ENV
-          echo "ARECIBO_NUM_CONS=16384,1038732" >> $GITHUB_ENV
-      # Run the comparative benchmark and comment output on the PR
-      - uses: boa-dev/criterion-compare-action@v3
-        with:
-          # Note: Removing `benchName` causes `criterion` errors: https://github.com/boa-dev/criterion-compare-action#troubleshooting
-          # Optional. Compare only this benchmark target
-          benchName: "supernova-ci"
-          # Optional. Features activated in the benchmark
-          features: "cuda"
-          # Needed. The name of the branch to compare with
-          branchName: ${{ steps.comment-branch.outputs.base_ref }}
+    uses: lurk-lab/ci-workflows/.github/workflows/bench-pr-comment.yml@main
+    with:
+      default-runner: "self-hosted,gpu-bench"
+      default-benches: "supernova-ci"
+      default-env: "ARECIBO_BENCH_OUTPUT=pr-comment ARECIBO_BENCH_NUM_CONS=16384,524288"
