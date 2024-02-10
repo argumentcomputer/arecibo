@@ -1,3 +1,4 @@
+# Test PR
 # Creates a PR benchmark comment with a comparison to the base branch
 name: Benchmark pull requests
 on:
