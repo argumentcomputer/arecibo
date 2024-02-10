@@ -342,8 +342,8 @@ fn main() {
     type E2 = GrumpkinEngine;
     type EE1 = arecibo::provider::hyperkzg::EvaluationEngine<Bn256, E1>;
     type EE2 = arecibo::provider::ipa_pc::EvaluationEngine<E2>;
-    type S1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>; // non-preprocessing SNARK
-    type S2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>; // non-preprocessing SNARK
+    type S1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>; // preprocessing SNARK
+    type S2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>; // preprocessing SNARK
 
     let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
