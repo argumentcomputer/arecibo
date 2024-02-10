@@ -85,8 +85,7 @@ impl<E: Engine> PolyEvalWitness<E> {
   }
 
   /// Given a set of polynomials \[Pᵢ\] and a scalar `s`, this method computes the weighted sum
-  /// of the polynomials, where each polynomial Pᵢ is scaled by sⁱ. The method handles polynomials
-  /// of different sizes by padding smaller ones with zeroes up to the size of the largest polynomial.
+  /// of the polynomials, where each polynomial Pᵢ is scaled by sⁱ.
   ///
   /// # Panics
   ///
@@ -94,6 +93,7 @@ impl<E: Engine> PolyEvalWitness<E> {
   fn batch(p_vec: &[&Vec<E::Scalar>], s: &E::Scalar) -> Self {
     p_vec
       .iter()
+      .skip(1)
       .for_each(|p| assert_eq!(p.len(), p_vec[0].len()));
 
     let powers_of_s = powers::<E>(s, p_vec.len());
@@ -186,7 +186,7 @@ impl<E: Engine> PolyEvalInstance<E> {
   }
 }
 
-/// Bounds "row" variables of (A, B, C) matrices viewed as 2d multilinear polynomials
+/// Binds "row" variables of (A, B, C) matrices viewed as 2d multilinear polynomials
 fn compute_eval_table_sparse<E: Engine>(
   S: &R1CSShape<E>,
   rx: &[E::Scalar],
