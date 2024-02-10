@@ -502,6 +502,16 @@ where
     })
   }
 
+  /// Inputs of the primary circuits
+  pub fn z0_primary(&self) -> &Vec<E1::Scalar> {
+    &self.z0_primary
+  }
+
+  /// Outputs of the primary circuits
+  pub fn zi_primary(&self) -> &Vec<E1::Scalar> {
+    &self.zi_primary
+  }
+
   /// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
   /// by executing a step of the incremental computation
   #[tracing::instrument(skip_all, name = "nova::RecursiveSNARK::prove_step")]
