@@ -564,8 +564,8 @@ fn test_recursive_circuit() {
     &params2,
     ro_consts1,
     ro_consts2,
-    &expect!["9836"],
-    &expect!["12017"],
+    &expect!["9840"],
+    &expect!["12021"],
   );
 }
 
