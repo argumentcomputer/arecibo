@@ -2303,14 +2303,14 @@
     </span><span class="kw">let </span>is_inputs_not_match = <span class="self">self</span>.z0_primary != z0_primary || <span class="self">self</span>.z0_secondary != z0_secondary;
 
     <span class="comment">// check if the (relaxed) R1CS instances have two public outputs
-    </span><span class="kw">let </span>is_instance_has_two_outpus = <span class="self">self</span>.l_u_secondary.X.len() != <span class="number">2
+    </span><span class="kw">let </span>is_instance_has_two_outputs = <span class="self">self</span>.l_u_secondary.X.len() != <span class="number">2
       </span>|| <span class="self">self</span>.r_U_primary.X.len() != <span class="number">2
       </span>|| <span class="self">self</span>.r_U_secondary.X.len() != <span class="number">2</span>;
 
     <span class="kw">if </span>is_num_steps_zero
       || is_num_steps_not_match
       || is_inputs_not_match
-      || is_instance_has_two_outpus
+      || is_instance_has_two_outputs
     {
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::ProofVerifyError);
     }

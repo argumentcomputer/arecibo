@@ -1393,7 +1393,7 @@
     })
   }
 
-  <span class="doccomment">/// Compute a `BigNat` contrained to be equal to `self * other % modulus`.
+  <span class="doccomment">/// Compute a `BigNat` constrained to be equal to `self * other % modulus`.
   </span><span class="kw">pub fn </span>mult_mod&lt;CS: ConstraintSystem&lt;Scalar&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
@@ -1464,7 +1464,7 @@
     <span class="prelude-val">Ok</span>((quotient, remainder))
   }
 
-  <span class="doccomment">/// Compute a `BigNat` contrained to be equal to `self * other % modulus`.
+  <span class="doccomment">/// Compute a `BigNat` constrained to be equal to `self * other % modulus`.
   </span><span class="kw">pub fn </span>red_mod&lt;CS: ConstraintSystem&lt;Scalar&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
