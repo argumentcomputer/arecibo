@@ -1,8 +1,6 @@
 //! This module defines the Cyclefold `RecursiveSNARK` type
 //!
 
-use std::marker::PhantomData;
-
 use crate::{
   bellpepper::{
     r1cs::{NovaShape, NovaWitness},
@@ -19,8 +17,8 @@ use crate::{
     RelaxedR1CSWitness,
   },
   traits::{
-    circuit::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROConstantsCircuit,
-    ROTrait,
+    circuit::StepCircuit, commitment::CommitmentTrait, AbsorbInROTrait, CurveCycleEquipped, Dual,
+    Engine, ROConstantsCircuit, ROTrait,
   },
   Commitment, CommitmentKey, DigestComputer, R1CSWithArity, ROConstants, ResourceBuffer,
   SimpleDigestible,
@@ -43,52 +41,45 @@ use serde::{Deserialize, Serialize};
 #[serde(bound = "")]
 #[abomonation_bounds(
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
+  E1: CurveCycleEquipped,
   <E1::Scalar as PrimeField>::Repr: Abomonation,
-  <E2::Scalar as PrimeField>::Repr: Abomonation,
+  <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
 )]
-pub struct PublicParams<E1, E2, C1>
+pub struct PublicParams<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
+  E1: CurveCycleEquipped,
 {
   F_arity_primary: usize,
-  ro_consts_primary: ROConstants<E2>,
-  ro_consts_circuit_primary: ROConstantsCircuit<E2>,
+  ro_consts_primary: ROConstants<Dual<E1>>,
+  ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>>,
   ck_primary: CommitmentKey<E1>,
   circuit_shape_primary: R1CSWithArity<E1>,
   augmented_circuit_params: AugmentedCircuitParams,
 
-  ro_consts_cyclefold: ROConstants<E2>,
-  ck_cyclefold: CommitmentKey<E2>,
-  circuit_shape_cyclefold: R1CSWithArity<E2>,
+  ro_consts_cyclefold: ROConstants<Dual<E1>>,
+  ck_cyclefold: CommitmentKey<Dual<E1>>,
+  circuit_shape_cyclefold: R1CSWithArity<Dual<E1>>,
   #[abomonation_skip]
   #[serde(skip, default = "OnceCell::new")]
   digest: OnceCell<E1::Scalar>,
-  _p: PhantomData<(E1, E2, C1)>,
 }
 
-impl<E1, E2, C1> PublicParams<E1, E2, C1>
+impl<E1> PublicParams<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
+  E1: CurveCycleEquipped,
 {
   /// TODO: docs
-  pub fn setup(
+  pub fn setup<C1: StepCircuit<E1::Scalar>>(
     c_primary: &C1,
     ck_hint1: &CommitmentKeyHint<E1>,
-    ck_hint_cyclefold: &CommitmentKeyHint<E2>,
+    ck_hint_cyclefold: &CommitmentKeyHint<Dual<E1>>,
   ) -> Self {
     let F_arity_primary = c_primary.arity();
-    let ro_consts_primary = ROConstants::<E2>::default();
-    let ro_consts_circuit_primary = ROConstantsCircuit::<E2>::default();
+    let ro_consts_primary = ROConstants::<Dual<E1>>::default();
+    let ro_consts_circuit_primary = ROConstantsCircuit::<Dual<E1>>::default();
 
     let augmented_circuit_params = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS);
-    let circuit_primary: AugmentedCircuit<'_, E2, E1, C1> = AugmentedCircuit::new(
+    let circuit_primary: AugmentedCircuit<'_, Dual<E1>, E1, C1> = AugmentedCircuit::new(
       &augmented_circuit_params,
       ro_consts_circuit_primary.clone(),
       None,
@@ -99,8 +90,8 @@ where
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
     let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
-    let ro_consts_cyclefold = ROConstants::<E2>::default();
-    let mut cs: ShapeCS<E2> = ShapeCS::new();
+    let ro_consts_cyclefold = ROConstants::<Dual<E1>>::default();
+    let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
     let circuit_cyclefold: CyclefoldCircuit<E1> = CyclefoldCircuit::new(None);
     let _ = circuit_cyclefold.synthesize(&mut cs);
     let (r1cs_shape_cyclefold, ck_cyclefold) = cs.r1cs_shape_and_key(ck_hint_cyclefold);
@@ -117,7 +108,6 @@ where
       ck_cyclefold,
       circuit_shape_cyclefold,
       digest: OnceCell::new(),
-      _p: PhantomData,
     }
   }
 
@@ -147,22 +137,14 @@ where
   }
 }
 
-impl<E1, E2, C1> SimpleDigestible for PublicParams<E1, E2, C1>
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
-{
-}
+impl<E1> SimpleDigestible for PublicParams<E1> where E1: CurveCycleEquipped {}
 
 /// TODO: docs
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct RecursiveSNARK<E1, E2, C1>
+pub struct RecursiveSNARK<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
+  E1: CurveCycleEquipped,
 {
   // Input
   z0_primary: Vec<E1::Scalar>,
@@ -174,28 +156,24 @@ where
   l_u_primary: R1CSInstance<E1>,
 
   // cyclefold circuit data
-  r_W_cyclefold: RelaxedR1CSWitness<E2>,
-  r_U_cyclefold: RelaxedR1CSInstance<E2>,
+  r_W_cyclefold: RelaxedR1CSWitness<Dual<E1>>,
+  r_U_cyclefold: RelaxedR1CSInstance<Dual<E1>>,
 
   // memory buffers for folding steps
   buffer_primary: ResourceBuffer<E1>,
-  buffer_cyclefold: ResourceBuffer<E2>,
+  buffer_cyclefold: ResourceBuffer<Dual<E1>>,
 
   i: usize,
   zi_primary: Vec<E1::Scalar>,
-
-  _p: PhantomData<C1>,
 }
 
-impl<E1, E2, C1> RecursiveSNARK<E1, E2, C1>
+impl<E1> RecursiveSNARK<E1>
 where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-  C1: StepCircuit<E1::Scalar>,
+  E1: CurveCycleEquipped,
 {
   /// TODO: docs
-  pub fn new(
-    pp: &PublicParams<E1, E2, C1>,
+  pub fn new<C1: StepCircuit<E1::Scalar>>(
+    pp: &PublicParams<E1>,
     c_primary: &C1,
     z0_primary: &[E1::Scalar],
   ) -> Result<Self, NovaError> {
@@ -210,9 +188,9 @@ where
     let r_W_cyclefold = RelaxedR1CSWitness::default(r1cs_cyclefold);
 
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
-    let inputs_primary: AugmentedCircuitInputs<E2, E1> = AugmentedCircuitInputs::new(
+    let inputs_primary: AugmentedCircuitInputs<Dual<E1>, E1> = AugmentedCircuitInputs::new(
       scalar_as_base::<E1>(pp.digest()),
-      <E2 as Engine>::Base::from(0u64),
+      <Dual<E1> as Engine>::Base::from(0u64),
       z0_primary.to_vec(),
       None,
       None,
@@ -255,7 +233,7 @@ where
       l_u: None,
       ABC_Z_1: R1CSResult::default(r1cs_cyclefold.num_cons),
       ABC_Z_2: R1CSResult::default(r1cs_cyclefold.num_cons),
-      T: r1cs::default_T::<E2>(r1cs_cyclefold.num_cons),
+      T: r1cs::default_T::<Dual<E1>>(r1cs_cyclefold.num_cons),
     };
 
     Ok(Self {
@@ -270,14 +248,13 @@ where
       buffer_cyclefold,
       i: 1,
       zi_primary,
-      _p: PhantomData,
     })
   }
 
   /// TODO: docs
-  pub fn prove_step(
+  pub fn prove_step<C1: StepCircuit<E1::Scalar>>(
     &mut self,
-    pp: &PublicParams<E1, E2, C1>,
+    pp: &PublicParams<E1>,
     c_primary: &C1,
   ) -> Result<(), NovaError> {
     if self.i == 0 {
@@ -285,7 +262,7 @@ where
       return Ok(());
     }
 
-    let (nifs_primary, (r_U_primary, r_W_primary), r) = super::nifs::NIFS::<E1, E2>::prove(
+    let (nifs_primary, (r_U_primary, r_W_primary), r) = super::nifs::NIFS::<E1, Dual<E1>>::prove(
       &pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
@@ -319,7 +296,7 @@ where
 
     let W_new = self.r_U_primary.comm_W + self.l_u_primary.comm_W * r;
 
-    let mut cs_cyclefold_E = SatisfyingAssignment::<E2>::with_capacity(
+    let mut cs_cyclefold_E = SatisfyingAssignment::<Dual<E1>>::with_capacity(
       pp.circuit_shape_cyclefold.r1cs_shape.num_io + 1,
       pp.circuit_shape_cyclefold.r1cs_shape.num_vars,
     );
@@ -351,9 +328,9 @@ where
       &l_w_cyclefold_E,
     )?;
 
-    let comm_T_E = Commitment::<E2>::decompress(&nifs_cyclefold_E.comm_T)?;
+    let comm_T_E = Commitment::<Dual<E1>>::decompress(&nifs_cyclefold_E.comm_T)?;
 
-    let mut cs_cyclefold_W = SatisfyingAssignment::<E2>::with_capacity(
+    let mut cs_cyclefold_W = SatisfyingAssignment::<Dual<E1>>::with_capacity(
       pp.circuit_shape_cyclefold.r1cs_shape.num_io + 1,
       pp.circuit_shape_cyclefold.r1cs_shape.num_vars,
     );
@@ -385,7 +362,7 @@ where
       &l_w_cyclefold_W,
     )?;
 
-    let comm_T_W = Commitment::<E2>::decompress(&nifs_cyclefold_W.comm_T)?;
+    let comm_T_W = Commitment::<Dual<E1>>::decompress(&nifs_cyclefold_W.comm_T)?;
 
     let mut cs_primary = SatisfyingAssignment::<E1>::with_capacity(
       pp.circuit_shape_primary.r1cs_shape.num_io + 1,
@@ -396,9 +373,9 @@ where
     let data_c_E = FoldingData::new(self.r_U_cyclefold.clone(), l_u_cyclefold_E, comm_T_E);
     let data_c_W = FoldingData::new(r_U_cyclefold_E, l_u_cyclefold_W, comm_T_W);
 
-    let inputs_primary: AugmentedCircuitInputs<E2, E1> = AugmentedCircuitInputs::new(
+    let inputs_primary: AugmentedCircuitInputs<Dual<E1>, E1> = AugmentedCircuitInputs::new(
       scalar_as_base::<E1>(pp.digest()),
-      <E2 as Engine>::Base::from(self.i as u64),
+      <Dual<E1> as Engine>::Base::from(self.i as u64),
       self.z0_primary.clone(),
       Some(self.zi_primary.clone()),
       Some(data_p),
@@ -408,7 +385,7 @@ where
       Some(W_new),
     );
 
-    let circuit_primary: AugmentedCircuit<'_, E2, E1, C1> = AugmentedCircuit::new(
+    let circuit_primary: AugmentedCircuit<'_, Dual<E1>, E1, C1> = AugmentedCircuit::new(
       &pp.augmented_circuit_params,
       pp.ro_consts_circuit_primary.clone(),
       Some(inputs_primary),
@@ -441,7 +418,7 @@ where
   /// TODO: docs
   pub fn verify(
     &self,
-    pp: &PublicParams<E1, E2, C1>,
+    pp: &PublicParams<E1>,
     num_steps: usize,
     z0_primary: &[E1::Scalar],
   ) -> Result<Vec<E1::Scalar>, NovaError> {
@@ -466,7 +443,7 @@ where
     }
 
     let (hash_primary, hash_cyclefold) = {
-      let mut hasher = <E2 as Engine>::RO::new(
+      let mut hasher = <Dual<E1> as Engine>::RO::new(
         pp.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
       );
@@ -478,11 +455,11 @@ where
       for e in &self.zi_primary {
         hasher.absorb(*e);
       }
-      absorb_relaxed_r1cs::<E1, E2>(&self.r_U_primary, &mut hasher);
+      absorb_relaxed_r1cs::<E1, Dual<E1>>(&self.r_U_primary, &mut hasher);
       let hash_primary = hasher.squeeze(NUM_HASH_BITS);
 
       let mut hasher =
-        <E2 as Engine>::RO::new(pp.ro_consts_cyclefold.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+        <Dual<E1> as Engine>::RO::new(pp.ro_consts_cyclefold.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
       hasher.absorb(pp.digest());
       self.r_U_cyclefold.absorb_in_ro(&mut hasher);
       let hash_cyclefold = hasher.squeeze(NUM_HASH_BITS);
@@ -492,8 +469,8 @@ where
 
     // TODO: This seems like it might be a bad sign, I don't know if I should need to use
     // `scalar_as_base` here
-    if scalar_as_base::<E2>(hash_primary) != self.l_u_primary.X[0]
-      || scalar_as_base::<E2>(hash_cyclefold) != self.l_u_primary.X[1]
+    if scalar_as_base::<Dual<E1>>(hash_primary) != self.l_u_primary.X[0]
+      || scalar_as_base::<Dual<E1>>(hash_cyclefold) != self.l_u_primary.X[1]
     {
       return Err(NovaError::ProofVerifyError);
     }
