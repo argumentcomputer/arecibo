@@ -420,7 +420,7 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, (Ve
   // Note Φ_(n-i)(x^(2^i)) = (x^(2^i))^(2^(n-i) - 1) / (x^(2^i) - 1) = (x^(2^num_vars) - 1) / (x^(2^i) - 1) = vs[i]
   //      Φ_(n-i-1)(x^(2^(i+1))) = (x^(2^(i+1)))^(2^(n-i-1)) - 1 / (x^(2^(i+1)) - 1) = (x^(2^num_vars) - 1) / (x^(2^(i+1)) - 1) = vs[i+1]
   let vs = {
-    let v_numer = squares_of_x[num_vars] - F::ONE;
+    let v_number = squares_of_x[num_vars] - F::ONE;
     let mut v_denoms = squares_of_x
       .iter()
       .map(|square_of_x| *square_of_x - F::ONE)
@@ -428,7 +428,7 @@ fn eval_and_quotient_scalars<F: Field>(y: F, x: F, z: F, point: &[F]) -> (F, (Ve
     v_denoms.iter_mut().batch_invert();
     v_denoms
       .iter()
-      .map(|v_denom| v_numer * v_denom)
+      .map(|v_denom| v_number * v_denom)
       .collect::<Vec<_>>()
   };
 
