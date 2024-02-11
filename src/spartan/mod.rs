@@ -24,6 +24,7 @@ use crate::{
 use ff::Field;
 use itertools::Itertools as _;
 use polys::multilinear::SparsePolynomial;
+
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
 
 // Creates a vector of the first `n` powers of `s`.
@@ -224,4 +225,52 @@ fn compute_eval_table_sparse<E: Engine>(
   );
 
   (A_evals, B_evals, C_evals)
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+  use proptest::prelude::*;
+  use crate::r1cs::util::FWrap;
+  use proptest::collection::vec;
+  use pasta_curves::Fq as Scalar;
+  use crate::provider::PallasEngine;
+  use super::*;
+
+
+
+  proptest!{
+      #[test]
+      fn test_pe_witness_batch_diff_size_batch(
+        s in any::<FWrap<Scalar>>(),
+        vecs in (50usize..100).prop_flat_map(|size| vec(
+            vec(any::<FWrap<Scalar>>().prop_map(|f| f.0), size..=size), // even-sized vec
+            1..5))
+      )
+      {
+        // when the vectors are the same size, batch_diff_size and batch agree
+        let res = PolyEvalWitness::<PallasEngine>::batch(&vecs.iter().by_ref().collect::<Vec<_>>(), &s.0);
+        let witnesses = vecs.into_iter().map(|v| PolyEvalWitness{ p: v}).collect::<Vec<PolyEvalWitness<PallasEngine>>>();
+        let res2 = PolyEvalWitness::<PallasEngine>::batch_diff_size(witnesses, s.0);
+
+        prop_assert_eq!(res.p, res2.p);
+      }
+
+      #[test]
+      fn test_pe_witness_batch_diff_size_pad_batch(
+        s in any::<FWrap<Scalar>>(),
+        vecs in (50usize..100).prop_flat_map(|size| vec(
+            vec(any::<FWrap<Scalar>>().prop_map(|f| f.0), size-10..=size), // even-sized vec
+            1..10))
+      )
+      {
+        let size = vecs.iter().map(|v| v.len()).max().unwrap_or(0);
+        // when the vectors are not the same size, batch agrees with the padded version of the input
+        let padded_vecs = vecs.iter().cloned().map(|mut v| {v.resize(size, Scalar::ZERO); v}).collect::<Vec<_>>();
+        let res = PolyEvalWitness::<PallasEngine>::batch(&padded_vecs.iter().by_ref().collect::<Vec<_>>(), &s.0);
+        let witnesses = vecs.into_iter().map(|v| PolyEvalWitness{ p: v}).collect::<Vec<PolyEvalWitness<PallasEngine>>>();
+        let res2 = PolyEvalWitness::<PallasEngine>::batch_diff_size(witnesses, s.0);
+
+        prop_assert_eq!(res.p, res2.p);
+      }
+  }
 }
