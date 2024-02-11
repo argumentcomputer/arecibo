@@ -147,7 +147,7 @@ where
   }
 
   /// Generate a commitment for a polynomial
-  /// Note that the scheme is not hidding
+  /// Note that the scheme is not hiding
   fn commit(
     pp: impl Borrow<ZMProverKey<E>>,
     poly: &MultilinearPolynomial<E::Fr>,
