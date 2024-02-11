@@ -2093,7 +2093,7 @@
   }
 
   <span class="doccomment">/// Make the point io
-  </span><span class="kw">pub fn </span>inputize_allocted_point&lt;G: Group, CS: ConstraintSystem&lt;G::Base&gt;&gt;(
+  </span><span class="kw">pub fn </span>inputize_allocated_point&lt;G: Group, CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     p: <span class="kw-2">&amp;</span>AllocatedPoint&lt;G&gt;,
     <span class="kw-2">mut </span>cs: CS,
   ) {
@@ -2175,7 +2175,7 @@
     CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="kw">let </span>a = alloc_random_point(cs.namespace(|| <span class="string">&quot;a&quot;</span>)).unwrap();
-    inputize_allocted_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
+    inputize_allocated_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
 
     <span class="kw">let </span>s = G::Scalar::random(<span class="kw-2">&amp;mut </span>OsRng);
     <span class="comment">// Allocate bits for s
@@ -2187,7 +2187,7 @@
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedBit&gt;, SynthesisError&gt;&gt;()
       .unwrap();
     <span class="kw">let </span>e = a.scalar_mul(cs.namespace(|| <span class="string">&quot;Scalar Mul&quot;</span>), <span class="kw-2">&amp;</span>bits).unwrap();
-    inputize_allocted_point(<span class="kw-2">&amp;</span>e, cs.namespace(|| <span class="string">&quot;inputize e&quot;</span>));
+    inputize_allocated_point(<span class="kw-2">&amp;</span>e, cs.namespace(|| <span class="string">&quot;inputize e&quot;</span>));
     (a, e, s)
   }
 
@@ -2248,9 +2248,9 @@
     CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="kw">let </span>a = alloc_random_point(cs.namespace(|| <span class="string">&quot;a&quot;</span>)).unwrap();
-    inputize_allocted_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
+    inputize_allocated_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
     <span class="kw">let </span>e = a.add(cs.namespace(|| <span class="string">&quot;add a to a&quot;</span>), <span class="kw-2">&amp;</span>a).unwrap();
-    inputize_allocted_point(<span class="kw-2">&amp;</span>e, cs.namespace(|| <span class="string">&quot;inputize e&quot;</span>));
+    inputize_allocated_point(<span class="kw-2">&amp;</span>e, cs.namespace(|| <span class="string">&quot;inputize e&quot;</span>));
     (a, e)
   }
 
@@ -2303,13 +2303,13 @@
     CS: ConstraintSystem&lt;G::Base&gt;,
   {
     <span class="kw">let </span>a = alloc_random_point(cs.namespace(|| <span class="string">&quot;a&quot;</span>)).unwrap();
-    inputize_allocted_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
+    inputize_allocated_point(<span class="kw-2">&amp;</span>a, cs.namespace(|| <span class="string">&quot;inputize a&quot;</span>));
     <span class="kw">let </span>b = <span class="kw-2">&amp;mut </span>a.clone();
     b.y = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;allocate negation of a&quot;</span>), || {
       <span class="prelude-val">Ok</span>(G::Base::ZERO)
     })
     .unwrap();
-    inputize_allocted_point(b, cs.namespace(|| <span class="string">&quot;inputize b&quot;</span>));
+    inputize_allocated_point(b, cs.namespace(|| <span class="string">&quot;inputize b&quot;</span>));
     <span class="kw">let </span>e = a.add(cs.namespace(|| <span class="string">&quot;add a to b&quot;</span>), b).unwrap();
     e
   }

@@ -1067,7 +1067,7 @@
   }
 
   <span class="doccomment">/// Allocates a `BigNat` in the circuit with `n_limbs` limbs of width `limb_width` each.
-  /// The `max_word` is gauranteed to be `(2 &lt;&lt; limb_width) - 1`.
+  /// The `max_word` is guaranteed to be `(2 &lt;&lt; limb_width) - 1`.
   /// The value is provided by a closure returning a natural number.
   </span><span class="kw">pub fn </span>alloc_from_nat&lt;CS, F&gt;(
     <span class="kw-2">mut </span>cs: CS,
@@ -1118,7 +1118,7 @@
   }
 
   <span class="doccomment">/// Allocates a `BigNat` in the circuit with `n_limbs` limbs of width `limb_width` each.
-  /// The `max_word` is gauranteed to be `(2 &lt;&lt; limb_width) - 1`.
+  /// The `max_word` is guaranteed to be `(2 &lt;&lt; limb_width) - 1`.
   /// The value is provided by an allocated number
   </span><span class="kw">pub fn </span>from_num&lt;CS: ConstraintSystem&lt;Scalar&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
