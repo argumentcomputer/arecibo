@@ -375,7 +375,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       |comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau| {
         let u = PolyEvalInstance::<E>::batch(
           comm_Az_Bz_Cz.as_slice(),
-          &[], // ignored by the function
+          vec![], // ignored by the function
           evals_Az_Bz_Cz_at_tau.as_slice(),
           &c,
         );
@@ -819,7 +819,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       |comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau| {
         let u = PolyEvalInstance::<E>::batch(
           comm_Az_Bz_Cz.as_slice(),
-          &tau_coords,
+          tau_coords.clone(),
           evals_Az_Bz_Cz_at_tau.as_slice(),
           &c,
         );

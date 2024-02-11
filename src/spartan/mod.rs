@@ -167,7 +167,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     }
   }
 
-  fn batch(c_vec: &[Commitment<E>], x: &[E::Scalar], e_vec: &[E::Scalar], s: &E::Scalar) -> Self {
+  fn batch(c_vec: &[Commitment<E>], x: Vec<E::Scalar>, e_vec: &[E::Scalar], s: &E::Scalar) -> Self {
     let num_instances = c_vec.len();
     assert_eq!(e_vec.len(), num_instances);
 
@@ -180,7 +180,7 @@ impl<E: Engine> PolyEvalInstance<E> {
 
     Self {
       c,
-      x: x.to_vec(),
+      x,
       e,
     }
   }
@@ -287,7 +287,7 @@ mod tests {
         // when poly evals are all for the max # of variables, batch_diff_size and batch agree
         let res = PolyEvalInstance::<PallasEngine>::batch(
           &c_vecs, 
-          &x_vec, 
+          x_vec.clone(), 
           &e_vec, 
           &s.0);
 
