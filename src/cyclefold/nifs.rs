@@ -13,12 +13,14 @@ use crate::{
   },
   r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
   traits::{commitment::CommitmentTrait, /*AbsorbInROTrait,*/ Engine, ROConstants, ROTrait},
-  Commitment, CommitmentKey, CompressedCommitment,
+  CommitmentKey, CompressedCommitment,
 };
 
 /// TODO: Docs
-pub fn absorb_commitment<E1, E2>(comm: &Commitment<E1>, ro: &mut E2::RO)
-where
+pub fn absorb_commitment<E1, E2>(
+  comm: &impl CommitmentTrait<E1>,
+  ro: &mut impl ROTrait<E2::Base, E2::Scalar>,
+) where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
@@ -40,7 +42,7 @@ where
   }
 }
 
-fn absorb_r1cs<E1, E2>(u: &R1CSInstance<E1>, ro: &mut E2::RO)
+fn absorb_r1cs<E1, E2>(u: &R1CSInstance<E1>, ro: &mut impl ROTrait<E2::Base, E2::Scalar>)
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,

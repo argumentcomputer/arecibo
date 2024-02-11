@@ -92,7 +92,8 @@ where
 
     let ro_consts_cyclefold = ROConstants::<Dual<E1>>::default();
     let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
-    let circuit_cyclefold: CyclefoldCircuit<E1> = CyclefoldCircuit::new(None);
+    let circuit_cyclefold: CyclefoldCircuit<E1> =
+      CyclefoldCircuit::new(CyclefoldCircuitInputs::default());
     let _ = circuit_cyclefold.synthesize(&mut cs);
     let (r1cs_shape_cyclefold, ck_cyclefold) = cs.r1cs_shape_and_key(ck_hint_cyclefold);
     let circuit_shape_cyclefold = R1CSWithArity::new(r1cs_shape_cyclefold, 0);
@@ -308,7 +309,7 @@ where
       r_bools.clone(),
     );
 
-    let circuit_cyclefold_E: CyclefoldCircuit<E1> = CyclefoldCircuit::new(Some(inputs_cyclefold_E));
+    let circuit_cyclefold_E: CyclefoldCircuit<E1> = CyclefoldCircuit::new(inputs_cyclefold_E);
 
     let _output_cyclefold_E = circuit_cyclefold_E.synthesize(&mut cs_cyclefold_E);
 
@@ -342,7 +343,7 @@ where
       r_bools,
     );
 
-    let circuit_cyclefold_W: CyclefoldCircuit<E1> = CyclefoldCircuit::new(Some(inputs_cyclefold_W));
+    let circuit_cyclefold_W: CyclefoldCircuit<E1> = CyclefoldCircuit::new(inputs_cyclefold_W);
 
     let _output_cyclefold_W = circuit_cyclefold_W.synthesize(&mut cs_cyclefold_W);
 

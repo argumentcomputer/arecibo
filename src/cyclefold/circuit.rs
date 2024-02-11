@@ -16,6 +16,17 @@ pub struct CyclefoldCircuitInputs<E: Engine> {
   scalar: Vec<Option<bool>>,
 }
 
+impl<E: Engine> Default for CyclefoldCircuitInputs<E> {
+  fn default() -> Self {
+    Self {
+      commit_1: None,
+      commit_2: None,
+      result: None,
+      scalar: vec![],
+    }
+  }
+}
+
 impl<E: Engine> CyclefoldCircuitInputs<E> {
   /// TODO
   pub fn new(
@@ -35,12 +46,12 @@ impl<E: Engine> CyclefoldCircuitInputs<E> {
 
 /// TODO: docs
 pub struct CyclefoldCircuit<E: Engine> {
-  inputs: Option<CyclefoldCircuitInputs<E>>,
+  inputs: CyclefoldCircuitInputs<E>,
 }
 
 impl<E: Engine> CyclefoldCircuit<E> {
   /// TODO: docs
-  pub fn new(inputs: Option<CyclefoldCircuitInputs<E>>) -> Self {
+  pub fn new(inputs: CyclefoldCircuitInputs<E>) -> Self {
     Self { inputs }
   }
 
@@ -58,32 +69,21 @@ impl<E: Engine> CyclefoldCircuit<E> {
   > {
     let commit_1 = AllocatedPoint::alloc(
       cs.namespace(|| "allocate C_1"),
-      self
-        .inputs
-        .as_ref()
-        .and_then(|inputs| inputs.commit_1.map(|C_1| C_1.to_coordinates())),
+      self.inputs.commit_1.map(|C_1| C_1.to_coordinates()),
     )?;
 
     let commit_2 = AllocatedPoint::alloc(
       cs.namespace(|| "allocate C_2"),
-      self
-        .inputs
-        .as_ref()
-        .and_then(|inputs| inputs.commit_2.map(|C_2| C_2.to_coordinates())),
+      self.inputs.commit_2.map(|C_2| C_2.to_coordinates()),
     )?;
 
     let result = AllocatedPoint::alloc(
       cs.namespace(|| "allocate C_1 + r * C_2"),
-      self
-        .inputs
-        .as_ref()
-        .and_then(|inputs| inputs.result.map(|result| result.to_coordinates())),
+      self.inputs.result.map(|result| result.to_coordinates()),
     )?;
 
     let scalar = self
       .inputs
-      .as_ref()
-      .ok_or(SynthesisError::AssignmentMissing)?
       .scalar
       .iter()
       .enumerate()
@@ -140,45 +140,42 @@ mod tests {
 
   use crate::{
     bellpepper::{solver::SatisfyingAssignment, test_shape_cs::TestShapeCS},
-    provider::{
-      Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
-    },
-    traits::commitment::CommitmentEngineTrait,
+    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    traits::{commitment::CommitmentEngineTrait, CurveCycleEquipped, Dual},
   };
 
   use super::*;
 
-  fn test_cyclefold_circuit_size_with<E1, E2>(expected_constraints: usize, expected_vars: usize)
+  fn test_cyclefold_circuit_size_with<E1>(expected_constraints: usize, expected_vars: usize)
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E1: CurveCycleEquipped,
   {
     let rng = OsRng;
 
-    let ck = <<E2 as Engine>::CE as CommitmentEngineTrait<E2>>::setup(b"hi", 5);
+    let ck = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::setup(b"hi", 5);
 
     let v1 = (0..5)
-      .map(|_| <E2::Scalar as Field>::random(rng))
+      .map(|_| <<Dual<E1> as Engine>::Scalar as Field>::random(rng))
       .collect::<Vec<_>>();
 
     let v2 = (0..5)
-      .map(|_| <E2::Scalar as Field>::random(rng))
+      .map(|_| <<Dual<E1> as Engine>::Scalar as Field>::random(rng))
       .collect::<Vec<_>>();
 
-    let C_1 = <<E2 as Engine>::CE as CommitmentEngineTrait<E2>>::commit(&ck, &v1);
+    let C_1 = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::commit(&ck, &v1);
 
-    let C_2 = <<E2 as Engine>::CE as CommitmentEngineTrait<E2>>::commit(&ck, &v2);
+    let C_2 = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::commit(&ck, &v2);
 
-    let r = <E2::Scalar as Field>::random(rng);
+    let r = <<Dual<E1> as Engine>::Scalar as Field>::random(rng);
 
     let result = C_1 + C_2 * r;
 
     let r_bits = r.to_le_bits().iter().map(|b| Some(*b)).collect::<Vec<_>>();
 
-    let inputs: CyclefoldCircuitInputs<E2> =
+    let inputs: CyclefoldCircuitInputs<Dual<E1>> =
       CyclefoldCircuitInputs::new(Some(C_1), Some(C_2), Some(result), r_bits);
 
-    let circuit: CyclefoldCircuit<_> = CyclefoldCircuit::new(Some(inputs));
+    let circuit: CyclefoldCircuit<_> = CyclefoldCircuit::new(inputs);
 
     // Test the circuit size does not change
     let mut cs: TestShapeCS<E1> = TestShapeCS::default();
@@ -215,8 +212,8 @@ mod tests {
 
   #[test]
   fn test_cyclefold_circuit_size() {
-    test_cyclefold_circuit_size_with::<PallasEngine, VestaEngine>(2735, 2728);
-    test_cyclefold_circuit_size_with::<Bn256Engine, GrumpkinEngine>(2769, 2760);
-    test_cyclefold_circuit_size_with::<Secp256k1Engine, Secq256k1Engine>(2701, 2696);
+    test_cyclefold_circuit_size_with::<PallasEngine>(2735, 2728);
+    test_cyclefold_circuit_size_with::<Bn256Engine>(2769, 2760);
+    test_cyclefold_circuit_size_with::<Secp256k1Engine>(2701, 2696);
   }
 }
