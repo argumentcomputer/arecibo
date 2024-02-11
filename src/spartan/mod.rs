@@ -151,15 +151,14 @@ impl<E: Engine> PolyEvalInstance<E> {
 
       // vᵢ = L₀(x_lo)⋅Pᵢ(x_hi)
       lagrange_eval * eval
-    })
-    .collect::<Vec<_>>();
+    });
 
     // C = ∑ᵢ γⁱ⋅Cᵢ
     let comm_joint = zip_with!(iter, (c_vec, powers), |c, g_i| *c * *g_i)
       .fold(Commitment::<E>::default(), |acc, item| acc + item);
 
     // v = ∑ᵢ γⁱ⋅vᵢ
-    let eval_joint = zip_with!((evals_scaled.into_iter(), powers.iter()), |e, g_i| e * g_i).sum();
+    let eval_joint = zip_with!((evals_scaled, powers.iter()), |e, g_i| e * g_i).sum();
 
     Self {
       c: comm_joint,
@@ -229,14 +228,13 @@ fn compute_eval_table_sparse<E: Engine>(
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
-  use proptest::prelude::*;
-  use crate::r1cs::util::FWrap;
-  use proptest::collection::vec;
-  use pasta_curves::Fq as Scalar;
-  use crate::provider::PallasEngine;
   use super::*;
-
-
+  use crate::provider::PallasEngine;
+  use crate::r1cs::util::{FWrap, GWrap};
+  use pasta_curves::pallas::Point as PallasPoint;
+  use pasta_curves::Fq as Scalar;
+  use proptest::collection::vec;
+  use proptest::prelude::*;
 
   proptest!{
       #[test]
@@ -271,6 +269,34 @@ mod tests {
         let res2 = PolyEvalWitness::<PallasEngine>::batch_diff_size(witnesses, s.0);
 
         prop_assert_eq!(res.p, res2.p);
+      }
+
+      #[test]
+      fn test_pe_instance_batch_diff_size_batch(
+        s in any::<FWrap<Scalar>>(),
+        vecs_tuple in (50usize..100).prop_flat_map(|size|
+            (vec(any::<GWrap<PallasPoint>>().prop_map(|f| f.0), size..=size),
+             vec(any::<FWrap<Scalar>>().prop_map(|f| f.0), size..=size),
+             vec(any::<FWrap<Scalar>>().prop_map(|f| f.0), size..=size)
+            ), // even-sized vecs
+          )
+      )
+      {
+        let (c_vec, e_vec, x_vec) = vecs_tuple;
+        let c_vecs = c_vec.into_iter().map(|c| Commitment::<PallasEngine>{ comm: c }).collect::<Vec<_>>();
+        // when poly evals are all for the max # of variables, batch_diff_size and batch agree
+        let res = PolyEvalInstance::<PallasEngine>::batch(
+          &c_vecs, 
+          &x_vec, 
+          &e_vec, 
+          &s.0);
+
+        let sizes = vec![x_vec.len(); x_vec.len()];
+        let res2 = PolyEvalInstance::<PallasEngine>::batch_diff_size(&c_vecs, &e_vec, &sizes, x_vec.clone(), s.0);
+
+        prop_assert_eq!(res.c, res2.c);
+        prop_assert_eq!(res.x, res2.x);
+        prop_assert_eq!(res.e, res2.e);
       }
   }
 }
