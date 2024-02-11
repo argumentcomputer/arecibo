@@ -135,6 +135,7 @@ impl<E: Engine> CyclefoldCircuit<E> {
 
 #[cfg(test)]
 mod tests {
+  use expect_test::{expect, Expect};
   use ff::{Field, PrimeFieldBits};
   use rand_core::OsRng;
 
@@ -146,7 +147,7 @@ mod tests {
 
   use super::*;
 
-  fn test_cyclefold_circuit_size_with<E1>(expected_constraints: usize, expected_vars: usize)
+  fn test_cyclefold_circuit_size_with<E1>(expected_constraints: &Expect, expected_vars: &Expect)
   where
     E1: CurveCycleEquipped,
   {
@@ -185,8 +186,8 @@ mod tests {
 
     let num_variables = cs.num_aux();
 
-    assert_eq!(expected_constraints, num_constraints);
-    assert_eq!(expected_vars, num_variables);
+    expected_constraints.assert_eq(&num_constraints.to_string());
+    expected_vars.assert_eq(&num_variables.to_string());
 
     // Test the circuit calculation matches weighted sum of commitments
     let mut cs = SatisfyingAssignment::<E1>::new();
@@ -212,8 +213,8 @@ mod tests {
 
   #[test]
   fn test_cyclefold_circuit_size() {
-    test_cyclefold_circuit_size_with::<PallasEngine>(2735, 2728);
-    test_cyclefold_circuit_size_with::<Bn256Engine>(2769, 2760);
-    test_cyclefold_circuit_size_with::<Secp256k1Engine>(2701, 2696);
+    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("2735"), &expect!("2728"));
+    test_cyclefold_circuit_size_with::<Bn256Engine>(&expect!("2769"), &expect!("2760"));
+    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("2701"), &expect!("2696"));
   }
 }
