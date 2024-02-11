@@ -493,7 +493,7 @@ pub(in crate::spartan) fn batch_eval_prove<E: Engine>(
     PolyEvalInstance::batch_diff_size(&comms, &claims_batch_left, &num_rounds, r, gamma);
 
   // P = ∑ᵢ γⁱ⋅Pᵢ
-  let w_joint = PolyEvalWitness::batch_diff_size(w_vec, gamma);
+  let w_joint = PolyEvalWitness::batch_diff_size(&w_vec.iter().by_ref().collect::<Vec<_>>(), gamma);
 
   Ok((u_joint, w_joint, sc_proof_batch, claims_batch_left))
 }

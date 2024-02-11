@@ -701,7 +701,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let num_vars_u = w_vec.iter().map(|w| w.p.len().log_2()).collect::<Vec<_>>();
     let u_batch =
       PolyEvalInstance::<E>::batch_diff_size(&comms_vec, &evals_vec, &num_vars_u, rand_sc, c);
-    let w_batch = PolyEvalWitness::<E>::batch_diff_size(w_vec, c);
+    let w_batch =
+      PolyEvalWitness::<E>::batch_diff_size(&w_vec.iter().by_ref().collect::<Vec<_>>(), c);
 
     let eval_arg = EE::prove(
       ck,

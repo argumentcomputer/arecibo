@@ -26,6 +26,7 @@ use itertools::Itertools as _;
 use polys::multilinear::SparsePolynomial;
 
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
+use ref_cast::RefCast;
 
 // Creates a vector of the first `n` powers of `s`.
 fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
@@ -36,7 +37,8 @@ fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
 }
 
 /// A type that holds a witness to a polynomial evaluation instance
-#[derive(Debug)]
+#[repr(transparent)]
+#[derive(Debug, RefCast)]
 struct PolyEvalWitness<E: Engine> {
   p: Vec<E::Scalar>, // polynomial
 }
@@ -48,39 +50,43 @@ impl<E: Engine> PolyEvalWitness<E> {
   ///
   /// We allow the input polynomials to have different sizes, and interpret smaller ones as
   /// being padded with 0 to the maximum size of all polynomials.
-  fn batch_diff_size(W: Vec<Self>, s: E::Scalar) -> Self {
+  fn batch_diff_size(W: &[&Self], s: E::Scalar) -> Self {
     let powers = powers::<E>(&s, W.len());
 
     let size_max = W.iter().map(|w| w.p.len()).max().unwrap();
+    let p_vec = W.par_iter().map(|w| &w.p);
     // Scale the input polynomials by the power of s
-    let p = W
-      .into_par_iter()
-      .zip_eq(powers.par_iter())
-      .map(|(mut w, s)| {
-        if *s != E::Scalar::ONE {
-          w.p.par_iter_mut().for_each(|e| *e *= s);
-        }
-        w.p
-      })
-      .reduce(
-        || vec![E::Scalar::ZERO; size_max],
-        |left, right| {
-          // Sum into the largest polynomial
-          let (mut big, small) = if left.len() > right.len() {
-            (left, right)
+    let p = zip_with!((p_vec, powers.par_iter()), |v, weight| {
+      // compute the weighted sum for each vector
+      v.iter()
+        .map(|&x| {
+          if *weight != E::Scalar::ONE {
+            x * *weight
           } else {
-            (right, left)
-          };
+            x
+          }
+        })
+        .collect::<Vec<_>>()
+    })
+    .reduce(
+      || vec![E::Scalar::ZERO; size_max],
+      |left, right| {
+        // Sum into the largest polynomial
+        let (mut big, small) = if left.len() > right.len() {
+          (left, right)
+        } else {
+          (right, left)
+        };
 
-          #[allow(clippy::disallowed_methods)]
-          big
-            .par_iter_mut()
-            .zip(small.par_iter())
-            .for_each(|(b, s)| *b += s);
+        #[allow(clippy::disallowed_methods)]
+        big
+          .par_iter_mut()
+          .zip(small.par_iter())
+          .for_each(|(b, s)| *b += s);
 
-          big
-        },
-      );
+        big
+      },
+    );
 
     Self { p }
   }
@@ -96,22 +102,8 @@ impl<E: Engine> PolyEvalWitness<E> {
       .iter()
       .skip(1)
       .for_each(|p| assert_eq!(p.len(), p_vec[0].len()));
-
-    let powers_of_s = powers::<E>(s, p_vec.len());
-
-    let p = zip_with!(par_iter, (p_vec, powers_of_s), |v, weight| {
-      // compute the weighted sum for each vector
-      v.iter().map(|&x| x * *weight).collect::<Vec<E::Scalar>>()
-    })
-    .reduce(
-      || vec![E::Scalar::ZERO; p_vec[0].len()],
-      |acc, v| {
-        // perform vector addition to combine the weighted vectors
-        acc.into_iter().zip_eq(v).map(|(x, y)| x + y).collect()
-      },
-    );
-
-    Self { p }
+    let instances = p_vec.iter().map(|p| Self::ref_cast(p)).collect::<Vec<_>>();
+    Self::batch_diff_size(&instances, *s)
   }
 }
 
@@ -168,21 +160,8 @@ impl<E: Engine> PolyEvalInstance<E> {
   }
 
   fn batch(c_vec: &[Commitment<E>], x: Vec<E::Scalar>, e_vec: &[E::Scalar], s: &E::Scalar) -> Self {
-    let num_instances = c_vec.len();
-    assert_eq!(e_vec.len(), num_instances);
-
-    let powers_of_s = powers::<E>(s, num_instances);
-    // Weighted sum of evaluations
-    let e = zip_with!(par_iter, (e_vec, powers_of_s), |e, p| *e * p).sum();
-    // Weighted sum of commitments
-    let c = zip_with!(par_iter, (c_vec, powers_of_s), |c, p| *c * *p)
-      .reduce(Commitment::<E>::default, |acc, item| acc + item);
-
-    Self {
-      c,
-      x,
-      e,
-    }
+    let sizes = vec![x.len(); e_vec.len()];
+    Self::batch_diff_size(c_vec, e_vec, &sizes, x, *s)
   }
 }
 
@@ -236,7 +215,53 @@ mod tests {
   use proptest::collection::vec;
   use proptest::prelude::*;
 
-  proptest!{
+  impl<E: Engine> PolyEvalWitness<E> {
+    fn alt_batch(p_vec: &[&Vec<E::Scalar>], s: &E::Scalar) -> Self {
+      p_vec
+        .iter()
+        .skip(1)
+        .for_each(|p| assert_eq!(p.len(), p_vec[0].len()));
+
+      let powers_of_s = powers::<E>(s, p_vec.len());
+
+      let p = zip_with!(par_iter, (p_vec, powers_of_s), |v, weight| {
+        // compute the weighted sum for each vector
+        v.iter().map(|&x| x * *weight).collect::<Vec<E::Scalar>>()
+      })
+      .reduce(
+        || vec![E::Scalar::ZERO; p_vec[0].len()],
+        |acc, v| {
+          // perform vector addition to combine the weighted vectors
+          acc.into_iter().zip_eq(v).map(|(x, y)| x + y).collect()
+        },
+      );
+
+      Self { p }
+    }
+  }
+
+  impl<E: Engine> PolyEvalInstance<E> {
+    fn alt_batch(
+      c_vec: &[Commitment<E>],
+      x: Vec<E::Scalar>,
+      e_vec: &[E::Scalar],
+      s: &E::Scalar,
+    ) -> Self {
+      let num_instances = c_vec.len();
+      assert_eq!(e_vec.len(), num_instances);
+
+      let powers_of_s = powers::<E>(s, num_instances);
+      // Weighted sum of evaluations
+      let e = zip_with!(par_iter, (e_vec, powers_of_s), |e, p| *e * p).sum();
+      // Weighted sum of commitments
+      let c = zip_with!(par_iter, (c_vec, powers_of_s), |c, p| *c * *p)
+        .reduce(Commitment::<E>::default, |acc, item| acc + item);
+
+      Self { c, x, e }
+    }
+  }
+
+  proptest! {
       #[test]
       fn test_pe_witness_batch_diff_size_batch(
         s in any::<FWrap<Scalar>>(),
@@ -246,9 +271,9 @@ mod tests {
       )
       {
         // when the vectors are the same size, batch_diff_size and batch agree
-        let res = PolyEvalWitness::<PallasEngine>::batch(&vecs.iter().by_ref().collect::<Vec<_>>(), &s.0);
-        let witnesses = vecs.into_iter().map(|v| PolyEvalWitness{ p: v}).collect::<Vec<PolyEvalWitness<PallasEngine>>>();
-        let res2 = PolyEvalWitness::<PallasEngine>::batch_diff_size(witnesses, s.0);
+        let res = PolyEvalWitness::<PallasEngine>::alt_batch(&vecs.iter().by_ref().collect::<Vec<_>>(), &s.0);
+        let witnesses = vecs.iter().map(PolyEvalWitness::ref_cast).collect::<Vec<_>>();
+        let res2 = PolyEvalWitness::<PallasEngine>::batch_diff_size(&witnesses, s.0);
 
         prop_assert_eq!(res.p, res2.p);
       }
@@ -264,9 +289,9 @@ mod tests {
         let size = vecs.iter().map(|v| v.len()).max().unwrap_or(0);
         // when the vectors are not the same size, batch agrees with the padded version of the input
         let padded_vecs = vecs.iter().cloned().map(|mut v| {v.resize(size, Scalar::ZERO); v}).collect::<Vec<_>>();
-        let res = PolyEvalWitness::<PallasEngine>::batch(&padded_vecs.iter().by_ref().collect::<Vec<_>>(), &s.0);
-        let witnesses = vecs.into_iter().map(|v| PolyEvalWitness{ p: v}).collect::<Vec<PolyEvalWitness<PallasEngine>>>();
-        let res2 = PolyEvalWitness::<PallasEngine>::batch_diff_size(witnesses, s.0);
+        let res = PolyEvalWitness::<PallasEngine>::alt_batch(&padded_vecs.iter().by_ref().collect::<Vec<_>>(), &s.0);
+        let witnesses = vecs.iter().map(PolyEvalWitness::ref_cast).collect::<Vec<_>>();
+        let res2 = PolyEvalWitness::<PallasEngine>::batch_diff_size(&witnesses, s.0);
 
         prop_assert_eq!(res.p, res2.p);
       }
@@ -285,10 +310,10 @@ mod tests {
         let (c_vec, e_vec, x_vec) = vecs_tuple;
         let c_vecs = c_vec.into_iter().map(|c| Commitment::<PallasEngine>{ comm: c }).collect::<Vec<_>>();
         // when poly evals are all for the max # of variables, batch_diff_size and batch agree
-        let res = PolyEvalInstance::<PallasEngine>::batch(
-          &c_vecs, 
-          x_vec.clone(), 
-          &e_vec, 
+        let res = PolyEvalInstance::<PallasEngine>::alt_batch(
+          &c_vecs,
+          x_vec.clone(),
+          &e_vec,
           &s.0);
 
         let sizes = vec![x_vec.len(); x_vec.len()];
