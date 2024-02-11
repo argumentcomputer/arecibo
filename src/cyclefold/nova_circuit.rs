@@ -141,15 +141,15 @@ where
     arity: usize,
   ) -> Result<
     (
-      AllocatedNum<E1::Base>,                 // pp_digest
-      AllocatedNum<E1::Base>,                 // i
-      Vec<AllocatedNum<E1::Base>>,            // z0
-      Vec<AllocatedNum<E1::Base>>,            // zi
-      emulated::AllocatedFoldingData<E1, E2>, //data_p
-      AllocatedFoldingData<E1>,               // data_c_1
-      AllocatedFoldingData<E1>,               // data_c_2
-      emulated::AllocatedPoint<E1, E2>,       // E_new
-      emulated::AllocatedPoint<E1, E2>,       // W_new
+      AllocatedNum<E1::Base>,               // pp_digest
+      AllocatedNum<E1::Base>,               // i
+      Vec<AllocatedNum<E1::Base>>,          // z0
+      Vec<AllocatedNum<E1::Base>>,          // zi
+      emulated::AllocatedFoldingData<E1>,   //data_p
+      AllocatedFoldingData<E1>,             // data_c_1
+      AllocatedFoldingData<E1>,             // data_c_2
+      emulated::AllocatedEmulPoint<E1::GE>, // E_new
+      emulated::AllocatedEmulPoint<E1::GE>, // W_new
     ),
     SynthesisError,
   > {
@@ -216,7 +216,7 @@ where
       self.params.n_limbs,
     )?;
 
-    let E_new = emulated::AllocatedPoint::alloc(
+    let E_new = emulated::AllocatedEmulPoint::alloc(
       cs.namespace(|| "E_new"),
       self
         .inputs
@@ -233,7 +233,7 @@ where
       self.params.n_limbs,
     )?;
 
-    let W_new = emulated::AllocatedPoint::alloc(
+    let W_new = emulated::AllocatedEmulPoint::alloc(
       cs.namespace(|| "W_new"),
       self
         .inputs
@@ -261,7 +261,7 @@ where
   ) -> Result<
     (
       AllocatedRelaxedR1CSInstance<E1>,
-      emulated::AllocatedRelaxedR1CSInstance<E1, E2>,
+      emulated::AllocatedEmulRelaxedR1CSInstance<E1>,
     ),
     SynthesisError,
   > {
@@ -271,7 +271,7 @@ where
       self.params.n_limbs,
     )?;
 
-    let U_p_default = emulated::AllocatedRelaxedR1CSInstance::default(
+    let U_p_default = emulated::AllocatedEmulRelaxedR1CSInstance::default(
       cs.namespace(|| "Allocated U_p_default"),
       self.params.limb_width,
       self.params.n_limbs,
@@ -287,16 +287,16 @@ where
     i: &AllocatedNum<E1::Base>,
     z_0: &[AllocatedNum<E1::Base>],
     z_i: &[AllocatedNum<E1::Base>],
-    data_p: &emulated::AllocatedFoldingData<E1, E2>,
+    data_p: &emulated::AllocatedFoldingData<E1>,
     data_c_1: &AllocatedFoldingData<E1>,
     data_c_2: &AllocatedFoldingData<E1>,
-    E_new: &emulated::AllocatedPoint<E1, E2>,
-    W_new: &emulated::AllocatedPoint<E1, E2>,
+    E_new: &emulated::AllocatedEmulPoint<E1::GE>,
+    W_new: &emulated::AllocatedEmulPoint<E1::GE>,
     arity: usize,
   ) -> Result<
     (
       AllocatedRelaxedR1CSInstance<E1>,
-      emulated::AllocatedRelaxedR1CSInstance<E1, E2>,
+      emulated::AllocatedEmulRelaxedR1CSInstance<E1>,
       AllocatedBit,
     ),
     SynthesisError,

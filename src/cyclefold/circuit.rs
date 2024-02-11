@@ -49,9 +49,9 @@ impl<E: Engine> CyclefoldCircuit<E> {
     mut cs: CS,
   ) -> Result<
     (
-      AllocatedPoint<E>,
-      AllocatedPoint<E>,
-      AllocatedPoint<E>,
+      AllocatedPoint<E::GE>,
+      AllocatedPoint<E::GE>,
+      AllocatedPoint<E::GE>,
       Vec<AllocatedBit>,
     ),
     SynthesisError,
@@ -97,7 +97,7 @@ impl<E: Engine> CyclefoldCircuit<E> {
   pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-  ) -> Result<AllocatedPoint<E>, SynthesisError> {
+  ) -> Result<AllocatedPoint<E::GE>, SynthesisError> {
     let (C_1, C_2, result, r) = self.alloc_witness(cs.namespace(|| "allocate circuit witness"))?;
 
     // Calculate C_final

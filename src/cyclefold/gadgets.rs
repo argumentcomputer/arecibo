@@ -12,7 +12,7 @@ use bellpepper_core::{ConstraintSystem, SynthesisError};
 pub struct AllocatedFoldingData<E: Engine> {
   pub U: AllocatedRelaxedR1CSInstance<E>,
   pub u: AllocatedR1CSInstance<E>,
-  pub T: AllocatedPoint<E>,
+  pub T: AllocatedPoint<E::GE>,
 }
 
 impl<E: Engine> AllocatedFoldingData<E> {
@@ -61,8 +61,6 @@ pub mod emulated {
 
   use super::*;
 
-  use std::marker::PhantomData;
-
   use crate::{
     constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
     gadgets::{
@@ -79,30 +77,27 @@ pub mod emulated {
   use ff::Field;
 
   #[derive(Clone)]
-  pub struct AllocatedPoint<E1, E2>
+  pub struct AllocatedEmulPoint<G>
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    G: Group,
   {
-    x: BigNat<E1::Base>,
-    y: BigNat<E1::Base>,
-    is_infinity: AllocatedNum<E1::Base>,
-    _p: PhantomData<E2>,
+    x: BigNat<G::Base>,
+    y: BigNat<G::Base>,
+    is_infinity: AllocatedNum<G::Base>,
   }
 
-  impl<E1, E2> AllocatedPoint<E1, E2>
+  impl<G> AllocatedEmulPoint<G>
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    G: Group,
   {
     pub fn alloc<CS>(
       mut cs: CS,
-      coords: Option<(E2::Base, E2::Base, bool)>,
+      coords: Option<(G::Scalar, G::Scalar, bool)>,
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError>
     where
-      CS: ConstraintSystem<<E1 as Engine>::Base>,
+      CS: ConstraintSystem<<G as Group>::Base>,
     {
       let x = BigNat::alloc_from_nat(
         cs.namespace(|| "x"),
@@ -128,9 +123,9 @@ pub mod emulated {
 
       let is_infinity = AllocatedNum::alloc(cs.namespace(|| "is_infinity"), || {
         Ok(if coords.map_or(true, |c| c.2) {
-          E1::Base::ONE
+          G::Base::ONE
         } else {
-          E1::Base::ZERO
+          G::Base::ZERO
         })
       })?;
       cs.enforce(
@@ -142,9 +137,13 @@ pub mod emulated {
       Ok(Self { x, y, is_infinity })
     }
 
-    pub fn absorb_in_ro<CS>(&self, mut cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
+    pub fn absorb_in_ro<CS>(
+      &self,
+      mut cs: CS,
+      ro: &mut impl ROCircuitTrait<G::Base>,
+    ) -> Result<(), SynthesisError>
     where
-      CS: ConstraintSystem<<E1 as Engine>::Base>,
+      CS: ConstraintSystem<G::Base>,
     {
       let x_bn = self
         .x
@@ -154,7 +153,7 @@ pub mod emulated {
         .map(|(i, limb)| {
           limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[0] to num")))
         })
-        .collect::<Result<Vec<AllocatedNum<E1::Base>>, _>>()?;
+        .collect::<Result<Vec<AllocatedNum<G::Base>>, _>>()?;
 
       for limb in x_bn {
         ro.absorb(&limb)
@@ -168,7 +167,7 @@ pub mod emulated {
         .map(|(i, limb)| {
           limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[0] to num")))
         })
-        .collect::<Result<Vec<AllocatedNum<E1::Base>>, _>>()?;
+        .collect::<Result<Vec<AllocatedNum<G::Base>>, _>>()?;
 
       for limb in y_bn {
         ro.absorb(&limb)
@@ -186,25 +185,25 @@ pub mod emulated {
       n_limbs: usize,
     ) -> Result<(), SynthesisError>
     where
-      CS: ConstraintSystem<<E1 as Engine>::Base>,
+      CS: ConstraintSystem<G::Base>,
     {
       let m_bn = alloc_bignat_constant(
         cs.namespace(|| "alloc m"),
-        &E1::GE::group_params().3,
+        &G::group_params().3,
         limb_width,
         n_limbs,
       )?;
 
       let A_bn = alloc_bignat_constant(
         cs.namespace(|| "alloc A"),
-        &f_to_nat(&E1::GE::group_params().0),
+        &f_to_nat(&G::group_params().0),
         limb_width,
         n_limbs,
       )?;
 
       let B_bn = alloc_bignat_constant(
         cs.namespace(|| "alloc B"),
-        &f_to_nat(&E1::GE::group_params().1),
+        &f_to_nat(&G::group_params().1),
         limb_width,
         n_limbs,
       )?;
@@ -223,7 +222,7 @@ pub mod emulated {
         self
           .is_infinity
           .get_value()
-          .map(|is_infinity| is_infinity == E1::Base::ONE),
+          .map(|is_infinity| is_infinity == G::Base::ONE),
       )?;
 
       cs.enforce(
@@ -238,7 +237,7 @@ pub mod emulated {
       Ok(())
     }
 
-    fn conditionally_select<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+    fn conditionally_select<CS: ConstraintSystem<G::Base>>(
       &self,
       mut cs: CS,
       other: &Self,
@@ -268,21 +267,21 @@ pub mod emulated {
       Ok(Self { x, y, is_infinity })
     }
 
-    pub fn default<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+    pub fn default<CS: ConstraintSystem<G::Base>>(
       mut cs: CS,
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError> {
       let x = BigNat::alloc_from_nat(
         cs.namespace(|| "allocate x_default = 0"),
-        || Ok(f_to_nat(&E1::Scalar::ZERO)),
+        || Ok(f_to_nat(&G::Scalar::ZERO)),
         limb_width,
         n_limbs,
       )?;
 
       let y = BigNat::alloc_from_nat(
         cs.namespace(|| "allocate y_default = 0"),
-        || Ok(f_to_nat(&E1::Scalar::ZERO)),
+        || Ok(f_to_nat(&G::Scalar::ZERO)),
         limb_width,
         n_limbs,
       )?;
@@ -293,41 +292,35 @@ pub mod emulated {
     }
   }
 
-  pub struct AllocatedRelaxedR1CSInstance<E1, E2>
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-  {
-    comm_W: AllocatedPoint<E1, E2>,
-    comm_E: AllocatedPoint<E1, E2>,
-    u: AllocatedNum<E1::Base>,
-    x0: AllocatedNum<E1::Base>,
-    x1: AllocatedNum<E1::Base>,
-    pub _p: PhantomData<E2>,
+  pub struct AllocatedEmulRelaxedR1CSInstance<E: Engine> {
+    comm_W: AllocatedEmulPoint<E::GE>,
+    comm_E: AllocatedEmulPoint<E::GE>,
+    u: AllocatedNum<E::Base>,
+    x0: AllocatedNum<E::Base>,
+    x1: AllocatedNum<E::Base>,
   }
 
-  impl<E1, E2> AllocatedRelaxedR1CSInstance<E1, E2>
+  impl<E> AllocatedEmulRelaxedR1CSInstance<E>
   where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
+    E: Engine,
   {
-    pub fn alloc<CS>(
+    pub fn alloc<CS, E2: Engine<Base = E::Scalar, Scalar = E::Base>>(
       mut cs: CS,
       inst: Option<&RelaxedR1CSInstance<E2>>,
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError>
     where
-      CS: ConstraintSystem<<E1 as Engine>::Base>,
+      CS: ConstraintSystem<<E as Engine>::Base>,
     {
-      let comm_W = AllocatedPoint::alloc(
+      let comm_W = AllocatedEmulPoint::alloc(
         cs.namespace(|| "allocate comm_W"),
         inst.map(|x| x.comm_W.to_coordinates()),
         limb_width,
         n_limbs,
       )?;
 
-      let comm_E = AllocatedPoint::alloc(
+      let comm_E = AllocatedEmulPoint::alloc(
         cs.namespace(|| "allocate comm_E"),
         inst.map(|x| x.comm_E.to_coordinates()),
         limb_width,
@@ -335,15 +328,15 @@ pub mod emulated {
       )?;
 
       let u = AllocatedNum::alloc(cs.namespace(|| "allocate u"), || {
-        inst.map_or(Ok(E1::Base::ZERO), |inst| Ok(inst.u))
+        inst.map_or(Ok(E::Base::ZERO), |inst| Ok(inst.u))
       })?;
 
       let x0 = AllocatedNum::alloc(cs.namespace(|| "allocate x0"), || {
-        inst.map_or(Ok(E1::Base::ZERO), |inst| Ok(inst.X[0]))
+        inst.map_or(Ok(E::Base::ZERO), |inst| Ok(inst.X[0]))
       })?;
 
       let x1 = AllocatedNum::alloc(cs.namespace(|| "allocate x1"), || {
-        inst.map_or(Ok(E1::Base::ZERO), |inst| Ok(inst.X[1]))
+        inst.map_or(Ok(E::Base::ZERO), |inst| Ok(inst.X[1]))
       })?;
 
       Ok(Self {
@@ -352,23 +345,22 @@ pub mod emulated {
         u,
         x0,
         x1,
-        _p: PhantomData,
       })
     }
 
-    pub fn fold_with_r1cs<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+    pub fn fold_with_r1cs<CS: ConstraintSystem<<E as Engine>::Base>>(
       &self,
       mut cs: CS,
-      pp_digest: &AllocatedNum<E1::Base>,
-      W_new: AllocatedPoint<E1, E2>,
-      E_new: AllocatedPoint<E1, E2>,
-      u_W: &AllocatedPoint<E1, E2>,
-      u_x0: &AllocatedNum<E1::Base>,
-      u_x1: &AllocatedNum<E1::Base>,
-      comm_T: &AllocatedPoint<E1, E2>,
-      ro_consts: ROConstantsCircuit<E1>,
+      pp_digest: &AllocatedNum<E::Base>,
+      W_new: AllocatedEmulPoint<E::GE>,
+      E_new: AllocatedEmulPoint<E::GE>,
+      u_W: &AllocatedEmulPoint<E::GE>,
+      u_x0: &AllocatedNum<E::Base>,
+      u_x1: &AllocatedNum<E::Base>,
+      comm_T: &AllocatedEmulPoint<E::GE>,
+      ro_consts: ROConstantsCircuit<E>,
     ) -> Result<Self, SynthesisError> {
-      let mut ro = E1::ROCircuit::new(ro_consts, NUM_FE_FOR_RO);
+      let mut ro = E::ROCircuit::new(ro_consts, NUM_FE_FOR_RO);
 
       ro.absorb(pp_digest);
 
@@ -421,13 +413,16 @@ pub mod emulated {
         u: u_fold,
         x0: x0_fold,
         x1: x1_fold,
-        _p: PhantomData,
       })
     }
 
-    pub fn absorb_in_ro<CS>(&self, mut cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
+    pub fn absorb_in_ro<CS>(
+      &self,
+      mut cs: CS,
+      ro: &mut impl ROCircuitTrait<E::Base>,
+    ) -> Result<(), SynthesisError>
     where
-      CS: ConstraintSystem<<E1 as Engine>::Base>,
+      CS: ConstraintSystem<<E as Engine>::Base>,
     {
       self
         .comm_E
@@ -443,7 +438,7 @@ pub mod emulated {
       Ok(())
     }
 
-    pub fn conditionally_select<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+    pub fn conditionally_select<CS: ConstraintSystem<<E as Engine>::Base>>(
       &self,
       mut cs: CS,
       other: &Self,
@@ -488,16 +483,16 @@ pub mod emulated {
         u,
         x0,
         x1,
-        _p: PhantomData,
       })
     }
 
-    pub fn default<CS: ConstraintSystem<<E1 as Engine>::Base>>(
+    pub fn default<CS: ConstraintSystem<<E as Engine>::Base>>(
       mut cs: CS,
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError> {
-      let comm_W = AllocatedPoint::default(cs.namespace(|| "default comm_W"), limb_width, n_limbs)?;
+      let comm_W =
+        AllocatedEmulPoint::default(cs.namespace(|| "default comm_W"), limb_width, n_limbs)?;
       let comm_E = comm_W.clone();
 
       let u = alloc_zero(cs.namespace(|| "u = 0"));
@@ -511,45 +506,35 @@ pub mod emulated {
         u,
         x0,
         x1,
-        _p: PhantomData,
       })
     }
   }
-  pub struct AllocatedFoldingData<E1, E2>
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-  {
-    pub U: AllocatedRelaxedR1CSInstance<E1, E2>,
-    pub u_W: AllocatedPoint<E1, E2>,
-    pub u_x0: AllocatedNum<E1::Base>,
-    pub u_x1: AllocatedNum<E1::Base>,
-    pub T: AllocatedPoint<E1, E2>,
-    _p: PhantomData<E2>,
+  pub struct AllocatedFoldingData<E: Engine> {
+    pub U: AllocatedEmulRelaxedR1CSInstance<E>,
+    pub u_W: AllocatedEmulPoint<E::GE>,
+    pub u_x0: AllocatedNum<E::Base>,
+    pub u_x1: AllocatedNum<E::Base>,
+    pub T: AllocatedEmulPoint<E::GE>,
   }
 
-  impl<E1, E2> AllocatedFoldingData<E1, E2>
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-  {
-    pub fn alloc<CS>(
+  impl<E: Engine> AllocatedFoldingData<E> {
+    pub fn alloc<CS, E2: Engine<Base = E::Scalar, Scalar = E::Base>>(
       mut cs: CS,
       inst: Option<&FoldingData<E2>>,
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError>
     where
-      CS: ConstraintSystem<<E1 as Engine>::Base>,
+      CS: ConstraintSystem<<E as Engine>::Base>,
     {
-      let U = AllocatedRelaxedR1CSInstance::alloc(
+      let U = AllocatedEmulRelaxedR1CSInstance::alloc(
         cs.namespace(|| "allocate U"),
         inst.map(|x| &x.U),
         limb_width,
         n_limbs,
       )?;
 
-      let u_W = AllocatedPoint::alloc(
+      let u_W = AllocatedEmulPoint::alloc(
         cs.namespace(|| "allocate u_W"),
         inst.map(|x| x.u.comm_W.to_coordinates()),
         limb_width,
@@ -557,14 +542,14 @@ pub mod emulated {
       )?;
 
       let u_x0 = AllocatedNum::alloc(cs.namespace(|| "allocate u_x0"), || {
-        inst.map_or(Ok(E1::Base::ZERO), |inst| Ok(inst.u.X[0]))
+        inst.map_or(Ok(E::Base::ZERO), |inst| Ok(inst.u.X[0]))
       })?;
 
       let u_x1 = AllocatedNum::alloc(cs.namespace(|| "allocate u_x1"), || {
-        inst.map_or(Ok(E1::Base::ZERO), |inst| Ok(inst.u.X[1]))
+        inst.map_or(Ok(E::Base::ZERO), |inst| Ok(inst.u.X[1]))
       })?;
 
-      let T = AllocatedPoint::alloc(
+      let T = AllocatedEmulPoint::alloc(
         cs.namespace(|| "allocate T"),
         inst.map(|x| x.T.to_coordinates()),
         limb_width,
@@ -579,7 +564,6 @@ pub mod emulated {
         u_x0,
         u_x1,
         T,
-        _p: PhantomData,
       })
     }
 
