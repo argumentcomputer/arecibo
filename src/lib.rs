@@ -1120,13 +1120,13 @@ mod tests {
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1,
       &trivial_circuit2,
-      &expect!["492fd902cd7174159bc9a6f827d92eb54ff25efa9d0673dffdb0efd02995df01"],
+      &expect!["c42c461033243b4bfacad99015dd1cfe0cbc4a55c2a1952c97088b4938811401"],
     );
 
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1,
       &trivial_circuit2,
-      &expect!["9b0701d9422658e3f74a85ab3e485c06f3ecca9c2b1800aab80004034d754f01"],
+      &expect!["6a8cfaebf38ff798eb7486f5457400be6dc0a5809c8881b81ff940fbc21e0c00"],
     );
 
     let trivial_circuit1_grumpkin = TrivialCircuit::<<Bn256Engine as Engine>::Scalar>::default();
@@ -1139,22 +1139,22 @@ mod tests {
     test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      &expect!["1267235eb3d139e466dd9c814eaf73f01b063ccb4cad04848c0eb62f079a9601"],
+      &expect!["687c6023f38571ff54e37a8793d09852491616d8a24bd83750f1b823bb168900"],
     );
     test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      &expect!["57afac2edd20d39b202151906e41154ba186c9dde497448d1332dc6de2f76302"],
+      &expect!["7dd39781b4479da926e906d52be23c0b21315b38c198e924e1218d248166b602"],
     );
     test_pp_digest_with::<Bn256EngineZM, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &trivial_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      &expect!["070d247d83e17411d65c12260980ebcc59df88d3882d84eb62e6ab466e381503"],
+      &expect!["c6d00bcc3e565f543cf07d3ed9ce40cb8b170e19601b9ad7f48cbc9d14ac9102"],
     );
     test_pp_digest_with::<Bn256EngineZM, _, _, ZMPCS<Bn256, _>, EE<_>>(
       &cubic_circuit1_grumpkin,
       &trivial_circuit2_grumpkin,
-      &expect!["47c2caa008323b588b47ab8b6c0e94f980599188abe117c4d21ffff81494f303"],
+      &expect!["ad1c814009a84af19ff07ad0ab6539d0b48a00c4743bfcfd9282f6adf73fc603"],
     );
 
     let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
@@ -1164,12 +1164,12 @@ mod tests {
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &trivial_circuit1_secp,
       &trivial_circuit2_secp,
-      &expect!["04b5d1798be6d74b3701390b87078e70ebf3ddaad80c375319f320cedf8bca00"],
+      &expect!["e40f364ea6e78c03c4fe34f0ec9371668b70a71e11f3e245fdd7259beb979701"],
     );
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &cubic_circuit1_secp,
       &trivial_circuit2_secp,
-      &expect!["346b5f27cf24c79386f4de7a8bfb58970181ae7f0de7d2e3f10ad5dfd8fc2302"],
+      &expect!["ddf30f569f7750090cb0b12c0b94eaa819ce666bebd576d319d7efbdf77a7d02"],
     );
   }
 
