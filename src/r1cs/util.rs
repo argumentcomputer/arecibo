@@ -1,4 +1,5 @@
 use ff::PrimeField;
+use group::Group;
 #[cfg(not(target_arch = "wasm32"))]
 use proptest::prelude::*;
 
