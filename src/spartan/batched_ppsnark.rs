@@ -29,11 +29,12 @@ use crate::{
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     evaluation::EvaluationEngineTrait,
-    snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
+    snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Engine, TranscriptEngineTrait,
   },
   zip_with, zip_with_for_each, Commitment, CommitmentKey, CompressedCommitment,
 };
+use core::slice;
 use ff::Field;
 use itertools::{chain, Itertools as _};
 use once_cell::sync::*;
@@ -145,7 +146,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
     for s in S.iter() {
       // check the provided commitment key meets minimal requirements
-      if ck.length() < Self::ck_floor()(s) {
+      if ck.length() < <Self as BatchedRelaxedR1CSSNARKTrait<_>>::ck_floor()(s) {
         // return Err(NovaError::InvalidCommitmentKeyLength);
         return Err(NovaError::InternalError);
       }
@@ -1336,5 +1337,48 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARK<E, EE> {
       .iter()
       .map(|claim| scaling * claim)
       .collect()
+  }
+}
+
+impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E>
+  for BatchedRelaxedR1CSSNARK<E, EE>
+{
+  type ProverKey = ProverKey<E, EE>;
+
+  type VerifierKey = VerifierKey<E, EE>;
+
+  fn ck_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<E>) -> usize> {
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::ck_floor()
+  }
+
+  fn setup(
+    ck: Arc<CommitmentKey<E>>,
+    S: &R1CSShape<E>,
+  ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::setup(ck, vec![S])
+  }
+
+  fn prove(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    S: &R1CSShape<E>,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+  ) -> Result<Self, NovaError> {
+    // We manifest a slice for the single element U
+    let ptr_U = U as *const _;
+    let slice_U = unsafe { slice::from_raw_parts(ptr_U, 1) };
+    // We manifest a slice for the single element W
+    let ptr_W = W as *const _;
+    let slice_W = unsafe { slice::from_raw_parts(ptr_W, 1) };
+
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::prove(ck, pk, vec![S], slice_U, slice_W)
+  }
+
+  fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
+    // We manifest a slice for the single element U
+    let ptr = U as *const _;
+    let slice = unsafe { slice::from_raw_parts(ptr, 1) };
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::verify(self, vk, slice)
   }
 }
