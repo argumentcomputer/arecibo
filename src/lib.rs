@@ -1397,6 +1397,63 @@ mod tests {
     >();
   }
 
+  type BatchedS<E, EE> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE>;
+  type BatchedSPrime<E, EE> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE>;
+
+  fn test_ivc_nontrivial_with_batched_compression_with<E1, EE1, EE2>()
+  where
+    E1: CurveCycleEquipped,
+    EE1: EvaluationEngineTrait<E1>,
+    EE2: EvaluationEngineTrait<Dual<E1>>,
+    // this is due to the reliance on Abomonation
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+  {
+    // this tests compatibility of the batched workflow with the non-batched one
+    test_ivc_nontrivial_with_some_compression_with::<E1, BatchedS<_, EE1>, BatchedS<_, EE2>>()
+  }
+
+  #[test]
+  fn test_ivc_nontrivial_with_batched_compression() {
+    test_ivc_nontrivial_with_batched_compression_with::<PallasEngine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
+    test_ivc_nontrivial_with_batched_compression_with::<
+      Bn256EngineKZG,
+      provider::hyperkzg::EvaluationEngine<Bn256, _>,
+      EE<_>,
+    >();
+  }
+
+  fn test_ivc_nontrivial_with_batched_spark_compression_with<E1, EE1, EE2>()
+  where
+    E1: CurveCycleEquipped,
+    EE1: EvaluationEngineTrait<E1>,
+    EE2: EvaluationEngineTrait<Dual<E1>>,
+    // this is due to the reliance on Abomonation
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+  {
+    // this tests compatibility of the batched workflow with the non-batched one
+    test_ivc_nontrivial_with_some_compression_with::<E1, BatchedSPrime<_, EE1>, BatchedSPrime<_, EE2>>(
+    )
+  }
+
+  #[test]
+  fn test_ivc_nontrivial_with_batched_spark_compression() {
+    test_ivc_nontrivial_with_batched_spark_compression_with::<PallasEngine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>(
+    );
+    test_ivc_nontrivial_with_batched_spark_compression_with::<
+      Bn256EngineKZG,
+      provider::hyperkzg::EvaluationEngine<Bn256, _>,
+      EE<_>,
+    >();
+  }
+
   fn test_ivc_nondet_with_compression_with<E1, EE1, EE2>()
   where
     E1: CurveCycleEquipped,
