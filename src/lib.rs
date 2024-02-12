@@ -1291,24 +1291,24 @@ mod tests {
     test_ivc_nontrivial_with::<Secp256k1Engine>();
   }
 
-  fn test_ivc_nontrivial_with_compression_with<E1, EE1, EE2>()
+  fn test_ivc_nontrivial_with_some_compression_with<E1, S1, S2>()
   where
     E1: CurveCycleEquipped,
-    EE1: EvaluationEngineTrait<E1>,
-    EE2: EvaluationEngineTrait<Dual<E1>>,
     // this is due to the reliance on Abomonation
     <E1::Scalar as PrimeField>::Repr: Abomonation,
     <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+    S1: RelaxedR1CSSNARKTrait<E1>,
+    S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
   {
     let circuit_primary = TrivialCircuit::default();
     let circuit_secondary = CubicCircuit::default();
 
-    // produce public parameters
+    // produce public parameters, which we'll maybe use with a preprocessing compressed SNARK
     let pp = PublicParams::<E1>::setup(
       &circuit_primary,
       &circuit_secondary,
-      &*default_ck_hint(),
-      &*default_ck_hint(),
+      &*S1::ck_floor(),
+      &*S2::ck_floor(),
     );
 
     let num_steps = 3;
@@ -1351,22 +1351,36 @@ mod tests {
       vec![<Dual<E1> as Engine>::Scalar::from(2460515u64)]
     );
 
+    // run the compressed snark
     // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark);
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
     // verify the compressed SNARK
-    let res = compressed_snark.verify(
-      &vk,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
+    compressed_snark
+      .verify(
+        &vk,
+        num_steps,
+        &[<E1 as Engine>::Scalar::ONE],
+        &[<Dual<E1> as Engine>::Scalar::ZERO],
+      )
+      .unwrap();
+  }
+
+  fn test_ivc_nontrivial_with_compression_with<E1, EE1, EE2>()
+  where
+    E1: CurveCycleEquipped,
+    EE1: EvaluationEngineTrait<E1>,
+    EE2: EvaluationEngineTrait<Dual<E1>>,
+    // this is due to the reliance on Abomonation
+    <E1::Scalar as PrimeField>::Repr: Abomonation,
+    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+  {
+    test_ivc_nontrivial_with_some_compression_with::<E1, S<_, EE1>, S<_, EE2>>()
   }
 
   #[test]
@@ -1375,8 +1389,7 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
-
-    test_ivc_nontrivial_with_spark_compression_with::<
+    test_ivc_nontrivial_with_compression_with::<
       Bn256EngineKZG,
       provider::hyperkzg::EvaluationEngine<Bn256, _>,
       EE<_>,
@@ -1392,75 +1405,7 @@ mod tests {
     <E1::Scalar as PrimeField>::Repr: Abomonation,
     <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
   {
-    let circuit_primary = TrivialCircuit::default();
-    let circuit_secondary = CubicCircuit::default();
-
-    // produce public parameters, which we'll use with a spark-compressed SNARK
-    let pp = PublicParams::<E1>::setup(
-      &circuit_primary,
-      &circuit_secondary,
-      &*SPrime::<E1, EE1>::ck_floor(),
-      &*SPrime::<_, EE2>::ck_floor(),
-    );
-
-    let num_steps = 3;
-
-    // produce a recursive SNARK
-    let mut recursive_snark = RecursiveSNARK::<E1>::new(
-      &pp,
-      &circuit_primary,
-      &circuit_secondary,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    )
-    .unwrap();
-
-    for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
-      assert!(res.is_ok());
-    }
-
-    // verify the recursive SNARK
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
-
-    let (zn_primary, zn_secondary) = res.unwrap();
-
-    // sanity: check the claimed output with a direct computation of the same
-    assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
-    let mut zn_secondary_direct = vec![<Dual<E1> as Engine>::Scalar::ZERO];
-    for _i in 0..num_steps {
-      zn_secondary_direct = CubicCircuit::default().output(&zn_secondary_direct);
-    }
-    assert_eq!(zn_secondary, zn_secondary_direct);
-    assert_eq!(
-      zn_secondary,
-      vec![<Dual<E1> as Engine>::Scalar::from(2460515u64)]
-    );
-
-    // run the compressed snark with Spark compiler
-    // produce the prover and verifier keys for compressed snark
-    let (pk, vk) = CompressedSNARK::<_, SPrime<E1, EE1>, SPrime<_, EE2>>::setup(&pp).unwrap();
-
-    // produce a compressed SNARK
-    let res =
-      CompressedSNARK::<_, SPrime<E1, EE1>, SPrime<_, EE2>>::prove(&pp, &pk, &recursive_snark);
-    assert!(res.is_ok());
-    let compressed_snark = res.unwrap();
-
-    // verify the compressed SNARK
-    let res = compressed_snark.verify(
-      &vk,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
+    test_ivc_nontrivial_with_some_compression_with::<E1, SPrime<_, EE1>, SPrime<_, EE2>>()
   }
 
   #[test]
@@ -1469,6 +1414,11 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
+    test_ivc_nontrivial_with_spark_compression_with::<
+      Bn256EngineKZG,
+      provider::hyperkzg::EvaluationEngine<Bn256, _>,
+      EE<_>,
+    >();
   }
 
   fn test_ivc_nondet_with_compression_with<E1, EE1, EE2>()
