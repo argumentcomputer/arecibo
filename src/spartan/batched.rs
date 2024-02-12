@@ -347,7 +347,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     };
 
     let (batched_u, batched_w, sc_proof_batch, claims_batch_left) =
-      batch_eval_prove(u_vec, w_vec, &mut transcript)?;
+      batch_eval_prove(u_vec, &w_vec, &mut transcript)?;
 
     let eval_arg = EE::prove(
       ck,

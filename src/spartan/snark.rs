@@ -245,7 +245,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     ];
 
     let (batched_u, batched_w, sc_proof_batch, claims_batch_left) =
-      batch_eval_prove(u_vec, w_vec, &mut transcript)?;
+      batch_eval_prove(u_vec, &w_vec, &mut transcript)?;
 
     let eval_arg = EE::prove(
       ck,
@@ -428,7 +428,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 /// the claims and resulting evaluations from Sumcheck.
 pub(in crate::spartan) fn batch_eval_prove<E: Engine>(
   u_vec: Vec<PolyEvalInstance<E>>,
-  w_vec: Vec<PolyEvalWitness<E>>,
+  w_vec: &[PolyEvalWitness<E>],
   transcript: &mut E::TE,
 ) -> Result<
   (
@@ -493,7 +493,7 @@ pub(in crate::spartan) fn batch_eval_prove<E: Engine>(
     PolyEvalInstance::batch_diff_size(&comms, &claims_batch_left, &num_rounds, r, gamma);
 
   // P = ∑ᵢ γⁱ⋅Pᵢ
-  let w_joint = PolyEvalWitness::batch_diff_size(w_vec, gamma);
+  let w_joint = PolyEvalWitness::batch_diff_size(&w_vec.iter().by_ref().collect::<Vec<_>>(), gamma);
 
   Ok((u_joint, w_joint, sc_proof_batch, claims_batch_left))
 }
