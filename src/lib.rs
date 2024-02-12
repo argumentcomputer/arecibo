@@ -1375,8 +1375,7 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
-
-    test_ivc_nontrivial_with_spark_compression_with::<
+    test_ivc_nontrivial_with_compression_with::<
       Bn256EngineKZG,
       provider::hyperkzg::EvaluationEngine<Bn256, _>,
       EE<_>,
@@ -1469,6 +1468,11 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
+    test_ivc_nontrivial_with_spark_compression_with::<
+      Bn256EngineKZG,
+      provider::hyperkzg::EvaluationEngine<Bn256, _>,
+      EE<_>,
+    >();
   }
 
   fn test_ivc_nondet_with_compression_with<E1, EE1, EE2>()
