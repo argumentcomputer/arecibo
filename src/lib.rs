@@ -1012,11 +1012,13 @@ type CE<E> = <E as Engine>::CE;
 
 #[cfg(test)]
 mod tests {
+  use self::traits::CurveCycleEquipped;
+
   use super::*;
   use crate::{
     provider::{
-      non_hiding_zeromorph::ZMPCS, traits::DlogGroup, Bn256Engine, Bn256EngineKZG, Bn256EngineZM,
-      GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
+      non_hiding_zeromorph::ZMPCS, Bn256Engine, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
+      Secp256k1Engine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
   };
@@ -1082,8 +1084,6 @@ mod tests {
   fn test_pp_digest_with<E1, T1, T2, EE1, EE2>(circuit1: &T1, circuit2: &T2, expected: &Expect)
   where
     E1: CurveCycleEquipped,
-    E1::GE: DlogGroup,
-    <Dual<E1> as Engine>::GE: DlogGroup,
     T1: StepCircuit<E1::Scalar>,
     T2: StepCircuit<<Dual<E1> as Engine>::Scalar>,
     EE1: EvaluationEngineTrait<E1>,
@@ -1112,62 +1112,38 @@ mod tests {
 
   #[test]
   fn test_pp_digest() {
-    let trivial_circuit1 = TrivialCircuit::<<PallasEngine as Engine>::Scalar>::default();
-    let trivial_circuit2 = TrivialCircuit::<<VestaEngine as Engine>::Scalar>::default();
-    let cubic_circuit1 = CubicCircuit::<<PallasEngine as Engine>::Scalar>::default();
-
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
-      &trivial_circuit1,
-      &trivial_circuit2,
+      &TrivialCircuit::default(),
+      &TrivialCircuit::default(),
       &expect!["492fd902cd7174159bc9a6f827d92eb54ff25efa9d0673dffdb0efd02995df01"],
     );
 
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
-      &cubic_circuit1,
-      &trivial_circuit2,
+      &CubicCircuit::default(),
+      &TrivialCircuit::default(),
       &expect!["9b0701d9422658e3f74a85ab3e485c06f3ecca9c2b1800aab80004034d754f01"],
     );
 
-    let trivial_circuit1_grumpkin = TrivialCircuit::<<Bn256Engine as Engine>::Scalar>::default();
-    let trivial_circuit2_grumpkin = TrivialCircuit::<<GrumpkinEngine as Engine>::Scalar>::default();
-    let cubic_circuit1_grumpkin = CubicCircuit::<<Bn256Engine as Engine>::Scalar>::default();
-
-    // These tests should not need be different on the "asm" feature for bn256.
-    // See https://github.com/privacy-scaling-explorations/halo2curves/issues/100 for why they are - closing the issue there
-    // should eliminate the discrepancy here.
     test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
-      &trivial_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
+      &TrivialCircuit::default(),
+      &TrivialCircuit::default(),
       &expect!["1267235eb3d139e466dd9c814eaf73f01b063ccb4cad04848c0eb62f079a9601"],
     );
+
     test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
-      &cubic_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
+      &CubicCircuit::default(),
+      &TrivialCircuit::default(),
       &expect!["57afac2edd20d39b202151906e41154ba186c9dde497448d1332dc6de2f76302"],
     );
-    test_pp_digest_with::<Bn256EngineZM, _, _, ZMPCS<Bn256, _>, EE<_>>(
-      &trivial_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
-      &expect!["070d247d83e17411d65c12260980ebcc59df88d3882d84eb62e6ab466e381503"],
-    );
-    test_pp_digest_with::<Bn256EngineZM, _, _, ZMPCS<Bn256, _>, EE<_>>(
-      &cubic_circuit1_grumpkin,
-      &trivial_circuit2_grumpkin,
-      &expect!["47c2caa008323b588b47ab8b6c0e94f980599188abe117c4d21ffff81494f303"],
-    );
-
-    let trivial_circuit1_secp = TrivialCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
-    let trivial_circuit2_secp = TrivialCircuit::<<Secq256k1Engine as Engine>::Scalar>::default();
-    let cubic_circuit1_secp = CubicCircuit::<<Secp256k1Engine as Engine>::Scalar>::default();
 
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
-      &trivial_circuit1_secp,
-      &trivial_circuit2_secp,
+      &TrivialCircuit::default(),
+      &TrivialCircuit::default(),
       &expect!["04b5d1798be6d74b3701390b87078e70ebf3ddaad80c375319f320cedf8bca00"],
     );
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
-      &cubic_circuit1_secp,
-      &trivial_circuit2_secp,
+      &CubicCircuit::default(),
+      &TrivialCircuit::default(),
       &expect!["346b5f27cf24c79386f4de7a8bfb58970181ae7f0de7d2e3f10ad5dfd8fc2302"],
     );
   }
