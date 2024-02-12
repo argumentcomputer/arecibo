@@ -46,7 +46,7 @@ To run example:
 cargo run --release --example minroot
 ```
 
-## Specs
+## Specs and Documentation
 
 - [SuperNova](./src/supernova/Readme.md)
 
@@ -63,5 +63,10 @@ For efficiency, our implementation of the Nova proof system is instantiated over
 Wilson Nguyen, Dan Boneh, and Srinath Setty \
 IACR ePrint 2023/969
 
+This repository implements Supernova, published in :
+[SuperNova: Proving universal machine executions without universal circuits](https://eprint.iacr.org/2022/1758) \
+Abhiram Kothapalli, and Srinath Setty
+IACR ePrint 2022/1758
+
 ## Acknowledgments
-See the contributors list [here](https://github.com/microsoft/Nova/graphs/contributors)
+See the contributors list [here](https://github.com/lurk-lab/arecibo/graphs/contributors)
