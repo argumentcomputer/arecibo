@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/provider/non_hiding_zeromorph.rs`."><title>non_hiding_zeromorph.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/provider/non_hiding_zeromorph.rs`."><title>non_hiding_zeromorph.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -875,7 +876,7 @@
 <span class="doccomment">/// `ZMVerifierKey` is used to check evaluation proofs for a given
 /// commitment.
 </span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(bound(serialize = <span class="string">&quot;E::G1Affine: Serialize, E::G2Affine: Serialize&quot;</span>,))]
+#[serde(bound(serialize = <span class="string">"E::G1Affine: Serialize, E::G2Affine: Serialize"</span>,))]
 </span><span class="kw">pub struct </span>ZMVerifierKey&lt;E: Engine&gt; {
   vp: KZGVerifierKey&lt;E&gt;,
   s_offset_h: E::G2Affine,
@@ -944,8 +945,8 @@
 
 <span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Default, Serialize, Deserialize)]
 #[serde(bound(
-  serialize = <span class="string">&quot;E::G1Affine: Serialize&quot;</span>,
-  deserialize = <span class="string">&quot;E::G1Affine: Deserialize&lt;&#39;de&gt;&quot;
+  serialize = <span class="string">"E::G1Affine: Serialize"</span>,
+  deserialize = <span class="string">"E::G1Affine: Deserialize&lt;'de&gt;"
 </span>))]
 </span><span class="doccomment">/// Proofs
 </span><span class="kw">pub struct </span>ZMProof&lt;E: Engine&gt; {
@@ -973,8 +974,8 @@
   <span class="comment">// Note: due to the move of the bound TranscriptReprTrait&lt;G&gt; on G::Base from Group to Engine
   </span>&lt;E::G1 <span class="kw">as </span>Group&gt;::Base: TranscriptReprTrait&lt;E::G1&gt;,
 {
-  <span class="kw">const fn </span>protocol_name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8] {
-    <span class="string">b&quot;Zeromorph&quot;
+  <span class="kw">const fn </span>protocol_name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8] {
+    <span class="string">b"Zeromorph"
   </span>}
 
   <span class="doccomment">/// Generate a commitment for a polynomial
@@ -1025,10 +1026,10 @@
       .par_iter()
       .map(|q| UVKZGPCS::commit(<span class="kw-2">&amp;</span>pp.commit_pp, q))
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
-    q_comms.iter().for_each(|c| transcript.absorb(<span class="string">b&quot;quo&quot;</span>, c));
+    q_comms.iter().for_each(|c| transcript.absorb(<span class="string">b"quo"</span>, c));
 
     <span class="comment">// Get challenge y
-    </span><span class="kw">let </span>y = transcript.squeeze(<span class="string">b&quot;y&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>y = transcript.squeeze(<span class="string">b"y"</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Compute the batched, lifted-degree quotient `\hat{q}`
     // qq_hat = ∑_{i=0}^{num_vars-1} y^i * X^(2^num_vars - d_k - 1) * q_i(x)
@@ -1036,11 +1037,11 @@
 
     <span class="comment">// Compute and absorb the commitment C_q = [\hat{q}]
     </span><span class="kw">let </span>q_hat_comm = UVKZGPCS::commit_offset(<span class="kw-2">&amp;</span>pp.commit_pp, <span class="kw-2">&amp;</span>q_hat, offset)<span class="question-mark">?</span>;
-    transcript.absorb(<span class="string">b&quot;q_hat&quot;</span>, <span class="kw-2">&amp;</span>q_hat_comm);
+    transcript.absorb(<span class="string">b"q_hat"</span>, <span class="kw-2">&amp;</span>q_hat_comm);
 
     <span class="comment">// Get challenges x and z
-    </span><span class="kw">let </span>x = transcript.squeeze(<span class="string">b&quot;x&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>z = transcript.squeeze(<span class="string">b&quot;z&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>x = transcript.squeeze(<span class="string">b"x"</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>z = transcript.squeeze(<span class="string">b"z"</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Compute batched degree and ZM-identity quotient polynomial pi
     </span><span class="kw">let </span>(eval_scalar, (degree_check_q_scalars, zmpoly_q_scalars)) =
@@ -1089,17 +1090,17 @@
     <span class="kw">let </span>vk = vk.borrow();
 
     <span class="comment">// Receive commitments [q_k]
-    </span>proof.ck.iter().for_each(|c| transcript.absorb(<span class="string">b&quot;quo&quot;</span>, c));
+    </span>proof.ck.iter().for_each(|c| transcript.absorb(<span class="string">b"quo"</span>, c));
 
     <span class="comment">// Challenge y
-    </span><span class="kw">let </span>y = transcript.squeeze(<span class="string">b&quot;y&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>y = transcript.squeeze(<span class="string">b"y"</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Receive commitment C_{q}
-    </span>transcript.absorb(<span class="string">b&quot;q_hat&quot;</span>, <span class="kw-2">&amp;</span>proof.cqhat);
+    </span>transcript.absorb(<span class="string">b"q_hat"</span>, <span class="kw-2">&amp;</span>proof.cqhat);
 
     <span class="comment">// Challenges x, z
-    </span><span class="kw">let </span>x = transcript.squeeze(<span class="string">b&quot;x&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>z = transcript.squeeze(<span class="string">b&quot;z&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>x = transcript.squeeze(<span class="string">b"x"</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>z = transcript.squeeze(<span class="string">b"z"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>(eval_scalar, (<span class="kw-2">mut </span>q_scalars, zmpoly_q_scalars)) =
       eval_and_quotient_scalars(y, x, z, point);
@@ -1289,8 +1290,8 @@
   EvaluationEngineTrait&lt;NE&gt; <span class="kw">for </span>ZMPCS&lt;E, NE&gt;
 <span class="kw">where
   </span>E::G1: DlogGroup&lt;ScalarExt = E::Fr, AffineExt = E::G1Affine&gt;,
-  E::G1Affine: Serialize + <span class="kw">for</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt;,
-  E::G2Affine: Serialize + <span class="kw">for</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt;,
+  E::G1Affine: Serialize + <span class="kw">for</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt;,
+  E::G2Affine: Serialize + <span class="kw">for</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt;,
   &lt;E::G1 <span class="kw">as </span>Group&gt;::Base: TranscriptReprTrait&lt;E::G1&gt;, <span class="comment">// Note: due to the move of the bound TranscriptReprTrait&lt;G&gt; on G::Base from Group to Engine
   </span>E::Fr: PrimeFieldBits, <span class="comment">// TODO due to use of gen_srs_for_testing, make optional
 </span>{
@@ -1391,7 +1392,7 @@
     </span><span class="kw">let </span>(quotients, constant_term) = quotients(<span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>u_challenge);
 
     <span class="comment">// Assert that the constant term is equal to v_evaluation
-    </span><span class="macro">assert_eq!</span>(constant_term, v_evaluation, <span class="string">&quot;The constant term should be equal to the evaluation of the polynomial at the challenge point.&quot;</span>);
+    </span><span class="macro">assert_eq!</span>(constant_term, v_evaluation, <span class="string">"The constant term should be equal to the evaluation of the polynomial at the challenge point."</span>);
 
     <span class="comment">// Check that the identity holds for a random evaluation point z
     // poly - poly(z) = Σ (X_k - z_k) * q_k(X_0, ..., X_{k-1})
@@ -1403,12 +1404,12 @@
     <span class="kw">for </span>(k, q_k) <span class="kw">in </span>quotients.iter().enumerate() {
       <span class="kw">let </span>q_k_poly = MultilinearPolynomial::new(q_k.clone());
       <span class="comment">// the following looks weird because the quotient polynomials are coefficiented in reverse order from evaluation
-      // IOW in &#39;normal evaluation order&#39; this should be let z_partial = &amp;z_challenge[..k];
+      // IOW in 'normal evaluation order' this should be let z_partial = &amp;z_challenge[..k];
       </span><span class="kw">let </span>z_partial = <span class="kw-2">&amp;</span>z_challenge[z_challenge.len() - k..];
 
       <span class="kw">let </span>q_k_eval = q_k_poly.evaluate(z_partial);
       <span class="comment">// the following looks weird because the quotient polynomials are coefficiented in reverse order from evaluation
-      // IOW in &#39;normal evaluation order&#39; this should be
+      // IOW in 'normal evaluation order' this should be
       // result -= (z_challenge[k] - u_challenge[k]) * q_k_eval;
       </span>result -= (z_challenge[z_challenge.len() - k - <span class="number">1</span>] - u_challenge[z_challenge.len() - k - <span class="number">1</span>])
         * q_k_eval;
@@ -1417,7 +1418,7 @@
     <span class="comment">// Assert that the result is zero, which verifies the correctness of the quotients
     </span><span class="macro">assert!</span>(
       bool::from(result.is_zero()),
-      <span class="string">&quot;The computed quotients should satisfy the polynomial identity.&quot;
+      <span class="string">"The computed quotients should satisfy the polynomial identity."
     </span>);
   }
 
@@ -1657,7 +1658,7 @@
 
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ZM_commit_sparsity() {
-    test_ZM_commit_sparsity_template::&lt;Bn256&gt;().expect(<span class="string">&quot;test failed for Bn256&quot;</span>);
+    test_ZM_commit_sparsity_template::&lt;Bn256&gt;().expect(<span class="string">"test failed for Bn256"</span>);
   }
 }
 </code></pre></div></section></main></body></html>

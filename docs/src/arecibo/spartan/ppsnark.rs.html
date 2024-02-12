@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/ppsnark.rs`."><title>ppsnark.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/ppsnark.rs`."><title>ppsnark.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1072,9 +1073,9 @@
 <a href="#1072" id="1072">1072</a>
 <a href="#1073" id="1073">1073</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARK` traits using a spark-based approach to prove evaluations of
-//! sparse multilinear polynomials involved in Spartan&#39;s sum-check protocol, thereby providing a preprocessing SNARK
+//! sparse multilinear polynomials involved in Spartan's sum-check protocol, thereby providing a preprocessing SNARK
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
-//! polynomial commitment scheme in which the verifier&#39;s costs is succinct.
+//! polynomial commitment scheme in which the verifier's costs is succinct.
 //! This code includes experimental optimizations to reduce runtimes and proof sizes.
 </span><span class="kw">use crate</span>::{
   digest::{DigestComputer, SimpleDigestible},
@@ -1125,7 +1126,7 @@
 
 <span class="doccomment">/// A type that holds `R1CSShape` in a form amenable to memory checking
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>R1CSShapeSparkRepr&lt;E: Engine&gt; {
   <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::spartan) N: usize, <span class="comment">// size of the vectors
 
@@ -1143,7 +1144,7 @@
 
 <span class="doccomment">/// A type that holds a commitment to a sparse polynomial
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>R1CSShapeSparkCommitment&lt;E: Engine&gt; {
   <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::spartan) N: usize, <span class="comment">// size of each vector
 
@@ -1317,24 +1318,24 @@
   }
 }
 
-<span class="doccomment">/// A type that represents the prover&#39;s key
+<span class="doccomment">/// A type that represents the prover's key
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   pk_ee: EE::ProverKey,
   S_repr: R1CSShapeSparkRepr&lt;E&gt;,
   S_comm: R1CSShapeSparkCommitment&lt;E&gt;,
-  vk_digest: E::Scalar, <span class="comment">// digest of verifier&#39;s key
+  vk_digest: E::Scalar, <span class="comment">// digest of verifier's key
 </span>}
 
-<span class="doccomment">/// A type that represents the verifier&#39;s key
+<span class="doccomment">/// A type that represents the verifier's key
 </span><span class="attr">#[derive(Debug, Clone, Serialize)]
-#[serde(bound = <span class="string">&quot;EE::VerifierKey: Serialize&quot;</span>)]
+#[serde(bound = <span class="string">"EE::VerifierKey: Serialize"</span>)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   num_cons: usize,
   num_vars: usize,
   vk_ee: EE::VerifierKey,
   S_comm: R1CSShapeSparkCommitment&lt;E&gt;,
-  <span class="attr">#[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
+  <span class="attr">#[serde(skip, default = <span class="string">"OnceCell::new"</span>)]
   </span>digest: OnceCell&lt;E::Scalar&gt;,
 }
 
@@ -1344,10 +1345,10 @@
 }
 
 <span class="doccomment">/// A succinct proof of knowledge of a witness to a relaxed R1CS instance
-/// The proof is produced using Spartan&#39;s combination of the sum-check and
+/// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>RelaxedR1CSSNARK&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   <span class="comment">// commitment to oracles: the first three are for Az, Bz, Cz,
   // and the last two are for memory reads
@@ -1439,7 +1440,7 @@
       .chain(witness.initial_claims())
       .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
 
-    <span class="kw">let </span>s = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>coeffs = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, claims.len());
 
     <span class="comment">// compute the joint claim
@@ -1475,11 +1476,11 @@
       ];
       <span class="kw">let </span>poly = UniPoly::from_evals(<span class="kw-2">&amp;</span>evals);
 
-      <span class="comment">// append the prover&#39;s message to the transcript
-      </span>transcript.absorb(<span class="string">b&quot;p&quot;</span>, <span class="kw-2">&amp;</span>poly);
+      <span class="comment">// append the prover's message to the transcript
+      </span>transcript.absorb(<span class="string">b"p"</span>, <span class="kw-2">&amp;</span>poly);
 
-      <span class="comment">// derive the verifier&#39;s challenge for the next round
-      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+      <span class="comment">// derive the verifier's challenge for the next round
+      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
       r.push(r_i);
 
       <span class="kw">let _ </span>= rayon::join(
@@ -1524,7 +1525,7 @@
   }
 }
 <span class="kw">impl</span>&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; DigestHelperTrait&lt;E&gt; <span class="kw">for </span>VerifierKey&lt;E, EE&gt; {
-  <span class="doccomment">/// Returns the digest of the verifier&#39;s key
+  <span class="doccomment">/// Returns the digest of the verifier's key
   </span><span class="kw">fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E::Scalar {
     <span class="self">self
       </span>.digest
@@ -1533,7 +1534,7 @@
         dc.digest()
       })
       .cloned()
-      .expect(<span class="string">&quot;Failure to retrieve digest!&quot;</span>)
+      .expect(<span class="string">"Failure to retrieve digest!"</span>)
   }
 }
 
@@ -1541,7 +1542,7 @@
   <span class="kw">type </span>ProverKey = ProverKey&lt;E, EE&gt;;
   <span class="kw">type </span>VerifierKey = VerifierKey&lt;E, EE&gt;;
 
-  <span class="kw">fn </span>ck_floor() -&gt; Box&lt;<span class="kw">dyn for</span>&lt;<span class="lifetime">&#39;a</span>&gt; Fn(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>R1CSShape&lt;E&gt;) -&gt; usize&gt; {
+  <span class="kw">fn </span>ck_floor() -&gt; Box&lt;<span class="kw">dyn for</span>&lt;<span class="lifetime">'a</span>&gt; Fn(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>R1CSShape&lt;E&gt;) -&gt; usize&gt; {
     Box::new(|shape: <span class="kw-2">&amp;</span>R1CSShape&lt;E&gt;| -&gt; usize {
       <span class="comment">// the commitment key should be large enough to commit to the R1CS matrices
       </span>shape.A.len() + shape.B.len() + shape.C.len()
@@ -1577,7 +1578,7 @@
   }
 
   <span class="doccomment">/// produces a succinct proof of satisfiability of a `RelaxedR1CS` instance
-  </span><span class="attr">#[tracing::instrument(skip_all, name = <span class="string">&quot;PPSNARK::prove&quot;</span>)]
+  </span><span class="attr">#[tracing::instrument(skip_all, name = <span class="string">"PPSNARK::prove"</span>)]
   </span><span class="kw">fn </span>prove(
     ck: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
     pk: <span class="kw-2">&amp;</span><span class="self">Self</span>::ProverKey,
@@ -1591,11 +1592,11 @@
     </span><span class="macro">assert!</span>(S.is_regular_shape());
 
     <span class="kw">let </span>W = W.pad(<span class="kw-2">&amp;</span>S); <span class="comment">// pad the witness
-    </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b&quot;RelaxedR1CSSNARK&quot;</span>);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b"RelaxedR1CSSNARK"</span>);
 
     <span class="comment">// append the verifier key (which includes commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
-    </span>transcript.absorb(<span class="string">b&quot;vk&quot;</span>, <span class="kw-2">&amp;</span>pk.vk_digest);
-    transcript.absorb(<span class="string">b&quot;U&quot;</span>, U);
+    </span>transcript.absorb(<span class="string">b"vk"</span>, <span class="kw-2">&amp;</span>pk.vk_digest);
+    transcript.absorb(<span class="string">b"U"</span>, U);
 
     <span class="comment">// compute the full satisfying assignment by concatenating W.W, U.u, and U.X
     </span><span class="kw">let </span>z = [W.W.clone(), <span class="macro">vec!</span>[U.u], U.X.clone()].concat();
@@ -1609,11 +1610,11 @@
       || rayon::join(|| E::CE::commit(ck, <span class="kw-2">&amp;</span>Bz), || E::CE::commit(ck, <span class="kw-2">&amp;</span>Cz)),
     );
 
-    transcript.absorb(<span class="string">b&quot;c&quot;</span>, <span class="kw-2">&amp;</span>[comm_Az, comm_Bz, comm_Cz].as_slice());
+    transcript.absorb(<span class="string">b"c"</span>, <span class="kw-2">&amp;</span>[comm_Az, comm_Bz, comm_Cz].as_slice());
 
     <span class="comment">// number of rounds of sum-check
     </span><span class="kw">let </span>num_rounds_sc = pk.S_repr.N.log_2();
-    <span class="kw">let </span>tau = transcript.squeeze(<span class="string">b&quot;t&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>tau = transcript.squeeze(<span class="string">b"t"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>tau_coords = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds_sc).coordinates();
 
     <span class="comment">// (1) send commitments to Az, Bz, and Cz along with their evaluations at tau
@@ -1646,12 +1647,12 @@
     </span><span class="kw">let </span>eval_vec = <span class="macro">vec!</span>[eval_Az_at_tau, eval_Bz_at_tau, eval_Cz_at_tau];
 
     <span class="comment">// absorb the claimed evaluations into the transcript
-    </span>transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice());
+    </span>transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice());
     <span class="comment">// absorb commitments to L_row and L_col in the transcript
-    </span>transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[comm_L_row, comm_L_col].as_slice());
+    </span>transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[comm_L_row, comm_L_col].as_slice());
     <span class="kw">let </span>comm_vec = <span class="macro">vec!</span>[comm_Az, comm_Bz, comm_Cz];
     <span class="kw">let </span>poly_vec = <span class="macro">vec!</span>[<span class="kw-2">&amp;</span>Az, <span class="kw-2">&amp;</span>Bz, <span class="kw-2">&amp;</span>Cz];
-    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>w: PolyEvalWitness&lt;E&gt; = PolyEvalWitness::batch(<span class="kw-2">&amp;</span>poly_vec, <span class="kw-2">&amp;</span>c);
     <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; =
       PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, tau_coords.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
@@ -1660,8 +1661,8 @@
     // (1) 0 = \sum_x poly_tau(x) * (poly_Az(x) * poly_Bz(x) - poly_uCz_E(x)), and eval_Az_at_tau + r * eval_Bz_at_tau + r^2 * eval_Cz_at_tau = (Az+r*Bz+r^2*Cz)(tau)
     // (2) eval_Az_at_tau + c * eval_Bz_at_tau + c^2 * eval_Cz_at_tau = \sum_y L_row(y) * (val_A(y) + c * val_B(y) + c^2 * val_C(y)) * L_col(y)
     // (3) L_row(i) = eq(tau, row(i)) and L_col(i) = z(col(i))
-    </span><span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b&quot;g&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b"g"</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>r = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>((<span class="kw-2">mut </span>outer_sc_inst, <span class="kw-2">mut </span>inner_sc_inst), mem_res) = rayon::join(
       || {
@@ -1714,9 +1715,9 @@
             <span class="kw-2">&amp;</span>pk.S_repr.ts_col,
           )<span class="question-mark">?</span>;
         <span class="comment">// absorb the commitments
-        </span>transcript.absorb(<span class="string">b&quot;l&quot;</span>, <span class="kw-2">&amp;</span>comm_mem_oracles.as_slice());
+        </span>transcript.absorb(<span class="string">b"l"</span>, <span class="kw-2">&amp;</span>comm_mem_oracles.as_slice());
 
-        <span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
         <span class="kw">let </span>poly_eq = MultilinearPolynomial::new(PowPolynomial::new(<span class="kw-2">&amp;</span>rho, num_rounds_sc).evals());
 
         <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, NovaError&gt;((
@@ -1840,8 +1841,8 @@
       mem_oracles[<span class="number">3</span>].as_ref(),
       <span class="kw-2">&amp;</span>pk.S_repr.ts_col,
     ];
-    transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice()); <span class="comment">// comm_vec is already in the transcript
-    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice()); <span class="comment">// comm_vec is already in the transcript
+    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>w: PolyEvalWitness&lt;E&gt; = PolyEvalWitness::batch(<span class="kw-2">&amp;</span>poly_vec, <span class="kw-2">&amp;</span>c);
     <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, rand_sc.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
 
@@ -1893,11 +1894,11 @@
 
   <span class="doccomment">/// verifies a proof of satisfiability of a `RelaxedR1CS` instance
   </span><span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, vk: <span class="kw-2">&amp;</span><span class="self">Self</span>::VerifierKey, U: <span class="kw-2">&amp;</span>RelaxedR1CSInstance&lt;E&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), NovaError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b&quot;RelaxedR1CSSNARK&quot;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b"RelaxedR1CSSNARK"</span>);
 
     <span class="comment">// append the verifier key (including commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
-    </span>transcript.absorb(<span class="string">b&quot;vk&quot;</span>, <span class="kw-2">&amp;</span>vk.digest());
-    transcript.absorb(<span class="string">b&quot;U&quot;</span>, U);
+    </span>transcript.absorb(<span class="string">b"vk"</span>, <span class="kw-2">&amp;</span>vk.digest());
+    transcript.absorb(<span class="string">b"U"</span>, U);
 
     <span class="kw">let </span>comm_Az = Commitment::&lt;E&gt;::decompress(<span class="kw-2">&amp;</span><span class="self">self</span>.comm_Az)<span class="question-mark">?</span>;
     <span class="kw">let </span>comm_Bz = Commitment::&lt;E&gt;::decompress(<span class="kw-2">&amp;</span><span class="self">self</span>.comm_Bz)<span class="question-mark">?</span>;
@@ -1909,10 +1910,10 @@
     <span class="kw">let </span>comm_t_plus_r_inv_col = Commitment::&lt;E&gt;::decompress(<span class="kw-2">&amp;</span><span class="self">self</span>.comm_t_plus_r_inv_col)<span class="question-mark">?</span>;
     <span class="kw">let </span>comm_w_plus_r_inv_col = Commitment::&lt;E&gt;::decompress(<span class="kw-2">&amp;</span><span class="self">self</span>.comm_w_plus_r_inv_col)<span class="question-mark">?</span>;
 
-    transcript.absorb(<span class="string">b&quot;c&quot;</span>, <span class="kw-2">&amp;</span>[comm_Az, comm_Bz, comm_Cz].as_slice());
+    transcript.absorb(<span class="string">b"c"</span>, <span class="kw-2">&amp;</span>[comm_Az, comm_Bz, comm_Cz].as_slice());
 
     <span class="kw">let </span>num_rounds_sc = vk.S_comm.N.log_2();
-    <span class="kw">let </span>tau = transcript.squeeze(<span class="string">b&quot;t&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>tau = transcript.squeeze(<span class="string">b"t"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>tau_coords = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds_sc).coordinates();
 
     <span class="comment">// add claims about Az, Bz, and Cz to be checked later
@@ -1924,21 +1925,21 @@
       <span class="self">self</span>.eval_Cz_at_tau,
     ];
 
-    transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice());
+    transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice());
 
-    transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[comm_L_row, comm_L_col].as_slice());
+    transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[comm_L_row, comm_L_col].as_slice());
     <span class="kw">let </span>comm_vec = <span class="macro">vec!</span>[comm_Az, comm_Bz, comm_Cz];
-    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; =
       PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, tau_coords.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
     <span class="kw">let </span>claim = u.e;
 
-    <span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b&quot;g&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b"g"</span>)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>r = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 
     transcript.absorb(
-      <span class="string">b&quot;l&quot;</span>,
+      <span class="string">b"l"</span>,
       <span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         comm_t_plus_r_inv_row,
         comm_w_plus_r_inv_row,
@@ -1948,10 +1949,10 @@
       .as_slice(),
     );
 
-    <span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>num_claims = <span class="number">10</span>;
-    <span class="kw">let </span>s = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>coeffs = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, num_claims);
     <span class="kw">let </span>claim = (coeffs[<span class="number">7</span>] + coeffs[<span class="number">8</span>]) * claim; <span class="comment">// rest are zeros
 
@@ -2105,8 +2106,8 @@
       comm_w_plus_r_inv_col,
       vk.S_comm.comm_ts_col,
     ];
-    transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice()); <span class="comment">// comm_vec is already in the transcript
-    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice()); <span class="comment">// comm_vec is already in the transcript
+    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, rand_sc.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
 
     <span class="comment">// verify

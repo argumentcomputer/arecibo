@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/snark.rs`."><title>snark.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/snark.rs`."><title>snark.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -582,20 +583,20 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::{iter, sync::Arc};
 
-<span class="doccomment">/// A type that represents the prover&#39;s key
+<span class="doccomment">/// A type that represents the prover's key
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   pk_ee: EE::ProverKey,
-  vk_digest: E::Scalar, <span class="comment">// digest of the verifier&#39;s key
+  vk_digest: E::Scalar, <span class="comment">// digest of the verifier's key
 </span>}
 
-<span class="doccomment">/// A type that represents the verifier&#39;s key
+<span class="doccomment">/// A type that represents the verifier's key
 </span><span class="attr">#[derive(Debug, Clone, Serialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   vk_ee: EE::VerifierKey,
   S: R1CSShape&lt;E&gt;,
-  <span class="attr">#[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
+  <span class="attr">#[serde(skip, default = <span class="string">"OnceCell::new"</span>)]
   </span>digest: OnceCell&lt;E::Scalar&gt;,
 }
 
@@ -612,7 +613,7 @@
 }
 
 <span class="kw">impl</span>&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; DigestHelperTrait&lt;E&gt; <span class="kw">for </span>VerifierKey&lt;E, EE&gt; {
-  <span class="doccomment">/// Returns the digest of the verifier&#39;s key.
+  <span class="doccomment">/// Returns the digest of the verifier's key.
   </span><span class="kw">fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E::Scalar {
     <span class="self">self
       </span>.digest
@@ -621,15 +622,15 @@
         dc.digest()
       })
       .cloned()
-      .expect(<span class="string">&quot;Failure to retrieve digest!&quot;</span>)
+      .expect(<span class="string">"Failure to retrieve digest!"</span>)
   }
 }
 
 <span class="doccomment">/// A succinct proof of knowledge of a witness to a relaxed R1CS instance
-/// The proof is produced using Spartan&#39;s combination of the sum-check and
+/// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>RelaxedR1CSSNARK&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   sc_proof_outer: SumcheckProof&lt;E&gt;,
   claims_outer: (E::Scalar, E::Scalar, E::Scalar),
@@ -664,7 +665,7 @@
   }
 
   <span class="doccomment">/// produces a succinct proof of satisfiability of a `RelaxedR1CS` instance
-  </span><span class="attr">#[tracing::instrument(skip_all, name = <span class="string">&quot;SNARK::prove&quot;</span>)]
+  </span><span class="attr">#[tracing::instrument(skip_all, name = <span class="string">"SNARK::prove"</span>)]
   </span><span class="kw">fn </span>prove(
     ck: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
     pk: <span class="kw-2">&amp;</span><span class="self">Self</span>::ProverKey,
@@ -678,11 +679,11 @@
     </span><span class="macro">assert!</span>(S.is_regular_shape());
 
     <span class="kw">let </span>W = W.pad(<span class="kw-2">&amp;</span>S); <span class="comment">// pad the witness
-    </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b&quot;RelaxedR1CSSNARK&quot;</span>);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b"RelaxedR1CSSNARK"</span>);
 
     <span class="comment">// append the digest of vk (which includes R1CS matrices) and the RelaxedR1CSInstance to the transcript
-    </span>transcript.absorb(<span class="string">b&quot;vk&quot;</span>, <span class="kw-2">&amp;</span>pk.vk_digest);
-    transcript.absorb(<span class="string">b&quot;U&quot;</span>, U);
+    </span>transcript.absorb(<span class="string">b"vk"</span>, <span class="kw-2">&amp;</span>pk.vk_digest);
+    transcript.absorb(<span class="string">b"U"</span>, U);
 
     <span class="comment">// compute the full satisfying assignment by concatenating W.W, U.u, and U.X
     </span><span class="kw">let </span><span class="kw-2">mut </span>z = [W.W.clone(), <span class="macro">vec!</span>[U.u], U.X.clone()].concat();
@@ -694,7 +695,7 @@
 
     <span class="comment">// outer sum-check
     </span><span class="kw">let </span>tau = (<span class="number">0</span>..num_rounds_x)
-      .map(|_i| transcript.squeeze(<span class="string">b&quot;t&quot;</span>))
+      .map(|_i| transcript.squeeze(<span class="string">b"t"</span>))
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;EqPolynomial&lt;<span class="kw">_</span>&gt;, NovaError&gt;&gt;()<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>poly_tau = MultilinearPolynomial::new(tau.evals());
@@ -733,12 +734,12 @@
     <span class="kw">let </span>claim_Cz = poly_Cz.evaluate(<span class="kw-2">&amp;</span>r_x);
     <span class="kw">let </span>eval_E = MultilinearPolynomial::evaluate_with(<span class="kw-2">&amp;</span>W.E, <span class="kw-2">&amp;</span>r_x);
     transcript.absorb(
-      <span class="string">b&quot;claims_outer&quot;</span>,
+      <span class="string">b"claims_outer"</span>,
       <span class="kw-2">&amp;</span>[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),
     );
 
     <span class="comment">// inner sum-check
-    </span><span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>r = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>claim_inner_joint = claim_Az + r * claim_Bz + r * r * claim_Cz;
 
     <span class="kw">let </span>poly_ABC = {
@@ -823,11 +824,11 @@
 
   <span class="doccomment">/// verifies a proof of satisfiability of a `RelaxedR1CS` instance
   </span><span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, vk: <span class="kw-2">&amp;</span><span class="self">Self</span>::VerifierKey, U: <span class="kw-2">&amp;</span>RelaxedR1CSInstance&lt;E&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), NovaError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b&quot;RelaxedR1CSSNARK&quot;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b"RelaxedR1CSSNARK"</span>);
 
     <span class="comment">// append the digest of R1CS matrices and the RelaxedR1CSInstance to the transcript
-    </span>transcript.absorb(<span class="string">b&quot;vk&quot;</span>, <span class="kw-2">&amp;</span>vk.digest());
-    transcript.absorb(<span class="string">b&quot;U&quot;</span>, U);
+    </span>transcript.absorb(<span class="string">b"vk"</span>, <span class="kw-2">&amp;</span>vk.digest());
+    transcript.absorb(<span class="string">b"U"</span>, U);
 
     <span class="kw">let </span>(num_rounds_x, num_rounds_y) = (
       usize::try_from(vk.S.num_cons.ilog2()).unwrap(),
@@ -836,7 +837,7 @@
 
     <span class="comment">// outer sum-check
     </span><span class="kw">let </span>tau = (<span class="number">0</span>..num_rounds_x)
-      .map(|_i| transcript.squeeze(<span class="string">b&quot;t&quot;</span>))
+      .map(|_i| transcript.squeeze(<span class="string">b"t"</span>))
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;EqPolynomial&lt;<span class="kw">_</span>&gt;, NovaError&gt;&gt;()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>(claim_outer_final, r_x) =
@@ -854,7 +855,7 @@
     }
 
     transcript.absorb(
-      <span class="string">b&quot;claims_outer&quot;</span>,
+      <span class="string">b"claims_outer"</span>,
       <span class="kw-2">&amp;</span>[
         <span class="self">self</span>.claims_outer.<span class="number">0</span>,
         <span class="self">self</span>.claims_outer.<span class="number">1</span>,
@@ -865,7 +866,7 @@
     );
 
     <span class="comment">// inner sum-check
-    </span><span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>r = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>claim_inner_joint =
       <span class="self">self</span>.claims_outer.<span class="number">0 </span>+ r * <span class="self">self</span>.claims_outer.<span class="number">1 </span>+ r * r * <span class="self">self</span>.claims_outer.<span class="number">2</span>;
 
@@ -1004,7 +1005,7 @@
   ));
 
   <span class="comment">// generate a challenge, and powers of it for random linear combination
-  </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+  </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
   <span class="kw">let </span>powers_of_rho = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>rho, num_claims);
 
   <span class="kw">let </span>(claims, u_xs, comms): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) =
@@ -1036,10 +1037,10 @@
 
   <span class="kw">let </span>(claims_batch_left, <span class="kw">_</span>): (Vec&lt;E::Scalar&gt;, Vec&lt;E::Scalar&gt;) = claims_batch;
 
-  transcript.absorb(<span class="string">b&quot;l&quot;</span>, <span class="kw-2">&amp;</span>claims_batch_left.as_slice());
+  transcript.absorb(<span class="string">b"l"</span>, <span class="kw-2">&amp;</span>claims_batch_left.as_slice());
 
   <span class="comment">// we now combine evaluation claims at the same point r into one
-  </span><span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b&quot;g&quot;</span>)<span class="question-mark">?</span>;
+  </span><span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b"g"</span>)<span class="question-mark">?</span>;
 
   <span class="kw">let </span>u_joint =
     PolyEvalInstance::batch_diff_size(<span class="kw-2">&amp;</span>comms, <span class="kw-2">&amp;</span>claims_batch_left, <span class="kw-2">&amp;</span>num_rounds, r, gamma);
@@ -1062,7 +1063,7 @@
   <span class="macro">assert_eq!</span>(evals_batch.len(), num_claims);
 
   <span class="comment">// generate a challenge
-  </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+  </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
   <span class="kw">let </span>powers_of_rho = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>rho, num_claims);
 
   <span class="comment">// Compute nᵢ and n = maxᵢ{nᵢ}
@@ -1091,10 +1092,10 @@
     <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::InvalidSumcheckProof);
   }
 
-  transcript.absorb(<span class="string">b&quot;l&quot;</span>, <span class="kw-2">&amp;</span>evals_batch);
+  transcript.absorb(<span class="string">b"l"</span>, <span class="kw-2">&amp;</span>evals_batch);
 
   <span class="comment">// we now combine evaluation claims at the same point r into one
-  </span><span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b&quot;g&quot;</span>)<span class="question-mark">?</span>;
+  </span><span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b"g"</span>)<span class="question-mark">?</span>;
 
   <span class="kw">let </span>comms = u_vec.into_iter().map(|u| u.c).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 

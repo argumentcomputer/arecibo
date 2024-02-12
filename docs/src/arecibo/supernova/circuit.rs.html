@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/supernova/circuit.rs`."><title>circuit.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/supernova/circuit.rs`."><title>circuit.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -890,12 +891,12 @@
 //! Each circuit takes as input 2 hashes.
 //! Each circuit folds the last invocation of the other into the respective running instance, specified by `augmented_circuit_index`
 //!
-//! The augmented circuit F&#39; for `SuperNova` that includes everything from Nova
+//! The augmented circuit F' for `SuperNova` that includes everything from Nova
 //!   and additionally checks:
 //!    1. Ui[] are contained in X[0] hash pre-image.
 //!    2. R1CS Instance u is folded into Ui[augmented_circuit_index] correctly; just like Nova IVC.
 //!    3. (optional by F logic) F circuit might check `program_counter_{i}` invoked current F circuit is legal or not.
-//!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F&#39; argumented circuit.
+//!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F' argumented circuit.
 </span><span class="kw">use crate</span>::{
   constants::NUM_HASH_BITS,
   gadgets::{
@@ -941,7 +942,7 @@
   /// input a vector of size equal to arity and output a vector of size equal to arity
   </span><span class="kw">fn </span>arity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
 
-  <span class="doccomment">/// Return this `StepCircuit`&#39;s assigned index, for use when enforcing the program counter.
+  <span class="doccomment">/// Return this `StepCircuit`'s assigned index, for use when enforcing the program counter.
   </span><span class="kw">fn </span>circuit_index(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
 
   <span class="doccomment">/// Synthesize the circuit for a computation step and return variable
@@ -959,7 +960,7 @@
 /// at each step.
 </span><span class="kw">pub trait </span>EnforcingStepCircuit&lt;F: PrimeField&gt;: Send + Sync + Clone + StepCircuit&lt;F&gt; {
   <span class="doccomment">/// Delegate synthesis to `StepCircuit::synthesize`, and additionally, enforce the constraint that program counter
-  /// `pc`, if supplied, is equal to the circuit&#39;s assigned index.
+  /// `pc`, if supplied, is equal to the circuit's assigned index.
   </span><span class="kw">fn </span>enforcing_synthesize&lt;CS: ConstraintSystem&lt;F&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     cs: <span class="kw-2">&amp;mut </span>CS,
@@ -971,7 +972,7 @@
 
       <span class="comment">// pc * 1 = circuit_index
       </span>cs.enforce(
-        || <span class="string">&quot;pc matches circuit index&quot;</span>,
+        || <span class="string">"pc matches circuit index"</span>,
         |lc| lc + pc.get_variable(),
         |lc| lc + CS::one(),
         |lc| lc + (circuit_index, CS::one()),
@@ -1012,7 +1013,7 @@
 }
 
 <span class="doccomment">/// A trivial step circuit that simply returns the input, for use on the secondary circuit when implementing NIVC.
-/// NOTE: This should not be needed. The secondary circuit doesn&#39;t need the program counter at all.
+/// NOTE: This should not be needed. The secondary circuit doesn't need the program counter at all.
 /// Ideally, the need this fills could be met by `traits::circuit::TrivialTestCircuit` (or equivalent).
 </span><span class="attr">#[derive(Clone, Debug, Default)]
 </span><span class="kw">pub struct </span>TrivialSecondaryCircuit&lt;F&gt; {
@@ -1038,7 +1039,7 @@
     z: <span class="kw-2">&amp;</span>[AllocatedNum&lt;F&gt;],
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="prelude-ty">Option</span>&lt;AllocatedNum&lt;F&gt;&gt;, Vec&lt;AllocatedNum&lt;F&gt;&gt;), SynthesisError&gt; {
     <span class="macro">assert!</span>(program_counter.is_none());
-    <span class="macro">assert_eq!</span>(z.len(), <span class="number">1</span>, <span class="string">&quot;Arity of trivial step circuit should be 1&quot;</span>);
+    <span class="macro">assert_eq!</span>(z.len(), <span class="number">1</span>, <span class="string">"Arity of trivial step circuit should be 1"</span>);
     <span class="prelude-val">Ok</span>((<span class="prelude-val">None</span>, z.to_vec()))
   }
 }
@@ -1065,37 +1066,37 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;a</span>, E: Engine&gt; {
+</span><span class="kw">pub struct </span>SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'a</span>, E: Engine&gt; {
   pp_digest: E::Scalar,
   i: E::Base,
   <span class="doccomment">/// Input to the circuit for the base case
-  </span>z0: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[E::Base],
+  </span>z0: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[E::Base],
   <span class="doccomment">/// Input to the circuit for the non-base case
-  </span>zi: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[E::Base]&gt;,
+  </span>zi: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[E::Base]&gt;,
   <span class="doccomment">/// List of `RelaxedR1CSInstance`.
   /// `None` if this is the base case.
   /// Elements are `None` if the circuit at that index was not yet executed.
-  </span>U: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[<span class="prelude-ty">Option</span>&lt;RelaxedR1CSInstance&lt;E&gt;&gt;]&gt;,
+  </span>U: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[<span class="prelude-ty">Option</span>&lt;RelaxedR1CSInstance&lt;E&gt;&gt;]&gt;,
   <span class="doccomment">/// R1CS proof to be folded into U
-  </span>u: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>R1CSInstance&lt;E&gt;&gt;,
+  </span>u: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>R1CSInstance&lt;E&gt;&gt;,
   <span class="doccomment">/// Nova folding proof for accumulating u into U[j]
-  </span>T: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Commitment&lt;E&gt;&gt;,
+  </span>T: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Commitment&lt;E&gt;&gt;,
   <span class="doccomment">/// Index of the current circuit
   </span>program_counter: <span class="prelude-ty">Option</span>&lt;E::Base&gt;,
   <span class="doccomment">/// Index j of circuit being folded into U[j]
   </span>last_augmented_circuit_index: E::Base,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, E: Engine&gt; SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;a</span>, E&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, E: Engine&gt; SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'a</span>, E&gt; {
   <span class="doccomment">/// Create new inputs/witness for the verification circuit
   </span><span class="kw">pub fn </span>new(
     pp_digest: E::Scalar,
     i: E::Base,
-    z0: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[E::Base],
-    zi: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[E::Base]&gt;,
-    U: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[<span class="prelude-ty">Option</span>&lt;RelaxedR1CSInstance&lt;E&gt;&gt;]&gt;,
-    u: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>R1CSInstance&lt;E&gt;&gt;,
-    T: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Commitment&lt;E&gt;&gt;,
+    z0: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[E::Base],
+    zi: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[E::Base]&gt;,
+    U: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[<span class="prelude-ty">Option</span>&lt;RelaxedR1CSInstance&lt;E&gt;&gt;]&gt;,
+    u: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>R1CSInstance&lt;E&gt;&gt;,
+    T: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Commitment&lt;E&gt;&gt;,
     program_counter: <span class="prelude-ty">Option</span>&lt;E::Base&gt;,
     last_augmented_circuit_index: E::Base,
   ) -&gt; <span class="self">Self </span>{
@@ -1113,23 +1114,23 @@
   }
 }
 
-<span class="doccomment">/// The augmented circuit F&#39; in `SuperNova` that includes a step circuit F
-/// and the circuit for the verifier in `SuperNova`&#39;s non-interactive folding scheme,
+<span class="doccomment">/// The augmented circuit F' in `SuperNova` that includes a step circuit F
+/// and the circuit for the verifier in `SuperNova`'s non-interactive folding scheme,
 /// `SuperNova` NIFS will fold strictly r1cs instance u with respective relaxed r1cs instance `U[last_augmented_circuit_index]`
-</span><span class="kw">pub struct </span>SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;a</span>, E: Engine, SC: EnforcingStepCircuit&lt;E::Base&gt;&gt; {
-  params: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SuperNovaAugmentedCircuitParams,
+</span><span class="kw">pub struct </span>SuperNovaAugmentedCircuit&lt;<span class="lifetime">'a</span>, E: Engine, SC: EnforcingStepCircuit&lt;E::Base&gt;&gt; {
+  params: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SuperNovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit&lt;E&gt;,
-  inputs: <span class="prelude-ty">Option</span>&lt;SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;a</span>, E&gt;&gt;,
-  step_circuit: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SC,          <span class="comment">// The function that is applied for each step
+  inputs: <span class="prelude-ty">Option</span>&lt;SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'a</span>, E&gt;&gt;,
+  step_circuit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SC,          <span class="comment">// The function that is applied for each step
   </span>num_augmented_circuits: usize, <span class="comment">// number of overall augmented circuits
 </span>}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, E: Engine, SC: EnforcingStepCircuit&lt;E::Base&gt;&gt; SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;a</span>, E, SC&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, E: Engine, SC: EnforcingStepCircuit&lt;E::Base&gt;&gt; SuperNovaAugmentedCircuit&lt;<span class="lifetime">'a</span>, E, SC&gt; {
   <span class="doccomment">/// Create a new verification circuit for the input relaxed r1cs instances
   </span><span class="kw">pub const fn </span>new(
-    params: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SuperNovaAugmentedCircuitParams,
-    inputs: <span class="prelude-ty">Option</span>&lt;SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;a</span>, E&gt;&gt;,
-    step_circuit: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SC,
+    params: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SuperNovaAugmentedCircuitParams,
+    inputs: <span class="prelude-ty">Option</span>&lt;SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'a</span>, E&gt;&gt;,
+    step_circuit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SC,
     ro_consts: ROConstantsCircuit&lt;E&gt;,
     num_augmented_circuits: usize,
   ) -&gt; <span class="self">Self </span>{
@@ -1142,7 +1143,7 @@
     }
   }
 
-  <span class="doccomment">/// Allocate all witnesses from the augmented function&#39;s non-deterministic inputs.
+  <span class="doccomment">/// Allocate all witnesses from the augmented function's non-deterministic inputs.
   /// Optional entries are allocated as their default values.
   </span><span class="kw">fn </span>alloc_witness&lt;CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -1164,30 +1165,30 @@
     SynthesisError,
   &gt; {
     <span class="kw">let </span>last_augmented_circuit_index =
-      AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;last_augmented_circuit_index&quot;</span>), || {
+      AllocatedNum::alloc(cs.namespace(|| <span class="string">"last_augmented_circuit_index"</span>), || {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.inputs.get()<span class="question-mark">?</span>.last_augmented_circuit_index)
       })<span class="question-mark">?</span>;
 
     <span class="comment">// Allocate the params
     </span><span class="kw">let </span>params = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(
-      cs.namespace(|| <span class="string">&quot;params&quot;</span>),
+      cs.namespace(|| <span class="string">"params"</span>),
       <span class="self">self</span>.inputs.as_ref().map(|inputs| inputs.pp_digest),
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Allocate i
-    </span><span class="kw">let </span>i = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;i&quot;</span>), || <span class="prelude-val">Ok</span>(<span class="self">self</span>.inputs.get()<span class="question-mark">?</span>.i))<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>i = AllocatedNum::alloc(cs.namespace(|| <span class="string">"i"</span>), || <span class="prelude-val">Ok</span>(<span class="self">self</span>.inputs.get()<span class="question-mark">?</span>.i))<span class="question-mark">?</span>;
 
     <span class="comment">// Allocate program_counter only on primary circuit
     </span><span class="kw">let </span>program_counter = <span class="kw">if </span><span class="self">self</span>.params.is_primary_circuit {
       <span class="prelude-val">Some</span>(AllocatedNum::alloc(
-        cs.namespace(|| <span class="string">&quot;program_counter&quot;</span>),
+        cs.namespace(|| <span class="string">"program_counter"</span>),
         || {
           <span class="prelude-val">Ok</span>(
             <span class="self">self
               </span>.inputs
               .get()<span class="question-mark">?
               </span>.program_counter
-              .expect(<span class="string">&quot;program_counter missing&quot;</span>),
+              .expect(<span class="string">"program_counter missing"</span>),
           )
         },
       )<span class="question-mark">?</span>)
@@ -1198,7 +1199,7 @@
     <span class="comment">// Allocate z0
     </span><span class="kw">let </span>z_0 = (<span class="number">0</span>..arity)
       .map(|i| {
-        AllocatedNum::alloc(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;z0_{i}&quot;</span>)), || {
+        AllocatedNum::alloc(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"z0_{i}"</span>)), || {
           <span class="prelude-val">Ok</span>(<span class="self">self</span>.inputs.get()<span class="question-mark">?</span>.z0[i])
         })
       })
@@ -1208,7 +1209,7 @@
     </span><span class="kw">let </span>zero = <span class="macro">vec!</span>[E::Base::ZERO; arity];
     <span class="kw">let </span>z_i = (<span class="number">0</span>..arity)
       .map(|i| {
-        AllocatedNum::alloc(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;zi_{i}&quot;</span>)), || {
+        AllocatedNum::alloc(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"zi_{i}"</span>)), || {
           <span class="prelude-val">Ok</span>(<span class="self">self</span>.inputs.get()<span class="question-mark">?</span>.zi.unwrap_or(<span class="kw-2">&amp;</span>zero)[i])
         })
       })
@@ -1218,7 +1219,7 @@
     </span><span class="kw">let </span>U = (<span class="number">0</span>..num_augmented_circuits)
       .map(|i| {
         AllocatedRelaxedR1CSInstance::alloc(
-          cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;Allocate U {:?}&quot;</span>, i)),
+          cs.namespace(|| <span class="macro">format!</span>(<span class="string">"Allocate U {:?}"</span>, i)),
           <span class="self">self
             </span>.inputs
             .as_ref()
@@ -1231,23 +1232,23 @@
 
     <span class="comment">// Allocate the r1cs instance to be folded in
     </span><span class="kw">let </span>u = AllocatedR1CSInstance::alloc(
-      cs.namespace(|| <span class="string">&quot;allocate instance u to fold&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate instance u to fold"</span>),
       <span class="self">self</span>.inputs.as_ref().and_then(|inputs| inputs.u),
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Allocate T
     </span><span class="kw">let </span>T = AllocatedPoint::alloc(
-      cs.namespace(|| <span class="string">&quot;allocate T&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate T"</span>),
       <span class="self">self
         </span>.inputs
         .as_ref()
         .and_then(|inputs| inputs.T.map(|T| T.to_coordinates())),
     )<span class="question-mark">?</span>;
-    T.check_on_curve(cs.namespace(|| <span class="string">&quot;check T on curve&quot;</span>))<span class="question-mark">?</span>;
+    T.check_on_curve(cs.namespace(|| <span class="string">"check T on curve"</span>))<span class="question-mark">?</span>;
 
     <span class="comment">// Compute instance selector
     </span><span class="kw">let </span>last_augmented_circuit_selector = get_selector_vec_from_index(
-      cs.namespace(|| <span class="string">&quot;instance selector&quot;</span>),
+      cs.namespace(|| <span class="string">"instance selector"</span>),
       <span class="kw-2">&amp;</span>last_augmented_circuit_index,
       num_augmented_circuits,
     )<span class="question-mark">?</span>;
@@ -1272,11 +1273,11 @@
     u: AllocatedR1CSInstance&lt;E&gt;,
     last_augmented_circuit_selector: <span class="kw-2">&amp;</span>[Boolean],
   ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, SynthesisError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>cs = cs.namespace(|| <span class="string">&quot;alloc U_i default&quot;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>cs = cs.namespace(|| <span class="string">"alloc U_i default"</span>);
 
     <span class="comment">// Allocate a default relaxed r1cs instance
     </span><span class="kw">let </span>default = AllocatedRelaxedR1CSInstance::default(
-      cs.namespace(|| <span class="string">&quot;Allocate primary U_default&quot;</span>.to_string()),
+      cs.namespace(|| <span class="string">"Allocate primary U_default"</span>.to_string()),
       <span class="self">self</span>.params.limb_width,
       <span class="self">self</span>.params.n_limbs,
     )<span class="question-mark">?</span>;
@@ -1287,7 +1288,7 @@
     } <span class="kw">else </span>{
       <span class="comment">// The secondary circuit convert the incoming R1CS instance on index which match last_augmented_circuit_index
       </span><span class="kw">let </span>incoming_r1cs = AllocatedRelaxedR1CSInstance::from_r1cs_instance(
-        cs.namespace(|| <span class="string">&quot;Allocate incoming_r1cs&quot;</span>),
+        cs.namespace(|| <span class="string">"Allocate incoming_r1cs"</span>),
         u,
         <span class="self">self</span>.params.limb_width,
         <span class="self">self</span>.params.n_limbs,
@@ -1300,7 +1301,7 @@
           <span class="comment">// If index match last_augmented_circuit_index, then return incoming_r1cs,
           // otherwise return the default one
           </span>conditionally_select_alloc_relaxed_r1cs(
-            cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;select on index namespace {:?}&quot;</span>, i)),
+            cs.namespace(|| <span class="macro">format!</span>(<span class="string">"select on index namespace {:?}"</span>, i)),
             <span class="kw-2">&amp;</span>incoming_r1cs,
             <span class="kw-2">&amp;</span>default,
             equal_bit,
@@ -1356,25 +1357,25 @@
     }
 
     U.iter().enumerate().try_for_each(|(i, U)| {
-      U.absorb_in_ro(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;absorb U {:?}&quot;</span>, i)), <span class="kw-2">&amp;mut </span>ro)
+      U.absorb_in_ro(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"absorb U {:?}"</span>, i)), <span class="kw-2">&amp;mut </span>ro)
     })<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>hash_bits = ro.squeeze(cs.namespace(|| <span class="string">&quot;Input hash&quot;</span>), NUM_HASH_BITS)<span class="question-mark">?</span>;
-    <span class="kw">let </span>hash = le_bits_to_num(cs.namespace(|| <span class="string">&quot;bits to hash&quot;</span>), <span class="kw-2">&amp;</span>hash_bits)<span class="question-mark">?</span>;
+    <span class="kw">let </span>hash_bits = ro.squeeze(cs.namespace(|| <span class="string">"Input hash"</span>), NUM_HASH_BITS)<span class="question-mark">?</span>;
+    <span class="kw">let </span>hash = le_bits_to_num(cs.namespace(|| <span class="string">"bits to hash"</span>), <span class="kw-2">&amp;</span>hash_bits)<span class="question-mark">?</span>;
     <span class="kw">let </span>check_pass: AllocatedBit = alloc_num_equals(
-      cs.namespace(|| <span class="string">&quot;check consistency of u.X[0] with H(params, U, i, z0, zi)&quot;</span>),
+      cs.namespace(|| <span class="string">"check consistency of u.X[0] with H(params, U, i, z0, zi)"</span>),
       <span class="kw-2">&amp;</span>u.X0,
       <span class="kw-2">&amp;</span>hash,
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Run NIFS Verifier
     </span><span class="kw">let </span>U_to_fold = get_from_vec_alloc_relaxed_r1cs(
-      cs.namespace(|| <span class="string">&quot;U to fold&quot;</span>),
+      cs.namespace(|| <span class="string">"U to fold"</span>),
       U,
       last_augmented_circuit_selector,
     )<span class="question-mark">?</span>;
     <span class="kw">let </span>U_fold = U_to_fold.fold_with_r1cs(
-      cs.namespace(|| <span class="string">&quot;compute fold of U and u&quot;</span>),
+      cs.namespace(|| <span class="string">"compute fold of U and u"</span>),
       params,
       u,
       T,
@@ -1389,7 +1390,7 @@
       .zip_eq(last_augmented_circuit_selector.iter())
       .map(|(U, equal_bit)| {
         conditionally_select_alloc_relaxed_r1cs(
-          cs.namespace(|| <span class="string">&quot;select on index namespace&quot;</span>),
+          cs.namespace(|| <span class="string">"select on index namespace"</span>),
           <span class="kw-2">&amp;</span>U_fold,
           U,
           equal_bit,
@@ -1418,7 +1419,7 @@
       </span><span class="kw">let </span>z0_len = <span class="self">self</span>.inputs.as_ref().map_or(<span class="number">0</span>, |inputs| inputs.z0.len());
       <span class="kw">if </span><span class="self">self</span>.step_circuit.arity() != z0_len {
         <span class="kw">return </span><span class="prelude-val">Err</span>(SynthesisError::IncompatibleLengthVector(<span class="macro">format!</span>(
-          <span class="string">&quot;z0_len {:?} != arity length {:?}&quot;</span>,
+          <span class="string">"z0_len {:?} != arity length {:?}"</span>,
           z0_len,
           <span class="self">self</span>.step_circuit.arity()
         )));
@@ -1431,7 +1432,7 @@
         .map_or(E::Base::ZERO, |inputs| inputs.last_augmented_circuit_index);
       <span class="kw">if </span><span class="self">self</span>.params.is_primary_circuit &amp;&amp; last_augmented_circuit_index != E::Base::ZERO {
         <span class="kw">return </span><span class="prelude-val">Err</span>(SynthesisError::IncompatibleLengthVector(
-          <span class="string">&quot;primary circuit running instance only valid on index 0&quot;</span>.to_string(),
+          <span class="string">"primary circuit running instance only valid on index 0"</span>.to_string(),
         ));
       }
     }
@@ -1439,20 +1440,20 @@
     <span class="comment">// Allocate witnesses
     </span><span class="kw">let </span>(params, i, z_0, z_i, U, u, T, program_counter, last_augmented_circuit_selector) = <span class="self">self
       </span>.alloc_witness(
-        cs.namespace(|| <span class="string">&quot;allocate the circuit witness&quot;</span>),
+        cs.namespace(|| <span class="string">"allocate the circuit witness"</span>),
         arity,
         num_augmented_circuits,
       )<span class="question-mark">?</span>;
 
     <span class="comment">// Compute variable indicating if this is the base case
-    </span><span class="kw">let </span>zero = alloc_zero(cs.namespace(|| <span class="string">&quot;zero&quot;</span>));
-    <span class="kw">let </span>is_base_case = alloc_num_equals(cs.namespace(|| <span class="string">&quot;Check if base case&quot;</span>), <span class="kw-2">&amp;</span>i.clone(), <span class="kw-2">&amp;</span>zero)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>zero = alloc_zero(cs.namespace(|| <span class="string">"zero"</span>));
+    <span class="kw">let </span>is_base_case = alloc_num_equals(cs.namespace(|| <span class="string">"Check if base case"</span>), <span class="kw-2">&amp;</span>i.clone(), <span class="kw-2">&amp;</span>zero)<span class="question-mark">?</span>;
 
     <span class="comment">// Synthesize the circuit for the non-base case and get the new running
     // instances along with a boolean indicating if all checks have passed
     // must use return `last_augmented_circuit_index_checked` since it got range checked
     </span><span class="kw">let </span>(U_next_non_base, check_non_base_pass) = <span class="self">self</span>.synthesize_non_base_case(
-      cs.namespace(|| <span class="string">&quot;synthesize non base case&quot;</span>),
+      cs.namespace(|| <span class="string">"synthesize non base case"</span>),
       <span class="kw-2">&amp;</span>params,
       <span class="kw-2">&amp;</span>i,
       <span class="kw-2">&amp;</span>z_0,
@@ -1467,19 +1468,19 @@
 
     <span class="comment">// Synthesize the circuit for the base case and get the new running instances
     </span><span class="kw">let </span>U_next_base = <span class="self">self</span>.synthesize_base_case(
-      cs.namespace(|| <span class="string">&quot;base case&quot;</span>),
+      cs.namespace(|| <span class="string">"base case"</span>),
       u.clone(),
       <span class="kw-2">&amp;</span>last_augmented_circuit_selector,
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Either check_non_base_pass=true or we are in the base case
     </span><span class="kw">let </span>should_be_false = AllocatedBit::nor(
-      cs.namespace(|| <span class="string">&quot;check_non_base_pass nor base_case&quot;</span>),
+      cs.namespace(|| <span class="string">"check_non_base_pass nor base_case"</span>),
       <span class="kw-2">&amp;</span>check_non_base_pass,
       <span class="kw-2">&amp;</span>is_base_case,
     )<span class="question-mark">?</span>;
     cs.enforce(
-      || <span class="string">&quot;check_non_base_pass nor base_case = false&quot;</span>,
+      || <span class="string">"check_non_base_pass nor base_case = false"</span>,
       |lc| lc + should_be_false.get_variable(),
       |lc| lc + CS::one(),
       |lc| lc,
@@ -1487,18 +1488,18 @@
 
     <span class="comment">// Compute the U_next
     </span><span class="kw">let </span>U_next = conditionally_select_vec_allocated_relaxed_r1cs_instance(
-      cs.namespace(|| <span class="string">&quot;U_next&quot;</span>),
+      cs.namespace(|| <span class="string">"U_next"</span>),
       <span class="kw-2">&amp;</span>U_next_base[..],
       <span class="kw-2">&amp;</span>U_next_non_base[..],
       <span class="kw-2">&amp;</span>Boolean::from(is_base_case.clone()),
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Compute i + 1
-    </span><span class="kw">let </span>i_next = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;i + 1&quot;</span>), || {
+    </span><span class="kw">let </span>i_next = AllocatedNum::alloc(cs.namespace(|| <span class="string">"i + 1"</span>), || {
       <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>i.get_value().get()<span class="question-mark">? </span>+ E::Base::ONE)
     })<span class="question-mark">?</span>;
     cs.enforce(
-      || <span class="string">&quot;check i + 1&quot;</span>,
+      || <span class="string">"check i + 1"</span>,
       |lc| lc + i.get_variable() + CS::one(),
       |lc| lc + CS::one(),
       |lc| lc + i_next.get_variable(),
@@ -1506,35 +1507,35 @@
 
     <span class="comment">// Compute z_{i+1}
     </span><span class="kw">let </span>z_input = conditionally_select_vec(
-      cs.namespace(|| <span class="string">&quot;select input to F&quot;</span>),
+      cs.namespace(|| <span class="string">"select input to F"</span>),
       <span class="kw-2">&amp;</span>z_0,
       <span class="kw-2">&amp;</span>z_i,
       <span class="kw-2">&amp;</span>Boolean::from(is_base_case),
     )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>(program_counter_new, z_next) = <span class="self">self</span>.step_circuit.enforcing_synthesize(
-      <span class="kw-2">&amp;mut </span>cs.namespace(|| <span class="string">&quot;F&quot;</span>),
+      <span class="kw-2">&amp;mut </span>cs.namespace(|| <span class="string">"F"</span>),
       program_counter.as_ref(),
       <span class="kw-2">&amp;</span>z_input,
     )<span class="question-mark">?</span>;
 
     <span class="kw">if </span>z_next.len() != arity {
       <span class="kw">return </span><span class="prelude-val">Err</span>(SynthesisError::IncompatibleLengthVector(
-        <span class="string">&quot;z_next&quot;</span>.to_string(),
+        <span class="string">"z_next"</span>.to_string(),
       ));
     }
 
     <span class="comment">// To check correct folding sequencing we are just going to make a hash.
     // The next RunningInstance folding can take the pre-image of this hash as witness and check.
 
-    // &quot;Finally, there is a subtle sizing issue in the above description: in each step,
+    // "Finally, there is a subtle sizing issue in the above description: in each step,
     // because Ui+1 is produced as the public IO of F0 program_counter+1, it must be contained in
     // the public IO of instance ui+1. In the next iteration, because ui+1 is folded
     // into Ui+1[program_counter+1], this means that Ui+1[program_counter+1] is at least as large as Ui by the
     // properties of the folding scheme. This means that the list of running instances
     // grows in each step. To alleviate this issue, we have each F0j only produce a hash
     // of its outputs as public output. In the subsequent step, the next augmented
-    // function takes as non-deterministic input a preimage to this hash.&quot; pg.16
+    // function takes as non-deterministic input a preimage to this hash." pg.16
 
     // https://eprint.iacr.org/2022/1758.pdf
 
@@ -1555,7 +1556,7 @@
       ro.absorb(
         program_counter_new
           .as_ref()
-          .expect(<span class="string">&quot;new program counter missing&quot;</span>),
+          .expect(<span class="string">"new program counter missing"</span>),
       )
     }
     <span class="kw">for </span>e <span class="kw">in </span><span class="kw-2">&amp;</span>z_0 {
@@ -1565,18 +1566,18 @@
       ro.absorb(e);
     }
     U_next.iter().enumerate().try_for_each(|(i, U)| {
-      U.absorb_in_ro(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;absorb U_new {:?}&quot;</span>, i)), <span class="kw-2">&amp;mut </span>ro)
+      U.absorb_in_ro(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"absorb U_new {:?}"</span>, i)), <span class="kw-2">&amp;mut </span>ro)
     })<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>hash_bits = ro.squeeze(cs.namespace(|| <span class="string">&quot;output hash bits&quot;</span>), NUM_HASH_BITS)<span class="question-mark">?</span>;
-    <span class="kw">let </span>hash = le_bits_to_num(cs.namespace(|| <span class="string">&quot;convert hash to num&quot;</span>), <span class="kw-2">&amp;</span>hash_bits)<span class="question-mark">?</span>;
+    <span class="kw">let </span>hash_bits = ro.squeeze(cs.namespace(|| <span class="string">"output hash bits"</span>), NUM_HASH_BITS)<span class="question-mark">?</span>;
+    <span class="kw">let </span>hash = le_bits_to_num(cs.namespace(|| <span class="string">"convert hash to num"</span>), <span class="kw-2">&amp;</span>hash_bits)<span class="question-mark">?</span>;
 
     <span class="comment">// We are cycling of curve implementation, so primary/secondary will rotate hash in IO for the others to check
     // bypass unmodified hash of other circuit as next X[0]
     // and output the computed the computed hash as next X[1]
     </span>u.X1
-      .inputize(cs.namespace(|| <span class="string">&quot;bypass unmodified hash of the other circuit&quot;</span>))<span class="question-mark">?</span>;
-    hash.inputize(cs.namespace(|| <span class="string">&quot;output new hash of this circuit&quot;</span>))<span class="question-mark">?</span>;
+      .inputize(cs.namespace(|| <span class="string">"bypass unmodified hash of the other circuit"</span>))<span class="question-mark">?</span>;
+    hash.inputize(cs.namespace(|| <span class="string">"output new hash of this circuit"</span>))<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>((program_counter_new, z_next))
   }
@@ -1617,7 +1618,7 @@
     <span class="kw">let </span>tc1 = TrivialTestCircuit::default();
     <span class="comment">// Initialize the shape and ck for the primary
     </span><span class="kw">let </span>circuit1: SuperNovaAugmentedCircuit&lt;
-      <span class="lifetime">&#39;_</span>,
+      <span class="lifetime">'_</span>,
       Dual&lt;E1&gt;,
       TrivialTestCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Base&gt;,
     &gt; = SuperNovaAugmentedCircuit::new(
@@ -1635,7 +1636,7 @@
 
     <span class="kw">let </span>tc2 = TrivialTestCircuit::default();
     <span class="comment">// Initialize the shape and ck for the secondary
-    </span><span class="kw">let </span>circuit2: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, TrivialTestCircuit&lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Base&gt;&gt; =
+    </span><span class="kw">let </span>circuit2: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, TrivialTestCircuit&lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Base&gt;&gt; =
       SuperNovaAugmentedCircuit::new(
         secondary_params,
         <span class="prelude-val">None</span>,
@@ -1653,7 +1654,7 @@
     </span><span class="kw">let </span>zero1 = &lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Base <span class="kw">as </span>Field&gt;::ZERO;
     <span class="kw">let </span><span class="kw-2">mut </span>cs1 = SatisfyingAssignment::&lt;E1&gt;::new();
     <span class="kw">let </span>vzero1 = <span class="macro">vec!</span>[zero1];
-    <span class="kw">let </span>inputs1: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;&gt; =
+    <span class="kw">let </span>inputs1: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::&lt;E1&gt;(zero1), <span class="comment">// pass zero for testing
         </span>zero1,
@@ -1666,7 +1667,7 @@
         zero1,
       );
     <span class="kw">let </span>circuit1: SuperNovaAugmentedCircuit&lt;
-      <span class="lifetime">&#39;_</span>,
+      <span class="lifetime">'_</span>,
       Dual&lt;E1&gt;,
       TrivialTestCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Base&gt;,
     &gt; = SuperNovaAugmentedCircuit::new(
@@ -1685,7 +1686,7 @@
     </span><span class="kw">let </span>zero2 = &lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Base <span class="kw">as </span>Field&gt;::ZERO;
     <span class="kw">let </span><span class="kw-2">mut </span>cs2 = SatisfyingAssignment::&lt;Dual&lt;E1&gt;&gt;::new();
     <span class="kw">let </span>vzero2 = <span class="macro">vec!</span>[zero2];
-    <span class="kw">let </span>inputs2: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E1&gt; = SuperNovaAugmentedCircuitInputs::new(
+    <span class="kw">let </span>inputs2: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'_</span>, E1&gt; = SuperNovaAugmentedCircuitInputs::new(
       scalar_as_base::&lt;Dual&lt;E1&gt;&gt;(zero2), <span class="comment">// pass zero for testing
       </span>zero2,
       <span class="kw-2">&amp;</span>vzero2,
@@ -1696,7 +1697,7 @@
       <span class="prelude-val">Some</span>(zero2),
       zero2,
     );
-    <span class="kw">let </span>circuit2: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, TrivialTestCircuit&lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Base&gt;&gt; =
+    <span class="kw">let </span>circuit2: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, TrivialTestCircuit&lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Base&gt;&gt; =
       SuperNovaAugmentedCircuit::new(
         secondary_params,
         <span class="prelude-val">Some</span>(inputs2),
@@ -1723,8 +1724,8 @@
       <span class="kw-2">&amp;</span>params2,
       ro_consts1,
       ro_consts2,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;9836&quot;</span>],
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;10384&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"9836"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"10384"</span>],
       <span class="number">1</span>,
     );
     <span class="comment">// TODO: extend to num_augmented_circuits &gt;= 2
@@ -1742,8 +1743,8 @@
       <span class="kw-2">&amp;</span>params2,
       ro_consts1,
       ro_consts2,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;10004&quot;</span>],
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;10573&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"10004"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"10573"</span>],
       <span class="number">1</span>,
     );
     <span class="comment">// TODO: extend to num_augmented_circuits &gt;= 2
@@ -1761,8 +1762,8 @@
       <span class="kw-2">&amp;</span>params2,
       ro_consts1,
       ro_consts2,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;10283&quot;</span>],
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;10996&quot;</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"10283"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"10996"</span>],
       <span class="number">1</span>,
     );
     <span class="comment">// TODO: extend to num_augmented_circuits &gt;= 2

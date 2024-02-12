@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1577,30 +1578,6 @@
 <a href="#1577" id="1577">1577</a>
 <a href="#1578" id="1578">1578</a>
 <a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a>
-<a href="#1598" id="1598">1598</a>
-<a href="#1599" id="1599">1599</a>
-<a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a>
-<a href="#1602" id="1602">1602</a>
-<a href="#1603" id="1603">1603</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This library implements Nova, a high-speed recursive SNARK.
 </span><span class="attr">#![deny(
   warnings,
@@ -1665,7 +1642,7 @@
 
 <span class="doccomment">/// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 #[abomonation_bounds(<span class="kw">where </span>&lt;E::Scalar <span class="kw">as </span>PrimeField&gt;::Repr: Abomonation)]
 </span><span class="kw">pub struct </span>R1CSWithArity&lt;E: Engine&gt; {
   F_arity: usize,
@@ -1683,16 +1660,16 @@
     }
   }
 
-  <span class="doccomment">/// Return the [`R1CSWithArity`]&#39; digest.
+  <span class="doccomment">/// Return the [`R1CSWithArity`]' digest.
   </span><span class="kw">pub fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E::Scalar {
-    <span class="kw">let </span>dc: DigestComputer&lt;<span class="lifetime">&#39;_</span>, &lt;E <span class="kw">as </span>Engine&gt;::Scalar, <span class="self">Self</span>&gt; = DigestComputer::new(<span class="self">self</span>);
-    dc.digest().expect(<span class="string">&quot;Failure in computing digest&quot;</span>)
+    <span class="kw">let </span>dc: DigestComputer&lt;<span class="lifetime">'_</span>, &lt;E <span class="kw">as </span>Engine&gt;::Scalar, <span class="self">Self</span>&gt; = DigestComputer::new(<span class="self">self</span>);
+    dc.digest().expect(<span class="string">"Failure in computing digest"</span>)
   }
 }
 
 <span class="doccomment">/// A type that holds public parameters of Nova
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>PublicParams&lt;E&gt;
 <span class="kw">where
   </span>E: CurveCycleEquipped,
@@ -1709,7 +1686,7 @@
   circuit_shape_secondary: R1CSWithArity&lt;Dual&lt;E&gt;&gt;,
   augmented_circuit_params_primary: NovaAugmentedCircuitParams,
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
-  <span class="attr">#[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
+  <span class="attr">#[serde(skip, default = <span class="string">"OnceCell::new"</span>)]
   </span>digest: OnceCell&lt;E::Scalar&gt;,
 }
 
@@ -1717,9 +1694,9 @@
 // e.g., abomonation, serde, etc., with the appropriate feature flags.
 
 </span><span class="doccomment">/// A version of [`crate::PublicParams`] that is amenable to fast ser/de using Abomonation
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+</span><span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Abomonation)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 #[abomonation_bounds(
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -1744,18 +1721,18 @@
   augmented_circuit_params_secondary: NovaAugmentedCircuitParams,
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 </span><span class="kw">impl</span>&lt;E1&gt; TryFrom&lt;PublicParams&lt;E1&gt;&gt; <span class="kw">for </span>FlatPublicParams&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
 {
-  <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+  <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
   <span class="kw">fn </span>try_from(value: PublicParams&lt;E1&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
     <span class="kw">let </span>ck_primary =
-      Arc::try_unwrap(value.ck_primary).map_err(|<span class="kw">_</span>| <span class="string">&quot;Failed to unwrap Arc for ck_primary&quot;</span>)<span class="question-mark">?</span>;
+      Arc::try_unwrap(value.ck_primary).map_err(|<span class="kw">_</span>| <span class="string">"Failed to unwrap Arc for ck_primary"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>ck_secondary =
-      Arc::try_unwrap(value.ck_secondary).map_err(|<span class="kw">_</span>| <span class="string">&quot;Failed to unwrap Arc for ck_secondary&quot;</span>)<span class="question-mark">?</span>;
+      Arc::try_unwrap(value.ck_secondary).map_err(|<span class="kw">_</span>| <span class="string">"Failed to unwrap Arc for ck_secondary"</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
       F_arity_primary: value.F_arity_primary,
       F_arity_secondary: value.F_arity_secondary,
@@ -1773,7 +1750,7 @@
   }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 </span><span class="kw">impl</span>&lt;E1&gt; From&lt;FlatPublicParams&lt;E1&gt;&gt; <span class="kw">for </span>PublicParams&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -1813,7 +1790,7 @@
   /// larger sizes for these parameters. These SNARKs provide a hint for these values by
   /// implementing `RelaxedR1CSSNARKTrait::ck_floor()`, which can be passed to this function.
   ///
-  /// If you&#39;re not using such a SNARK, pass `arecibo::traits::snark::default_ck_hint()` instead.
+  /// If you're not using such a SNARK, pass `arecibo::traits::snark::default_ck_hint()` instead.
   ///
   /// # Arguments
   ///
@@ -1869,7 +1846,7 @@
     <span class="kw">let </span>ro_consts_circuit_secondary: ROConstantsCircuit&lt;E1&gt; = ROConstantsCircuit::&lt;E1&gt;::default();
 
     <span class="comment">// Initialize ck for the primary
-    </span><span class="kw">let </span>circuit_primary: NovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C1&gt; = NovaAugmentedCircuit::new(
+    </span><span class="kw">let </span>circuit_primary: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, C1&gt; = NovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>augmented_circuit_params_primary,
       <span class="prelude-val">None</span>,
       c_primary,
@@ -1882,7 +1859,7 @@
     <span class="kw">let </span>circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     <span class="comment">// Initialize ck for the secondary
-    </span><span class="kw">let </span>circuit_secondary: NovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C2&gt; = NovaAugmentedCircuit::new(
+    </span><span class="kw">let </span>circuit_secondary: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, C2&gt; = NovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>augmented_circuit_params_secondary,
       <span class="prelude-val">None</span>,
       c_secondary,
@@ -1917,7 +1894,7 @@
       </span>.digest
       .get_or_try_init(|| DigestComputer::new(<span class="self">self</span>).digest())
       .cloned()
-      .expect(<span class="string">&quot;Failure in retrieving digest&quot;</span>)
+      .expect(<span class="string">"Failure in retrieving digest"</span>)
   }
 
   <span class="doccomment">/// Returns the number of constraints in the primary and secondary circuits
@@ -1940,7 +1917,7 @@
 <span class="doccomment">/// A resource buffer for [`RecursiveSNARK`] for storing scratch values that are computed by `prove_step`,
 /// which allows the reuse of memory allocations and avoids unnecessary new allocations in the critical section.
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>ResourceBuffer&lt;E: Engine&gt; {
   l_w: <span class="prelude-ty">Option</span>&lt;R1CSWitness&lt;E&gt;&gt;,
   l_u: <span class="prelude-ty">Option</span>&lt;R1CSInstance&lt;E&gt;&gt;,
@@ -1954,7 +1931,7 @@
 
 <span class="doccomment">/// A SNARK that proves the correct execution of an incremental computation
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>RecursiveSNARK&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -2009,7 +1986,7 @@
       <span class="prelude-val">None</span>,
     );
 
-    <span class="kw">let </span>circuit_primary: NovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C1&gt; = NovaAugmentedCircuit::new(
+    <span class="kw">let </span>circuit_primary: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, C1&gt; = NovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
       <span class="prelude-val">Some</span>(inputs_primary),
       c_primary,
@@ -2030,7 +2007,7 @@
       <span class="prelude-val">Some</span>(u_primary.clone()),
       <span class="prelude-val">None</span>,
     );
-    <span class="kw">let </span>circuit_secondary: NovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C2&gt; = NovaAugmentedCircuit::new(
+    <span class="kw">let </span>circuit_secondary: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, C2&gt; = NovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>pp.augmented_circuit_params_secondary,
       <span class="prelude-val">Some</span>(inputs_secondary),
       c_secondary,
@@ -2058,7 +2035,7 @@
 
     <span class="macro">assert!</span>(
       !(zi_primary.len() != pp.F_arity_primary || zi_secondary.len() != pp.F_arity_secondary),
-      <span class="string">&quot;Invalid step length&quot;
+      <span class="string">"Invalid step length"
     </span>);
 
     <span class="kw">let </span>zi_primary = zi_primary
@@ -2117,7 +2094,7 @@
 
   <span class="doccomment">/// Create a new `RecursiveSNARK` (or updates the provided `RecursiveSNARK`)
   /// by executing a step of the incremental computation
-  </span><span class="attr">#[tracing::instrument(skip_all, name = <span class="string">&quot;nova::RecursiveSNARK::prove_step&quot;</span>)]
+  </span><span class="attr">#[tracing::instrument(skip_all, name = <span class="string">"nova::RecursiveSNARK::prove_step"</span>)]
   </span><span class="kw">pub fn </span>prove_step&lt;C1: StepCircuit&lt;E1::Scalar&gt;, C2: StepCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;&gt;(
     <span class="kw-2">&amp;mut </span><span class="self">self</span>,
     pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
@@ -2135,7 +2112,7 @@
     <span class="kw">let </span>r_U_secondary_i = <span class="self">self</span>.r_U_secondary.clone();
     <span class="kw">let </span>l_u_secondary_i = <span class="self">self</span>.l_u_secondary.clone();
 
-    <span class="comment">// fold the secondary circuit&#39;s instance
+    <span class="comment">// fold the secondary circuit's instance
     </span><span class="kw">let </span>nifs_secondary = NIFS::prove_mut(
       <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
@@ -2164,7 +2141,7 @@
       <span class="prelude-val">Some</span>(Commitment::&lt;Dual&lt;E1&gt;&gt;::decompress(<span class="kw-2">&amp;</span>nifs_secondary.comm_T)<span class="question-mark">?</span>),
     );
 
-    <span class="kw">let </span>circuit_primary: NovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C1&gt; = NovaAugmentedCircuit::new(
+    <span class="kw">let </span>circuit_primary: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, C1&gt; = NovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
       <span class="prelude-val">Some</span>(inputs_primary),
       c_primary,
@@ -2176,7 +2153,7 @@
     <span class="kw">let </span>(l_u_primary, l_w_primary) =
       cs_primary.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>pp.circuit_shape_primary.r1cs_shape, <span class="kw-2">&amp;</span>pp.ck_primary)<span class="question-mark">?</span>;
 
-    <span class="comment">// fold the primary circuit&#39;s instance
+    <span class="comment">// fold the primary circuit's instance
     </span><span class="kw">let </span>nifs_primary = NIFS::prove_mut(
       <span class="kw-2">&amp;*</span>pp.ck_primary,
       <span class="kw-2">&amp;</span>pp.ro_consts_primary,
@@ -2205,7 +2182,7 @@
       <span class="prelude-val">Some</span>(Commitment::&lt;E1&gt;::decompress(<span class="kw-2">&amp;</span>nifs_primary.comm_T)<span class="question-mark">?</span>),
     );
 
-    <span class="kw">let </span>circuit_secondary: NovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C2&gt; = NovaAugmentedCircuit::new(
+    <span class="kw">let </span>circuit_secondary: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, C2&gt; = NovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>pp.augmented_circuit_params_secondary,
       <span class="prelude-val">Some</span>(inputs_secondary),
       c_secondary,
@@ -2369,7 +2346,7 @@
 
 <span class="doccomment">/// A type that holds the verifier key for `CompressedSNARK`
 </span><span class="attr">#[derive(Debug, Clone, Serialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E1, S1, S2&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -2387,7 +2364,7 @@
 
 <span class="doccomment">/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>CompressedSNARK&lt;E1, S1, S2&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -2447,7 +2424,7 @@
     pk: <span class="kw-2">&amp;</span>ProverKey&lt;E1, S1, S2&gt;,
     recursive_snark: <span class="kw-2">&amp;</span>RecursiveSNARK&lt;E1&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
-    <span class="comment">// fold the secondary circuit&#39;s instance with its running instance
+    <span class="comment">// fold the secondary circuit's instance with its running instance
     </span><span class="kw">let </span>(nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
       <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
@@ -2558,7 +2535,7 @@
       <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::ProofVerifyError);
     }
 
-    <span class="comment">// fold the secondary&#39;s running instance with the last instance to get a folded instance
+    <span class="comment">// fold the secondary's running instance with the last instance to get a folded instance
     </span><span class="kw">let </span>f_U_secondary = <span class="self">self</span>.nifs_secondary.verify(
       <span class="kw-2">&amp;</span>vk.ro_consts_secondary,
       <span class="kw-2">&amp;</span>scalar_as_base::&lt;E1&gt;(vk.pp_digest),
@@ -2601,7 +2578,7 @@
   </span><span class="kw">let </span>ro_consts_circuit: ROConstantsCircuit&lt;Dual&lt;E1&gt;&gt; = ROConstantsCircuit::&lt;Dual&lt;E1&gt;&gt;::default();
 
   <span class="comment">// Initialize ck for the primary
-  </span><span class="kw">let </span>augmented_circuit: NovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C&gt; =
+  </span><span class="kw">let </span>augmented_circuit: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, C&gt; =
     NovaAugmentedCircuit::new(<span class="kw-2">&amp;</span>augmented_circuit_params, <span class="prelude-val">None</span>, circuit, ro_consts_circuit);
   <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;E1&gt; = ShapeCS::new();
   <span class="kw">let _ </span>= augmented_circuit.synthesize(<span class="kw-2">&amp;mut </span>cs);
@@ -2615,11 +2592,13 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+  <span class="kw">use </span><span class="self">self</span>::traits::CurveCycleEquipped;
+
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use crate</span>::{
     provider::{
-      non_hiding_zeromorph::ZMPCS, traits::DlogGroup, Bn256Engine, Bn256EngineKZG, Bn256EngineZM,
-      GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
+      non_hiding_zeromorph::ZMPCS, Bn256Engine, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
+      Secp256k1Engine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
   };
@@ -2651,14 +2630,14 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedNum&lt;F&gt;&gt;, SynthesisError&gt; {
       <span class="comment">// Consider a cubic equation: `x^3 + x + 5 = y`, where `x` and `y` are respectively the input and output.
       </span><span class="kw">let </span>x = <span class="kw-2">&amp;</span>z[<span class="number">0</span>];
-      <span class="kw">let </span>x_sq = x.square(cs.namespace(|| <span class="string">&quot;x_sq&quot;</span>))<span class="question-mark">?</span>;
-      <span class="kw">let </span>x_cu = x_sq.mul(cs.namespace(|| <span class="string">&quot;x_cu&quot;</span>), x)<span class="question-mark">?</span>;
-      <span class="kw">let </span>y = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;y&quot;</span>), || {
+      <span class="kw">let </span>x_sq = x.square(cs.namespace(|| <span class="string">"x_sq"</span>))<span class="question-mark">?</span>;
+      <span class="kw">let </span>x_cu = x_sq.mul(cs.namespace(|| <span class="string">"x_cu"</span>), x)<span class="question-mark">?</span>;
+      <span class="kw">let </span>y = AllocatedNum::alloc(cs.namespace(|| <span class="string">"y"</span>), || {
         <span class="prelude-val">Ok</span>(x_cu.get_value().unwrap() + x.get_value().unwrap() + F::from(<span class="number">5u64</span>))
       })<span class="question-mark">?</span>;
 
       cs.enforce(
-        || <span class="string">&quot;y = x^3 + x + 5&quot;</span>,
+        || <span class="string">"y = x^3 + x + 5"</span>,
         |lc| {
           lc + x_cu.get_variable()
             + x.get_variable()
@@ -2685,8 +2664,6 @@
   <span class="kw">fn </span>test_pp_digest_with&lt;E1, T1, T2, EE1, EE2&gt;(circuit1: <span class="kw-2">&amp;</span>T1, circuit2: <span class="kw-2">&amp;</span>T2, expected: <span class="kw-2">&amp;</span>Expect)
   <span class="kw">where
     </span>E1: CurveCycleEquipped,
-    E1::GE: DlogGroup,
-    &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::GE: DlogGroup,
     T1: StepCircuit&lt;E1::Scalar&gt;,
     T2: StepCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;,
     EE1: EvaluationEngineTrait&lt;E1&gt;,
@@ -2706,7 +2683,7 @@
       .as_ref()
       .iter()
       .fold(String::new(), |<span class="kw-2">mut </span>output, b| {
-        <span class="kw">let _ </span>= <span class="macro">write!</span>(output, <span class="string">&quot;{b:02x}&quot;</span>);
+        <span class="kw">let _ </span>= <span class="macro">write!</span>(output, <span class="string">"{b:02x}"</span>);
         output
       });
 
@@ -2715,63 +2692,39 @@
 
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_pp_digest() {
-    <span class="kw">let </span>trivial_circuit1 = TrivialCircuit::&lt;&lt;PallasEngine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-    <span class="kw">let </span>trivial_circuit2 = TrivialCircuit::&lt;&lt;VestaEngine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-    <span class="kw">let </span>cubic_circuit1 = CubicCircuit::&lt;&lt;PallasEngine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-
     test_pp_digest_with::&lt;PallasEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>trivial_circuit1,
-      <span class="kw-2">&amp;</span>trivial_circuit2,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;492fd902cd7174159bc9a6f827d92eb54ff25efa9d0673dffdb0efd02995df01&quot;</span>],
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"492fd902cd7174159bc9a6f827d92eb54ff25efa9d0673dffdb0efd02995df01"</span>],
     );
 
     test_pp_digest_with::&lt;PallasEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>cubic_circuit1,
-      <span class="kw-2">&amp;</span>trivial_circuit2,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;9b0701d9422658e3f74a85ab3e485c06f3ecca9c2b1800aab80004034d754f01&quot;</span>],
+      <span class="kw-2">&amp;</span>CubicCircuit::default(),
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"9b0701d9422658e3f74a85ab3e485c06f3ecca9c2b1800aab80004034d754f01"</span>],
     );
 
-    <span class="kw">let </span>trivial_circuit1_grumpkin = TrivialCircuit::&lt;&lt;Bn256Engine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-    <span class="kw">let </span>trivial_circuit2_grumpkin = TrivialCircuit::&lt;&lt;GrumpkinEngine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-    <span class="kw">let </span>cubic_circuit1_grumpkin = CubicCircuit::&lt;&lt;Bn256Engine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-
-    <span class="comment">// These tests should not need be different on the &quot;asm&quot; feature for bn256.
-    // See https://github.com/privacy-scaling-explorations/halo2curves/issues/100 for why they are - closing the issue there
-    // should eliminate the discrepancy here.
-    </span>test_pp_digest_with::&lt;Bn256Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>trivial_circuit1_grumpkin,
-      <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;1267235eb3d139e466dd9c814eaf73f01b063ccb4cad04848c0eb62f079a9601&quot;</span>],
-    );
     test_pp_digest_with::&lt;Bn256Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>cubic_circuit1_grumpkin,
-      <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;57afac2edd20d39b202151906e41154ba186c9dde497448d1332dc6de2f76302&quot;</span>],
-    );
-    test_pp_digest_with::&lt;Bn256EngineZM, <span class="kw">_</span>, <span class="kw">_</span>, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>trivial_circuit1_grumpkin,
-      <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;070d247d83e17411d65c12260980ebcc59df88d3882d84eb62e6ab466e381503&quot;</span>],
-    );
-    test_pp_digest_with::&lt;Bn256EngineZM, <span class="kw">_</span>, <span class="kw">_</span>, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>cubic_circuit1_grumpkin,
-      <span class="kw-2">&amp;</span>trivial_circuit2_grumpkin,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;47c2caa008323b588b47ab8b6c0e94f980599188abe117c4d21ffff81494f303&quot;</span>],
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"1267235eb3d139e466dd9c814eaf73f01b063ccb4cad04848c0eb62f079a9601"</span>],
     );
 
-    <span class="kw">let </span>trivial_circuit1_secp = TrivialCircuit::&lt;&lt;Secp256k1Engine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-    <span class="kw">let </span>trivial_circuit2_secp = TrivialCircuit::&lt;&lt;Secq256k1Engine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
-    <span class="kw">let </span>cubic_circuit1_secp = CubicCircuit::&lt;&lt;Secp256k1Engine <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
+    test_pp_digest_with::&lt;Bn256Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
+      <span class="kw-2">&amp;</span>CubicCircuit::default(),
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"57afac2edd20d39b202151906e41154ba186c9dde497448d1332dc6de2f76302"</span>],
+    );
 
     test_pp_digest_with::&lt;Secp256k1Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>trivial_circuit1_secp,
-      <span class="kw-2">&amp;</span>trivial_circuit2_secp,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;04b5d1798be6d74b3701390b87078e70ebf3ddaad80c375319f320cedf8bca00&quot;</span>],
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"04b5d1798be6d74b3701390b87078e70ebf3ddaad80c375319f320cedf8bca00"</span>],
     );
     test_pp_digest_with::&lt;Secp256k1Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
-      <span class="kw-2">&amp;</span>cubic_circuit1_secp,
-      <span class="kw-2">&amp;</span>trivial_circuit2_secp,
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">&quot;346b5f27cf24c79386f4de7a8bfb58970181ae7f0de7d2e3f10ad5dfd8fc2302&quot;</span>],
+      <span class="kw-2">&amp;</span>CubicCircuit::default(),
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"346b5f27cf24c79386f4de7a8bfb58970181ae7f0de7d2e3f10ad5dfd8fc2302"</span>],
     );
   }
 
@@ -2906,7 +2859,7 @@
     <span class="kw">let </span>circuit_primary = TrivialCircuit::default();
     <span class="kw">let </span>circuit_secondary = CubicCircuit::default();
 
-    <span class="comment">// produce public parameters, which we&#39;ll maybe use with a preprocessing compressed SNARK
+    <span class="comment">// produce public parameters, which we'll maybe use with a preprocessing compressed SNARK
     </span><span class="kw">let </span>pp = PublicParams::&lt;E1&gt;::setup(
       <span class="kw-2">&amp;</span>circuit_primary,
       <span class="kw-2">&amp;</span>circuit_secondary,
@@ -3072,15 +3025,15 @@
         <span class="kw">let </span>x = <span class="kw-2">&amp;</span>z[<span class="number">0</span>];
 
         <span class="comment">// we allocate a variable and set it to the provided non-deterministic advice.
-        </span><span class="kw">let </span>y = AllocatedNum::alloc_infallible(cs.namespace(|| <span class="string">&quot;y&quot;</span>), || <span class="self">self</span>.y);
+        </span><span class="kw">let </span>y = AllocatedNum::alloc_infallible(cs.namespace(|| <span class="string">"y"</span>), || <span class="self">self</span>.y);
 
         <span class="comment">// We now check if y = x^{1/5} by checking if y^5 = x
-        </span><span class="kw">let </span>y_sq = y.square(cs.namespace(|| <span class="string">&quot;y_sq&quot;</span>))<span class="question-mark">?</span>;
-        <span class="kw">let </span>y_quad = y_sq.square(cs.namespace(|| <span class="string">&quot;y_quad&quot;</span>))<span class="question-mark">?</span>;
-        <span class="kw">let </span>y_pow_5 = y_quad.mul(cs.namespace(|| <span class="string">&quot;y_fifth&quot;</span>), <span class="kw-2">&amp;</span>y)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>y_sq = y.square(cs.namespace(|| <span class="string">"y_sq"</span>))<span class="question-mark">?</span>;
+        <span class="kw">let </span>y_quad = y_sq.square(cs.namespace(|| <span class="string">"y_quad"</span>))<span class="question-mark">?</span>;
+        <span class="kw">let </span>y_pow_5 = y_quad.mul(cs.namespace(|| <span class="string">"y_fifth"</span>), <span class="kw-2">&amp;</span>y)<span class="question-mark">?</span>;
 
         cs.enforce(
-          || <span class="string">&quot;y^5 = x&quot;</span>,
+          || <span class="string">"y^5 = x"</span>,
           |lc| lc + y_pow_5.get_variable(),
           |lc| lc + CS::one(),
           |lc| lc + x.get_variable(),

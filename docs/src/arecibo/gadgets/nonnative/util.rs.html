@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/gadgets/nonnative/util.rs`."><title>util.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/gadgets/nonnative/util.rs`."><title>util.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -293,7 +294,7 @@
     value: <span class="prelude-ty">Option</span>&lt;bool&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="kw">let </span>var = cs.alloc(
-      || <span class="string">&quot;boolean&quot;</span>,
+      || <span class="string">"boolean"</span>,
       || {
         <span class="kw">if </span><span class="kw-2">*</span>value.grab()<span class="question-mark">? </span>{
           <span class="prelude-val">Ok</span>(Scalar::ONE)
@@ -306,7 +307,7 @@
     <span class="comment">// Constrain: (1 - a) * a = 0
     // This constrains a to be either 0 or 1.
     </span>cs.enforce(
-      || <span class="string">&quot;boolean constraint&quot;</span>,
+      || <span class="string">"boolean constraint"</span>,
       |lc| lc + CS::one() - var,
       |lc| lc + var,
       |lc| lc,
@@ -335,7 +336,7 @@
   {
     <span class="kw">let </span><span class="kw-2">mut </span>new_value = <span class="prelude-val">None</span>;
     <span class="kw">let </span>var = cs.alloc(
-      || <span class="string">&quot;num&quot;</span>,
+      || <span class="string">"num"</span>,
       || {
         <span class="kw">let </span>tmp = value()<span class="question-mark">?</span>;
 
@@ -362,7 +363,7 @@
     </span><span class="kw">let </span>bits: Vec&lt;Variable&gt; = (<span class="number">1</span>..n_bits)
       .map(|i| {
         cs.alloc(
-          || <span class="macro">format!</span>(<span class="string">&quot;bit {i}&quot;</span>),
+          || <span class="macro">format!</span>(<span class="string">"bit {i}"</span>),
           || {
             <span class="kw">let </span>r = <span class="kw">if </span><span class="kw-2">*</span>v.grab()<span class="question-mark">?</span>.get_bit(i).grab()<span class="question-mark">? </span>{
               Scalar::ONE
@@ -377,7 +378,7 @@
 
     <span class="kw">for </span>(i, v) <span class="kw">in </span>bits.iter().enumerate() {
       cs.enforce(
-        || <span class="macro">format!</span>(<span class="string">&quot;{i} is bit&quot;</span>),
+        || <span class="macro">format!</span>(<span class="string">"{i} is bit"</span>),
         |lc| lc + <span class="kw-2">*</span>v,
         |lc| lc + CS::one() - <span class="kw-2">*</span>v,
         |lc| lc,
@@ -386,7 +387,7 @@
 
     <span class="comment">// Last bit
     </span>cs.enforce(
-      || <span class="string">&quot;last bit&quot;</span>,
+      || <span class="string">"last bit"</span>,
       |<span class="kw-2">mut </span>lc| {
         <span class="kw">let </span><span class="kw-2">mut </span>f = Scalar::ONE;
         lc = lc + <span class="kw-2">&amp;</span><span class="self">self</span>.num;
@@ -424,7 +425,7 @@
         l
       });
     <span class="kw">let </span>sum_lc = LinearCombination::zero() + <span class="kw-2">&amp;</span><span class="self">self</span>.num - <span class="kw-2">&amp;</span>sum;
-    cs.enforce(|| <span class="string">&quot;sum&quot;</span>, |lc| lc + <span class="kw-2">&amp;</span>sum_lc, |lc| lc + CS::one(), |lc| lc);
+    cs.enforce(|| <span class="string">"sum"</span>, |lc| lc + <span class="kw-2">&amp;</span>sum_lc, |lc| lc + CS::one(), |lc| lc);
   }
 
   <span class="doccomment">/// Compute the natural number represented by an array of limbs.
@@ -442,7 +443,7 @@
     <span class="kw">let </span>allocations: Vec&lt;Bit&lt;Scalar&gt;&gt; = (<span class="number">0</span>..n_bits)
       .map(|bit_i| {
         Bit::alloc(
-          cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;bit{bit_i}&quot;</span>)),
+          cs.namespace(|| <span class="macro">format!</span>(<span class="string">"bit{bit_i}"</span>)),
           values.as_ref().map(|vs| vs[bit_i]),
         )
       })
@@ -456,7 +457,7 @@
         l
       });
     <span class="kw">let </span>sum_lc = LinearCombination::zero() + <span class="kw-2">&amp;</span><span class="self">self</span>.num - <span class="kw-2">&amp;</span>sum;
-    cs.enforce(|| <span class="string">&quot;sum&quot;</span>, |lc| lc + <span class="kw-2">&amp;</span>sum_lc, |lc| lc + CS::one(), |lc| lc);
+    cs.enforce(|| <span class="string">"sum"</span>, |lc| lc + <span class="kw-2">&amp;</span>sum_lc, |lc| lc + CS::one(), |lc| lc);
     <span class="kw">let </span>bits: Vec&lt;LinearCombination&lt;Scalar&gt;&gt; = allocations
       .clone()
       .into_iter()
@@ -473,9 +474,9 @@
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedNum&lt;Scalar&gt;, SynthesisError&gt; {
-    <span class="kw">let </span>new = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;alloc&quot;</span>), || <span class="prelude-val">Ok</span>(<span class="kw-2">*</span><span class="self">self</span>.value.grab()<span class="question-mark">?</span>))<span class="question-mark">?</span>;
+    <span class="kw">let </span>new = AllocatedNum::alloc(cs.namespace(|| <span class="string">"alloc"</span>), || <span class="prelude-val">Ok</span>(<span class="kw-2">*</span><span class="self">self</span>.value.grab()<span class="question-mark">?</span>))<span class="question-mark">?</span>;
     cs.enforce(
-      || <span class="string">&quot;eq&quot;</span>,
+      || <span class="string">"eq"</span>,
       |lc| lc,
       |lc| lc,
       |lc| lc + new.get_variable() - <span class="kw-2">&amp;</span><span class="self">self</span>.num,
@@ -508,6 +509,6 @@
 <span class="doccomment">/// Convert a natural number to a field element.
 /// Returns `None` if the number is too big for the field.
 </span><span class="kw">pub fn </span>nat_to_f&lt;Scalar: PrimeField&gt;(n: <span class="kw-2">&amp;</span>BigInt) -&gt; <span class="prelude-ty">Option</span>&lt;Scalar&gt; {
-  Scalar::from_str_vartime(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{n}&quot;</span>))
+  Scalar::from_str_vartime(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{n}"</span>))
 }
 </code></pre></div></section></main></body></html>

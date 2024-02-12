@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/errors.rs`."><title>errors.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/errors.rs`."><title>errors.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -99,67 +100,67 @@
 #[non_exhaustive]
 </span><span class="kw">pub enum </span>NovaError {
   <span class="doccomment">/// returned if the supplied row or col in (row,col,val) tuple is out of range
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidIndex&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidIndex"</span>)]
   </span>InvalidIndex,
   <span class="doccomment">/// returned if the supplied input is not even-sized
-  </span><span class="attr">#[error(<span class="string">&quot;OddInputLength&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"OddInputLength"</span>)]
   </span>OddInputLength,
   <span class="doccomment">/// returned if the supplied input is not of the right length
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidInputLength&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidInputLength"</span>)]
   </span>InvalidInputLength,
   <span class="doccomment">/// returned if the supplied witness is not of the right length
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidWitnessLength&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidWitnessLength"</span>)]
   </span>InvalidWitnessLength,
   <span class="doccomment">/// returned if the supplied witness is not a satisfying witness to a given shape and instance
-  </span><span class="attr">#[error(<span class="string">&quot;UnSat&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"UnSat"</span>)]
   </span>UnSat,
   <span class="doccomment">/// returned if the supplied witness is not a satisfying witness to a given shape and instance, with error constraint index
-  </span><span class="attr">#[error(<span class="string">&quot;UnSatIndex&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"UnSatIndex"</span>)]
   </span>UnSatIndex(usize),
   <span class="doccomment">/// returned when the supplied compressed commitment cannot be decompressed
-  </span><span class="attr">#[error(<span class="string">&quot;DecompressionError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"DecompressionError"</span>)]
   </span>DecompressionError,
   <span class="doccomment">/// returned if proof verification fails
-  </span><span class="attr">#[error(<span class="string">&quot;ProofVerifyError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"ProofVerifyError"</span>)]
   </span>ProofVerifyError,
   <span class="doccomment">/// returned if the provided commitment key is not of sufficient length
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidCommitmentKeyLength&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidCommitmentKeyLength"</span>)]
   </span>InvalidCommitmentKeyLength,
   <span class="doccomment">/// returned if the provided number of steps is zero
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidNumSteps&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidNumSteps"</span>)]
   </span>InvalidNumSteps,
   <span class="doccomment">/// returned if there is an error in the proof/verification of a PCS
-  </span><span class="attr">#[error(<span class="string">&quot;PCSError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"PCSError"</span>)]
   </span>PCSError(<span class="attr">#[from] </span>PCSError),
   <span class="doccomment">/// returned when an invalid sum-check proof is provided
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidSumcheckProof&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidSumcheckProof"</span>)]
   </span>InvalidSumcheckProof,
   <span class="doccomment">/// returned when the initial input to an incremental computation differs from a previously declared arity
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidInitialInputLength&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidInitialInputLength"</span>)]
   </span>InvalidInitialInputLength,
   <span class="doccomment">/// returned when the step execution produces an output whose length differs from a previously declared arity
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidStepOutputLength&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidStepOutputLength"</span>)]
   </span>InvalidStepOutputLength,
   <span class="doccomment">/// returned when the transcript engine encounters an overflow of the round number
-  </span><span class="attr">#[error(<span class="string">&quot;InternalTranscriptError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InternalTranscriptError"</span>)]
   </span>InternalTranscriptError,
   <span class="doccomment">/// returned when the multiset check fails
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidMultisetProof&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidMultisetProof"</span>)]
   </span>InvalidMultisetProof,
   <span class="doccomment">/// returned when the product proof check fails
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidProductProof&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidProductProof"</span>)]
   </span>InvalidProductProof,
   <span class="doccomment">/// returned when the consistency with public IO and assignment used fails
-  </span><span class="attr">#[error(<span class="string">&quot;IncorrectWitness&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"IncorrectWitness"</span>)]
   </span>IncorrectWitness,
   <span class="doccomment">/// return when error during synthesis
-  </span><span class="attr">#[error(<span class="string">&quot;SynthesisError: {0}&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"SynthesisError: {0}"</span>)]
   </span>SynthesisError(String),
   <span class="doccomment">/// returned when there is an error creating a digest
-  </span><span class="attr">#[error(<span class="string">&quot;DigestError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"DigestError"</span>)]
   </span>DigestError,
   <span class="doccomment">/// returned when the prover cannot prove the provided statement due to completeness error
-  </span><span class="attr">#[error(<span class="string">&quot;InternalError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InternalError"</span>)]
   </span>InternalError,
 }
 
@@ -167,13 +168,13 @@
 </span><span class="attr">#[derive(Debug, Eq, PartialEq, Error)]
 </span><span class="kw">pub enum </span>PCSError {
   <span class="doccomment">/// returned when an invalid inner product argument is provided
-  </span><span class="attr">#[error(<span class="string">&quot;InvalidIPA&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"InvalidIPA"</span>)]
   </span>InvalidIPA,
   <span class="doccomment">/// returned when there is a Zeromorph error
-  </span><span class="attr">#[error(<span class="string">&quot;ZMError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"ZMError"</span>)]
   </span>ZMError,
   <span class="doccomment">/// returned when a length check fails in a PCS
-  </span><span class="attr">#[error(<span class="string">&quot;LengthError&quot;</span>)]
+  </span><span class="attr">#[error(<span class="string">"LengthError"</span>)]
   </span>LengthError,
 }
 

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/gadgets/r1cs.rs`."><title>r1cs.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/gadgets/r1cs.rs`."><title>r1cs.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -469,13 +470,13 @@
     u: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>R1CSInstance&lt;E&gt;&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="kw">let </span>W = AllocatedPoint::alloc(
-      cs.namespace(|| <span class="string">&quot;allocate W&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate W"</span>),
       u.map(|u| u.comm_W.to_coordinates()),
     )<span class="question-mark">?</span>;
-    W.check_on_curve(cs.namespace(|| <span class="string">&quot;check W on curve&quot;</span>))<span class="question-mark">?</span>;
+    W.check_on_curve(cs.namespace(|| <span class="string">"check W on curve"</span>))<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>X0 = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;allocate X[0]&quot;</span>), u.map(|u| u.X[<span class="number">0</span>]))<span class="question-mark">?</span>;
-    <span class="kw">let </span>X1 = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;allocate X[1]&quot;</span>), u.map(|u| u.X[<span class="number">1</span>]))<span class="question-mark">?</span>;
+    <span class="kw">let </span>X0 = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">"allocate X[0]"</span>), u.map(|u| u.X[<span class="number">0</span>]))<span class="question-mark">?</span>;
+    <span class="kw">let </span>X1 = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">"allocate X[1]"</span>), u.map(|u| u.X[<span class="number">1</span>]))<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W, X0, X1 })
   }
@@ -512,29 +513,29 @@
     // in the Nova augmented circuit, which ensures that the relaxed instance
     // came from a prior iteration of Nova.
     </span><span class="kw">let </span>W = AllocatedPoint::alloc(
-      cs.namespace(|| <span class="string">&quot;allocate W&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate W"</span>),
       inst.map(|inst| inst.comm_W.to_coordinates()),
     )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>E = AllocatedPoint::alloc(
-      cs.namespace(|| <span class="string">&quot;allocate E&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate E"</span>),
       inst.map(|inst| inst.comm_E.to_coordinates()),
     )<span class="question-mark">?</span>;
 
     <span class="comment">// u &lt;&lt; |E::Base| despite the fact that u is a scalar.
     // So we parse all of its bytes as a E::Base element
-    </span><span class="kw">let </span>u = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">&quot;allocate u&quot;</span>), inst.map(|inst| inst.u))<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>u = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">"allocate u"</span>), inst.map(|inst| inst.u))<span class="question-mark">?</span>;
 
     <span class="comment">// Allocate X0 and X1. If the input instance is None, then allocate default values 0.
     </span><span class="kw">let </span>X0 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;allocate X[0]&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate X[0]"</span>),
       || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>inst.map_or(E::Scalar::ZERO, |inst| inst.X[<span class="number">0</span>]))),
       limb_width,
       n_limbs,
     )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>X1 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;allocate X[1]&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate X[1]"</span>),
       || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>inst.map_or(E::Scalar::ZERO, |inst| inst.X[<span class="number">1</span>]))),
       limb_width,
       n_limbs,
@@ -550,7 +551,7 @@
     limb_width: usize,
     n_limbs: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
-    <span class="kw">let </span>W = AllocatedPoint::default(cs.namespace(|| <span class="string">&quot;allocate W&quot;</span>))<span class="question-mark">?</span>;
+    <span class="kw">let </span>W = AllocatedPoint::default(cs.namespace(|| <span class="string">"allocate W"</span>))<span class="question-mark">?</span>;
     <span class="kw">let </span>E = W.clone();
 
     <span class="kw">let </span>u = W.x.clone(); <span class="comment">// In the default case, W.x = u = 0
@@ -559,14 +560,14 @@
     // If the prover is malicious, it can set to arbitrary values, but the resulting
     // relaxed R1CS instance with the the checked default values of W, E, and u must still be satisfying
     </span><span class="kw">let </span>X0 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;allocate x_default[0]&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate x_default[0]"</span>),
       || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>E::Scalar::ZERO)),
       limb_width,
       n_limbs,
     )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>X1 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;allocate x_default[1]&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate x_default[1]"</span>),
       || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>E::Scalar::ZERO)),
       limb_width,
       n_limbs,
@@ -583,19 +584,19 @@
     limb_width: usize,
     n_limbs: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
-    <span class="kw">let </span>E = AllocatedPoint::default(cs.namespace(|| <span class="string">&quot;allocate default E&quot;</span>))<span class="question-mark">?</span>;
+    <span class="kw">let </span>E = AllocatedPoint::default(cs.namespace(|| <span class="string">"allocate default E"</span>))<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>u = alloc_one(cs.namespace(|| <span class="string">&quot;one&quot;</span>));
+    <span class="kw">let </span>u = alloc_one(cs.namespace(|| <span class="string">"one"</span>));
 
     <span class="kw">let </span>X0 = BigNat::from_num(
-      cs.namespace(|| <span class="string">&quot;allocate X0 from relaxed r1cs&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate X0 from relaxed r1cs"</span>),
       <span class="kw-2">&amp;</span>Num::from(inst.X0),
       limb_width,
       n_limbs,
     )<span class="question-mark">?</span>;
 
     <span class="kw">let </span>X1 = BigNat::from_num(
-      cs.namespace(|| <span class="string">&quot;allocate X1 from relaxed r1cs&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate X1 from relaxed r1cs"</span>),
       <span class="kw-2">&amp;</span>Num::from(inst.X1),
       limb_width,
       n_limbs,
@@ -631,7 +632,7 @@
       .iter()
       .enumerate()
       .map(|(i, limb)| {
-        limb.as_allocated_num(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;convert limb {i} of X_r[0] to num&quot;</span>)))
+        limb.as_allocated_num(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"convert limb {i} of X_r[0] to num"</span>)))
       })
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
 
@@ -647,7 +648,7 @@
       .iter()
       .enumerate()
       .map(|(i, limb)| {
-        limb.as_allocated_num(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;convert limb {i} of X_r[1] to num&quot;</span>)))
+        limb.as_allocated_num(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"convert limb {i} of X_r[1] to num"</span>)))
       })
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
 
@@ -663,7 +664,7 @@
   </span><span class="kw">pub fn </span>fold_with_r1cs&lt;CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
-    params: <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;, <span class="comment">// hash of R1CSShape of F&#39;
+    params: <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;, <span class="comment">// hash of R1CSShape of F'
     </span>u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E&gt;,
     T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E::GE&gt;,
     ro_consts: ROConstantsCircuit&lt;E&gt;,
@@ -680,23 +681,23 @@
     ro.absorb(<span class="kw-2">&amp;</span>T.x);
     ro.absorb(<span class="kw-2">&amp;</span>T.y);
     ro.absorb(<span class="kw-2">&amp;</span>T.is_infinity);
-    <span class="kw">let </span>r_bits = ro.squeeze(cs.namespace(|| <span class="string">&quot;r bits&quot;</span>), NUM_CHALLENGE_BITS)<span class="question-mark">?</span>;
-    <span class="kw">let </span>r = le_bits_to_num(cs.namespace(|| <span class="string">&quot;r&quot;</span>), <span class="kw-2">&amp;</span>r_bits)<span class="question-mark">?</span>;
+    <span class="kw">let </span>r_bits = ro.squeeze(cs.namespace(|| <span class="string">"r bits"</span>), NUM_CHALLENGE_BITS)<span class="question-mark">?</span>;
+    <span class="kw">let </span>r = le_bits_to_num(cs.namespace(|| <span class="string">"r"</span>), <span class="kw-2">&amp;</span>r_bits)<span class="question-mark">?</span>;
 
     <span class="comment">// W_fold = self.W + r * u.W
-    </span><span class="kw">let </span>rW = u.W.scalar_mul(cs.namespace(|| <span class="string">&quot;r * u.W&quot;</span>), <span class="kw-2">&amp;</span>r_bits)<span class="question-mark">?</span>;
-    <span class="kw">let </span>W_fold = <span class="self">self</span>.W.add(cs.namespace(|| <span class="string">&quot;self.W + r * u.W&quot;</span>), <span class="kw-2">&amp;</span>rW)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>rW = u.W.scalar_mul(cs.namespace(|| <span class="string">"r * u.W"</span>), <span class="kw-2">&amp;</span>r_bits)<span class="question-mark">?</span>;
+    <span class="kw">let </span>W_fold = <span class="self">self</span>.W.add(cs.namespace(|| <span class="string">"self.W + r * u.W"</span>), <span class="kw-2">&amp;</span>rW)<span class="question-mark">?</span>;
 
     <span class="comment">// E_fold = self.E + r * T
-    </span><span class="kw">let </span>rT = T.scalar_mul(cs.namespace(|| <span class="string">&quot;r * T&quot;</span>), <span class="kw-2">&amp;</span>r_bits)<span class="question-mark">?</span>;
-    <span class="kw">let </span>E_fold = <span class="self">self</span>.E.add(cs.namespace(|| <span class="string">&quot;self.E + r * T&quot;</span>), <span class="kw-2">&amp;</span>rT)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>rT = T.scalar_mul(cs.namespace(|| <span class="string">"r * T"</span>), <span class="kw-2">&amp;</span>r_bits)<span class="question-mark">?</span>;
+    <span class="kw">let </span>E_fold = <span class="self">self</span>.E.add(cs.namespace(|| <span class="string">"self.E + r * T"</span>), <span class="kw-2">&amp;</span>rT)<span class="question-mark">?</span>;
 
     <span class="comment">// u_fold = u_r + r
-    </span><span class="kw">let </span>u_fold = AllocatedNum::alloc(cs.namespace(|| <span class="string">&quot;u_fold&quot;</span>), || {
+    </span><span class="kw">let </span>u_fold = AllocatedNum::alloc(cs.namespace(|| <span class="string">"u_fold"</span>), || {
       <span class="prelude-val">Ok</span>(<span class="kw-2">*</span><span class="self">self</span>.u.get_value().get()<span class="question-mark">? </span>+ r.get_value().get()<span class="question-mark">?</span>)
     })<span class="question-mark">?</span>;
     cs.enforce(
-      || <span class="string">&quot;Check u_fold&quot;</span>,
+      || <span class="string">"Check u_fold"</span>,
       |lc| lc,
       |lc| lc,
       |lc| lc + u_fold.get_variable() - <span class="self">self</span>.u.get_variable() - r.get_variable(),
@@ -705,7 +706,7 @@
     <span class="comment">// Fold the IO:
     // Analyze r into limbs
     </span><span class="kw">let </span>r_bn = BigNat::from_num(
-      cs.namespace(|| <span class="string">&quot;allocate r_bn&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate r_bn"</span>),
       <span class="kw-2">&amp;</span>Num::from(r),
       limb_width,
       n_limbs,
@@ -713,7 +714,7 @@
 
     <span class="comment">// Allocate the order of the non-native field as a constant
     </span><span class="kw">let </span>m_bn = alloc_bignat_constant(
-      cs.namespace(|| <span class="string">&quot;alloc m&quot;</span>),
+      cs.namespace(|| <span class="string">"alloc m"</span>),
       <span class="kw-2">&amp;</span>E::GE::group_params().<span class="number">2</span>,
       limb_width,
       n_limbs,
@@ -721,33 +722,33 @@
 
     <span class="comment">// Analyze X0 to bignat
     </span><span class="kw">let </span>X0_bn = BigNat::from_num(
-      cs.namespace(|| <span class="string">&quot;allocate X0_bn&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate X0_bn"</span>),
       <span class="kw-2">&amp;</span>Num::from(u.X0.clone()),
       limb_width,
       n_limbs,
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Fold self.X[0] + r * X[0]
-    </span><span class="kw">let </span>(<span class="kw">_</span>, r_0) = X0_bn.mult_mod(cs.namespace(|| <span class="string">&quot;r*X[0]&quot;</span>), <span class="kw-2">&amp;</span>r_bn, <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>(<span class="kw">_</span>, r_0) = X0_bn.mult_mod(cs.namespace(|| <span class="string">"r*X[0]"</span>), <span class="kw-2">&amp;</span>r_bn, <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
     <span class="comment">// add X_r[0]
     </span><span class="kw">let </span>r_new_0 = <span class="self">self</span>.X0.add(<span class="kw-2">&amp;</span>r_0)<span class="question-mark">?</span>;
     <span class="comment">// Now reduce
-    </span><span class="kw">let </span>X0_fold = r_new_0.red_mod(cs.namespace(|| <span class="string">&quot;reduce folded X[0]&quot;</span>), <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>X0_fold = r_new_0.red_mod(cs.namespace(|| <span class="string">"reduce folded X[0]"</span>), <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
 
     <span class="comment">// Analyze X1 to bignat
     </span><span class="kw">let </span>X1_bn = BigNat::from_num(
-      cs.namespace(|| <span class="string">&quot;allocate X1_bn&quot;</span>),
+      cs.namespace(|| <span class="string">"allocate X1_bn"</span>),
       <span class="kw-2">&amp;</span>Num::from(u.X1.clone()),
       limb_width,
       n_limbs,
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Fold self.X[1] + r * X[1]
-    </span><span class="kw">let </span>(<span class="kw">_</span>, r_1) = X1_bn.mult_mod(cs.namespace(|| <span class="string">&quot;r*X[1]&quot;</span>), <span class="kw-2">&amp;</span>r_bn, <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>(<span class="kw">_</span>, r_1) = X1_bn.mult_mod(cs.namespace(|| <span class="string">"r*X[1]"</span>), <span class="kw-2">&amp;</span>r_bn, <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
     <span class="comment">// add X_r[1]
     </span><span class="kw">let </span>r_new_1 = <span class="self">self</span>.X1.add(<span class="kw-2">&amp;</span>r_1)<span class="question-mark">?</span>;
     <span class="comment">// Now reduce
-    </span><span class="kw">let </span>X1_fold = r_new_1.red_mod(cs.namespace(|| <span class="string">&quot;reduce folded X[1]&quot;</span>), <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>X1_fold = r_new_1.red_mod(cs.namespace(|| <span class="string">"reduce folded X[1]"</span>), <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
       W: W_fold,
@@ -781,31 +782,31 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;, SynthesisError&gt; {
   <span class="kw">let </span>c = AllocatedRelaxedR1CSInstance {
     W: conditionally_select_point(
-      cs.namespace(|| <span class="string">&quot;W = cond ? a.W : b.W&quot;</span>),
+      cs.namespace(|| <span class="string">"W = cond ? a.W : b.W"</span>),
       <span class="kw-2">&amp;</span>a.W,
       <span class="kw-2">&amp;</span>b.W,
       condition,
     )<span class="question-mark">?</span>,
     E: conditionally_select_point(
-      cs.namespace(|| <span class="string">&quot;E = cond ? a.E : b.E&quot;</span>),
+      cs.namespace(|| <span class="string">"E = cond ? a.E : b.E"</span>),
       <span class="kw-2">&amp;</span>a.E,
       <span class="kw-2">&amp;</span>b.E,
       condition,
     )<span class="question-mark">?</span>,
     u: conditionally_select(
-      cs.namespace(|| <span class="string">&quot;u = cond ? a.u : b.u&quot;</span>),
+      cs.namespace(|| <span class="string">"u = cond ? a.u : b.u"</span>),
       <span class="kw-2">&amp;</span>a.u,
       <span class="kw-2">&amp;</span>b.u,
       condition,
     )<span class="question-mark">?</span>,
     X0: conditionally_select_bignat(
-      cs.namespace(|| <span class="string">&quot;X[0] = cond ? a.X[0] : b.X[0]&quot;</span>),
+      cs.namespace(|| <span class="string">"X[0] = cond ? a.X[0] : b.X[0]"</span>),
       <span class="kw-2">&amp;</span>a.X0,
       <span class="kw-2">&amp;</span>b.X0,
       condition,
     )<span class="question-mark">?</span>,
     X1: conditionally_select_bignat(
-      cs.namespace(|| <span class="string">&quot;X[1] = cond ? a.X[1] : b.X[1]&quot;</span>),
+      cs.namespace(|| <span class="string">"X[1] = cond ? a.X[1] : b.X[1]"</span>),
       <span class="kw-2">&amp;</span>a.X1,
       <span class="kw-2">&amp;</span>b.X1,
       condition,
@@ -829,7 +830,7 @@
     .zip_eq(b.iter())
     .map(|((i, a), b)| {
       a.conditionally_select(
-        cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;cond ? a[{}]: b[{}]&quot;</span>, i, i)),
+        cs.namespace(|| <span class="macro">format!</span>(<span class="string">"cond ? a[{}]: b[{}]"</span>, i, i)),
         b,
         condition,
       )
@@ -846,19 +847,19 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;G&gt;, SynthesisError&gt; {
   <span class="kw">let </span>c = AllocatedPoint {
     x: conditionally_select(
-      cs.namespace(|| <span class="string">&quot;x = cond ? a.x : b.x&quot;</span>),
+      cs.namespace(|| <span class="string">"x = cond ? a.x : b.x"</span>),
       <span class="kw-2">&amp;</span>a.x,
       <span class="kw-2">&amp;</span>b.x,
       condition,
     )<span class="question-mark">?</span>,
     y: conditionally_select(
-      cs.namespace(|| <span class="string">&quot;y = cond ? a.y : b.y&quot;</span>),
+      cs.namespace(|| <span class="string">"y = cond ? a.y : b.y"</span>),
       <span class="kw-2">&amp;</span>a.y,
       <span class="kw-2">&amp;</span>b.y,
       condition,
     )<span class="question-mark">?</span>,
     is_infinity: conditionally_select(
-      cs.namespace(|| <span class="string">&quot;is_infinity = cond ? a.is_infinity : b.is_infinity&quot;</span>),
+      cs.namespace(|| <span class="string">"is_infinity = cond ? a.is_infinity : b.is_infinity"</span>),
       <span class="kw-2">&amp;</span>a.is_infinity,
       <span class="kw-2">&amp;</span>b.is_infinity,
       condition,

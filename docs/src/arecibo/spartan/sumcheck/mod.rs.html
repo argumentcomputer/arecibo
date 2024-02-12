@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/sumcheck/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/sumcheck/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -612,6 +613,15 @@
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
 <a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::errors::NovaError;
 <span class="kw">use </span><span class="kw">crate</span>::spartan::polys::{
   multilinear::MultilinearPolynomial,
@@ -626,7 +636,7 @@
 <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::spartan) <span class="kw">mod </span>engine;
 
 <span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>SumcheckProof&lt;E: Engine&gt; {
   compressed_polys: Vec&lt;CompressedUniPoly&lt;E::Scalar&gt;&gt;,
 }
@@ -663,11 +673,11 @@
       // decompress() call above already ensures that holds
       </span><span class="macro">debug_assert_eq!</span>(poly.eval_at_zero() + poly.eval_at_one(), e);
 
-      <span class="comment">// append the prover&#39;s message to the transcript
-      </span>transcript.absorb(<span class="string">b&quot;p&quot;</span>, <span class="kw-2">&amp;</span>poly);
+      <span class="comment">// append the prover's message to the transcript
+      </span>transcript.absorb(<span class="string">b"p"</span>, <span class="kw-2">&amp;</span>poly);
 
-      <span class="comment">//derive the verifier&#39;s challenge for the next round
-      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+      <span class="comment">//derive the verifier's challenge for the next round
+      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
 
       r.push(r_i);
 
@@ -763,18 +773,18 @@
         UniPoly::from_evals(<span class="kw-2">&amp;</span>evals)
       };
 
-      <span class="comment">// append the prover&#39;s message to the transcript
-      </span>transcript.absorb(<span class="string">b&quot;p&quot;</span>, <span class="kw-2">&amp;</span>poly);
+      <span class="comment">// append the prover's message to the transcript
+      </span>transcript.absorb(<span class="string">b"p"</span>, <span class="kw-2">&amp;</span>poly);
 
-      <span class="comment">//derive the verifier&#39;s challenge for the next round
-      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+      <span class="comment">//derive the verifier's challenge for the next round
+      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
       r.push(r_i);
       polys.push(poly.compress());
 
       <span class="comment">// Set up next round
       </span>claim_per_round = poly.evaluate(<span class="kw-2">&amp;</span>r_i);
 
-      <span class="comment">// bind all tables to the verifier&#39;s challenge
+      <span class="comment">// bind all tables to the verifier's challenge
       </span>rayon::join(
         || poly_A.bind_poly_var_top(<span class="kw-2">&amp;</span>r_i),
         || poly_B.bind_poly_var_top(<span class="kw-2">&amp;</span>r_i),
@@ -816,10 +826,10 @@
       </span><span class="kw">let </span>a = <span class="kw-2">&amp;</span>poly_A_vec[i];
       <span class="kw">let </span>b = <span class="kw-2">&amp;</span>poly_B_vec[i];
 
-      <span class="kw">for </span>(l, polyname) <span class="kw">in </span>[(a.len(), <span class="string">&quot;poly_A_vec&quot;</span>), (b.len(), <span class="string">&quot;poly_B_vec&quot;</span>)].iter() {
+      <span class="kw">for </span>(l, polyname) <span class="kw">in </span>[(a.len(), <span class="string">"poly_A_vec"</span>), (b.len(), <span class="string">"poly_B_vec"</span>)].iter() {
         <span class="macro">assert_eq!</span>(
           <span class="kw-2">*</span>l, expected_size,
-          <span class="string">&quot;Mismatch in size for {} at index {}&quot;</span>,
+          <span class="string">"Mismatch in size for {} at index {}"</span>,
           polyname, i
         );
       }
@@ -861,14 +871,14 @@
       <span class="kw">let </span>evals = <span class="macro">vec!</span>[evals_combined_0, e - evals_combined_0, evals_combined_2];
       <span class="kw">let </span>poly = UniPoly::from_evals(<span class="kw-2">&amp;</span>evals);
 
-      <span class="comment">// append the prover&#39;s message to the transcript
-      </span>transcript.absorb(<span class="string">b&quot;p&quot;</span>, <span class="kw-2">&amp;</span>poly);
+      <span class="comment">// append the prover's message to the transcript
+      </span>transcript.absorb(<span class="string">b"p"</span>, <span class="kw-2">&amp;</span>poly);
 
-      <span class="comment">// derive the verifier&#39;s challenge for the next round
-      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+      <span class="comment">// derive the verifier's challenge for the next round
+      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
       r.push(r_i);
 
-      <span class="comment">// bound all tables to the verifier&#39;s challenge
+      <span class="comment">// bound all tables to the verifier's challenge
       </span><span class="macro">zip_with_for_each!</span>(
         (
           num_rounds.par_iter(),
@@ -930,10 +940,14 @@
         <span class="comment">// eval 0: bound_func is A(low)
         </span><span class="kw">let </span>eval_point_0 = comb_func(<span class="kw-2">&amp;</span>poly_A[i], <span class="kw-2">&amp;</span>poly_B[i], <span class="kw-2">&amp;</span>poly_C[i]);
 
+        <span class="kw">let </span>poly_A_right_term = poly_A[len + i] - poly_A[i];
+        <span class="kw">let </span>poly_B_right_term = poly_B[len + i] - poly_B[i];
+        <span class="kw">let </span>poly_C_right_term = poly_C[len + i] - poly_C[i];
+
         <span class="comment">// eval 2: bound_func is -A(low) + 2*A(high)
-        </span><span class="kw">let </span>poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
-        <span class="kw">let </span>poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
-        <span class="kw">let </span>poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
+        </span><span class="kw">let </span>poly_A_bound_point = poly_A[len + i] + poly_A_right_term;
+        <span class="kw">let </span>poly_B_bound_point = poly_B[len + i] + poly_B_right_term;
+        <span class="kw">let </span>poly_C_bound_point = poly_C[len + i] + poly_C_right_term;
         <span class="kw">let </span>eval_point_2 = comb_func(
           <span class="kw-2">&amp;</span>poly_A_bound_point,
           <span class="kw-2">&amp;</span>poly_B_bound_point,
@@ -941,9 +955,9 @@
         );
 
         <span class="comment">// eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-        </span><span class="kw">let </span>poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
-        <span class="kw">let </span>poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
-        <span class="kw">let </span>poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
+        </span><span class="kw">let </span>poly_A_bound_point = poly_A_bound_point + poly_A_right_term;
+        <span class="kw">let </span>poly_B_bound_point = poly_B_bound_point + poly_B_right_term;
+        <span class="kw">let </span>poly_C_bound_point = poly_C_bound_point + poly_C_right_term;
         <span class="kw">let </span>eval_point_3 = comb_func(
           <span class="kw-2">&amp;</span>poly_A_bound_point,
           <span class="kw-2">&amp;</span>poly_B_bound_point,
@@ -975,11 +989,16 @@
         <span class="comment">// eval 0: bound_func is A(low)
         </span><span class="kw">let </span>eval_point_0 = comb_func(<span class="kw-2">&amp;</span>poly_A[i], <span class="kw-2">&amp;</span>poly_B[i], <span class="kw-2">&amp;</span>poly_C[i], <span class="kw-2">&amp;</span>poly_D[i]);
 
+        <span class="kw">let </span>poly_A_right_term = poly_A[len + i] - poly_A[i];
+        <span class="kw">let </span>poly_B_right_term = poly_B[len + i] - poly_B[i];
+        <span class="kw">let </span>poly_C_right_term = poly_C[len + i] - poly_C[i];
+        <span class="kw">let </span>poly_D_right_term = poly_D[len + i] - poly_D[i];
+
         <span class="comment">// eval 2: bound_func is -A(low) + 2*A(high)
-        </span><span class="kw">let </span>poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
-        <span class="kw">let </span>poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
-        <span class="kw">let </span>poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
-        <span class="kw">let </span>poly_D_bound_point = poly_D[len + i] + poly_D[len + i] - poly_D[i];
+        </span><span class="kw">let </span>poly_A_bound_point = poly_A[len + i] + poly_A_right_term;
+        <span class="kw">let </span>poly_B_bound_point = poly_B[len + i] + poly_B_right_term;
+        <span class="kw">let </span>poly_C_bound_point = poly_C[len + i] + poly_C_right_term;
+        <span class="kw">let </span>poly_D_bound_point = poly_D[len + i] + poly_D_right_term;
         <span class="kw">let </span>eval_point_2 = comb_func(
           <span class="kw-2">&amp;</span>poly_A_bound_point,
           <span class="kw-2">&amp;</span>poly_B_bound_point,
@@ -988,10 +1007,10 @@
         );
 
         <span class="comment">// eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-        </span><span class="kw">let </span>poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
-        <span class="kw">let </span>poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
-        <span class="kw">let </span>poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
-        <span class="kw">let </span>poly_D_bound_point = poly_D_bound_point + poly_D[len + i] - poly_D[i];
+        </span><span class="kw">let </span>poly_A_bound_point = poly_A_bound_point + poly_A_right_term;
+        <span class="kw">let </span>poly_B_bound_point = poly_B_bound_point + poly_B_right_term;
+        <span class="kw">let </span>poly_C_bound_point = poly_C_bound_point + poly_C_right_term;
+        <span class="kw">let </span>poly_D_bound_point = poly_D_bound_point + poly_D_right_term;
         <span class="kw">let </span>eval_point_3 = comb_func(
           <span class="kw-2">&amp;</span>poly_A_bound_point,
           <span class="kw-2">&amp;</span>poly_B_bound_point,
@@ -1040,18 +1059,18 @@
         UniPoly::from_evals(<span class="kw-2">&amp;</span>evals)
       };
 
-      <span class="comment">// append the prover&#39;s message to the transcript
-      </span>transcript.absorb(<span class="string">b&quot;p&quot;</span>, <span class="kw-2">&amp;</span>poly);
+      <span class="comment">// append the prover's message to the transcript
+      </span>transcript.absorb(<span class="string">b"p"</span>, <span class="kw-2">&amp;</span>poly);
 
-      <span class="comment">//derive the verifier&#39;s challenge for the next round
-      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+      <span class="comment">//derive the verifier's challenge for the next round
+      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
       r.push(r_i);
       polys.push(poly.compress());
 
       <span class="comment">// Set up next round
       </span>claim_per_round = poly.evaluate(<span class="kw-2">&amp;</span>r_i);
 
-      <span class="comment">// bound all tables to the verifier&#39;s challenge
+      <span class="comment">// bound all tables to the verifier's challenge
       </span>rayon::join(
         || {
           rayon::join(
@@ -1109,16 +1128,16 @@
       <span class="kw">let </span>d = <span class="kw-2">&amp;</span>poly_D_vec[i];
 
       <span class="kw">for </span>(l, polyname) <span class="kw">in </span>[
-        (a.len(), <span class="string">&quot;poly_A&quot;</span>),
-        (b.len(), <span class="string">&quot;poly_B&quot;</span>),
-        (c.len(), <span class="string">&quot;poly_C&quot;</span>),
-        (d.len(), <span class="string">&quot;poly_D&quot;</span>),
+        (a.len(), <span class="string">"poly_A"</span>),
+        (b.len(), <span class="string">"poly_B"</span>),
+        (c.len(), <span class="string">"poly_C"</span>),
+        (d.len(), <span class="string">"poly_D"</span>),
       ]
       .iter()
       {
         <span class="macro">assert_eq!</span>(
           <span class="kw-2">*</span>l, expected_size,
-          <span class="string">&quot;Mismatch in size for {} at index {}&quot;</span>,
+          <span class="string">"Mismatch in size for {} at index {}"</span>,
           polyname, i
         );
       }
@@ -1169,11 +1188,11 @@
       ];
       <span class="kw">let </span>poly = UniPoly::from_evals(<span class="kw-2">&amp;</span>evals);
 
-      <span class="comment">// append the prover&#39;s message to the transcript
-      </span>transcript.absorb(<span class="string">b&quot;p&quot;</span>, <span class="kw-2">&amp;</span>poly);
+      <span class="comment">// append the prover's message to the transcript
+      </span>transcript.absorb(<span class="string">b"p"</span>, <span class="kw-2">&amp;</span>poly);
 
-      <span class="comment">//derive the verifier&#39;s challenge for the next round
-      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+      <span class="comment">//derive the verifier's challenge for the next round
+      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
       r.push(r_i);
 
       polys.push(poly.compress());
@@ -1181,7 +1200,7 @@
       <span class="comment">// Set up next round
       </span>claim_per_round = poly.evaluate(<span class="kw-2">&amp;</span>r_i);
 
-      <span class="comment">// bound all the tables to the verifier&#39;s challenge
+      <span class="comment">// bound all the tables to the verifier's challenge
 
       </span><span class="macro">zip_with_for_each!</span>(
         (

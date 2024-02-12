@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/provider/keccak.rs`."><title>keccak.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/provider/keccak.rs`."><title>keccak.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -261,8 +262,8 @@
 <span class="kw">use </span>core::marker::PhantomData;
 <span class="kw">use </span>sha3::{Digest, Keccak256};
 
-<span class="kw">const </span>PERSONA_TAG: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;NoTR&quot;</span>;
-<span class="kw">const </span>DOM_SEP_TAG: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;NoDS&quot;</span>;
+<span class="kw">const </span>PERSONA_TAG: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"NoTR"</span>;
+<span class="kw">const </span>DOM_SEP_TAG: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"NoDS"</span>;
 <span class="kw">const </span>KECCAK256_STATE_SIZE: usize = <span class="number">64</span>;
 <span class="kw">const </span>KECCAK256_PREFIX_CHALLENGE_LO: u8 = <span class="number">0</span>;
 <span class="kw">const </span>KECCAK256_PREFIX_CHALLENGE_HI: u8 = <span class="number">1</span>;
@@ -300,7 +301,7 @@
 }
 
 <span class="kw">impl</span>&lt;E: Engine&gt; TranscriptEngineTrait&lt;E&gt; <span class="kw">for </span>Keccak256Transcript&lt;E&gt; {
-  <span class="kw">fn </span>new(label: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]) -&gt; <span class="self">Self </span>{
+  <span class="kw">fn </span>new(label: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8]) -&gt; <span class="self">Self </span>{
     <span class="kw">let </span>keccak_instance = Keccak256::new();
     <span class="kw">let </span>input = [PERSONA_TAG, label].concat();
     <span class="kw">let </span>output = compute_updated_state(keccak_instance.clone(), <span class="kw-2">&amp;</span>input);
@@ -313,7 +314,7 @@
     }
   }
 
-  <span class="kw">fn </span>squeeze(<span class="kw-2">&amp;mut </span><span class="self">self</span>, label: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;E::Scalar, NovaError&gt; {
+  <span class="kw">fn </span>squeeze(<span class="kw-2">&amp;mut </span><span class="self">self</span>, label: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;E::Scalar, NovaError&gt; {
     <span class="comment">// we gather the full input from the round, preceded by the current state of the transcript
     </span><span class="kw">let </span>input = [
       DOM_SEP_TAG,
@@ -339,12 +340,12 @@
     </span><span class="prelude-val">Ok</span>(E::Scalar::from_uniform(<span class="kw-2">&amp;</span>output))
   }
 
-  <span class="kw">fn </span>absorb&lt;T: TranscriptReprTrait&lt;E::GE&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, label: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8], o: <span class="kw-2">&amp;</span>T) {
+  <span class="kw">fn </span>absorb&lt;T: TranscriptReprTrait&lt;E::GE&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, label: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8], o: <span class="kw-2">&amp;</span>T) {
     <span class="self">self</span>.transcript.update(label);
     <span class="self">self</span>.transcript.update(<span class="kw-2">&amp;</span>o.to_transcript_bytes());
   }
 
-  <span class="kw">fn </span>dom_sep(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]) {
+  <span class="kw">fn </span>dom_sep(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8]) {
     <span class="self">self</span>.transcript.update(DOM_SEP_TAG);
     <span class="self">self</span>.transcript.update(bytes);
   }
@@ -363,47 +364,47 @@
   <span class="kw">use </span>rand::Rng;
   <span class="kw">use </span>sha3::{Digest, Keccak256};
 
-  <span class="kw">fn </span>test_keccak_transcript_with&lt;E: Engine&gt;(expected_h1: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str, expected_h2: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) {
-    <span class="kw">let </span><span class="kw-2">mut </span>transcript: Keccak256Transcript&lt;E&gt; = Keccak256Transcript::new(<span class="string">b&quot;test&quot;</span>);
+  <span class="kw">fn </span>test_keccak_transcript_with&lt;E: Engine&gt;(expected_h1: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, expected_h2: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) {
+    <span class="kw">let </span><span class="kw-2">mut </span>transcript: Keccak256Transcript&lt;E&gt; = Keccak256Transcript::new(<span class="string">b"test"</span>);
 
     <span class="comment">// two scalars
     </span><span class="kw">let </span>s1 = &lt;E <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="number">2u64</span>);
     <span class="kw">let </span>s2 = &lt;E <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="number">5u64</span>);
 
     <span class="comment">// add the scalars to the transcript
-    </span>transcript.absorb(<span class="string">b&quot;s1&quot;</span>, <span class="kw-2">&amp;</span>s1);
-    transcript.absorb(<span class="string">b&quot;s2&quot;</span>, <span class="kw-2">&amp;</span>s2);
+    </span>transcript.absorb(<span class="string">b"s1"</span>, <span class="kw-2">&amp;</span>s1);
+    transcript.absorb(<span class="string">b"s2"</span>, <span class="kw-2">&amp;</span>s2);
 
     <span class="comment">// make a challenge
-    </span><span class="kw">let </span>c1: &lt;E <span class="kw">as </span>Engine&gt;::Scalar = transcript.squeeze(<span class="string">b&quot;c1&quot;</span>).unwrap();
+    </span><span class="kw">let </span>c1: &lt;E <span class="kw">as </span>Engine&gt;::Scalar = transcript.squeeze(<span class="string">b"c1"</span>).unwrap();
     <span class="macro">assert_eq!</span>(hex::encode(c1.to_repr().as_ref()), expected_h1);
 
     <span class="comment">// a scalar
     </span><span class="kw">let </span>s3 = &lt;E <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="number">128u64</span>);
 
     <span class="comment">// add the scalar to the transcript
-    </span>transcript.absorb(<span class="string">b&quot;s3&quot;</span>, <span class="kw-2">&amp;</span>s3);
+    </span>transcript.absorb(<span class="string">b"s3"</span>, <span class="kw-2">&amp;</span>s3);
 
     <span class="comment">// make a challenge
-    </span><span class="kw">let </span>c2: &lt;E <span class="kw">as </span>Engine&gt;::Scalar = transcript.squeeze(<span class="string">b&quot;c2&quot;</span>).unwrap();
+    </span><span class="kw">let </span>c2: &lt;E <span class="kw">as </span>Engine&gt;::Scalar = transcript.squeeze(<span class="string">b"c2"</span>).unwrap();
     <span class="macro">assert_eq!</span>(hex::encode(c2.to_repr().as_ref()), expected_h2);
   }
 
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_keccak_transcript() {
     test_keccak_transcript_with::&lt;PallasEngine&gt;(
-      <span class="string">&quot;5ddffa8dc091862132788b8976af88b9a2c70594727e611c7217ba4c30c8c70a&quot;</span>,
-      <span class="string">&quot;4d4bf42c065870395749fa1c4fb641df1e0d53f05309b03d5b1db7f0be3aa13d&quot;</span>,
+      <span class="string">"5ddffa8dc091862132788b8976af88b9a2c70594727e611c7217ba4c30c8c70a"</span>,
+      <span class="string">"4d4bf42c065870395749fa1c4fb641df1e0d53f05309b03d5b1db7f0be3aa13d"</span>,
     );
 
     test_keccak_transcript_with::&lt;Bn256Engine&gt;(
-      <span class="string">&quot;9fb71e3b74bfd0b60d97349849b895595779a240b92a6fae86bd2812692b6b0e&quot;</span>,
-      <span class="string">&quot;bfd4c50b7d6317e9267d5d65c985eb455a3561129c0b3beef79bfc8461a84f18&quot;</span>,
+      <span class="string">"9fb71e3b74bfd0b60d97349849b895595779a240b92a6fae86bd2812692b6b0e"</span>,
+      <span class="string">"bfd4c50b7d6317e9267d5d65c985eb455a3561129c0b3beef79bfc8461a84f18"</span>,
     );
 
     test_keccak_transcript_with::&lt;Secp256k1Engine&gt;(
-      <span class="string">&quot;9723aafb69ec8f0e9c7de756df0993247d98cf2b2f72fa353e3de654a177e310&quot;</span>,
-      <span class="string">&quot;a6a90fcb6e1b1a2a2f84c950ef1510d369aea8e42085f5c629bfa66d00255f25&quot;</span>,
+      <span class="string">"9723aafb69ec8f0e9c7de756df0993247d98cf2b2f72fa353e3de654a177e310"</span>,
+      <span class="string">"a6a90fcb6e1b1a2a2f84c950ef1510d369aea8e42085f5c629bfa66d00255f25"</span>,
     );
   }
 
@@ -414,7 +415,7 @@
     <span class="kw">let </span>output: [u8; <span class="number">32</span>] = hasher.finalize().into();
     <span class="macro">assert_eq!</span>(
       hex::encode(output),
-      <span class="string">&quot;29045a592007d0c246ef02c2223570da9522d0cf0f73282c79a1bc8f0bb2c238&quot;
+      <span class="string">"29045a592007d0c246ef02c2223570da9522d0cf0f73282c79a1bc8f0bb2c238"
     </span>);
   }
 
@@ -447,7 +448,7 @@
     transcript: <span class="kw-2">&amp;</span>[u8],
     round: u16,
     state: [u8; KECCAK256_STATE_SIZE],
-    label: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8],
+    label: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8],
   ) -&gt; [u8; <span class="number">64</span>] {
     <span class="kw">let </span>input = [
       transcript,
@@ -463,7 +464,7 @@
   <span class="comment">// This test is meant to ensure compatibility between the incremental way of computing the transcript above, and
   // the former, which materialized the entirety of the input vector before calling Keccak256 on it.
   </span><span class="kw">fn </span>test_keccak_transcript_incremental_vs_explicit_with&lt;E: Engine&gt;() {
-    <span class="kw">let </span>test_label = <span class="string">b&quot;test&quot;</span>;
+    <span class="kw">let </span>test_label = <span class="string">b"test"</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>transcript: Keccak256Transcript&lt;E&gt; = Keccak256Transcript::new(test_label);
     <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
 
@@ -475,7 +476,7 @@
     <span class="comment">// add the scalars to the transcripts,
     </span><span class="kw">let </span><span class="kw-2">mut </span>manual_transcript: Vec&lt;u8&gt; = <span class="macro">vec!</span>[];
     <span class="kw">let </span>labels = [
-      <span class="string">b&quot;s1&quot;</span>, <span class="string">b&quot;s2&quot;</span>, <span class="string">b&quot;s3&quot;</span>, <span class="string">b&quot;s4&quot;</span>, <span class="string">b&quot;s5&quot;</span>, <span class="string">b&quot;s6&quot;</span>, <span class="string">b&quot;s7&quot;</span>, <span class="string">b&quot;s8&quot;</span>, <span class="string">b&quot;s9&quot;</span>, <span class="string">b&quot;s0&quot;</span>,
+      <span class="string">b"s1"</span>, <span class="string">b"s2"</span>, <span class="string">b"s3"</span>, <span class="string">b"s4"</span>, <span class="string">b"s5"</span>, <span class="string">b"s6"</span>, <span class="string">b"s7"</span>, <span class="string">b"s8"</span>, <span class="string">b"s9"</span>, <span class="string">b"s0"</span>,
     ];
 
     <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
@@ -489,9 +490,9 @@
     <span class="kw">let </span>initial_state = compute_updated_state_for_testing(<span class="kw-2">&amp;</span>input);
 
     <span class="comment">// make a challenge
-    </span><span class="kw">let </span>c1: &lt;E <span class="kw">as </span>Engine&gt;::Scalar = transcript.squeeze(<span class="string">b&quot;c1&quot;</span>).unwrap();
+    </span><span class="kw">let </span>c1: &lt;E <span class="kw">as </span>Engine&gt;::Scalar = transcript.squeeze(<span class="string">b"c1"</span>).unwrap();
 
-    <span class="kw">let </span>c1_bytes = squeeze_for_testing(<span class="kw-2">&amp;</span>manual_transcript[..], <span class="number">0u16</span>, initial_state, <span class="string">b&quot;c1&quot;</span>);
+    <span class="kw">let </span>c1_bytes = squeeze_for_testing(<span class="kw-2">&amp;</span>manual_transcript[..], <span class="number">0u16</span>, initial_state, <span class="string">b"c1"</span>);
     <span class="kw">let </span>to_hex = |g: E::Scalar| hex::encode(g.to_repr().as_ref());
     <span class="macro">assert_eq!</span>(to_hex(c1), to_hex(E::Scalar::from_uniform(<span class="kw-2">&amp;</span>c1_bytes)));
   }

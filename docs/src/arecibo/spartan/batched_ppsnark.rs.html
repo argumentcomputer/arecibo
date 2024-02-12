@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/batched_ppsnark.rs`."><title>batched_ppsnark.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/spartan/batched_ppsnark.rs`."><title>batched_ppsnark.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1381,23 +1382,23 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="doccomment">/// A type that represents the prover&#39;s key
+<span class="doccomment">/// A type that represents the prover's key
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProverKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   pk_ee: EE::ProverKey,
   S_repr: Vec&lt;R1CSShapeSparkRepr&lt;E&gt;&gt;,
   S_comm: Vec&lt;R1CSShapeSparkCommitment&lt;E&gt;&gt;,
-  vk_digest: E::Scalar, <span class="comment">// digest of verifier&#39;s key
+  vk_digest: E::Scalar, <span class="comment">// digest of verifier's key
 </span>}
 
-<span class="doccomment">/// A type that represents the verifier&#39;s key
+<span class="doccomment">/// A type that represents the verifier's key
 </span><span class="attr">#[derive(Debug, Serialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   vk_ee: EE::VerifierKey,
   S_comm: Vec&lt;R1CSShapeSparkCommitment&lt;E&gt;&gt;,
   num_vars: Vec&lt;usize&gt;,
-  <span class="attr">#[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
+  <span class="attr">#[serde(skip, default = <span class="string">"OnceCell::new"</span>)]
   </span>digest: OnceCell&lt;E::Scalar&gt;,
 }
 <span class="kw">impl</span>&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; VerifierKey&lt;E, EE&gt; {
@@ -1418,7 +1419,7 @@
 <span class="kw">impl</span>&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; SimpleDigestible <span class="kw">for </span>VerifierKey&lt;E, EE&gt; {}
 
 <span class="kw">impl</span>&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; DigestHelperTrait&lt;E&gt; <span class="kw">for </span>VerifierKey&lt;E, EE&gt; {
-  <span class="doccomment">/// Returns the digest of the verifier&#39;s key
+  <span class="doccomment">/// Returns the digest of the verifier's key
   </span><span class="kw">fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E::Scalar {
     <span class="self">self
       </span>.digest
@@ -1427,15 +1428,15 @@
         dc.digest()
       })
       .cloned()
-      .expect(<span class="string">&quot;Failure to retrieve digest!&quot;</span>)
+      .expect(<span class="string">"Failure to retrieve digest!"</span>)
   }
 }
 
 <span class="doccomment">/// A succinct proof of knowledge of a witness to a relaxed R1CS instance
-/// The proof is produced using Spartan&#39;s combination of the sum-check and
+/// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>BatchedRelaxedR1CSSNARK&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   <span class="comment">// commitment to oracles: the first three are for Az, Bz, Cz,
   // and the last two are for memory reads
@@ -1469,7 +1470,7 @@
   <span class="kw">type </span>ProverKey = ProverKey&lt;E, EE&gt;;
   <span class="kw">type </span>VerifierKey = VerifierKey&lt;E, EE&gt;;
 
-  <span class="kw">fn </span>ck_floor() -&gt; Box&lt;<span class="kw">dyn for</span>&lt;<span class="lifetime">&#39;a</span>&gt; Fn(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>R1CSShape&lt;E&gt;) -&gt; usize&gt; {
+  <span class="kw">fn </span>ck_floor() -&gt; Box&lt;<span class="kw">dyn for</span>&lt;<span class="lifetime">'a</span>&gt; Fn(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>R1CSShape&lt;E&gt;) -&gt; usize&gt; {
     Box::new(|shape: <span class="kw-2">&amp;</span>R1CSShape&lt;E&gt;| -&gt; usize {
       <span class="comment">// the commitment key should be large enough to commit to the R1CS matrices
       </span>std::cmp::max(
@@ -1533,13 +1534,13 @@
     </span><span class="kw">let </span>num_rounds_sc = N_max.log_2();
 
     <span class="comment">// Initialize transcript with vk || [Uᵢ]
-    </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b&quot;BatchedRelaxedR1CSSNARK&quot;</span>);
-    transcript.absorb(<span class="string">b&quot;vk&quot;</span>, <span class="kw-2">&amp;</span>pk.vk_digest);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b"BatchedRelaxedR1CSSNARK"</span>);
+    transcript.absorb(<span class="string">b"vk"</span>, <span class="kw-2">&amp;</span>pk.vk_digest);
     <span class="kw">if </span>num_instances &gt; <span class="number">1 </span>{
       <span class="kw">let </span>num_instances_field = E::Scalar::from(num_instances <span class="kw">as </span>u64);
-      transcript.absorb(<span class="string">b&quot;n&quot;</span>, <span class="kw-2">&amp;</span>num_instances_field);
+      transcript.absorb(<span class="string">b"n"</span>, <span class="kw-2">&amp;</span>num_instances_field);
     }
-    transcript.absorb(<span class="string">b&quot;U&quot;</span>, <span class="kw-2">&amp;</span>U);
+    transcript.absorb(<span class="string">b"U"</span>, <span class="kw-2">&amp;</span>U);
 
     <span class="comment">// Append public inputs to Wᵢ: Zᵢ = [Wᵢ, uᵢ, Xᵢ]
     </span><span class="kw">let </span>polys_Z = <span class="macro">zip_with!</span>(par_iter, (W, U, Nis), |W, U, Ni| {
@@ -1574,10 +1575,10 @@
       .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
     comms_Az_Bz_Cz
       .iter()
-      .for_each(|comms| transcript.absorb(<span class="string">b&quot;c&quot;</span>, <span class="kw-2">&amp;</span>comms.as_slice()));
+      .for_each(|comms| transcript.absorb(<span class="string">b"c"</span>, <span class="kw-2">&amp;</span>comms.as_slice()));
 
     <span class="comment">// Compute eq(tau) for each instance in log2(Ni) variables
-    </span><span class="kw">let </span>tau = transcript.squeeze(<span class="string">b&quot;t&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>tau = transcript.squeeze(<span class="string">b"t"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>all_taus = PowPolynomial::squares(<span class="kw-2">&amp;</span>tau, N_max.log_2());
 
     <span class="kw">let </span>(polys_tau, coords_tau): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = Nis
@@ -1623,7 +1624,7 @@
 
     <span class="comment">// absorb the claimed evaluations into the transcript
     </span><span class="kw">for </span>evals <span class="kw">in </span>evals_Az_Bz_Cz_at_tau.iter() {
-      transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>evals.as_slice());
+      transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>evals.as_slice());
     }
 
     <span class="comment">// Pad Zᵢ, E to Nᵢ
@@ -1694,11 +1695,11 @@
 
     <span class="comment">// absorb commitments to L_row and L_col in the transcript
     </span><span class="kw">for </span>comms <span class="kw">in </span>comms_L_row_col.iter() {
-      transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>comms.as_slice());
+      transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>comms.as_slice());
     }
 
     <span class="comment">// For each instance, batch Mz = Az + c*Bz + c^2*Cz
-    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>polys_Mz: Vec&lt;<span class="kw">_</span>&gt; = polys_Az_Bz_Cz
       .par_iter()
@@ -1783,8 +1784,8 @@
     <span class="comment">// a third sum-check instance to prove the read-only memory claim
     // we now need to prove that L_row and L_col are well-formed
     </span><span class="kw">let </span>(mem_sc_inst, comms_mem_oracles, polys_mem_oracles) = {
-      <span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b&quot;g&quot;</span>)<span class="question-mark">?</span>;
-      <span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+      <span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b"g"</span>)<span class="question-mark">?</span>;
+      <span class="kw">let </span>r = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 
       <span class="comment">// We start by computing oracles and auxiliary polynomials to help prove the claim
       // oracles correspond to [t_plus_r_inv_row, w_plus_r_inv_row, t_plus_r_inv_col, w_plus_r_inv_col]
@@ -1821,11 +1822,11 @@
 
       <span class="comment">// Commit to oracles
       </span><span class="kw">for </span>comms <span class="kw">in </span>comms_mem_oracles.iter() {
-        transcript.absorb(<span class="string">b&quot;l&quot;</span>, <span class="kw-2">&amp;</span>comms.as_slice());
+        transcript.absorb(<span class="string">b"l"</span>, <span class="kw-2">&amp;</span>comms.as_slice());
       }
 
       <span class="comment">// Sample new random variable for eq polynomial
-      </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+      </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
       <span class="kw">let </span>all_rhos = PowPolynomial::squares(<span class="kw-2">&amp;</span>rho, N_max.log_2());
 
       <span class="kw">let </span>instances = <span class="macro">zip_with!</span>(
@@ -2031,11 +2032,11 @@
     .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
     <span class="kw">for </span>evals <span class="kw">in </span>evals_vec.iter() {
-      transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>evals.as_slice()); <span class="comment">// comm_vec is already in the transcript
+      transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>evals.as_slice()); <span class="comment">// comm_vec is already in the transcript
     </span>}
     <span class="kw">let </span>evals_vec = evals_vec.into_iter().flatten().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Compute number of variables for each polynomial
     </span><span class="kw">let </span>num_vars_u = w_vec.iter().map(|w| w.p.len().log_2()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
@@ -2089,14 +2090,14 @@
     </span><span class="kw">let </span>num_rounds = vk.S_comm.iter().map(|s| s.N.log_2()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="kw">let </span>num_rounds_max = <span class="kw-2">*</span>num_rounds.iter().max().unwrap();
 
-    <span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b&quot;BatchedRelaxedR1CSSNARK&quot;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b"BatchedRelaxedR1CSSNARK"</span>);
 
-    transcript.absorb(<span class="string">b&quot;vk&quot;</span>, <span class="kw-2">&amp;</span>vk.digest());
+    transcript.absorb(<span class="string">b"vk"</span>, <span class="kw-2">&amp;</span>vk.digest());
     <span class="kw">if </span>num_instances &gt; <span class="number">1 </span>{
       <span class="kw">let </span>num_instances_field = E::Scalar::from(num_instances <span class="kw">as </span>u64);
-      transcript.absorb(<span class="string">b&quot;n&quot;</span>, <span class="kw-2">&amp;</span>num_instances_field);
+      transcript.absorb(<span class="string">b"n"</span>, <span class="kw-2">&amp;</span>num_instances_field);
     }
-    transcript.absorb(<span class="string">b&quot;U&quot;</span>, <span class="kw-2">&amp;</span>U);
+    transcript.absorb(<span class="string">b"U"</span>, <span class="kw-2">&amp;</span>U);
 
     <span class="comment">// Decompress commitments
     </span><span class="kw">let </span>comms_Az_Bz_Cz = <span class="self">self
@@ -2135,23 +2136,23 @@
     <span class="comment">// Add commitments [Az, Bz, Cz] to the transcript
     </span>comms_Az_Bz_Cz
       .iter()
-      .for_each(|comms| transcript.absorb(<span class="string">b&quot;c&quot;</span>, <span class="kw-2">&amp;</span>comms.as_slice()));
+      .for_each(|comms| transcript.absorb(<span class="string">b"c"</span>, <span class="kw-2">&amp;</span>comms.as_slice()));
 
-    <span class="kw">let </span>tau = transcript.squeeze(<span class="string">b&quot;t&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>tau = transcript.squeeze(<span class="string">b"t"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>tau_coords = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds_max).coordinates();
 
     <span class="comment">// absorb the claimed evaluations into the transcript
     </span><span class="self">self</span>.evals_Az_Bz_Cz_at_tau.iter().for_each(|evals| {
-      transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>evals.as_slice());
+      transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>evals.as_slice());
     });
 
     <span class="comment">// absorb commitments to L_row and L_col in the transcript
     </span><span class="kw">for </span>comms <span class="kw">in </span>comms_L_row_col.iter() {
-      transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>comms.as_slice());
+      transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>comms.as_slice());
     }
 
     <span class="comment">// Batch at tau for each instance
-    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Compute eval_Mz = eval_Az_at_tau + c * eval_Bz_at_tau + c^2 * eval_Cz_at_tau
     </span><span class="kw">let </span>evals_Mz: Vec&lt;<span class="kw">_</span>&gt; = <span class="macro">zip_with!</span>(
@@ -2169,16 +2170,16 @@
     )
     .collect();
 
-    <span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b&quot;g&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>r = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b"g"</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>r = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">for </span>comms <span class="kw">in </span>comms_mem_oracles.iter() {
-      transcript.absorb(<span class="string">b&quot;l&quot;</span>, <span class="kw-2">&amp;</span>comms.as_slice());
+      transcript.absorb(<span class="string">b"l"</span>, <span class="kw-2">&amp;</span>comms.as_slice());
     }
 
-    <span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>s = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>s_powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, num_instances * num_claims_per_instance);
 
     <span class="kw">let </span>(claim_sc_final, rand_sc) = {
@@ -2279,7 +2280,7 @@
           };
 
           <span class="comment">// W was evaluated as if it was padded to logNi variables,
-          // so we don&#39;t multiply it by (1-rand_sc_unpad[0])
+          // so we don't multiply it by (1-rand_sc_unpad[0])
           </span>W + factor * rand_sc_unpad[<span class="number">0</span>] * X
         };
 
@@ -2357,10 +2358,10 @@
 
     <span class="comment">// Add all Sumcheck evaluations to the transcript
     </span><span class="kw">for </span>evals <span class="kw">in </span>evals_vec.iter() {
-      transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>evals.as_slice()); <span class="comment">// comm_vec is already in the transcript
+      transcript.absorb(<span class="string">b"e"</span>, <span class="kw-2">&amp;</span>evals.as_slice()); <span class="comment">// comm_vec is already in the transcript
     </span>}
 
-    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>c = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Compute batched polynomial evaluation instance at rand_sc
     </span><span class="kw">let </span>u = {
@@ -2425,27 +2426,27 @@
   /// by taking the MSM of its evaluations with the first 2^m basis points of the commitment key.
   ///
   /// This Sumcheck prover will interpret it as the polynomial
-  ///   P&#39;(X_{0},...,X_{n-1}) = P(X_{n-m},...,X_{n-1}),
+  ///   P'(X_{0},...,X_{n-1}) = P(X_{n-m},...,X_{n-1}),
   /// whose MLE evaluations over {0,1}^m is equal to 2^{n-m} repetitions of the evaluations of P.
   ///
-  /// In order to account for these &quot;imagined&quot; repetitions, the initial claims for this short instances
+  /// In order to account for these "imagined" repetitions, the initial claims for this short instances
   /// are scaled by 2^{n-m}.
   ///
   /// For the first n-m rounds, the univariate polynomials relating to this shorter claim will be constant,
   /// and equal to the initial claims, scaled by 2^{n-m-i}, where i is the round number.
-  /// By definition, P&#39; does not depend on X_i, so binding P&#39; to r_i has no effect on the evaluations.
-  /// The Sumcheck prover will then interpret the polynomial P&#39; as having half as many repetitions
+  /// By definition, P' does not depend on X_i, so binding P' to r_i has no effect on the evaluations.
+  /// The Sumcheck prover will then interpret the polynomial P' as having half as many repetitions
   /// in the next round.
   ///
   /// When we get to round n-m, the Sumcheck proceeds as usual since the polynomials are the expected size
   /// for the round.
   ///
   /// Note that at the end of the protocol, the prover returns the evaluation
-  ///   u&#39; = P&#39;(r_{0},...,r_{n-1}) = P(r_{n-m},...,r_{n-1})
+  ///   u' = P'(r_{0},...,r_{n-1}) = P(r_{n-m},...,r_{n-1})
   /// However, the polynomial we actually committed to over {0,1}^n is
-  ///   P&#39;&#39;(X_{0},...,X_{n-1}) = L_0(X_{0},...,X_{n-m-1}) * P(X_{n-m},...,X_{n-1})
+  ///   P''(X_{0},...,X_{n-1}) = L_0(X_{0},...,X_{n-m-1}) * P(X_{n-m},...,X_{n-1})
   /// The SNARK prover/verifier will need to rescale the evaluation by the first Lagrange polynomial
-  ///   u&#39;&#39; = L_0(r_{0},...,r_{n-m-1}) * u&#39;
+  ///   u'' = L_0(r_{0},...,r_{n-m-1}) * u'
   /// in order batch all evaluations with a single PCS call.
   </span><span class="kw">fn </span>prove_helper&lt;T1, T2, T3, T4&gt;(
     num_rounds: usize,
@@ -2514,7 +2515,7 @@
     .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
 
     <span class="comment">// Sample a challenge for the random linear combination of all scaled claims
-    </span><span class="kw">let </span>s = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>coeffs = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, claims.len());
 
     <span class="comment">// At the start of each round, the running claim is equal to the random linear combination
@@ -2579,11 +2580,11 @@
       <span class="comment">// Coefficient representation of S(X_i)
       </span><span class="kw">let </span>poly = UniPoly::from_evals(<span class="kw-2">&amp;</span>evals);
 
-      <span class="comment">// append the prover&#39;s message to the transcript
-      </span>transcript.absorb(<span class="string">b&quot;p&quot;</span>, <span class="kw-2">&amp;</span>poly);
+      <span class="comment">// append the prover's message to the transcript
+      </span>transcript.absorb(<span class="string">b"p"</span>, <span class="kw-2">&amp;</span>poly);
 
-      <span class="comment">// derive the verifier&#39;s challenge for the next round
-      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
+      <span class="comment">// derive the verifier's challenge for the next round
+      </span><span class="kw">let </span>r_i = transcript.squeeze(<span class="string">b"c"</span>)<span class="question-mark">?</span>;
       r.push(r_i);
 
       <span class="comment">// Bind the variable X_i of polynomials across all claims to r_i.

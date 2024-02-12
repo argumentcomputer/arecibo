@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/supernova/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/supernova/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1203,7 +1204,7 @@
 <a href="#1203" id="1203">1203</a>
 <a href="#1204" id="1204">1204</a>
 <a href="#1205" id="1205">1205</a>
-</pre></div><pre class="rust"><code><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;./Readme.md&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">"./Readme.md"</span>)]
 
 </span><span class="kw">use </span>std::ops::Index;
 
@@ -1224,13 +1225,13 @@
   Commitment, CommitmentKey, R1CSWithArity,
 };
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 </span><span class="kw">use </span>abomonation::Abomonation;
-<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 </span><span class="kw">use </span>abomonation_derive::Abomonation;
 <span class="kw">use </span>bellpepper_core::SynthesisError;
 <span class="kw">use </span>ff::Field;
-<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 </span><span class="kw">use </span>ff::PrimeField;
 <span class="kw">use </span>itertools::Itertools <span class="kw">as _</span>;
 <span class="kw">use </span>once_cell::sync::OnceCell;
@@ -1276,16 +1277,16 @@
     <span class="self">Self </span>{ digests }
   }
 
-  <span class="doccomment">/// Return the [`CircuitDigests`]&#39; digest.
+  <span class="doccomment">/// Return the [`CircuitDigests`]' digest.
   </span><span class="kw">pub fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E::Scalar {
-    <span class="kw">let </span>dc: DigestComputer&lt;<span class="lifetime">&#39;_</span>, &lt;E <span class="kw">as </span>Engine&gt;::Scalar, <span class="self">Self</span>&gt; = DigestComputer::new(<span class="self">self</span>);
-    dc.digest().expect(<span class="string">&quot;Failure in computing digest&quot;</span>)
+    <span class="kw">let </span>dc: DigestComputer&lt;<span class="lifetime">'_</span>, &lt;E <span class="kw">as </span>Engine&gt;::Scalar, <span class="self">Self</span>&gt; = DigestComputer::new(<span class="self">self</span>);
+    dc.digest().expect(<span class="string">"Failure in computing digest"</span>)
   }
 }
 
 <span class="doccomment">/// A vector of [`R1CSWithArity`] adjoined to a set of [`PublicParams`]
 </span><span class="attr">#[derive(Debug, Serialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>PublicParams&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -1304,8 +1305,8 @@
   circuit_shape_secondary: R1CSWithArity&lt;Dual&lt;E1&gt;&gt;,
   augmented_circuit_params_secondary: SuperNovaAugmentedCircuitParams,
 
-  <span class="doccomment">/// Digest constructed from this `PublicParams`&#39; parameters
-  </span><span class="attr">#[serde(skip, default = <span class="string">&quot;OnceCell::new&quot;</span>)]
+  <span class="doccomment">/// Digest constructed from this `PublicParams`' parameters
+  </span><span class="attr">#[serde(skip, default = <span class="string">"OnceCell::new"</span>)]
   </span>digest: OnceCell&lt;E1::Scalar&gt;,
 }
 
@@ -1313,7 +1314,7 @@
 /// secondary circuit. This is used as a helper struct when reconstructing
 /// [`PublicParams`] downstream in lurk.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>AuxParams&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -1333,7 +1334,7 @@
 }
 
 <span class="doccomment">/// A variant of [`crate::supernova::AuxParams`] that is suitable for fast ser/de using Abomonation
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+</span><span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 #[derive(Debug, Clone, PartialEq, Abomonation)]
 #[abomonation_bounds(
 <span class="kw">where
@@ -1360,18 +1361,18 @@
   </span>digest: E1::Scalar,
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 </span><span class="kw">impl</span>&lt;E1&gt; TryFrom&lt;AuxParams&lt;E1&gt;&gt; <span class="kw">for </span>FlatAuxParams&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
 {
-  <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+  <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
   <span class="kw">fn </span>try_from(value: AuxParams&lt;E1&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
     <span class="kw">let </span>ck_primary =
-      Arc::try_unwrap(value.ck_primary).map_err(|<span class="kw">_</span>| <span class="string">&quot;Failed to unwrap Arc for ck_primary&quot;</span>)<span class="question-mark">?</span>;
+      Arc::try_unwrap(value.ck_primary).map_err(|<span class="kw">_</span>| <span class="string">"Failed to unwrap Arc for ck_primary"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>ck_secondary =
-      Arc::try_unwrap(value.ck_secondary).map_err(|<span class="kw">_</span>| <span class="string">&quot;Failed to unwrap Arc for ck_secondary&quot;</span>)<span class="question-mark">?</span>;
+      Arc::try_unwrap(value.ck_secondary).map_err(|<span class="kw">_</span>| <span class="string">"Failed to unwrap Arc for ck_secondary"</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
       ro_consts_primary: value.ro_consts_primary,
       ro_consts_circuit_primary: value.ro_consts_circuit_primary,
@@ -1387,7 +1388,7 @@
   }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;abomonate&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"abomonate"</span>)]
 </span><span class="kw">impl</span>&lt;E1&gt; From&lt;FlatAuxParams&lt;E1&gt;&gt; <span class="kw">for </span>AuxParams&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -1435,7 +1436,7 @@
   /// larger sizes for these parameters. These SNARKs provide a hint for these values by
   /// implementing `RelaxedR1CSSNARKTrait::commitment_key_floor()`, which can be passed to this function.
   ///
-  /// If you&#39;re not using such a SNARK, pass `&amp;(|_| 0)` instead.
+  /// If you're not using such a SNARK, pass `&amp;(|_| 0)` instead.
   ///
   /// # Arguments
   ///
@@ -1462,7 +1463,7 @@
         <span class="kw">let </span>c_primary = non_uniform_circuit.primary_circuit(i);
         <span class="kw">let </span>F_arity = c_primary.arity();
         <span class="comment">// Initialize ck for the primary
-        </span><span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, NC::C1&gt; =
+        </span><span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, NC::C1&gt; =
           SuperNovaAugmentedCircuit::new(
             <span class="kw-2">&amp;</span>augmented_circuit_params_primary,
             <span class="prelude-val">None</span>,
@@ -1473,7 +1474,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;E1&gt; = ShapeCS::new();
         circuit_primary
           .synthesize(<span class="kw-2">&amp;mut </span>cs)
-          .expect(<span class="string">&quot;circuit synthesis failed&quot;</span>);
+          .expect(<span class="string">"circuit synthesis failed"</span>);
 
         <span class="comment">// We use the largest commitment_key for all instances
         </span><span class="kw">let </span>r1cs_shape_primary = cs.r1cs_shape();
@@ -1491,7 +1492,7 @@
     <span class="kw">let </span>F_arity_secondary = c_secondary.arity();
     <span class="kw">let </span>ro_consts_circuit_secondary: ROConstantsCircuit&lt;E1&gt; = ROConstantsCircuit::&lt;E1&gt;::default();
 
-    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, NC::C2&gt; =
+    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, NC::C2&gt; =
       SuperNovaAugmentedCircuit::new(
         <span class="kw-2">&amp;</span>augmented_circuit_params_secondary,
         <span class="prelude-val">None</span>,
@@ -1502,7 +1503,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>cs: ShapeCS&lt;Dual&lt;E1&gt;&gt; = ShapeCS::new();
     circuit_secondary
       .synthesize(<span class="kw-2">&amp;mut </span>cs)
-      .expect(<span class="string">&quot;circuit synthesis failed&quot;</span>);
+      .expect(<span class="string">"circuit synthesis failed"</span>);
     <span class="kw">let </span>(r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     <span class="kw">let </span>ck_secondary = Arc::new(ck_secondary);
     <span class="kw">let </span>circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
@@ -1579,13 +1580,13 @@
     <span class="macro">assert_eq!</span>(
       aux_params.digest,
       pp.digest(),
-      <span class="string">&quot;param data is invalid; aux_params contained the incorrect digest&quot;
+      <span class="string">"param data is invalid; aux_params contained the incorrect digest"
     </span>);
     pp
   }
 
   <span class="doccomment">/// Create a [`PublicParams`] from a vector of raw [`R1CSWithArity`] and auxiliary params.
-  /// We don&#39;t check that the `aux_params.digest` is a valid digest for the created params.
+  /// We don't check that the `aux_params.digest` is a valid digest for the created params.
   </span><span class="kw">pub fn </span>from_parts_unchecked(
     circuit_shapes: Vec&lt;R1CSWithArity&lt;E1&gt;&gt;,
     aux_params: AuxParams&lt;E1&gt;,
@@ -1617,19 +1618,19 @@
       .max()
       .unwrap();
 
-    E1::CE::setup(<span class="string">b&quot;ck&quot;</span>, size_primary)
+    E1::CE::setup(<span class="string">b"ck"</span>, size_primary)
   }
 
-  <span class="doccomment">/// Return the [`PublicParams`]&#39; digest.
+  <span class="doccomment">/// Return the [`PublicParams`]' digest.
   </span><span class="kw">pub fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; E1::Scalar {
     <span class="self">self
       </span>.digest
       .get_or_try_init(|| {
-        <span class="kw">let </span>dc: DigestComputer&lt;<span class="lifetime">&#39;_</span>, &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar, <span class="self">Self</span>&gt; = DigestComputer::new(<span class="self">self</span>);
+        <span class="kw">let </span>dc: DigestComputer&lt;<span class="lifetime">'_</span>, &lt;E1 <span class="kw">as </span>Engine&gt;::Scalar, <span class="self">Self</span>&gt; = DigestComputer::new(<span class="self">self</span>);
         dc.digest()
       })
       .cloned()
-      .expect(<span class="string">&quot;Failure in retrieving digest&quot;</span>)
+      .expect(<span class="string">"Failure in retrieving digest"</span>)
   }
 
   <span class="doccomment">/// All of the primary circuit digests of this [`PublicParams`]
@@ -1652,10 +1653,10 @@
   }
 }
 
-<span class="doccomment">/// A resource buffer for SuperNova&#39;s [`RecursiveSNARK`] for storing scratch values that are computed by `prove_step`,
+<span class="doccomment">/// A resource buffer for SuperNova's [`RecursiveSNARK`] for storing scratch values that are computed by `prove_step`,
 /// which allows the reuse of memory allocations and avoids unnecessary new allocations in the critical section.
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">struct </span>ResourceBuffer&lt;E: Engine&gt; {
   l_w: <span class="prelude-ty">Option</span>&lt;R1CSWitness&lt;E&gt;&gt;,
   l_u: <span class="prelude-ty">Option</span>&lt;R1CSInstance&lt;E&gt;&gt;,
@@ -1669,7 +1670,7 @@
 
 <span class="doccomment">/// A SNARK that proves the correct execution of an non-uniform incremental computation
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = <span class="string">&quot;&quot;</span>)]
+#[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>RecursiveSNARK&lt;E1&gt;
 <span class="kw">where
   </span>E1: CurveCycleEquipped,
@@ -1749,7 +1750,7 @@
     <span class="comment">// base case for the primary
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs_primary = SatisfyingAssignment::&lt;E1&gt;::new();
     <span class="kw">let </span>program_counter = E1::Scalar::from(circuit_index <span class="kw">as </span>u64);
-    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;&gt; =
+    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::&lt;E1&gt;(pp.digest()),
         E1::Scalar::ZERO,
@@ -1762,7 +1763,7 @@
         </span>E1::Scalar::ZERO,      <span class="comment">// u_index is always zero for the primary circuit
       </span>);
 
-    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C0::C1&gt; =
+    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, C0::C1&gt; =
       SuperNovaAugmentedCircuit::new(
         <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
         <span class="prelude-val">Some</span>(inputs_primary),
@@ -1773,7 +1774,7 @@
 
     <span class="kw">let </span>(zi_primary_pc_next, zi_primary) =
       circuit_primary.synthesize(<span class="kw-2">&amp;mut </span>cs_primary).map_err(|err| {
-        <span class="macro">debug!</span>(<span class="string">&quot;err {:?}&quot;</span>, err);
+        <span class="macro">debug!</span>(<span class="string">"err {:?}"</span>, err);
         NovaError::from(err)
       })<span class="question-mark">?</span>;
     <span class="kw">if </span>zi_primary.len() != pp[circuit_index].F_arity {
@@ -1784,14 +1785,14 @@
     <span class="kw">let </span>(u_primary, w_primary) = cs_primary
       .r1cs_instance_and_witness(<span class="kw-2">&amp;</span>pp[circuit_index].r1cs_shape, <span class="kw-2">&amp;</span>pp.ck_primary)
       .map_err(|err| {
-        <span class="macro">debug!</span>(<span class="string">&quot;err {:?}&quot;</span>, err);
+        <span class="macro">debug!</span>(<span class="string">"err {:?}"</span>, err);
         err
       })<span class="question-mark">?</span>;
 
     <span class="comment">// base case for the secondary
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs_secondary = SatisfyingAssignment::&lt;Dual&lt;E1&gt;&gt;::new();
     <span class="kw">let </span>u_primary_index = &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(circuit_index <span class="kw">as </span>u64);
-    <span class="kw">let </span>inputs_secondary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E1&gt; =
+    <span class="kw">let </span>inputs_secondary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'_</span>, E1&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         pp.digest(),
         &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO,
@@ -1804,7 +1805,7 @@
         </span>u_primary_index,  <span class="comment">// index of the circuit proof u_primary
       </span>);
 
-    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C0::C2&gt; =
+    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, C0::C2&gt; =
       SuperNovaAugmentedCircuit::new(
         <span class="kw-2">&amp;</span>pp.augmented_circuit_params_secondary,
         <span class="prelude-val">Some</span>(inputs_secondary),
@@ -1851,7 +1852,7 @@
       })
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;, SuperNovaError&gt;&gt;()<span class="question-mark">?</span>;
     <span class="kw">let </span>zi_primary_pc_next = zi_primary_pc_next
-      .expect(<span class="string">&quot;zi_primary_pc_next missing&quot;</span>)
+      .expect(<span class="string">"zi_primary_pc_next missing"</span>)
       .get_value()
       .ok_or::&lt;SuperNovaError&gt;(NovaError::from(SynthesisError::AssignmentMissing).into())<span class="question-mark">?</span>;
     <span class="kw">let </span>zi_secondary = zi_secondary
@@ -1931,7 +1932,7 @@
 
   <span class="doccomment">/// executing a step of the incremental computation
   </span><span class="attr">#[allow(clippy::too_many_arguments)]
-  #[tracing::instrument(skip_all, name = <span class="string">&quot;supernova::RecursiveSNARK::prove_step&quot;</span>)]
+  #[tracing::instrument(skip_all, name = <span class="string">"supernova::RecursiveSNARK::prove_step"</span>)]
   </span><span class="kw">pub fn </span>prove_step&lt;C1: StepCircuit&lt;E1::Scalar&gt;, C2: StepCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;&gt;(
     <span class="kw-2">&amp;mut </span><span class="self">self</span>,
     pp: <span class="kw-2">&amp;</span>PublicParams&lt;E1&gt;,
@@ -1953,7 +1954,7 @@
     <span class="kw">let </span>circuit_index = c_primary.circuit_index();
     <span class="macro">assert_eq!</span>(<span class="self">self</span>.program_counter, E1::Scalar::from(circuit_index <span class="kw">as </span>u64));
 
-    <span class="comment">// fold the secondary circuit&#39;s instance
+    <span class="comment">// fold the secondary circuit's instance
     </span><span class="kw">let </span>nifs_secondary = NIFS::prove_mut(
       <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
@@ -1975,7 +1976,7 @@
     );
     <span class="kw">let </span>T = Commitment::&lt;Dual&lt;E1&gt;&gt;::decompress(<span class="kw-2">&amp;</span>nifs_secondary.comm_T)
       .map_err(SuperNovaError::NovaError)<span class="question-mark">?</span>;
-    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;&gt; =
+    <span class="kw">let </span>inputs_primary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::&lt;E1&gt;(<span class="self">self</span>.pp_digest),
         E1::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64),
@@ -1988,7 +1989,7 @@
         E1::Scalar::ZERO,
       );
 
-    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C1&gt; =
+    <span class="kw">let </span>circuit_primary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, C1&gt; =
       SuperNovaAugmentedCircuit::new(
         <span class="kw-2">&amp;</span>pp.augmented_circuit_params_primary,
         <span class="prelude-val">Some</span>(inputs_primary),
@@ -2049,7 +2050,7 @@
     );
     <span class="kw">let </span>binding =
       Commitment::&lt;E1&gt;::decompress(<span class="kw-2">&amp;</span>nifs_primary.comm_T).map_err(SuperNovaError::NovaError)<span class="question-mark">?</span>;
-    <span class="kw">let </span>inputs_secondary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">&#39;_</span>, E1&gt; =
+    <span class="kw">let </span>inputs_secondary: SuperNovaAugmentedCircuitInputs&lt;<span class="lifetime">'_</span>, E1&gt; =
       SuperNovaAugmentedCircuitInputs::new(
         <span class="self">self</span>.pp_digest,
         &lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="self">self</span>.i <span class="kw">as </span>u64),
@@ -2062,7 +2063,7 @@
         </span>&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(circuit_index <span class="kw">as </span>u64),
       );
 
-    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, E1, C2&gt; = SuperNovaAugmentedCircuit::new(
+    <span class="kw">let </span>circuit_secondary: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, C2&gt; = SuperNovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>pp.augmented_circuit_params_secondary,
       <span class="prelude-val">Some</span>(inputs_secondary),
       c_secondary,
@@ -2090,7 +2091,7 @@
       })
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;, SuperNovaError&gt;&gt;()<span class="question-mark">?</span>;
     <span class="kw">let </span>zi_primary_pc_next = zi_primary_pc_next
-      .expect(<span class="string">&quot;zi_primary_pc_next missing&quot;</span>)
+      .expect(<span class="string">"zi_primary_pc_next missing"</span>)
       .get_value()
       .ok_or::&lt;SuperNovaError&gt;(NovaError::from(SynthesisError::AssignmentMissing).into())<span class="question-mark">?</span>;
     <span class="kw">let </span>zi_secondary = zi_secondary
@@ -2128,7 +2129,7 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;E1::Scalar&gt;, Vec&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;), SuperNovaError&gt; {
     <span class="comment">// number of steps cannot be zero
     </span><span class="kw">if </span><span class="self">self</span>.i == <span class="number">0 </span>{
-      <span class="macro">debug!</span>(<span class="string">&quot;must verify on valid RecursiveSNARK where i &gt; 0&quot;</span>);
+      <span class="macro">debug!</span>(<span class="string">"must verify on valid RecursiveSNARK where i &gt; 0"</span>);
       <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
@@ -2136,7 +2137,7 @@
     </span><span class="kw">if </span><span class="self">self</span>.r_U_primary.len() != <span class="self">self</span>.num_augmented_circuits
       || <span class="self">self</span>.r_W_primary.len() != <span class="self">self</span>.num_augmented_circuits
     {
-      <span class="macro">debug!</span>(<span class="string">&quot;r_primary length mismatch&quot;</span>);
+      <span class="macro">debug!</span>(<span class="string">"r_primary length mismatch"</span>);
       <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
 
@@ -2149,7 +2150,7 @@
       .try_for_each(|(i, (u, w))| <span class="kw">match </span>(u, w) {
         (<span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="prelude-val">Some</span>(<span class="kw">_</span>)) | (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Ok</span>(()),
         <span class="kw">_ </span>=&gt; {
-          <span class="macro">debug!</span>(<span class="string">&quot;r_primary[{:?}]: mismatched instance/witness pair&quot;</span>, i);
+          <span class="macro">debug!</span>(<span class="string">"r_primary[{:?}]: mismatched instance/witness pair"</span>, i);
           <span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError))
         }
       })<span class="question-mark">?</span>;
@@ -2159,7 +2160,7 @@
     <span class="comment">// check we have an instance/witness pair for the circuit_index
     </span><span class="kw">if </span><span class="self">self</span>.r_U_primary[circuit_index].is_none() {
       <span class="macro">debug!</span>(
-        <span class="string">&quot;r_primary[{:?}]: instance/witness pair is missing&quot;</span>,
+        <span class="string">"r_primary[{:?}]: instance/witness pair is missing"</span>,
         circuit_index
       );
       <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
@@ -2171,7 +2172,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(u) = r_U_primary_i {
           <span class="kw">if </span>u.X.len() != <span class="number">2 </span>{
             <span class="macro">debug!</span>(
-              <span class="string">&quot;r_U_primary[{:?}] got instance length {:?} != 2&quot;</span>,
+              <span class="string">"r_U_primary[{:?}] got instance length {:?} != 2"</span>,
               i,
               u.X.len(),
             );
@@ -2182,7 +2183,7 @@
 
       <span class="kw">if </span><span class="self">self</span>.l_u_secondary.X.len() != <span class="number">2 </span>{
         <span class="macro">debug!</span>(
-          <span class="string">&quot;l_U_secondary got instance length {:?} != 2&quot;</span>,
+          <span class="string">"l_U_secondary got instance length {:?} != 2"</span>,
           <span class="self">self</span>.l_u_secondary.X.len(),
         );
         <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
@@ -2190,7 +2191,7 @@
 
       <span class="kw">if </span><span class="self">self</span>.r_U_secondary.X.len() != <span class="number">2 </span>{
         <span class="macro">debug!</span>(
-          <span class="string">&quot;r_U_secondary got instance length {:?} != 2&quot;</span>,
+          <span class="string">"r_U_secondary got instance length {:?} != 2"</span>,
           <span class="self">self</span>.r_U_secondary.X.len(),
         );
         <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
@@ -2252,14 +2253,14 @@
 
     <span class="kw">if </span>hash_primary != <span class="self">self</span>.l_u_secondary.X[<span class="number">0</span>] {
       <span class="macro">debug!</span>(
-        <span class="string">&quot;hash_primary {:?} not equal l_u_secondary.X[0] {:?}&quot;</span>,
+        <span class="string">"hash_primary {:?} not equal l_u_secondary.X[0] {:?}"</span>,
         hash_primary, <span class="self">self</span>.l_u_secondary.X[<span class="number">0</span>]
       );
       <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
     }
     <span class="kw">if </span>hash_secondary != scalar_as_base::&lt;Dual&lt;E1&gt;&gt;(<span class="self">self</span>.l_u_secondary.X[<span class="number">1</span>]) {
       <span class="macro">debug!</span>(
-        <span class="string">&quot;hash_secondary {:?} not equal l_u_secondary.X[1] {:?}&quot;</span>,
+        <span class="string">"hash_secondary {:?} not equal l_u_secondary.X[1] {:?}"</span>,
         hash_secondary, <span class="self">self</span>.l_u_secondary.X[<span class="number">1</span>]
       );
       <span class="kw">return </span><span class="prelude-val">Err</span>(SuperNovaError::NovaError(NovaError::ProofVerifyError));
@@ -2301,15 +2302,15 @@
     );
 
     res_r_primary.map_err(|err| <span class="kw">match </span>err {
-      NovaError::UnSatIndex(i) =&gt; SuperNovaError::UnSatIndex(<span class="string">&quot;r_primary&quot;</span>, i),
+      NovaError::UnSatIndex(i) =&gt; SuperNovaError::UnSatIndex(<span class="string">"r_primary"</span>, i),
       e =&gt; SuperNovaError::NovaError(e),
     })<span class="question-mark">?</span>;
     res_r_secondary.map_err(|err| <span class="kw">match </span>err {
-      NovaError::UnSatIndex(i) =&gt; SuperNovaError::UnSatIndex(<span class="string">&quot;r_secondary&quot;</span>, i),
+      NovaError::UnSatIndex(i) =&gt; SuperNovaError::UnSatIndex(<span class="string">"r_secondary"</span>, i),
       e =&gt; SuperNovaError::NovaError(e),
     })<span class="question-mark">?</span>;
     res_l_secondary.map_err(|err| <span class="kw">match </span>err {
-      NovaError::UnSatIndex(i) =&gt; SuperNovaError::UnSatIndex(<span class="string">&quot;l_secondary&quot;</span>, i),
+      NovaError::UnSatIndex(i) =&gt; SuperNovaError::UnSatIndex(<span class="string">"l_secondary"</span>, i),
       e =&gt; SuperNovaError::NovaError(e),
     })<span class="question-mark">?</span>;
 
@@ -2372,7 +2373,7 @@
   </span><span class="kw">let </span>ro_consts_circuit = ROConstantsCircuit::&lt;Dual&lt;E1&gt;&gt;::default();
 
   <span class="comment">// Initialize ck for the primary
-  </span><span class="kw">let </span>augmented_circuit: SuperNovaAugmentedCircuit&lt;<span class="lifetime">&#39;_</span>, Dual&lt;E1&gt;, C&gt; =
+  </span><span class="kw">let </span>augmented_circuit: SuperNovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, Dual&lt;E1&gt;, C&gt; =
     SuperNovaAugmentedCircuit::new(
       <span class="kw-2">&amp;</span>augmented_circuit_params,
       <span class="prelude-val">None</span>,

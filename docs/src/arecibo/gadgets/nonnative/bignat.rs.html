@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/gadgets/nonnative/bignat.rs`."><title>bignat.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/gadgets/nonnative/bignat.rs`."><title>bignat.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="arecibo" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -952,7 +953,7 @@
         .collect(),
     )
   } <span class="kw">else </span>{
-    <span class="macro">eprintln!</span>(<span class="string">&quot;nat {nat} does not fit in {n_limbs} limbs of width {limb_width}&quot;</span>);
+    <span class="macro">eprintln!</span>(<span class="string">"nat {nat} does not fit in {n_limbs} limbs of width {limb_width}"</span>);
     <span class="prelude-val">Err</span>(SynthesisError::Unsatisfiable)
   }
 }
@@ -1028,11 +1029,11 @@
     <span class="kw">let </span>limbs = (<span class="number">0</span>..n_limbs)
       .map(|limb_i| {
         cs.alloc(
-          || <span class="macro">format!</span>(<span class="string">&quot;limb {limb_i}&quot;</span>),
+          || <span class="macro">format!</span>(<span class="string">"limb {limb_i}"</span>),
           || <span class="kw">match </span>values_cell {
             <span class="prelude-val">Ok</span>(<span class="kw-2">ref </span>vs) =&gt; {
               <span class="kw">if </span>vs.len() != n_limbs {
-                <span class="macro">eprintln!</span>(<span class="string">&quot;Values do not match stated limb count&quot;</span>);
+                <span class="macro">eprintln!</span>(<span class="string">"Values do not match stated limb count"</span>);
                 <span class="kw">return </span><span class="prelude-val">Err</span>(SynthesisError::Unsatisfiable);
               }
               <span class="kw">if </span>value.is_none() {
@@ -1043,10 +1044,10 @@
               }
               <span class="prelude-val">Ok</span>(vs[limb_i])
             }
-            <span class="comment">// Hack b/c SynthesisError and io::Error don&#39;t implement Clone
+            <span class="comment">// Hack b/c SynthesisError and io::Error don't implement Clone
             </span><span class="prelude-val">Err</span>(<span class="kw-2">ref </span>e) =&gt; <span class="prelude-val">Err</span>(SynthesisError::from(std::io::Error::new(
               std::io::ErrorKind::Other,
-              <span class="macro">format!</span>(<span class="string">&quot;{e}&quot;</span>),
+              <span class="macro">format!</span>(<span class="string">"{e}"</span>),
             ))),
           },
         )
@@ -1086,7 +1087,7 @@
     <span class="kw">let </span>limbs = (<span class="number">0</span>..n_limbs)
       .map(|limb_i| {
         cs.alloc(
-          || <span class="macro">format!</span>(<span class="string">&quot;limb {limb_i}&quot;</span>),
+          || <span class="macro">format!</span>(<span class="string">"limb {limb_i}"</span>),
           || <span class="kw">match </span>all_values_cell {
             <span class="prelude-val">Ok</span>((<span class="kw-2">ref </span>vs, <span class="kw-2">ref </span>v)) =&gt; {
               <span class="kw">if </span>value.is_none() {
@@ -1095,10 +1096,10 @@
               limb_values.push(vs[limb_i]);
               <span class="prelude-val">Ok</span>(vs[limb_i])
             }
-            <span class="comment">// Hack b/c SynthesisError and io::Error don&#39;t implement Clone
+            <span class="comment">// Hack b/c SynthesisError and io::Error don't implement Clone
             </span><span class="prelude-val">Err</span>(<span class="kw-2">ref </span>e) =&gt; <span class="prelude-val">Err</span>(SynthesisError::from(std::io::Error::new(
               std::io::ErrorKind::Other,
-              <span class="macro">format!</span>(<span class="string">&quot;{e}&quot;</span>),
+              <span class="macro">format!</span>(<span class="string">"{e}"</span>),
             ))),
           },
         )
@@ -1127,7 +1128,7 @@
     n_limbs: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="kw">let </span>bignat = <span class="self">Self</span>::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;bignat&quot;</span>),
+      cs.namespace(|| <span class="string">"bignat"</span>),
       || {
         <span class="prelude-val">Ok</span>({
           n.value
@@ -1142,9 +1143,9 @@
 
     <span class="comment">// check if bignat equals n
     // (1) decompose `bignat` into a bitvector `bv`
-    </span><span class="kw">let </span>bv = bignat.decompose(cs.namespace(|| <span class="string">&quot;bv&quot;</span>))<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>bv = bignat.decompose(cs.namespace(|| <span class="string">"bv"</span>))<span class="question-mark">?</span>;
     <span class="comment">// (2) recompose bits and check if it equals n
-    </span>n.is_equal(cs.namespace(|| <span class="string">&quot;n&quot;</span>), <span class="kw-2">&amp;</span>bv);
+    </span>n.is_equal(cs.namespace(|| <span class="string">"n"</span>), <span class="kw-2">&amp;</span>bv);
 
     <span class="prelude-val">Ok</span>(bignat)
   }
@@ -1169,7 +1170,7 @@
       (<span class="number">0</span>..<span class="self">self</span>.limbs.len()).map(|i| <span class="self">self</span>.limb_values.as_ref().map(|vs| vs[i]));
     <span class="kw">for </span>(i, (limb, limb_value)) <span class="kw">in </span><span class="self">self</span>.limbs.iter().zip_eq(limb_values_split).enumerate() {
       Num::new(limb_value, limb.clone())
-        .fits_in_bits(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;{i}&quot;</span>)), <span class="self">self</span>.params.limb_width)<span class="question-mark">?</span>;
+        .fits_in_bits(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"{i}"</span>)), <span class="self">self</span>.params.limb_width)<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
   }
@@ -1188,7 +1189,7 @@
       .enumerate()
       .map(|(i, (limb, limb_value))| {
         Num::new(limb_value, limb.clone()).decompose(
-          cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;subdecmop {i}&quot;</span>)),
+          cs.namespace(|| <span class="macro">format!</span>(<span class="string">"subdecmop {i}"</span>)),
           <span class="self">self</span>.params.limb_width,
         )
       })
@@ -1224,7 +1225,7 @@
       <span class="prelude-val">Ok</span>(<span class="self">self</span>.params.limb_width)
     } <span class="kw">else </span>{
       <span class="macro">eprintln!</span>(
-        <span class="string">&quot;Limb widths {}, {}, do not agree at {}&quot;</span>,
+        <span class="string">"Limb widths {}, {}, do not agree at {}"</span>,
         <span class="self">self</span>.params.limb_width, other.params.limb_width, location
       );
       <span class="prelude-val">Err</span>(SynthesisError::Unsatisfiable)
@@ -1254,9 +1255,9 @@
     <span class="kw-2">mut </span>cs: CS,
     other: <span class="kw-2">&amp;</span><span class="self">Self</span>,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SynthesisError&gt; {
-    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">&quot;equal_when_carried&quot;</span>)<span class="question-mark">?</span>;
+    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">"equal_when_carried"</span>)<span class="question-mark">?</span>;
 
-    <span class="comment">// We&#39;ll propegate carries over the first `n` limbs.
+    <span class="comment">// We'll propegate carries over the first `n` limbs.
     </span><span class="kw">let </span>n = min(<span class="self">self</span>.limbs.len(), other.limbs.len());
     <span class="kw">let </span>target_base = BigInt::from(<span class="number">1u8</span>) &lt;&lt; <span class="self">self</span>.params.limb_width <span class="kw">as </span>u32;
     <span class="kw">let </span><span class="kw-2">mut </span>accumulated_extra = BigInt::from(<span class="number">0usize</span>);
@@ -1267,7 +1268,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>carry_in = Num::new(<span class="prelude-val">Some</span>(Scalar::ZERO), LinearCombination::zero());
 
     <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..n {
-      <span class="kw">let </span>carry = Num::alloc(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;carry value {i}&quot;</span>)), || {
+      <span class="kw">let </span>carry = Num::alloc(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"carry value {i}"</span>)), || {
         <span class="prelude-val">Ok</span>(
           nat_to_f(
             <span class="kw-2">&amp;</span>((f_to_nat(<span class="kw-2">&amp;</span><span class="self">self</span>.limb_values.grab()<span class="question-mark">?</span>[i])
@@ -1282,7 +1283,7 @@
       accumulated_extra += max_word;
 
       cs.enforce(
-        || <span class="macro">format!</span>(<span class="string">&quot;carry {i}&quot;</span>),
+        || <span class="macro">format!</span>(<span class="string">"carry {i}"</span>),
         |lc| lc,
         |lc| lc,
         |lc| {
@@ -1299,10 +1300,10 @@
       accumulated_extra /= <span class="kw-2">&amp;</span>target_base;
 
       <span class="kw">if </span>i &lt; n - <span class="number">1 </span>{
-        carry.fits_in_bits(cs.namespace(|| <span class="macro">format!</span>(<span class="string">&quot;carry {i} decomp&quot;</span>)), carry_bits)<span class="question-mark">?</span>;
+        carry.fits_in_bits(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"carry {i} decomp"</span>)), carry_bits)<span class="question-mark">?</span>;
       } <span class="kw">else </span>{
         cs.enforce(
-          || <span class="macro">format!</span>(<span class="string">&quot;carry {i} is out&quot;</span>),
+          || <span class="macro">format!</span>(<span class="string">"carry {i} is out"</span>),
           |lc| lc,
           |lc| lc,
           |lc| lc + <span class="kw-2">&amp;</span>carry.num - (nat_to_f(<span class="kw-2">&amp;</span>accumulated_extra).unwrap(), CS::one()),
@@ -1313,7 +1314,7 @@
 
     <span class="kw">for </span>(i, zero_limb) <span class="kw">in </span><span class="self">self</span>.limbs.iter().enumerate().skip(n) {
       cs.enforce(
-        || <span class="macro">format!</span>(<span class="string">&quot;zero self {i}&quot;</span>),
+        || <span class="macro">format!</span>(<span class="string">"zero self {i}"</span>),
         |lc| lc,
         |lc| lc,
         |lc| lc + zero_limb,
@@ -1321,7 +1322,7 @@
     }
     <span class="kw">for </span>(i, zero_limb) <span class="kw">in </span>other.limbs.iter().enumerate().skip(n) {
       cs.enforce(
-        || <span class="macro">format!</span>(<span class="string">&quot;zero other {i}&quot;</span>),
+        || <span class="macro">format!</span>(<span class="string">"zero other {i}"</span>),
         |lc| lc,
         |lc| lc,
         |lc| lc + zero_limb,
@@ -1338,7 +1339,7 @@
     <span class="kw-2">mut </span>cs: CS,
     other: <span class="kw-2">&amp;</span><span class="self">Self</span>,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SynthesisError&gt; {
-    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">&quot;equal_when_carried_regroup&quot;</span>)<span class="question-mark">?</span>;
+    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">"equal_when_carried_regroup"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>max_word = max(<span class="kw-2">&amp;</span><span class="self">self</span>.params.max_word, <span class="kw-2">&amp;</span>other.params.max_word);
     <span class="kw">let </span>carry_bits = (((max_word.to_f64().unwrap() * <span class="number">2.0</span>).log2() - <span class="self">self</span>.params.limb_width <span class="kw">as </span>f64)
       .ceil()
@@ -1346,11 +1347,11 @@
     <span class="kw">let </span>limbs_per_group = (Scalar::CAPACITY <span class="kw">as </span>usize - carry_bits) / <span class="self">self</span>.params.limb_width;
     <span class="kw">let </span>self_grouped = <span class="self">self</span>.group_limbs(limbs_per_group);
     <span class="kw">let </span>other_grouped = other.group_limbs(limbs_per_group);
-    self_grouped.equal_when_carried(cs.namespace(|| <span class="string">&quot;grouped&quot;</span>), <span class="kw-2">&amp;</span>other_grouped)
+    self_grouped.equal_when_carried(cs.namespace(|| <span class="string">"grouped"</span>), <span class="kw-2">&amp;</span>other_grouped)
   }
 
   <span class="kw">pub fn </span>add(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
-    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">&quot;add&quot;</span>)<span class="question-mark">?</span>;
+    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">"add"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>n_limbs = max(<span class="self">self</span>.params.n_limbs, other.params.n_limbs);
     <span class="kw">let </span>max_word = <span class="kw-2">&amp;</span><span class="self">self</span>.params.max_word + <span class="kw-2">&amp;</span>other.params.max_word;
     <span class="kw">let </span>limbs: Vec&lt;LinearCombination&lt;Scalar&gt;&gt; = (<span class="number">0</span>..n_limbs)
@@ -1400,12 +1401,12 @@
     other: <span class="kw-2">&amp;</span><span class="self">Self</span>,
     modulus: <span class="kw-2">&amp;</span><span class="self">Self</span>,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, <span class="self">Self</span>), SynthesisError&gt; {
-    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">&quot;mult_mod&quot;</span>)<span class="question-mark">?</span>;
+    <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">"mult_mod"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>limb_width = <span class="self">self</span>.params.limb_width;
     <span class="kw">let </span>quotient_bits = (<span class="self">self</span>.n_bits() + other.n_bits()).saturating_sub(modulus.params.min_bits);
     <span class="kw">let </span>quotient_limbs = quotient_bits.saturating_sub(<span class="number">1</span>) / limb_width + <span class="number">1</span>;
     <span class="kw">let </span>quotient = <span class="self">Self</span>::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;quotient&quot;</span>),
+      cs.namespace(|| <span class="string">"quotient"</span>),
       || {
         <span class="prelude-val">Ok</span>({
           <span class="kw">let </span><span class="kw-2">mut </span>x = <span class="self">self</span>.value.grab()<span class="question-mark">?</span>.clone();
@@ -1417,9 +1418,9 @@
       <span class="self">self</span>.params.limb_width,
       quotient_limbs,
     )<span class="question-mark">?</span>;
-    quotient.assert_well_formed(cs.namespace(|| <span class="string">&quot;quotient rangecheck&quot;</span>))<span class="question-mark">?</span>;
+    quotient.assert_well_formed(cs.namespace(|| <span class="string">"quotient rangecheck"</span>))<span class="question-mark">?</span>;
     <span class="kw">let </span>remainder = <span class="self">Self</span>::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;remainder&quot;</span>),
+      cs.namespace(|| <span class="string">"remainder"</span>),
       || {
         <span class="prelude-val">Ok</span>({
           <span class="kw">let </span><span class="kw-2">mut </span>x = <span class="self">self</span>.value.grab()<span class="question-mark">?</span>.clone();
@@ -1431,7 +1432,7 @@
       <span class="self">self</span>.params.limb_width,
       modulus.limbs.len(),
     )<span class="question-mark">?</span>;
-    remainder.assert_well_formed(cs.namespace(|| <span class="string">&quot;remainder rangecheck&quot;</span>))<span class="question-mark">?</span>;
+    remainder.assert_well_formed(cs.namespace(|| <span class="string">"remainder rangecheck"</span>))<span class="question-mark">?</span>;
     <span class="kw">let </span>a_poly = Polynomial::from(<span class="self">self</span>.clone());
     <span class="kw">let </span>b_poly = Polynomial::from(other.clone());
     <span class="kw">let </span>mod_poly = Polynomial::from(modulus.clone());
@@ -1439,8 +1440,8 @@
     <span class="kw">let </span>r_poly = Polynomial::from(remainder.clone());
 
     <span class="comment">// a * b
-    </span><span class="kw">let </span>left = a_poly.alloc_product(cs.namespace(|| <span class="string">&quot;left&quot;</span>), <span class="kw-2">&amp;</span>b_poly)<span class="question-mark">?</span>;
-    <span class="kw">let </span>right_product = q_poly.alloc_product(cs.namespace(|| <span class="string">&quot;right_product&quot;</span>), <span class="kw-2">&amp;</span>mod_poly)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>left = a_poly.alloc_product(cs.namespace(|| <span class="string">"left"</span>), <span class="kw-2">&amp;</span>b_poly)<span class="question-mark">?</span>;
+    <span class="kw">let </span>right_product = q_poly.alloc_product(cs.namespace(|| <span class="string">"right_product"</span>), <span class="kw-2">&amp;</span>mod_poly)<span class="question-mark">?</span>;
     <span class="comment">// q * m + r
     </span><span class="kw">let </span>right = right_product.sum(<span class="kw-2">&amp;</span>r_poly);
 
@@ -1460,7 +1461,7 @@
 
     <span class="kw">let </span>left_int = <span class="self">Self</span>::from_poly(left, limb_width, left_max_word);
     <span class="kw">let </span>right_int = <span class="self">Self</span>::from_poly(right, limb_width, right_max_word);
-    left_int.equal_when_carried_regroup(cs.namespace(|| <span class="string">&quot;carry&quot;</span>), <span class="kw-2">&amp;</span>right_int)<span class="question-mark">?</span>;
+    left_int.equal_when_carried_regroup(cs.namespace(|| <span class="string">"carry"</span>), <span class="kw-2">&amp;</span>right_int)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>((quotient, remainder))
   }
 
@@ -1470,30 +1471,30 @@
     <span class="kw-2">mut </span>cs: CS,
     modulus: <span class="kw-2">&amp;</span><span class="self">Self</span>,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
-    <span class="self">self</span>.enforce_limb_width_agreement(modulus, <span class="string">&quot;red_mod&quot;</span>)<span class="question-mark">?</span>;
+    <span class="self">self</span>.enforce_limb_width_agreement(modulus, <span class="string">"red_mod"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>limb_width = <span class="self">self</span>.params.limb_width;
     <span class="kw">let </span>quotient_bits = <span class="self">self</span>.n_bits().saturating_sub(modulus.params.min_bits);
     <span class="kw">let </span>quotient_limbs = quotient_bits.saturating_sub(<span class="number">1</span>) / limb_width + <span class="number">1</span>;
     <span class="kw">let </span>quotient = <span class="self">Self</span>::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;quotient&quot;</span>),
+      cs.namespace(|| <span class="string">"quotient"</span>),
       || <span class="prelude-val">Ok</span>(<span class="self">self</span>.value.grab()<span class="question-mark">? </span>/ modulus.value.grab()<span class="question-mark">?</span>),
       <span class="self">self</span>.params.limb_width,
       quotient_limbs,
     )<span class="question-mark">?</span>;
-    quotient.assert_well_formed(cs.namespace(|| <span class="string">&quot;quotient rangecheck&quot;</span>))<span class="question-mark">?</span>;
+    quotient.assert_well_formed(cs.namespace(|| <span class="string">"quotient rangecheck"</span>))<span class="question-mark">?</span>;
     <span class="kw">let </span>remainder = <span class="self">Self</span>::alloc_from_nat(
-      cs.namespace(|| <span class="string">&quot;remainder&quot;</span>),
+      cs.namespace(|| <span class="string">"remainder"</span>),
       || <span class="prelude-val">Ok</span>(<span class="self">self</span>.value.grab()<span class="question-mark">? </span>% modulus.value.grab()<span class="question-mark">?</span>),
       <span class="self">self</span>.params.limb_width,
       modulus.limbs.len(),
     )<span class="question-mark">?</span>;
-    remainder.assert_well_formed(cs.namespace(|| <span class="string">&quot;remainder rangecheck&quot;</span>))<span class="question-mark">?</span>;
+    remainder.assert_well_formed(cs.namespace(|| <span class="string">"remainder rangecheck"</span>))<span class="question-mark">?</span>;
     <span class="kw">let </span>mod_poly = Polynomial::from(modulus.clone());
     <span class="kw">let </span>q_poly = Polynomial::from(quotient.clone());
     <span class="kw">let </span>r_poly = Polynomial::from(remainder.clone());
 
     <span class="comment">// q * m + r
-    </span><span class="kw">let </span>right_product = q_poly.alloc_product(cs.namespace(|| <span class="string">&quot;right_product&quot;</span>), <span class="kw-2">&amp;</span>mod_poly)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>right_product = q_poly.alloc_product(cs.namespace(|| <span class="string">"right_product"</span>), <span class="kw-2">&amp;</span>mod_poly)<span class="question-mark">?</span>;
     <span class="kw">let </span>right = right_product.sum(<span class="kw-2">&amp;</span>r_poly);
 
     <span class="kw">let </span>right_max_word = {
@@ -1505,7 +1506,7 @@
     };
 
     <span class="kw">let </span>right_int = <span class="self">Self</span>::from_poly(right, limb_width, right_max_word);
-    <span class="self">self</span>.equal_when_carried_regroup(cs.namespace(|| <span class="string">&quot;carry&quot;</span>), <span class="kw-2">&amp;</span>right_int)<span class="question-mark">?</span>;
+    <span class="self">self</span>.equal_when_carried_regroup(cs.namespace(|| <span class="string">"carry"</span>), <span class="kw-2">&amp;</span>right_int)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(remainder)
   }
 
@@ -1600,7 +1601,7 @@
     });
     <span class="kw">let </span>coefficients = (<span class="number">0</span>..n_product_coeffs)
       .map(|i| {
-        <span class="prelude-val">Ok</span>(LinearCombination::zero() + cs.alloc(|| <span class="macro">format!</span>(<span class="string">&quot;prod {i}&quot;</span>), || <span class="prelude-val">Ok</span>(values.grab()<span class="question-mark">?</span>[i]))<span class="question-mark">?</span>)
+        <span class="prelude-val">Ok</span>(LinearCombination::zero() + cs.alloc(|| <span class="macro">format!</span>(<span class="string">"prod {i}"</span>), || <span class="prelude-val">Ok</span>(values.grab()<span class="question-mark">?</span>[i]))<span class="question-mark">?</span>)
       })
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;LinearCombination&lt;Scalar&gt;&gt;, SynthesisError&gt;&gt;()<span class="question-mark">?</span>;
     <span class="kw">let </span>product = <span class="self">Self </span>{
@@ -1612,7 +1613,7 @@
     <span class="kw">for _ in </span><span class="number">1</span>..(n_product_coeffs + <span class="number">1</span>) {
       x.add_assign(<span class="kw-2">&amp;</span>one);
       cs.enforce(
-        || <span class="macro">format!</span>(<span class="string">&quot;pointwise product @ {x:?}&quot;</span>),
+        || <span class="macro">format!</span>(<span class="string">"pointwise product @ {x:?}"</span>),
         |lc| {
           <span class="kw">let </span><span class="kw-2">mut </span>i = Scalar::ONE;
           <span class="self">self</span>.coefficients.iter().fold(lc, |lc, c| {
@@ -1684,7 +1685,7 @@
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use </span>bellpepper_core::{test_cs::TestConstraintSystem, Circuit};
   <span class="kw">use </span>pasta_curves::pallas::Scalar;
-  <span class="attr">#[cfg(not(target_arch = <span class="string">&quot;wasm32&quot;</span>))]
+  <span class="attr">#[cfg(not(target_arch = <span class="string">"wasm32"</span>))]
   </span><span class="kw">use </span>proptest::prelude::<span class="kw-2">*</span>;
 
   <span class="kw">pub struct </span>PolynomialMultiplier&lt;Scalar&gt; {
@@ -1700,7 +1701,7 @@
           .iter()
           .enumerate()
           .map(|(i, x)| {
-            <span class="prelude-val">Ok</span>(LinearCombination::zero() + cs.alloc(|| <span class="macro">format!</span>(<span class="string">&quot;coeff_a {i}&quot;</span>), || <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>x))<span class="question-mark">?</span>)
+            <span class="prelude-val">Ok</span>(LinearCombination::zero() + cs.alloc(|| <span class="macro">format!</span>(<span class="string">"coeff_a {i}"</span>), || <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>x))<span class="question-mark">?</span>)
           })
           .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;LinearCombination&lt;Scalar&gt;&gt;, SynthesisError&gt;&gt;()<span class="question-mark">?</span>,
         values: <span class="prelude-val">Some</span>(<span class="self">self</span>.a),
@@ -1711,12 +1712,12 @@
           .iter()
           .enumerate()
           .map(|(i, x)| {
-            <span class="prelude-val">Ok</span>(LinearCombination::zero() + cs.alloc(|| <span class="macro">format!</span>(<span class="string">&quot;coeff_b {i}&quot;</span>), || <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>x))<span class="question-mark">?</span>)
+            <span class="prelude-val">Ok</span>(LinearCombination::zero() + cs.alloc(|| <span class="macro">format!</span>(<span class="string">"coeff_b {i}"</span>), || <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>x))<span class="question-mark">?</span>)
           })
           .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;LinearCombination&lt;Scalar&gt;&gt;, SynthesisError&gt;&gt;()<span class="question-mark">?</span>,
         values: <span class="prelude-val">Some</span>(<span class="self">self</span>.b),
       };
-      <span class="kw">let </span>_prod = a.alloc_product(cs.namespace(|| <span class="string">&quot;product&quot;</span>), <span class="kw-2">&amp;</span>b)<span class="question-mark">?</span>;
+      <span class="kw">let </span>_prod = a.alloc_product(cs.namespace(|| <span class="string">"product"</span>), <span class="kw-2">&amp;</span>b)<span class="question-mark">?</span>;
       <span class="prelude-val">Ok</span>(())
     }
   }
@@ -1730,10 +1731,10 @@
       b: [<span class="number">1</span>, <span class="number">1</span>].iter().map(|i| Scalar::from_u128(<span class="kw-2">*</span>i)).collect(),
     };
 
-    circuit.synthesize(<span class="kw-2">&amp;mut </span>cs).expect(<span class="string">&quot;synthesis failed&quot;</span>);
+    circuit.synthesize(<span class="kw-2">&amp;mut </span>cs).expect(<span class="string">"synthesis failed"</span>);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(token) = cs.which_is_unsatisfied() {
-      <span class="macro">eprintln!</span>(<span class="string">&quot;Error: {} is unsatisfied&quot;</span>, token);
+      <span class="macro">eprintln!</span>(<span class="string">"Error: {} is unsatisfied"</span>, token);
     }
   }
 
@@ -1755,17 +1756,17 @@
   <span class="kw">impl</span>&lt;Scalar: PrimeField&gt; Circuit&lt;Scalar&gt; <span class="kw">for </span>BigNatBitDecomp {
     <span class="kw">fn </span>synthesize&lt;CS: ConstraintSystem&lt;Scalar&gt;&gt;(<span class="self">self</span>, cs: <span class="kw-2">&amp;mut </span>CS) -&gt; <span class="prelude-ty">Result</span>&lt;(), SynthesisError&gt; {
       <span class="kw">let </span>n = BigNat::alloc_from_nat(
-        cs.namespace(|| <span class="string">&quot;n&quot;</span>),
+        cs.namespace(|| <span class="string">"n"</span>),
         || <span class="prelude-val">Ok</span>(<span class="self">self</span>.inputs.grab()<span class="question-mark">?</span>.n.clone()),
         <span class="self">self</span>.params.limb_width,
         <span class="self">self</span>.params.n_limbs,
       )<span class="question-mark">?</span>;
-      n.decompose(cs.namespace(|| <span class="string">&quot;decomp&quot;</span>))<span class="question-mark">?</span>;
+      n.decompose(cs.namespace(|| <span class="string">"decomp"</span>))<span class="question-mark">?</span>;
       <span class="prelude-val">Ok</span>(())
     }
   }
 
-  <span class="attr">#[cfg(not(target_arch = <span class="string">&quot;wasm32&quot;</span>))]
+  <span class="attr">#[cfg(not(target_arch = <span class="string">"wasm32"</span>))]
   </span><span class="macro">proptest! </span>{
     <span class="attr">#![proptest_config(ProptestConfig {
       cases: <span class="number">10</span>, <span class="comment">// this test is costlier as max n gets larger
@@ -1791,7 +1792,7 @@
             },
         };
         <span class="kw">let </span><span class="kw-2">mut </span>cs = TestConstraintSystem::&lt;Scalar&gt;::new();
-        circuit.synthesize(<span class="kw-2">&amp;mut </span>cs).expect(<span class="string">&quot;synthesis failed&quot;</span>);
+        circuit.synthesize(<span class="kw-2">&amp;mut </span>cs).expect(<span class="string">"synthesis failed"</span>);
         <span class="macro">prop_assert!</span>(cs.is_satisfied());
     }
   }
