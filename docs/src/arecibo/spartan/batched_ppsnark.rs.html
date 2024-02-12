@@ -1337,20 +1337,6 @@
 <a href="#1337" id="1337">1337</a>
 <a href="#1338" id="1338">1338</a>
 <a href="#1339" id="1339">1339</a>
-<a href="#1340" id="1340">1340</a>
-<a href="#1341" id="1341">1341</a>
-<a href="#1342" id="1342">1342</a>
-<a href="#1343" id="1343">1343</a>
-<a href="#1344" id="1344">1344</a>
-<a href="#1345" id="1345">1345</a>
-<a href="#1346" id="1346">1346</a>
-<a href="#1347" id="1347">1347</a>
-<a href="#1348" id="1348">1348</a>
-<a href="#1349" id="1349">1349</a>
-<a href="#1350" id="1350">1350</a>
-<a href="#1351" id="1351">1351</a>
-<a href="#1352" id="1352">1352</a>
-<a href="#1353" id="1353">1353</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! batched pp snark
 //!
 //!
@@ -1530,21 +1516,12 @@
     W: <span class="kw-2">&amp;</span>[RelaxedR1CSWitness&lt;E&gt;],
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
     <span class="comment">// Pad shapes so that num_vars = num_cons = Nᵢ and check the sizes are correct
-    </span><span class="kw">let </span>S = S
-      .par_iter()
-      .map(|s| {
-        <span class="kw">let </span>s = s.pad();
-        <span class="kw">if </span>s.is_regular_shape() {
-          <span class="prelude-val">Ok</span>(s)
-        } <span class="kw">else </span>{
-          <span class="prelude-val">Err</span>(NovaError::InternalError)
-        }
-      })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>S = S.par_iter().map(|s| s.pad()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
     <span class="comment">// N[i] = max(|Aᵢ|+|Bᵢ|+|Cᵢ|, 2*num_varsᵢ, num_consᵢ)
-    </span><span class="kw">let </span>N = pk.S_repr.iter().map(|s| s.N).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-    <span class="macro">assert!</span>(N.iter().all(|<span class="kw-2">&amp;</span>Ni| Ni.is_power_of_two()));
+    </span><span class="kw">let </span>Nis = pk.S_repr.iter().map(|s| s.N).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    <span class="macro">assert!</span>(Nis.iter().all(|<span class="kw-2">&amp;</span>Ni| Ni.is_power_of_two()));
+    <span class="kw">let </span>N_max = <span class="kw-2">*</span>Nis.iter().max().unwrap();
 
     <span class="kw">let </span>num_instances = U.len();
 
@@ -1552,7 +1529,7 @@
     </span><span class="kw">let </span>W = <span class="macro">zip_with!</span>(par_iter, (W, S), |w, s| w.pad(s)).collect::&lt;Vec&lt;RelaxedR1CSWitness&lt;E&gt;&gt;&gt;();
 
     <span class="comment">// number of rounds of sum-check
-    </span><span class="kw">let </span>num_rounds_sc = N.iter().max().unwrap().log_2();
+    </span><span class="kw">let </span>num_rounds_sc = N_max.log_2();
 
     <span class="comment">// Initialize transcript with vk || [Uᵢ]
     </span><span class="kw">let </span><span class="kw-2">mut </span>transcript = E::TE::new(<span class="string">b&quot;BatchedRelaxedR1CSSNARK&quot;</span>);
@@ -1561,12 +1538,10 @@
       <span class="kw">let </span>num_instances_field = E::Scalar::from(num_instances <span class="kw">as </span>u64);
       transcript.absorb(<span class="string">b&quot;n&quot;</span>, <span class="kw-2">&amp;</span>num_instances_field);
     }
-    <span class="kw">for </span>u <span class="kw">in </span>U.iter() {
-      transcript.absorb(<span class="string">b&quot;U&quot;</span>, u);
-    }
+    transcript.absorb(<span class="string">b&quot;U&quot;</span>, <span class="kw-2">&amp;</span>U);
 
     <span class="comment">// Append public inputs to Wᵢ: Zᵢ = [Wᵢ, uᵢ, Xᵢ]
-    </span><span class="kw">let </span>polys_Z = <span class="macro">zip_with!</span>(par_iter, (W, U, N), |W, U, Ni| {
+    </span><span class="kw">let </span>polys_Z = <span class="macro">zip_with!</span>(par_iter, (W, U, Nis), |W, U, Ni| {
       <span class="comment">// poly_Z will be resized later, so we preallocate the correct capacity
       </span><span class="kw">let </span><span class="kw-2">mut </span>poly_Z = Vec::with_capacity(<span class="kw-2">*</span>Ni);
       poly_Z.extend(W.W.iter().chain([<span class="kw-2">&amp;</span>U.u]).chain(U.X.iter()));
@@ -1602,13 +1577,15 @@
 
     <span class="comment">// Compute eq(tau) for each instance in log2(Ni) variables
     </span><span class="kw">let </span>tau = transcript.squeeze(<span class="string">b&quot;t&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>(polys_tau, coords_tau): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = N
-      .iter()
+    <span class="kw">let </span>all_taus = PowPolynomial::squares(<span class="kw-2">&amp;</span>tau, N_max.log_2());
+
+    <span class="kw">let </span>(polys_tau, coords_tau): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = Nis
+      .par_iter()
       .map(|<span class="kw-2">&amp;</span>N_i| {
         <span class="kw">let </span>log_Ni = N_i.log_2();
-        <span class="kw">let </span>poly = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, log_Ni);
-        <span class="kw">let </span>evals = poly.evals();
-        <span class="kw">let </span>coords = poly.coordinates();
+        <span class="kw">let </span>eqp: EqPolynomial&lt;<span class="kw">_</span>&gt; = all_taus[..log_Ni].iter().cloned().collect();
+        <span class="kw">let </span>evals = eqp.evals();
+        <span class="kw">let </span>coords = eqp.r;
         (evals, coords)
       })
       .unzip();
@@ -1616,7 +1593,7 @@
     <span class="comment">// Pad [Az, Bz, Cz] to Ni
     </span>polys_Az_Bz_Cz
       .par_iter_mut()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .for_each(|(az_bz_cz, <span class="kw-2">&amp;</span>Ni)| {
         az_bz_cz
           .par_iter_mut()
@@ -1651,7 +1628,7 @@
     <span class="comment">// Pad Zᵢ, E to Nᵢ
     </span><span class="kw">let </span>polys_Z = polys_Z
       .into_par_iter()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .map(|(<span class="kw-2">mut </span>poly_Z, <span class="kw-2">&amp;</span>Ni)| {
         poly_Z.resize(Ni, E::Scalar::ZERO);
         poly_Z
@@ -1662,7 +1639,7 @@
     // but it makes it easier to handle the batching at the end.
     </span><span class="kw">let </span>polys_E = polys_E
       .into_par_iter()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .map(|(<span class="kw-2">mut </span>poly_E, <span class="kw-2">&amp;</span>Ni)| {
         poly_E.resize(Ni, E::Scalar::ZERO);
         poly_E
@@ -1671,7 +1648,7 @@
 
     <span class="kw">let </span>polys_W = polys_W
       .into_par_iter()
-      .zip_eq(N.par_iter())
+      .zip_eq(Nis.par_iter())
       .map(|(<span class="kw-2">mut </span>poly_W, <span class="kw-2">&amp;</span>Ni)| {
         poly_W.resize(Ni, E::Scalar::ZERO);
         poly_W
@@ -1683,7 +1660,7 @@
     // L_col(i) = z(col(i)) for all i in [0..Nᵢ]
     </span><span class="kw">let </span>polys_L_row_col = <span class="macro">zip_with!</span>(
       par_iter,
-      (S, N, polys_Z, polys_tau),
+      (S, Nis, polys_Z, polys_tau),
       |S, Ni, poly_Z, poly_tau| {
         <span class="kw">let </span><span class="kw-2">mut </span>L_row = <span class="macro">vec!</span>[poly_tau[<span class="number">0</span>]; <span class="kw-2">*</span>Ni]; <span class="comment">// we place mem_row[0] since resized row is appended with 0s
         </span><span class="kw">let </span><span class="kw-2">mut </span>L_col = <span class="macro">vec!</span>[poly_Z[Ni - <span class="number">1</span>]; <span class="kw-2">*</span>Ni]; <span class="comment">// we place mem_col[Ni-1] since resized col is appended with Ni-1
@@ -1848,13 +1825,12 @@
 
       <span class="comment">// Sample new random variable for eq polynomial
       </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;
-      <span class="kw">let </span>N_max = N.iter().max().unwrap();
       <span class="kw">let </span>all_rhos = PowPolynomial::squares(<span class="kw-2">&amp;</span>rho, N_max.log_2());
 
       <span class="kw">let </span>instances = <span class="macro">zip_with!</span>(
         (
           pk.S_repr.par_iter(),
-          N.par_iter(),
+          Nis.par_iter(),
           polys_mem_oracles.par_iter(),
           mem_aux.into_par_iter()
         ),
@@ -2118,9 +2094,7 @@
       <span class="kw">let </span>num_instances_field = E::Scalar::from(num_instances <span class="kw">as </span>u64);
       transcript.absorb(<span class="string">b&quot;n&quot;</span>, <span class="kw-2">&amp;</span>num_instances_field);
     }
-    <span class="kw">for </span>u <span class="kw">in </span>U.iter() {
-      transcript.absorb(<span class="string">b&quot;U&quot;</span>, u);
-    }
+    transcript.absorb(<span class="string">b&quot;U&quot;</span>, <span class="kw-2">&amp;</span>U);
 
     <span class="comment">// Decompress commitments
     </span><span class="kw">let </span>comms_Az_Bz_Cz = <span class="self">self
@@ -2260,14 +2234,10 @@
         <span class="kw">let </span>num_rounds_i = rand_sc.len();
         <span class="kw">let </span>num_vars_log = num_vars.log_2();
 
-        <span class="kw">let </span>eq_rho = {
-          <span class="kw">let </span>rho_coords = PowPolynomial::new(<span class="kw-2">&amp;</span>rho, num_rounds_i).coordinates();
-          EqPolynomial::new(rho_coords).evaluate(rand_sc)
-        };
+        <span class="kw">let </span>eq_rho = PowPolynomial::new(<span class="kw-2">&amp;</span>rho, num_rounds_i).evaluate(rand_sc);
 
         <span class="kw">let </span>(eq_tau, eq_masked_tau) = {
-          <span class="kw">let </span>tau_coords = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds_i).coordinates();
-          <span class="kw">let </span>eq_tau = EqPolynomial::new(tau_coords);
+          <span class="kw">let </span>eq_tau: EqPolynomial&lt;<span class="kw">_</span>&gt; = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds_i).into();
 
           <span class="kw">let </span>eq_tau_at_rand = eq_tau.evaluate(rand_sc);
           <span class="kw">let </span>eq_masked_tau = MaskedEqPolynomial::new(<span class="kw-2">&amp;</span>eq_tau, num_vars_log).evaluate(rand_sc);
@@ -2294,13 +2264,15 @@
 
           <span class="kw">let </span>X = {
             <span class="comment">// constant term
-            </span><span class="kw">let </span><span class="kw-2">mut </span>poly_X = <span class="macro">vec!</span>[(<span class="number">0</span>, U.u)];
-            <span class="comment">//remaining inputs
-            </span>poly_X.extend(
-              (<span class="number">0</span>..U.X.len())
-                .map(|i| (i + <span class="number">1</span>, U.X[i]))
-                .collect::&lt;Vec&lt;(usize, E::Scalar)&gt;&gt;(),
-            );
+            </span><span class="kw">let </span>poly_X = std::iter::once((<span class="number">0</span>, U.u))
+              .chain(
+                <span class="comment">//remaining inputs
+                </span>(<span class="number">0</span>..U.X.len())
+                <span class="comment">// filter_map uses the sparsity of the polynomial, if irrelevant
+                // we should replace by UniPoly
+                </span>.filter_map(|i| (!U.X[i].is_zero_vartime()).then_some((i + <span class="number">1</span>, U.X[i]))),
+              )
+              .collect();
             SparsePolynomial::new(num_vars_log, poly_X).evaluate(<span class="kw-2">&amp;</span>rand_sc_unpad[<span class="number">1</span>..])
           };
 

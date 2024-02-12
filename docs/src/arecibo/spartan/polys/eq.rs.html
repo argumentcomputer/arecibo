@@ -115,6 +115,7 @@
 <a href="#115" id="115">115</a>
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! `EqPolynomial`: Represents multilinear extension of equality polynomials, evaluated based on binary input values.
 
 </span><span class="kw">use </span>ff::PrimeField;
@@ -133,7 +134,7 @@
 /// For instance, for e = 6 (with a binary representation of 0b110), the vector r would be [1, 1, 0].
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EqPolynomial&lt;Scalar&gt; {
-  <span class="kw">pub</span>(<span class="kw">crate</span>) r: Vec&lt;Scalar&gt;,
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::spartan) r: Vec&lt;Scalar&gt;,
 }
 
 <span class="kw">impl</span>&lt;Scalar: PrimeField&gt; EqPolynomial&lt;Scalar&gt; {
@@ -154,12 +155,13 @@
     <span class="macro">assert_eq!</span>(<span class="self">self</span>.r.len(), rx.len());
     (<span class="number">0</span>..rx.len())
       .map(|i| <span class="self">self</span>.r[i] * rx[i] + (Scalar::ONE - <span class="self">self</span>.r[i]) * (Scalar::ONE - rx[i]))
-      .fold(Scalar::ONE, |acc, item| acc * item)
+      .product()
   }
 
   <span class="doccomment">/// Evaluates the `EqPolynomial` at all the `2^|r|` points in its domain.
   ///
   /// Returns a vector of Scalars, each corresponding to the polynomial evaluation at a specific point.
+  </span><span class="attr">#[must_use = <span class="string">&quot;this returns an expensive vector and leaves self unchanged&quot;</span>]
   </span><span class="kw">pub fn </span>evals(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Scalar&gt; {
     <span class="self">Self</span>::evals_from_points(<span class="kw-2">&amp;</span><span class="self">self</span>.r)
   }

@@ -548,6 +548,8 @@
 <a href="#548" id="548">548</a>
 <a href="#549" id="549">549</a>
 <a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! This version of Spartan does not use preprocessing so the verifier keeps the entire
@@ -578,7 +580,7 @@
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::{iter, sync::Arc};
 
 <span class="doccomment">/// A type that represents the prover&#39;s key
 </span><span class="attr">#[derive(Debug, Clone)]
@@ -876,13 +878,15 @@
     </span><span class="kw">let </span>eval_Z = {
       <span class="kw">let </span>eval_X = {
         <span class="comment">// constant term
-        </span><span class="kw">let </span><span class="kw-2">mut </span>poly_X = <span class="macro">vec!</span>[(<span class="number">0</span>, U.u)];
-        <span class="comment">//remaining inputs
-        </span>poly_X.extend(
-          (<span class="number">0</span>..U.X.len())
-            .map(|i| (i + <span class="number">1</span>, U.X[i]))
-            .collect::&lt;Vec&lt;(usize, E::Scalar)&gt;&gt;(),
-        );
+        </span><span class="kw">let </span>poly_X = iter::once((<span class="number">0</span>, U.u))
+          .chain(
+            <span class="comment">//remaining inputs
+            </span>(<span class="number">0</span>..U.X.len())
+          <span class="comment">// filter_map uses the sparsity of the polynomial, if irrelevant
+          // we should replace by UniPoly
+          </span>.filter_map(|i| (!U.X[i].is_zero_vartime()).then_some((i + <span class="number">1</span>, U.X[i]))),
+          )
+          .collect();
         SparsePolynomial::new(usize::try_from(vk.S.num_vars.ilog2()).unwrap(), poly_X)
           .evaluate(<span class="kw-2">&amp;</span>r_y[<span class="number">1</span>..])
       };
@@ -994,10 +998,10 @@
   </span><span class="kw">let </span>num_rounds = u_vec.iter().map(|u| u.x.len()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
   <span class="comment">// Check polynomials match number of variables, i.e. |Pᵢ| = 2^nᵢ
-  </span>w_vec
-    .iter()
-    .zip_eq(num_rounds.iter())
-    .for_each(|(w, num_vars)| <span class="macro">assert_eq!</span>(w.p.len(), <span class="number">1 </span>&lt;&lt; num_vars));
+  </span><span class="macro">zip_with_for_each!</span>(iter, (w_vec, num_rounds), |w, num_vars| <span class="macro">assert_eq!</span>(
+    w.p.len(),
+    <span class="number">1 </span>&lt;&lt; num_vars
+  ));
 
   <span class="comment">// generate a challenge, and powers of it for random linear combination
   </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b&quot;r&quot;</span>)<span class="question-mark">?</span>;

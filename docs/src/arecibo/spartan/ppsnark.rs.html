@@ -1069,10 +1069,6 @@
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
 <a href="#1071" id="1071">1071</a>
-<a href="#1072" id="1072">1072</a>
-<a href="#1073" id="1073">1073</a>
-<a href="#1074" id="1074">1074</a>
-<a href="#1075" id="1075">1075</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARK` traits using a spark-based approach to prove evaluations of
 //! sparse multilinear polynomials involved in Spartan&#39;s sum-check protocol, thereby providing a preprocessing SNARK
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
@@ -1679,14 +1675,12 @@
         </span>);
 
         <span class="comment">// a sum-check instance to prove the second claim
-        </span><span class="kw">let </span>val = pk
-          .S_repr
-          .val_A
-          .par_iter()
-          .zip_eq(pk.S_repr.val_B.par_iter())
-          .zip_eq(pk.S_repr.val_C.par_iter())
-          .map(|((v_a, v_b), v_c)| <span class="kw-2">*</span>v_a + c * <span class="kw-2">*</span>v_b + c * c * <span class="kw-2">*</span>v_c)
-          .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
+        </span><span class="kw">let </span>val = <span class="macro">zip_with!</span>(
+          par_iter,
+          (pk.S_repr.val_A, pk.S_repr.val_B, pk.S_repr.val_C),
+          |v_a, v_b, v_c| <span class="kw-2">*</span>v_a + c * <span class="kw-2">*</span>v_b + c * c * <span class="kw-2">*</span>v_c
+        )
+        .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
         <span class="kw">let </span>inner_sc_inst = InnerSumcheckInstance {
           claim: eval_Az_at_tau + c * eval_Bz_at_tau + c * c * eval_Cz_at_tau,
           poly_L_row: MultilinearPolynomial::new(L_row.clone()),
@@ -1962,12 +1956,8 @@
 
     <span class="comment">// verify claim_sc_final
     </span><span class="kw">let </span>claim_sc_final_expected = {
-      <span class="kw">let </span>rand_eq_bound_rand_sc = {
-        <span class="kw">let </span>poly_eq_coords = PowPolynomial::new(<span class="kw-2">&amp;</span>rho, num_rounds_sc).coordinates();
-        EqPolynomial::new(poly_eq_coords).evaluate(<span class="kw-2">&amp;</span>rand_sc)
-      };
-      <span class="kw">let </span>taus_coords = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds_sc).coordinates();
-      <span class="kw">let </span>eq_tau = EqPolynomial::new(taus_coords);
+      <span class="kw">let </span>rand_eq_bound_rand_sc = PowPolynomial::new(<span class="kw-2">&amp;</span>rho, num_rounds_sc).evaluate(<span class="kw-2">&amp;</span>rand_sc);
+      <span class="kw">let </span>eq_tau: EqPolynomial&lt;<span class="kw">_</span>&gt; = PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds_sc).into();
 
       <span class="kw">let </span>taus_bound_rand_sc = eq_tau.evaluate(<span class="kw-2">&amp;</span>rand_sc);
       <span class="kw">let </span>taus_masked_bound_rand_sc =
@@ -2008,13 +1998,15 @@
 
           <span class="kw">let </span>eval_X = {
             <span class="comment">// constant term
-            </span><span class="kw">let </span><span class="kw-2">mut </span>poly_X = <span class="macro">vec!</span>[(<span class="number">0</span>, U.u)];
-            <span class="comment">//remaining inputs
-            </span>poly_X.extend(
-              (<span class="number">0</span>..U.X.len())
-                .map(|i| (i + <span class="number">1</span>, U.X[i]))
-                .collect::&lt;Vec&lt;(usize, E::Scalar)&gt;&gt;(),
-            );
+            </span><span class="kw">let </span>poly_X = std::iter::once((<span class="number">0</span>, U.u))
+              .chain(
+                <span class="comment">//remaining inputs
+                </span>(<span class="number">0</span>..U.X.len())
+                <span class="comment">// filter_map uses the sparsity of the polynomial, if irrelevant
+                // we should replace by UniPoly
+                </span>.filter_map(|i| (!U.X[i].is_zero_vartime()).then_some((i + <span class="number">1</span>, U.X[i]))),
+              )
+              .collect();
             SparsePolynomial::new(vk.num_vars.log_2(), poly_X).evaluate(<span class="kw-2">&amp;</span>rand_sc_unpad[<span class="number">1</span>..])
           };
 

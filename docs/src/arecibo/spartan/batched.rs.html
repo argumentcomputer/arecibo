@@ -588,35 +588,6 @@
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
 <a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `BatchedRelaxedR1CSSNARKTrait` using Spartan that is generic over the polynomial commitment
 //! and evaluation argument (i.e., a PCS) This version of Spartan does not use preprocessing so the verifier keeps the
 //! entire description of R1CS matrices. This is essentially optimal for the verifier when using an IPA-based polynomial
@@ -628,7 +599,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::{iter, sync::Arc};
 
 <span class="kw">use super</span>::{
   compute_eval_table_sparse,
@@ -664,7 +635,7 @@
 </span><span class="kw">pub struct </span>BatchedRelaxedR1CSSNARK&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   sc_proof_outer: SumcheckProof&lt;E&gt;,
   <span class="comment">// Claims ([Azᵢ(τᵢ)], [Bzᵢ(τᵢ)], [Czᵢ(τᵢ)])
-  </span>claims_outer: (Vec&lt;E::Scalar&gt;, Vec&lt;E::Scalar&gt;, Vec&lt;E::Scalar&gt;),
+  </span>claims_outer: Vec&lt;(E::Scalar, E::Scalar, E::Scalar)&gt;,
   <span class="comment">// [Eᵢ(r_x)]
   </span>evals_E: Vec&lt;E::Scalar&gt;,
   sc_proof_inner: SumcheckProof&lt;E&gt;,
@@ -753,17 +724,7 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
     <span class="kw">let </span>num_instances = U.len();
     <span class="comment">// Pad shapes and ensure their sizes are correct
-    </span><span class="kw">let </span>S = S
-      .iter()
-      .map(|s| {
-        <span class="kw">let </span>s = s.pad();
-        <span class="kw">if </span>s.is_regular_shape() {
-          <span class="prelude-val">Ok</span>(s)
-        } <span class="kw">else </span>{
-          <span class="prelude-val">Err</span>(NovaError::InternalError)
-        }
-      })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>S = S.iter().map(|s| s.pad()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
     <span class="comment">// Pad (W,E) for each instance
     </span><span class="kw">let </span>W = <span class="macro">zip_with!</span>(iter, (W, S), |w, s| w.pad(s)).collect::&lt;Vec&lt;RelaxedR1CSWitness&lt;E&gt;&gt;&gt;();
@@ -775,9 +736,7 @@
       <span class="kw">let </span>num_instances_field = E::Scalar::from(num_instances <span class="kw">as </span>u64);
       transcript.absorb(<span class="string">b&quot;n&quot;</span>, <span class="kw-2">&amp;</span>num_instances_field);
     }
-    <span class="kw">for </span>u <span class="kw">in </span>U.iter() {
-      transcript.absorb(<span class="string">b&quot;U&quot;</span>, u);
-    }
+    transcript.absorb(<span class="string">b&quot;U&quot;</span>, <span class="kw-2">&amp;</span>U);
 
     <span class="kw">let </span>(polys_W, polys_E): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = W.into_iter().map(|w| (w.W, w.E)).unzip();
 
@@ -990,12 +949,9 @@
       <span class="kw-2">&amp;</span>batched_u.e,
     )<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>(evals_Az, evals_Bz, evals_Cz): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) =
-      evals_Az_Bz_Cz.into_iter().multiunzip();
-
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
       sc_proof_outer,
-      claims_outer: (evals_Az, evals_Bz, evals_Cz),
+      claims_outer: evals_Az_Bz_Cz,
       evals_E,
       sc_proof_inner,
       evals_W,
@@ -1014,9 +970,7 @@
       <span class="kw">let </span>num_instances_field = E::Scalar::from(num_instances <span class="kw">as </span>u64);
       transcript.absorb(<span class="string">b&quot;n&quot;</span>, <span class="kw-2">&amp;</span>num_instances_field);
     }
-    <span class="kw">for </span>u <span class="kw">in </span>U.iter() {
-      transcript.absorb(<span class="string">b&quot;U&quot;</span>, u);
-    }
+    transcript.absorb(<span class="string">b&quot;U&quot;</span>, <span class="kw-2">&amp;</span>U);
 
     <span class="kw">let </span>num_instances = U.len();
 
@@ -1029,14 +983,14 @@
     <span class="kw">let </span>num_rounds_y_max = <span class="kw-2">*</span>num_rounds_y.iter().max().unwrap();
 
     <span class="comment">// Define τ polynomials of the appropriate size for each instance
-    </span><span class="kw">let </span>polys_tau = {
-      <span class="kw">let </span>tau = transcript.squeeze(<span class="string">b&quot;t&quot;</span>)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>tau = transcript.squeeze(<span class="string">b&quot;t&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>all_taus = PowPolynomial::squares(<span class="kw-2">&amp;</span>tau, num_rounds_x_max);
 
-      num_rounds_x
-        .iter()
-        .map(|<span class="kw-2">&amp;</span>num_rounds| PowPolynomial::new(<span class="kw-2">&amp;</span>tau, num_rounds))
-        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-    };
+    <span class="kw">let </span>polys_tau = num_rounds_x
+      .iter()
+      .map(|<span class="kw-2">&amp;</span>num_rounds_x| PowPolynomial::evals_with_powers(<span class="kw-2">&amp;</span>all_taus, num_rounds_x))
+      .map(MultilinearPolynomial::new)
+      .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
     <span class="comment">// Sample challenge for random linear-combination of outer claims
     </span><span class="kw">let </span>outer_r = transcript.squeeze(<span class="string">b&quot;out_r&quot;</span>)<span class="question-mark">?</span>;
@@ -1060,20 +1014,10 @@
 
     <span class="comment">// Extract evaluations into a vector [(Azᵢ, Bzᵢ, Czᵢ, Eᵢ)]
     // TODO: This is a multizip, simplify
-    </span><span class="kw">let </span>ABCE_evals = <span class="macro">zip_with!</span>(
-      iter,
-      (
-        <span class="self">self</span>.evals_E,
-        <span class="self">self</span>.claims_outer.<span class="number">0</span>,
-        <span class="self">self</span>.claims_outer.<span class="number">1</span>,
-        <span class="self">self</span>.claims_outer.<span class="number">2
-      </span>),
-      |eval_E, claim_Az, claim_Bz, claim_Cz| (<span class="kw-2">*</span>claim_Az, <span class="kw-2">*</span>claim_Bz, <span class="kw-2">*</span>claim_Cz, <span class="kw-2">*</span>eval_E)
-    )
-    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    </span><span class="kw">let </span>ABCE_evals = || <span class="self">self</span>.claims_outer.iter().zip_eq(<span class="self">self</span>.evals_E.iter());
 
     <span class="comment">// Add evaluations of Az, Bz, Cz, E to transcript
-    </span><span class="kw">for </span>(claim_Az, claim_Bz, claim_Cz, eval_E) <span class="kw">in </span>ABCE_evals.iter() {
+    </span><span class="kw">for </span>((claim_Az, claim_Bz, claim_Cz), eval_E) <span class="kw">in </span>ABCE_evals() {
       transcript.absorb(
         <span class="string">b&quot;claims_outer&quot;</span>,
         <span class="kw-2">&amp;</span>[<span class="kw-2">*</span>claim_Az, <span class="kw-2">*</span>claim_Bz, <span class="kw-2">*</span>claim_Cz, <span class="kw-2">*</span>eval_E].as_slice(),
@@ -1086,15 +1030,10 @@
 
     <span class="comment">// Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     </span><span class="kw">let </span>claim_outer_final_expected = <span class="macro">zip_with!</span>(
-      (
-        ABCE_evals.iter().copied(),
-        U.iter(),
-        evals_tau,
-        outer_r_powers.iter()
-      ),
+      (ABCE_evals(), U.iter(), evals_tau, outer_r_powers.iter()),
       |ABCE_eval, u, eval_tau, r| {
-        <span class="kw">let </span>(claim_Az, claim_Bz, claim_Cz, eval_E) = ABCE_eval;
-        <span class="kw-2">*</span>r * eval_tau * (claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
+        <span class="kw">let </span>((claim_Az, claim_Bz, claim_Cz), eval_E) = ABCE_eval;
+        <span class="kw-2">*</span>r * eval_tau * (<span class="kw-2">*</span>claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
       }
     )
     .sum::&lt;E::Scalar&gt;();
@@ -1110,10 +1049,11 @@
 
     <span class="comment">// Compute inner claims Mzᵢ = (Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ),
     // which are batched by Sumcheck into one claim:  ∑ᵢ r³ⁱ⋅Mzᵢ
-    </span><span class="kw">let </span>claims_inner = ABCE_evals
-      .into_iter()
-      .map(|(claim_Az, claim_Bz, claim_Cz, <span class="kw">_</span>)| {
-        claim_Az + inner_r * claim_Bz + inner_r_square * claim_Cz
+    </span><span class="kw">let </span>claims_inner = <span class="self">self
+      </span>.claims_outer
+      .iter()
+      .map(|(claim_Az, claim_Bz, claim_Cz)| {
+        <span class="kw-2">*</span>claim_Az + inner_r * claim_Bz + inner_r_square * claim_Cz
       })
       .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
@@ -1134,15 +1074,17 @@
     </span><span class="kw">let </span>evals_Z = <span class="macro">zip_with!</span>(iter, (<span class="self">self</span>.evals_W, U, r_y), |eval_W, U, r_y| {
       <span class="kw">let </span>eval_X = {
         <span class="comment">// constant term
-        </span><span class="kw">let </span><span class="kw-2">mut </span>poly_X = <span class="macro">vec!</span>[(<span class="number">0</span>, U.u)];
-        <span class="comment">//remaining inputs
-        </span>poly_X.extend(
-          U.X
+        </span><span class="kw">let </span>poly_X = iter::once((<span class="number">0</span>, U.u))
+          .chain(
+            <span class="comment">//remaining inputs
+            </span>U.X
             .iter()
             .enumerate()
-            .map(|(i, x_i)| (i + <span class="number">1</span>, <span class="kw-2">*</span>x_i))
-            .collect::&lt;Vec&lt;(usize, E::Scalar)&gt;&gt;(),
-        );
+            <span class="comment">// filter_map uses the sparsity of the polynomial, if irrelevant
+            // we should replace by UniPoly
+            </span>.filter_map(|(i, x_i)| (!x_i.is_zero_vartime()).then_some((i + <span class="number">1</span>, <span class="kw-2">*</span>x_i))),
+          )
+          .collect();
         SparsePolynomial::new(r_y.len() - <span class="number">1</span>, poly_X).evaluate(<span class="kw-2">&amp;</span>r_y[<span class="number">1</span>..])
       };
       (E::Scalar::ONE - r_y[<span class="number">0</span>]) * eval_W + r_y[<span class="number">0</span>] * eval_X

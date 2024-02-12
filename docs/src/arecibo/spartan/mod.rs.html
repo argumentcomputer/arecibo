@@ -312,8 +312,7 @@
   }
 
   <span class="doccomment">/// Given a set of polynomials \[Pᵢ\] and a scalar `s`, this method computes the weighted sum
-  /// of the polynomials, where each polynomial Pᵢ is scaled by sⁱ. The method handles polynomials
-  /// of different sizes by padding smaller ones with zeroes up to the size of the largest polynomial.
+  /// of the polynomials, where each polynomial Pᵢ is scaled by sⁱ.
   ///
   /// # Panics
   ///
@@ -321,6 +320,7 @@
   </span><span class="kw">fn </span>batch(p_vec: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>Vec&lt;E::Scalar&gt;], s: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
     p_vec
       .iter()
+      .skip(<span class="number">1</span>)
       .for_each(|p| <span class="macro">assert_eq!</span>(p.len(), p_vec[<span class="number">0</span>].len()));
 
     <span class="kw">let </span>powers_of_s = powers::&lt;E&gt;(s, p_vec.len());
@@ -413,7 +413,7 @@
   }
 }
 
-<span class="doccomment">/// Bounds &quot;row&quot; variables of (A, B, C) matrices viewed as 2d multilinear polynomials
+<span class="doccomment">/// Binds &quot;row&quot; variables of (A, B, C) matrices viewed as 2d multilinear polynomials
 </span><span class="kw">fn </span>compute_eval_table_sparse&lt;E: Engine&gt;(
   S: <span class="kw-2">&amp;</span>R1CSShape&lt;E&gt;,
   rx: <span class="kw-2">&amp;</span>[E::Scalar],
