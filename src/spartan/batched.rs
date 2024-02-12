@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
-use std::sync::Arc;
+use std::{iter, sync::Arc};
 
 use super::{
   compute_eval_table_sparse,
@@ -45,7 +45,7 @@ use crate::{
 pub struct BatchedRelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   sc_proof_outer: SumcheckProof<E>,
   // Claims ([Azᵢ(τᵢ)], [Bzᵢ(τᵢ)], [Czᵢ(τᵢ)])
-  claims_outer: (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>),
+  claims_outer: Vec<(E::Scalar, E::Scalar, E::Scalar)>,
   // [Eᵢ(r_x)]
   evals_E: Vec<E::Scalar>,
   sc_proof_inner: SumcheckProof<E>,
@@ -134,17 +134,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
   ) -> Result<Self, NovaError> {
     let num_instances = U.len();
     // Pad shapes and ensure their sizes are correct
-    let S = S
-      .iter()
-      .map(|s| {
-        let s = s.pad();
-        if s.is_regular_shape() {
-          Ok(s)
-        } else {
-          Err(NovaError::InternalError)
-        }
-      })
-      .collect::<Result<Vec<_>, _>>()?;
+    let S = S.iter().map(|s| s.pad()).collect::<Vec<_>>();
 
     // Pad (W,E) for each instance
     let W = zip_with!(iter, (W, S), |w, s| w.pad(s)).collect::<Vec<RelaxedR1CSWitness<E>>>();
@@ -156,9 +146,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    for u in U.iter() {
-      transcript.absorb(b"U", u);
-    }
+    transcript.absorb(b"U", &U);
 
     let (polys_W, polys_E): (Vec<_>, Vec<_>) = W.into_iter().map(|w| (w.W, w.E)).unzip();
 
@@ -371,12 +359,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       &batched_u.e,
     )?;
 
-    let (evals_Az, evals_Bz, evals_Cz): (Vec<_>, Vec<_>, Vec<_>) =
-      evals_Az_Bz_Cz.into_iter().multiunzip();
-
     Ok(Self {
       sc_proof_outer,
-      claims_outer: (evals_Az, evals_Bz, evals_Cz),
+      claims_outer: evals_Az_Bz_Cz,
       evals_E,
       sc_proof_inner,
       evals_W,
@@ -395,9 +380,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       let num_instances_field = E::Scalar::from(num_instances as u64);
       transcript.absorb(b"n", &num_instances_field);
     }
-    for u in U.iter() {
-      transcript.absorb(b"U", u);
-    }
+    transcript.absorb(b"U", &U);
 
     let num_instances = U.len();
 
@@ -410,14 +393,14 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let num_rounds_y_max = *num_rounds_y.iter().max().unwrap();
 
     // Define τ polynomials of the appropriate size for each instance
-    let polys_tau = {
-      let tau = transcript.squeeze(b"t")?;
+    let tau = transcript.squeeze(b"t")?;
+    let all_taus = PowPolynomial::squares(&tau, num_rounds_x_max);
 
-      num_rounds_x
-        .iter()
-        .map(|&num_rounds| PowPolynomial::new(&tau, num_rounds))
-        .collect::<Vec<_>>()
-    };
+    let polys_tau = num_rounds_x
+      .iter()
+      .map(|&num_rounds_x| PowPolynomial::evals_with_powers(&all_taus, num_rounds_x))
+      .map(MultilinearPolynomial::new)
+      .collect::<Vec<_>>();
 
     // Sample challenge for random linear-combination of outer claims
     let outer_r = transcript.squeeze(b"out_r")?;
@@ -441,20 +424,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Extract evaluations into a vector [(Azᵢ, Bzᵢ, Czᵢ, Eᵢ)]
     // TODO: This is a multizip, simplify
-    let ABCE_evals = zip_with!(
-      iter,
-      (
-        self.evals_E,
-        self.claims_outer.0,
-        self.claims_outer.1,
-        self.claims_outer.2
-      ),
-      |eval_E, claim_Az, claim_Bz, claim_Cz| (*claim_Az, *claim_Bz, *claim_Cz, *eval_E)
-    )
-    .collect::<Vec<_>>();
+    let ABCE_evals = || self.claims_outer.iter().zip_eq(self.evals_E.iter());
 
     // Add evaluations of Az, Bz, Cz, E to transcript
-    for (claim_Az, claim_Bz, claim_Cz, eval_E) in ABCE_evals.iter() {
+    for ((claim_Az, claim_Bz, claim_Cz), eval_E) in ABCE_evals() {
       transcript.absorb(
         b"claims_outer",
         &[*claim_Az, *claim_Bz, *claim_Cz, *eval_E].as_slice(),
@@ -467,15 +440,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = zip_with!(
-      (
-        ABCE_evals.iter().copied(),
-        U.iter(),
-        evals_tau,
-        outer_r_powers.iter()
-      ),
+      (ABCE_evals(), U.iter(), evals_tau, outer_r_powers.iter()),
       |ABCE_eval, u, eval_tau, r| {
-        let (claim_Az, claim_Bz, claim_Cz, eval_E) = ABCE_eval;
-        *r * eval_tau * (claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
+        let ((claim_Az, claim_Bz, claim_Cz), eval_E) = ABCE_eval;
+        *r * eval_tau * (*claim_Az * claim_Bz - u.u * claim_Cz - eval_E)
       }
     )
     .sum::<E::Scalar>();
@@ -491,10 +459,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // Compute inner claims Mzᵢ = (Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ),
     // which are batched by Sumcheck into one claim:  ∑ᵢ r³ⁱ⋅Mzᵢ
-    let claims_inner = ABCE_evals
-      .into_iter()
-      .map(|(claim_Az, claim_Bz, claim_Cz, _)| {
-        claim_Az + inner_r * claim_Bz + inner_r_square * claim_Cz
+    let claims_inner = self
+      .claims_outer
+      .iter()
+      .map(|(claim_Az, claim_Bz, claim_Cz)| {
+        *claim_Az + inner_r * claim_Bz + inner_r_square * claim_Cz
       })
       .collect::<Vec<_>>();
 
@@ -515,15 +484,17 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let evals_Z = zip_with!(iter, (self.evals_W, U, r_y), |eval_W, U, r_y| {
       let eval_X = {
         // constant term
-        let mut poly_X = vec![(0, U.u)];
-        //remaining inputs
-        poly_X.extend(
-          U.X
+        let poly_X = iter::once((0, U.u))
+          .chain(
+            //remaining inputs
+            U.X
             .iter()
             .enumerate()
-            .map(|(i, x_i)| (i + 1, *x_i))
-            .collect::<Vec<(usize, E::Scalar)>>(),
-        );
+            // filter_map uses the sparsity of the polynomial, if irrelevant
+            // we should replace by UniPoly
+            .filter_map(|(i, x_i)| (!x_i.is_zero_vartime()).then_some((i + 1, *x_i))),
+          )
+          .collect();
         SparsePolynomial::new(r_y.len() - 1, poly_X).evaluate(&r_y[1..])
       };
       (E::Scalar::ONE - r_y[0]) * eval_W + r_y[0] * eval_X

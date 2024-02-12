@@ -68,7 +68,7 @@ pub mod test_utils {
       .collect::<Vec<_>>();
 
     // Calculation evaluation of point over polynomial.
-    let eval = MultilinearPolynomial::evaluate_with(poly.evaluations(), &point);
+    let eval = poly.evaluate(&point);
 
     (poly, point, eval)
   }

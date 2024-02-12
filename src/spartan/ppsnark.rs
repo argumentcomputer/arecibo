@@ -604,14 +604,12 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
         );
 
         // a sum-check instance to prove the second claim
-        let val = pk
-          .S_repr
-          .val_A
-          .par_iter()
-          .zip_eq(pk.S_repr.val_B.par_iter())
-          .zip_eq(pk.S_repr.val_C.par_iter())
-          .map(|((v_a, v_b), v_c)| *v_a + c * *v_b + c * c * *v_c)
-          .collect::<Vec<E::Scalar>>();
+        let val = zip_with!(
+          par_iter,
+          (pk.S_repr.val_A, pk.S_repr.val_B, pk.S_repr.val_C),
+          |v_a, v_b, v_c| *v_a + c * *v_b + c * c * *v_c
+        )
+        .collect::<Vec<E::Scalar>>();
         let inner_sc_inst = InnerSumcheckInstance {
           claim: eval_Az_at_tau + c * eval_Bz_at_tau + c * c * eval_Cz_at_tau,
           poly_L_row: MultilinearPolynomial::new(L_row.clone()),
@@ -887,12 +885,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
     // verify claim_sc_final
     let claim_sc_final_expected = {
-      let rand_eq_bound_rand_sc = {
-        let poly_eq_coords = PowPolynomial::new(&rho, num_rounds_sc).coordinates();
-        EqPolynomial::new(poly_eq_coords).evaluate(&rand_sc)
-      };
-      let taus_coords = PowPolynomial::new(&tau, num_rounds_sc).coordinates();
-      let eq_tau = EqPolynomial::new(taus_coords);
+      let rand_eq_bound_rand_sc = PowPolynomial::new(&rho, num_rounds_sc).evaluate(&rand_sc);
+      let eq_tau: EqPolynomial<_> = PowPolynomial::new(&tau, num_rounds_sc).into();
 
       let taus_bound_rand_sc = eq_tau.evaluate(&rand_sc);
       let taus_masked_bound_rand_sc =
@@ -933,13 +927,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
           let eval_X = {
             // constant term
-            let mut poly_X = vec![(0, U.u)];
-            //remaining inputs
-            poly_X.extend(
-              (0..U.X.len())
-                .map(|i| (i + 1, U.X[i]))
-                .collect::<Vec<(usize, E::Scalar)>>(),
-            );
+            let poly_X = std::iter::once((0, U.u))
+              .chain(
+                //remaining inputs
+                (0..U.X.len())
+                // filter_map uses the sparsity of the polynomial, if irrelevant
+                // we should replace by UniPoly
+                .filter_map(|i| (!U.X[i].is_zero_vartime()).then_some((i + 1, U.X[i]))),
+              )
+              .collect();
             SparsePolynomial::new(vk.num_vars.log_2(), poly_X).evaluate(&rand_sc_unpad[1..])
           };
 

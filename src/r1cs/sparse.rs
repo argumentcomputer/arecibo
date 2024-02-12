@@ -135,6 +135,12 @@ impl<F: PrimeField> SparseMatrix<F> {
     name = "SparseMatrix::multiply_vec_unchecked"
   )]
   pub fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
+    let mut sink: Vec<F> = Vec::with_capacity(self.indptr.len() - 1);
+    self.multiply_vec_into_unchecked(vector, &mut sink);
+    sink
+  }
+
+  pub fn multiply_vec_into_unchecked(&self, vector: &[F], sink: &mut Vec<F>) {
     self
       .indptr
       .par_windows(2)
@@ -144,7 +150,7 @@ impl<F: PrimeField> SparseMatrix<F> {
           .map(|(val, col_idx)| *val * vector[*col_idx])
           .sum()
       })
-      .collect()
+      .collect_into_vec(sink);
   }
 
   /// Multiply by a witness representing a dense vector; uses rayon to parallelize.

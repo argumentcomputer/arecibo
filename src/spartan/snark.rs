@@ -28,7 +28,7 @@ use itertools::Itertools as _;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{iter, sync::Arc};
 
 /// A type that represents the prover's key
 #[derive(Debug, Clone)]
@@ -326,13 +326,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     let eval_Z = {
       let eval_X = {
         // constant term
-        let mut poly_X = vec![(0, U.u)];
-        //remaining inputs
-        poly_X.extend(
-          (0..U.X.len())
-            .map(|i| (i + 1, U.X[i]))
-            .collect::<Vec<(usize, E::Scalar)>>(),
-        );
+        let poly_X = iter::once((0, U.u))
+          .chain(
+            //remaining inputs
+            (0..U.X.len())
+          // filter_map uses the sparsity of the polynomial, if irrelevant
+          // we should replace by UniPoly
+          .filter_map(|i| (!U.X[i].is_zero_vartime()).then_some((i + 1, U.X[i]))),
+          )
+          .collect();
         SparsePolynomial::new(usize::try_from(vk.S.num_vars.ilog2()).unwrap(), poly_X)
           .evaluate(&r_y[1..])
       };
@@ -444,10 +446,10 @@ pub(in crate::spartan) fn batch_eval_prove<E: Engine>(
   let num_rounds = u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
 
   // Check polynomials match number of variables, i.e. |Pᵢ| = 2^nᵢ
-  w_vec
-    .iter()
-    .zip_eq(num_rounds.iter())
-    .for_each(|(w, num_vars)| assert_eq!(w.p.len(), 1 << num_vars));
+  zip_with_for_each!(iter, (w_vec, num_rounds), |w, num_vars| assert_eq!(
+    w.p.len(),
+    1 << num_vars
+  ));
 
   // generate a challenge, and powers of it for random linear combination
   let rho = transcript.squeeze(b"r")?;

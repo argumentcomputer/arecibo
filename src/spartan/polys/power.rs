@@ -61,3 +61,9 @@ impl<Scalar: PrimeField> PowPolynomial<Scalar> {
     self.eq.evals()
   }
 }
+
+impl<Scalar: PrimeField> From<PowPolynomial<Scalar>> for EqPolynomial<Scalar> {
+  fn from(polynomial: PowPolynomial<Scalar>) -> Self {
+    polynomial.eq
+  }
+}
