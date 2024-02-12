@@ -937,7 +937,7 @@
     };
 
     <span class="kw">let </span>(batched_u, batched_w, sc_proof_batch, claims_batch_left) =
-      batch_eval_prove(u_vec, w_vec, <span class="kw-2">&amp;mut </span>transcript)<span class="question-mark">?</span>;
+      batch_eval_prove(u_vec, <span class="kw-2">&amp;</span>w_vec, <span class="kw-2">&amp;mut </span>transcript)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>eval_arg = EE::prove(
       ck,

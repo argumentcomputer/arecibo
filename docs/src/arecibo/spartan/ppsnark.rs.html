@@ -1069,6 +1069,8 @@
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
 <a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARK` traits using a spark-based approach to prove evaluations of
 //! sparse multilinear polynomials involved in Spartan&#39;s sum-check protocol, thereby providing a preprocessing SNARK
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
@@ -1651,7 +1653,8 @@
     <span class="kw">let </span>poly_vec = <span class="macro">vec!</span>[<span class="kw-2">&amp;</span>Az, <span class="kw-2">&amp;</span>Bz, <span class="kw-2">&amp;</span>Cz];
     <span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>w: PolyEvalWitness&lt;E&gt; = PolyEvalWitness::batch(<span class="kw-2">&amp;</span>poly_vec, <span class="kw-2">&amp;</span>c);
-    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, <span class="kw-2">&amp;</span>tau_coords, <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
+    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; =
+      PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, tau_coords.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
 
     <span class="comment">// we now need to prove three claims
     // (1) 0 = \sum_x poly_tau(x) * (poly_Az(x) * poly_Bz(x) - poly_uCz_E(x)), and eval_Az_at_tau + r * eval_Bz_at_tau + r^2 * eval_Cz_at_tau = (Az+r*Bz+r^2*Cz)(tau)
@@ -1840,7 +1843,7 @@
     transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice()); <span class="comment">// comm_vec is already in the transcript
     </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>w: PolyEvalWitness&lt;E&gt; = PolyEvalWitness::batch(<span class="kw-2">&amp;</span>poly_vec, <span class="kw-2">&amp;</span>c);
-    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, <span class="kw-2">&amp;</span>rand_sc, <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
+    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, rand_sc.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
 
     <span class="kw">let </span>eval_arg = EE::prove(ck, <span class="kw-2">&amp;</span>pk.pk_ee, <span class="kw-2">&amp;mut </span>transcript, <span class="kw-2">&amp;</span>u.c, <span class="kw-2">&amp;</span>w.p, <span class="kw-2">&amp;</span>rand_sc, <span class="kw-2">&amp;</span>u.e)<span class="question-mark">?</span>;
 
@@ -1926,7 +1929,8 @@
     transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[comm_L_row, comm_L_col].as_slice());
     <span class="kw">let </span>comm_vec = <span class="macro">vec!</span>[comm_Az, comm_Bz, comm_Cz];
     <span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, <span class="kw-2">&amp;</span>tau_coords, <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
+    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; =
+      PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, tau_coords.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
     <span class="kw">let </span>claim = u.e;
 
     <span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b&quot;g&quot;</span>)<span class="question-mark">?</span>;
@@ -2103,7 +2107,7 @@
     ];
     transcript.absorb(<span class="string">b&quot;e&quot;</span>, <span class="kw-2">&amp;</span>eval_vec.as_slice()); <span class="comment">// comm_vec is already in the transcript
     </span><span class="kw">let </span>c = transcript.squeeze(<span class="string">b&quot;c&quot;</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, <span class="kw-2">&amp;</span>rand_sc, <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
+    <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; = PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, rand_sc.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
 
     <span class="comment">// verify
     </span>EE::verify(

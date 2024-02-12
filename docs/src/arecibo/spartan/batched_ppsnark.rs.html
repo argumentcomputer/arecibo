@@ -1337,6 +1337,7 @@
 <a href="#1337" id="1337">1337</a>
 <a href="#1338" id="1338">1338</a>
 <a href="#1339" id="1339">1339</a>
+<a href="#1340" id="1340">1340</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! batched pp snark
 //!
 //!
@@ -1714,7 +1715,7 @@
       |comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau| {
         <span class="kw">let </span>u = PolyEvalInstance::&lt;E&gt;::batch(
           comm_Az_Bz_Cz.as_slice(),
-          <span class="kw-2">&amp;</span>[], <span class="comment">// ignored by the function
+          <span class="macro">vec!</span>[], <span class="comment">// ignored by the function
           </span>evals_Az_Bz_Cz_at_tau.as_slice(),
           <span class="kw-2">&amp;</span>c,
         );
@@ -2040,7 +2041,8 @@
     </span><span class="kw">let </span>num_vars_u = w_vec.iter().map(|w| w.p.len().log_2()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="kw">let </span>u_batch =
       PolyEvalInstance::&lt;E&gt;::batch_diff_size(<span class="kw-2">&amp;</span>comms_vec, <span class="kw-2">&amp;</span>evals_vec, <span class="kw-2">&amp;</span>num_vars_u, rand_sc, c);
-    <span class="kw">let </span>w_batch = PolyEvalWitness::&lt;E&gt;::batch_diff_size(w_vec, c);
+    <span class="kw">let </span>w_batch =
+      PolyEvalWitness::&lt;E&gt;::batch_diff_size(<span class="kw-2">&amp;</span>w_vec.iter().by_ref().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(), c);
 
     <span class="kw">let </span>eval_arg = EE::prove(
       ck,
@@ -2158,7 +2160,7 @@
       |comm_Az_Bz_Cz, evals_Az_Bz_Cz_at_tau| {
         <span class="kw">let </span>u = PolyEvalInstance::&lt;E&gt;::batch(
           comm_Az_Bz_Cz.as_slice(),
-          <span class="kw-2">&amp;</span>tau_coords,
+          tau_coords.clone(),
           evals_Az_Bz_Cz_at_tau.as_slice(),
           <span class="kw-2">&amp;</span>c,
         );

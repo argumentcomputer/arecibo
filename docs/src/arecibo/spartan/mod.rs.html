@@ -225,6 +225,106 @@
 <a href="#225" id="225">225</a>
 <a href="#226" id="226">226</a>
 <a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! We provide two implementations, one in snark.rs (which does not use any preprocessing)
@@ -251,7 +351,9 @@
 <span class="kw">use </span>ff::Field;
 <span class="kw">use </span>itertools::Itertools <span class="kw">as _</span>;
 <span class="kw">use </span>polys::multilinear::SparsePolynomial;
+
 <span class="kw">use </span>rayon::{iter::IntoParallelRefIterator, prelude::<span class="kw-2">*</span>};
+<span class="kw">use </span>ref_cast::RefCast;
 
 <span class="comment">// Creates a vector of the first `n` powers of `s`.
 </span><span class="kw">fn </span>powers&lt;E: Engine&gt;(s: <span class="kw-2">&amp;</span>E::Scalar, n: usize) -&gt; Vec&lt;E::Scalar&gt; {
@@ -262,7 +364,8 @@
 }
 
 <span class="doccomment">/// A type that holds a witness to a polynomial evaluation instance
-</span><span class="attr">#[derive(Debug)]
+</span><span class="attr">#[repr(transparent)]
+#[derive(Debug, RefCast)]
 </span><span class="kw">struct </span>PolyEvalWitness&lt;E: Engine&gt; {
   p: Vec&lt;E::Scalar&gt;, <span class="comment">// polynomial
 </span>}
@@ -274,39 +377,43 @@
   ///
   /// We allow the input polynomials to have different sizes, and interpret smaller ones as
   /// being padded with 0 to the maximum size of all polynomials.
-  </span><span class="kw">fn </span>batch_diff_size(W: Vec&lt;<span class="self">Self</span>&gt;, s: E::Scalar) -&gt; <span class="self">Self </span>{
+  </span><span class="kw">fn </span>batch_diff_size(W: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>], s: E::Scalar) -&gt; <span class="self">Self </span>{
     <span class="kw">let </span>powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, W.len());
 
     <span class="kw">let </span>size_max = W.iter().map(|w| w.p.len()).max().unwrap();
+    <span class="kw">let </span>p_vec = W.par_iter().map(|w| <span class="kw-2">&amp;</span>w.p);
     <span class="comment">// Scale the input polynomials by the power of s
-    </span><span class="kw">let </span>p = W
-      .into_par_iter()
-      .zip_eq(powers.par_iter())
-      .map(|(<span class="kw-2">mut </span>w, s)| {
-        <span class="kw">if </span><span class="kw-2">*</span>s != E::Scalar::ONE {
-          w.p.par_iter_mut().for_each(|e| <span class="kw-2">*</span>e <span class="kw-2">*</span>= s);
-        }
-        w.p
-      })
-      .reduce(
-        || <span class="macro">vec!</span>[E::Scalar::ZERO; size_max],
-        |left, right| {
-          <span class="comment">// Sum into the largest polynomial
-          </span><span class="kw">let </span>(<span class="kw-2">mut </span>big, small) = <span class="kw">if </span>left.len() &gt; right.len() {
-            (left, right)
+    </span><span class="kw">let </span>p = <span class="macro">zip_with!</span>((p_vec, powers.par_iter()), |v, weight| {
+      <span class="comment">// compute the weighted sum for each vector
+      </span>v.iter()
+        .map(|<span class="kw-2">&amp;</span>x| {
+          <span class="kw">if </span><span class="kw-2">*</span>weight != E::Scalar::ONE {
+            x * <span class="kw-2">*</span>weight
           } <span class="kw">else </span>{
-            (right, left)
-          };
+            x
+          }
+        })
+        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+    })
+    .reduce(
+      || <span class="macro">vec!</span>[E::Scalar::ZERO; size_max],
+      |left, right| {
+        <span class="comment">// Sum into the largest polynomial
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>big, small) = <span class="kw">if </span>left.len() &gt; right.len() {
+          (left, right)
+        } <span class="kw">else </span>{
+          (right, left)
+        };
 
-          <span class="attr">#[allow(clippy::disallowed_methods)]
-          </span>big
-            .par_iter_mut()
-            .zip(small.par_iter())
-            .for_each(|(b, s)| <span class="kw-2">*</span>b += s);
+        <span class="attr">#[allow(clippy::disallowed_methods)]
+        </span>big
+          .par_iter_mut()
+          .zip(small.par_iter())
+          .for_each(|(b, s)| <span class="kw-2">*</span>b += s);
 
-          big
-        },
-      );
+        big
+      },
+    );
 
     <span class="self">Self </span>{ p }
   }
@@ -322,22 +429,8 @@
       .iter()
       .skip(<span class="number">1</span>)
       .for_each(|p| <span class="macro">assert_eq!</span>(p.len(), p_vec[<span class="number">0</span>].len()));
-
-    <span class="kw">let </span>powers_of_s = powers::&lt;E&gt;(s, p_vec.len());
-
-    <span class="kw">let </span>p = <span class="macro">zip_with!</span>(par_iter, (p_vec, powers_of_s), |v, weight| {
-      <span class="comment">// compute the weighted sum for each vector
-      </span>v.iter().map(|<span class="kw-2">&amp;</span>x| x * <span class="kw-2">*</span>weight).collect::&lt;Vec&lt;E::Scalar&gt;&gt;()
-    })
-    .reduce(
-      || <span class="macro">vec!</span>[E::Scalar::ZERO; p_vec[<span class="number">0</span>].len()],
-      |acc, v| {
-        <span class="comment">// perform vector addition to combine the weighted vectors
-        </span>acc.into_iter().zip_eq(v).map(|(x, y)| x + y).collect()
-      },
-    );
-
-    <span class="self">Self </span>{ p }
+    <span class="kw">let </span>instances = p_vec.iter().map(|p| <span class="self">Self</span>::ref_cast(p)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    <span class="self">Self</span>::batch_diff_size(<span class="kw-2">&amp;</span>instances, <span class="kw-2">*</span>s)
   }
 }
 
@@ -377,15 +470,14 @@
 
       <span class="comment">// vᵢ = L₀(x_lo)⋅Pᵢ(x_hi)
       </span>lagrange_eval * eval
-    })
-    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    });
 
     <span class="comment">// C = ∑ᵢ γⁱ⋅Cᵢ
     </span><span class="kw">let </span>comm_joint = <span class="macro">zip_with!</span>(iter, (c_vec, powers), |c, g_i| <span class="kw-2">*</span>c * <span class="kw-2">*</span>g_i)
       .fold(Commitment::&lt;E&gt;::default(), |acc, item| acc + item);
 
     <span class="comment">// v = ∑ᵢ γⁱ⋅vᵢ
-    </span><span class="kw">let </span>eval_joint = <span class="macro">zip_with!</span>((evals_scaled.into_iter(), powers.iter()), |e, g_i| e * g_i).sum();
+    </span><span class="kw">let </span>eval_joint = <span class="macro">zip_with!</span>((evals_scaled, powers.iter()), |e, g_i| e * g_i).sum();
 
     <span class="self">Self </span>{
       c: comm_joint,
@@ -394,22 +486,9 @@
     }
   }
 
-  <span class="kw">fn </span>batch(c_vec: <span class="kw-2">&amp;</span>[Commitment&lt;E&gt;], x: <span class="kw-2">&amp;</span>[E::Scalar], e_vec: <span class="kw-2">&amp;</span>[E::Scalar], s: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
-    <span class="kw">let </span>num_instances = c_vec.len();
-    <span class="macro">assert_eq!</span>(e_vec.len(), num_instances);
-
-    <span class="kw">let </span>powers_of_s = powers::&lt;E&gt;(s, num_instances);
-    <span class="comment">// Weighted sum of evaluations
-    </span><span class="kw">let </span>e = <span class="macro">zip_with!</span>(par_iter, (e_vec, powers_of_s), |e, p| <span class="kw-2">*</span>e * p).sum();
-    <span class="comment">// Weighted sum of commitments
-    </span><span class="kw">let </span>c = <span class="macro">zip_with!</span>(par_iter, (c_vec, powers_of_s), |c, p| <span class="kw-2">*</span>c * <span class="kw-2">*</span>p)
-      .reduce(Commitment::&lt;E&gt;::default, |acc, item| acc + item);
-
-    <span class="self">Self </span>{
-      c,
-      x: x.to_vec(),
-      e,
-    }
+  <span class="kw">fn </span>batch(c_vec: <span class="kw-2">&amp;</span>[Commitment&lt;E&gt;], x: Vec&lt;E::Scalar&gt;, e_vec: <span class="kw-2">&amp;</span>[E::Scalar], s: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
+    <span class="kw">let </span>sizes = <span class="macro">vec!</span>[x.len(); e_vec.len()];
+    <span class="self">Self</span>::batch_diff_size(c_vec, e_vec, <span class="kw-2">&amp;</span>sizes, x, <span class="kw-2">*</span>s)
   }
 }
 
@@ -451,5 +530,126 @@
   );
 
   (A_evals, B_evals, C_evals)
+}
+
+<span class="attr">#[cfg(all(test, not(target_arch = <span class="string">&quot;wasm32&quot;</span>)))]
+</span><span class="kw">mod </span>tests {
+  <span class="kw">use super</span>::<span class="kw-2">*</span>;
+  <span class="kw">use </span><span class="kw">crate</span>::provider::PallasEngine;
+  <span class="kw">use </span><span class="kw">crate</span>::r1cs::util::{FWrap, GWrap};
+  <span class="kw">use </span>pasta_curves::pallas::Point <span class="kw">as </span>PallasPoint;
+  <span class="kw">use </span>pasta_curves::Fq <span class="kw">as </span>Scalar;
+  <span class="kw">use </span>proptest::collection::vec;
+  <span class="kw">use </span>proptest::prelude::<span class="kw-2">*</span>;
+
+  <span class="kw">impl</span>&lt;E: Engine&gt; PolyEvalWitness&lt;E&gt; {
+    <span class="kw">fn </span>alt_batch(p_vec: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>Vec&lt;E::Scalar&gt;], s: <span class="kw-2">&amp;</span>E::Scalar) -&gt; <span class="self">Self </span>{
+      p_vec
+        .iter()
+        .skip(<span class="number">1</span>)
+        .for_each(|p| <span class="macro">assert_eq!</span>(p.len(), p_vec[<span class="number">0</span>].len()));
+
+      <span class="kw">let </span>powers_of_s = powers::&lt;E&gt;(s, p_vec.len());
+
+      <span class="kw">let </span>p = <span class="macro">zip_with!</span>(par_iter, (p_vec, powers_of_s), |v, weight| {
+        <span class="comment">// compute the weighted sum for each vector
+        </span>v.iter().map(|<span class="kw-2">&amp;</span>x| x * <span class="kw-2">*</span>weight).collect::&lt;Vec&lt;E::Scalar&gt;&gt;()
+      })
+      .reduce(
+        || <span class="macro">vec!</span>[E::Scalar::ZERO; p_vec[<span class="number">0</span>].len()],
+        |acc, v| {
+          <span class="comment">// perform vector addition to combine the weighted vectors
+          </span>acc.into_iter().zip_eq(v).map(|(x, y)| x + y).collect()
+        },
+      );
+
+      <span class="self">Self </span>{ p }
+    }
+  }
+
+  <span class="kw">impl</span>&lt;E: Engine&gt; PolyEvalInstance&lt;E&gt; {
+    <span class="kw">fn </span>alt_batch(
+      c_vec: <span class="kw-2">&amp;</span>[Commitment&lt;E&gt;],
+      x: Vec&lt;E::Scalar&gt;,
+      e_vec: <span class="kw-2">&amp;</span>[E::Scalar],
+      s: <span class="kw-2">&amp;</span>E::Scalar,
+    ) -&gt; <span class="self">Self </span>{
+      <span class="kw">let </span>num_instances = c_vec.len();
+      <span class="macro">assert_eq!</span>(e_vec.len(), num_instances);
+
+      <span class="kw">let </span>powers_of_s = powers::&lt;E&gt;(s, num_instances);
+      <span class="comment">// Weighted sum of evaluations
+      </span><span class="kw">let </span>e = <span class="macro">zip_with!</span>(par_iter, (e_vec, powers_of_s), |e, p| <span class="kw-2">*</span>e * p).sum();
+      <span class="comment">// Weighted sum of commitments
+      </span><span class="kw">let </span>c = <span class="macro">zip_with!</span>(par_iter, (c_vec, powers_of_s), |c, p| <span class="kw-2">*</span>c * <span class="kw-2">*</span>p)
+        .reduce(Commitment::&lt;E&gt;::default, |acc, item| acc + item);
+
+      <span class="self">Self </span>{ c, x, e }
+    }
+  }
+
+  <span class="macro">proptest! </span>{
+      <span class="attr">#[test]
+      </span><span class="kw">fn </span>test_pe_witness_batch_diff_size_batch(
+        s <span class="kw">in </span>any::&lt;FWrap&lt;Scalar&gt;&gt;(),
+        vecs <span class="kw">in </span>(<span class="number">50usize</span>..<span class="number">100</span>).prop_flat_map(|size| vec(
+            vec(any::&lt;FWrap&lt;Scalar&gt;&gt;().prop_map(|f| f.<span class="number">0</span>), size..=size), <span class="comment">// even-sized vec
+            </span><span class="number">1</span>..<span class="number">5</span>))
+      )
+      {
+        <span class="comment">// when the vectors are the same size, batch_diff_size and batch agree
+        </span><span class="kw">let </span>res = PolyEvalWitness::&lt;PallasEngine&gt;::alt_batch(<span class="kw-2">&amp;</span>vecs.iter().by_ref().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(), <span class="kw-2">&amp;</span>s.<span class="number">0</span>);
+        <span class="kw">let </span>witnesses = vecs.iter().map(PolyEvalWitness::ref_cast).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>res2 = PolyEvalWitness::&lt;PallasEngine&gt;::batch_diff_size(<span class="kw-2">&amp;</span>witnesses, s.<span class="number">0</span>);
+
+        <span class="macro">prop_assert_eq!</span>(res.p, res2.p);
+      }
+
+      <span class="attr">#[test]
+      </span><span class="kw">fn </span>test_pe_witness_batch_diff_size_pad_batch(
+        s <span class="kw">in </span>any::&lt;FWrap&lt;Scalar&gt;&gt;(),
+        vecs <span class="kw">in </span>(<span class="number">50usize</span>..<span class="number">100</span>).prop_flat_map(|size| vec(
+            vec(any::&lt;FWrap&lt;Scalar&gt;&gt;().prop_map(|f| f.<span class="number">0</span>), size-<span class="number">10</span>..=size), <span class="comment">// even-sized vec
+            </span><span class="number">1</span>..<span class="number">10</span>))
+      )
+      {
+        <span class="kw">let </span>size = vecs.iter().map(|v| v.len()).max().unwrap_or(<span class="number">0</span>);
+        <span class="comment">// when the vectors are not the same size, batch agrees with the padded version of the input
+        </span><span class="kw">let </span>padded_vecs = vecs.iter().cloned().map(|<span class="kw-2">mut </span>v| {v.resize(size, Scalar::ZERO); v}).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>res = PolyEvalWitness::&lt;PallasEngine&gt;::alt_batch(<span class="kw-2">&amp;</span>padded_vecs.iter().by_ref().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(), <span class="kw-2">&amp;</span>s.<span class="number">0</span>);
+        <span class="kw">let </span>witnesses = vecs.iter().map(PolyEvalWitness::ref_cast).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>res2 = PolyEvalWitness::&lt;PallasEngine&gt;::batch_diff_size(<span class="kw-2">&amp;</span>witnesses, s.<span class="number">0</span>);
+
+        <span class="macro">prop_assert_eq!</span>(res.p, res2.p);
+      }
+
+      <span class="attr">#[test]
+      </span><span class="kw">fn </span>test_pe_instance_batch_diff_size_batch(
+        s <span class="kw">in </span>any::&lt;FWrap&lt;Scalar&gt;&gt;(),
+        vecs_tuple <span class="kw">in </span>(<span class="number">50usize</span>..<span class="number">100</span>).prop_flat_map(|size|
+            (vec(any::&lt;GWrap&lt;PallasPoint&gt;&gt;().prop_map(|f| f.<span class="number">0</span>), size..=size),
+             vec(any::&lt;FWrap&lt;Scalar&gt;&gt;().prop_map(|f| f.<span class="number">0</span>), size..=size),
+             vec(any::&lt;FWrap&lt;Scalar&gt;&gt;().prop_map(|f| f.<span class="number">0</span>), size..=size)
+            ), <span class="comment">// even-sized vecs
+          </span>)
+      )
+      {
+        <span class="kw">let </span>(c_vec, e_vec, x_vec) = vecs_tuple;
+        <span class="kw">let </span>c_vecs = c_vec.into_iter().map(|c| Commitment::&lt;PallasEngine&gt;{ comm: c }).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="comment">// when poly evals are all for the max # of variables, batch_diff_size and batch agree
+        </span><span class="kw">let </span>res = PolyEvalInstance::&lt;PallasEngine&gt;::alt_batch(
+          <span class="kw-2">&amp;</span>c_vecs,
+          x_vec.clone(),
+          <span class="kw-2">&amp;</span>e_vec,
+          <span class="kw-2">&amp;</span>s.<span class="number">0</span>);
+
+        <span class="kw">let </span>sizes = <span class="macro">vec!</span>[x_vec.len(); x_vec.len()];
+        <span class="kw">let </span>res2 = PolyEvalInstance::&lt;PallasEngine&gt;::batch_diff_size(<span class="kw-2">&amp;</span>c_vecs, <span class="kw-2">&amp;</span>e_vec, <span class="kw-2">&amp;</span>sizes, x_vec.clone(), s.<span class="number">0</span>);
+
+        <span class="macro">prop_assert_eq!</span>(res.c, res2.c);
+        <span class="macro">prop_assert_eq!</span>(res.x, res2.x);
+        <span class="macro">prop_assert_eq!</span>(res.e, res2.e);
+      }
+  }
 }
 </code></pre></div></section></main></body></html>
