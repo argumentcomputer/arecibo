@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use ff::Field;
 
 use crate::{
-  constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+  constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
   errors::NovaError,
   gadgets::{
     nonnative::{bignat::nat_to_limbs, util::f_to_nat},
@@ -89,7 +89,10 @@ where
     ),
     NovaError,
   > {
-    let mut ro = E2::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let mut ro = E2::RO::new(
+      ro_consts.clone(),
+      1 + NUM_FE_IN_EMULATED_POINT + 2 + NUM_FE_IN_EMULATED_POINT, // pp_digest + u.W + u.X + T
+    );
 
     ro.absorb(*pp_digest);
 

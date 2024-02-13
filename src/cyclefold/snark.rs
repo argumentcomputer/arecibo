@@ -7,8 +7,10 @@ use crate::{
     shape_cs::ShapeCS,
     solver::SatisfyingAssignment,
   },
-  constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
-  cyclefold::circuit::{CyclefoldCircuit, CyclefoldCircuitInputs},
+  constants::{
+    BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS,
+  },
+  cyclefold::circuit::CyclefoldCircuit,
   errors::NovaError,
   gadgets::utils::scalar_as_base,
   nifs::NIFS,
@@ -92,8 +94,7 @@ where
 
     let ro_consts_cyclefold = ROConstants::<Dual<E1>>::default();
     let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
-    let circuit_cyclefold: CyclefoldCircuit<E1> =
-      CyclefoldCircuit::new(CyclefoldCircuitInputs::default());
+    let circuit_cyclefold: CyclefoldCircuit<E1> = CyclefoldCircuit::default();
     let _ = circuit_cyclefold.synthesize(&mut cs);
     let (r1cs_shape_cyclefold, ck_cyclefold) = cs.r1cs_shape_and_key(ck_hint_cyclefold);
     let circuit_shape_cyclefold = R1CSWithArity::new(r1cs_shape_cyclefold, 0);
@@ -290,7 +291,14 @@ where
     //   &mut self.buffer_primary.ABC_Z_2,
     // )?;
 
-    let r_bools = r.to_le_bits().iter().map(|b| Some(*b)).collect::<Vec<_>>();
+    let r_bools: Option<[bool; NUM_CHALLENGE_BITS]> = r
+      .to_le_bits()
+      .iter()
+      .map(|b| Some(*b))
+      .collect::<Option<Vec<_>>>()
+      .unwrap()
+      .try_into()
+      .ok();
 
     let comm_T = Commitment::<E1>::decompress(&nifs_primary.comm_T)?;
     let E_new = self.r_U_primary.comm_E + comm_T * r;
@@ -302,14 +310,8 @@ where
       pp.circuit_shape_cyclefold.r1cs_shape.num_vars,
     );
 
-    let inputs_cyclefold_E: CyclefoldCircuitInputs<E1> = CyclefoldCircuitInputs::new(
-      Some(self.r_U_primary.comm_E),
-      Some(comm_T),
-      Some(E_new),
-      r_bools.clone(),
-    );
-
-    let circuit_cyclefold_E: CyclefoldCircuit<E1> = CyclefoldCircuit::new(inputs_cyclefold_E);
+    let circuit_cyclefold_E: CyclefoldCircuit<E1> =
+      CyclefoldCircuit::new(Some(self.r_U_primary.comm_E), Some(comm_T), r_bools.clone());
 
     let _output_cyclefold_E = circuit_cyclefold_E.synthesize(&mut cs_cyclefold_E);
 
@@ -336,14 +338,11 @@ where
       pp.circuit_shape_cyclefold.r1cs_shape.num_vars,
     );
 
-    let inputs_cyclefold_W: CyclefoldCircuitInputs<E1> = CyclefoldCircuitInputs::new(
+    let circuit_cyclefold_W: CyclefoldCircuit<E1> = CyclefoldCircuit::new(
       Some(self.r_U_primary.comm_W),
       Some(self.l_u_primary.comm_W),
-      Some(W_new),
       r_bools,
     );
-
-    let circuit_cyclefold_W: CyclefoldCircuit<E1> = CyclefoldCircuit::new(inputs_cyclefold_W);
 
     let _output_cyclefold_W = circuit_cyclefold_W.synthesize(&mut cs_cyclefold_W);
 

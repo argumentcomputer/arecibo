@@ -23,7 +23,7 @@ impl<E: Engine> AllocatedFoldingData<E> {
     n_limbs: usize,
   ) -> Result<Self, SynthesisError> {
     let U = AllocatedRelaxedR1CSInstance::alloc(
-      cs.namespace(|| "U"),
+      cs.namespace(|| "u"),
       inst.map(|x| &x.U),
       limb_width,
       n_limbs,
@@ -62,12 +62,12 @@ pub mod emulated {
   use super::*;
 
   use crate::{
-    constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+    constants::{NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
     gadgets::{
       nonnative::{bignat::BigNat, util::f_to_nat},
       utils::{
-        alloc_bignat_constant, alloc_one, alloc_zero, conditionally_select,
-        conditionally_select_bignat, le_bits_to_num, /*scalar_as_base,*/
+        alloc_zero, conditionally_select, conditionally_select_allocated_bit,
+        conditionally_select_bignat, le_bits_to_num,
       },
     },
     traits::{Group, ROConstantsCircuit},
@@ -76,6 +76,63 @@ pub mod emulated {
 
   use ff::Field;
 
+  pub struct EmulatedCurveParams<G>
+  where
+    G: Group,
+  {
+    pub A: BigNat<G::Base>,
+    pub B: BigNat<G::Base>,
+    pub m: BigNat<G::Base>,
+  }
+
+  impl<G: Group> EmulatedCurveParams<G> {
+    #[allow(unused)]
+    pub fn alloc<CS>(
+      mut cs: CS,
+      params: Option<&(G::Scalar, G::Scalar, G::Scalar)>,
+      limb_width: usize,
+      n_limbs: usize,
+    ) -> Result<Self, SynthesisError>
+    where
+      CS: ConstraintSystem<G::Base>,
+    {
+      let A = BigNat::alloc_from_nat(
+        cs.namespace(|| "allocate A"),
+        || {
+          Ok(f_to_nat(
+            &params.ok_or(SynthesisError::AssignmentMissing)?.0,
+          ))
+        },
+        limb_width,
+        n_limbs,
+      )?;
+
+      let B = BigNat::alloc_from_nat(
+        cs.namespace(|| "allocate B"),
+        || {
+          Ok(f_to_nat(
+            &params.ok_or(SynthesisError::AssignmentMissing)?.1,
+          ))
+        },
+        limb_width,
+        n_limbs,
+      )?;
+
+      let m = BigNat::alloc_from_nat(
+        cs.namespace(|| "allocate m"),
+        || {
+          Ok(f_to_nat(
+            &params.ok_or(SynthesisError::AssignmentMissing)?.2,
+          ))
+        },
+        limb_width,
+        n_limbs,
+      )?;
+
+      Ok(Self { A, B, m })
+    }
+  }
+
   #[derive(Clone)]
   pub struct AllocatedEmulPoint<G>
   where
@@ -83,7 +140,7 @@ pub mod emulated {
   {
     x: BigNat<G::Base>,
     y: BigNat<G::Base>,
-    is_infinity: AllocatedNum<G::Base>,
+    is_infinity: AllocatedBit,
   }
 
   impl<G> AllocatedEmulPoint<G>
@@ -121,19 +178,11 @@ pub mod emulated {
         n_limbs,
       )?;
 
-      let is_infinity = AllocatedNum::alloc(cs.namespace(|| "is_infinity"), || {
-        Ok(if coords.map_or(true, |c| c.2) {
-          G::Base::ONE
-        } else {
-          G::Base::ZERO
-        })
-      })?;
-      cs.enforce(
-        || "is_infinity is bit",
-        |lc| lc + is_infinity.get_variable(),
-        |lc| lc + CS::one() - is_infinity.get_variable(),
-        |lc| lc,
-      );
+      let is_infinity = AllocatedBit::alloc(
+        cs.namespace(|| "alloc is_infinity"),
+        coords.map(|(_, _, is_infinity)| is_infinity),
+      )?;
+
       Ok(Self { x, y, is_infinity })
     }
 
@@ -151,7 +200,7 @@ pub mod emulated {
         .iter()
         .enumerate()
         .map(|(i, limb)| {
-          limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[0] to num")))
+          limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of x to num")))
         })
         .collect::<Result<Vec<AllocatedNum<G::Base>>, _>>()?;
 
@@ -165,7 +214,7 @@ pub mod emulated {
         .iter()
         .enumerate()
         .map(|(i, limb)| {
-          limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[0] to num")))
+          limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of y to num")))
         })
         .collect::<Result<Vec<AllocatedNum<G::Base>>, _>>()?;
 
@@ -173,40 +222,48 @@ pub mod emulated {
         ro.absorb(&limb)
       }
 
-      ro.absorb(&self.is_infinity);
+      let is_infinity_num: AllocatedNum<G::Base> =
+        AllocatedNum::alloc(cs.namespace(|| "is_infinity"), || {
+          self
+            .is_infinity
+            .get_value()
+            .map_or(Err(SynthesisError::AssignmentMissing), |bit| {
+              if bit {
+                Ok(G::Base::ONE)
+              } else {
+                Ok(G::Base::ZERO)
+              }
+            })
+        })?;
+
+      cs.enforce(
+        || "constrain num equals bit",
+        |lc| lc,
+        |lc| lc,
+        |lc| lc + is_infinity_num.get_variable() - self.is_infinity.get_variable(),
+      );
+
+      ro.absorb(&is_infinity_num);
 
       Ok(())
     }
 
+    #[allow(unused)]
     pub fn check_on_curve<CS>(
       &self,
       mut cs: CS,
-      limb_width: usize,
-      n_limbs: usize,
+      curve_params: &EmulatedCurveParams<G>,
+      _limb_width: usize,
+      _n_limbs: usize,
     ) -> Result<(), SynthesisError>
     where
       CS: ConstraintSystem<G::Base>,
     {
-      let m_bn = alloc_bignat_constant(
-        cs.namespace(|| "alloc m"),
-        &G::group_params().3,
-        limb_width,
-        n_limbs,
-      )?;
-
-      let A_bn = alloc_bignat_constant(
-        cs.namespace(|| "alloc A"),
-        &f_to_nat(&G::group_params().0),
-        limb_width,
-        n_limbs,
-      )?;
-
-      let B_bn = alloc_bignat_constant(
-        cs.namespace(|| "alloc B"),
-        &f_to_nat(&G::group_params().1),
-        limb_width,
-        n_limbs,
-      )?;
+      let (m_bn, A_bn, B_bn) = (
+        curve_params.m.clone(),
+        curve_params.A.clone(),
+        curve_params.B.clone(),
+      );
 
       let (_, A_x) = A_bn.mult_mod(cs.namespace(|| "A_x"), &self.x, &m_bn)?;
 
@@ -217,20 +274,7 @@ pub mod emulated {
 
       let (_, y_sq) = self.y.mult_mod(cs.namespace(|| "y_sq"), &self.y, &m_bn)?;
 
-      let always_equal = AllocatedBit::alloc(
-        cs.namespace(|| "always_equal = 1 - is_infinity"),
-        self
-          .is_infinity
-          .get_value()
-          .map(|is_infinity| is_infinity == G::Base::ONE),
-      )?;
-
-      cs.enforce(
-        || "always_equal = 1 - is_infinity",
-        |lc| lc,
-        |lc| lc,
-        |lc| lc + always_equal.get_variable() - CS::one() + self.is_infinity.get_variable(),
-      );
+      let always_equal = self.is_infinity.clone();
 
       y_sq.equal_when_carried_regroup(cs.namespace(|| "y_sq = rhs"), &rhs, &always_equal)?;
 
@@ -257,7 +301,7 @@ pub mod emulated {
         condition,
       )?;
 
-      let is_infinity = conditionally_select(
+      let is_infinity = conditionally_select_allocated_bit(
         cs.namespace(|| "is_infinity = cond ? self.is_infinity : other.is_infinity"),
         &self.is_infinity,
         &other.is_infinity,
@@ -286,7 +330,7 @@ pub mod emulated {
         n_limbs,
       )?;
 
-      let is_infinity = alloc_one(cs.namespace(|| "one"));
+      let is_infinity = AllocatedBit::alloc(cs.namespace(|| "allocate is_infinity"), Some(true))?;
 
       Ok(Self { x, y, is_infinity })
     }
@@ -360,8 +404,10 @@ pub mod emulated {
       comm_T: &AllocatedEmulPoint<E::GE>,
       ro_consts: ROConstantsCircuit<E>,
     ) -> Result<Self, SynthesisError> {
-      let mut ro = E::ROCircuit::new(ro_consts, NUM_FE_FOR_RO);
-
+      let mut ro = E::ROCircuit::new(
+        ro_consts,
+        1 + NUM_FE_IN_EMULATED_POINT + 2 + NUM_FE_IN_EMULATED_POINT, // pp_digest + u.W + u.x + comm_T
+      );
       ro.absorb(pp_digest);
 
       // Absorb u
@@ -555,8 +601,6 @@ pub mod emulated {
         limb_width,
         n_limbs,
       )?;
-
-      T.check_on_curve(cs.namespace(|| "T on curve"), limb_width, n_limbs)?;
 
       Ok(Self {
         U,

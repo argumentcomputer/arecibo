@@ -1,7 +1,7 @@
 //! This module defines the Nova augmented circuit used for Cyclefold
 
 use crate::{
-  constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
+  constants::{NUM_FE_IN_EMULATED_POINT, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
     r1cs::AllocatedRelaxedR1CSInstance,
     utils::{
@@ -227,12 +227,6 @@ where
       self.params.n_limbs,
     )?;
 
-    E_new.check_on_curve(
-      cs.namespace(|| "E_new on curve"),
-      self.params.limb_width,
-      self.params.n_limbs,
-    )?;
-
     let W_new = emulated::AllocatedEmulPoint::alloc(
       cs.namespace(|| "W_new"),
       self
@@ -240,12 +234,6 @@ where
         .as_ref()
         .and_then(|inputs| inputs.W_new.as_ref())
         .map(|W_new| W_new.to_coordinates()),
-      self.params.limb_width,
-      self.params.n_limbs,
-    )?;
-
-    W_new.check_on_curve(
-      cs.namespace(|| "W_new on curve"),
       self.params.limb_width,
       self.params.n_limbs,
     )?;
@@ -304,7 +292,7 @@ where
     // Follows the outline written down here https://hackmd.io/@mpenciak/HybHrnNFT
     let mut ro_p = E1::ROCircuit::new(
       self.ro_consts.clone(),
-      NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * arity,
+      2 + 2 * arity + 2 * NUM_FE_IN_EMULATED_POINT + 3,
     );
 
     ro_p.absorb(pp_digest);
@@ -331,6 +319,7 @@ where
     let mut ro_c = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
 
     ro_c.absorb(pp_digest);
+    ro_c.absorb(i);
     data_c_1
       .U
       .absorb_in_ro(cs.namespace(|| "absorb U_c"), &mut ro_c)?;
@@ -361,7 +350,7 @@ where
     )?;
 
     // Calculate h_int = H(pp, U_c_int)
-    let mut ro_c_int = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+    let mut ro_c_int = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF - 1);
     ro_c_int.absorb(pp_digest);
     U_int.absorb_in_ro(cs.namespace(|| "absorb U_c_int"), &mut ro_c_int)?;
     let h_c_int_bits =
@@ -369,7 +358,7 @@ where
     let h_c_int = le_bits_to_num(cs.namespace(|| "intermediate hash"), &h_c_int_bits)?;
 
     // Calculate h_1 = H(pp, U_c_1)
-    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF - 1);
     ro_c_1.absorb(pp_digest);
     data_c_2
       .U
@@ -414,11 +403,11 @@ where
     self,
     cs: &mut CS,
   ) -> Result<Vec<AllocatedNum<E1::Base>>, SynthesisError> {
-    // TODO: It's written down here https://hackmd.io/@mpenciak/HybHrnNFT
+    // TODO: It's written down here https://hackmd.io/SBvAur_2RQmaduDi7gYbhw
     let arity = self.step_circuit.arity();
 
     let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new) =
-      self.alloc_witness(cs.namespace(|| "alloc_witness"), self.params.n_limbs)?;
+      self.alloc_witness(cs.namespace(|| "alloc_witness"), arity)?;
 
     let zero = alloc_zero(cs.namespace(|| "zero"));
     let is_base_case = alloc_num_equals(cs.namespace(|| "is base case"), &i, &zero)?;
@@ -496,7 +485,7 @@ where
 
     let mut ro_p = E1::ROCircuit::new(
       self.ro_consts.clone(),
-      NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * arity,
+      2 + 2 * arity + 2 * NUM_FE_IN_EMULATED_POINT + 3,
     );
     ro_p.absorb(&pp_digest);
     ro_p.absorb(&i_new);
@@ -512,6 +501,7 @@ where
 
     let mut ro_c = E1::ROCircuit::new(self.ro_consts, NUM_FE_WITHOUT_IO_FOR_CRHF);
     ro_c.absorb(&pp_digest);
+    ro_c.absorb(&i_new);
     Unew_c.absorb_in_ro(cs.namespace(|| "absorb Unew_c"), &mut ro_c)?;
     let hash_c_bits = ro_c.squeeze(cs.namespace(|| "hash_c_bits"), NUM_HASH_BITS)?;
     let hash_c = le_bits_to_num(cs.namespace(|| "hash_c"), &hash_c_bits)?;
@@ -520,5 +510,51 @@ where
     hash_c.inputize(cs.namespace(|| "u_p.x[1] = hash_c"))?;
 
     Ok(z_next)
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use crate::{
+    bellpepper::test_shape_cs::TestShapeCS,
+    constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
+    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    traits::{circuit::TrivialCircuit, CurveCycleEquipped, Dual},
+  };
+
+  use super::*;
+
+  fn test_circuit_size_with<E>()
+  where
+    E: CurveCycleEquipped,
+  {
+    let params = AugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS);
+
+    let ro_consts = ROConstantsCircuit::<E>::default();
+
+    let step_circuit = TrivialCircuit::<E::Base>::default();
+
+    let circuit = AugmentedCircuit::<E, Dual<E>, TrivialCircuit<E::Base>>::new(
+      &params,
+      ro_consts,
+      None,
+      &step_circuit,
+    );
+    let mut cs: TestShapeCS<Dual<E>> = TestShapeCS::default();
+
+    let _ = circuit.synthesize(&mut cs);
+
+    let num_constraints = cs.num_constraints();
+    let num_variables = cs.num_aux();
+
+    assert_eq!(num_constraints, 0);
+    assert_eq!(num_variables, 0);
+  }
+
+  #[test]
+  fn test_circuit_size() {
+    test_circuit_size_with::<PallasEngine>();
+    test_circuit_size_with::<Secp256k1Engine>();
+    test_circuit_size_with::<Bn256Engine>();
   }
 }

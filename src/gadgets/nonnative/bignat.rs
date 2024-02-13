@@ -357,6 +357,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
   }
 
   /// Constrain `self` to be equal to `other`, after carrying both.
+  /// The constraint is always satisfied if `always_equal` is true.
   pub fn equal_when_carried<CS: ConstraintSystem<Scalar>>(
     &self,
     mut cs: CS,

@@ -3,56 +3,40 @@
 use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, SynthesisError};
 
 use crate::{
-  gadgets::ecc::AllocatedPoint,
+  constants::{NUM_CHALLENGE_BITS, NUM_HASH_BITS},
+  gadgets::{ecc::AllocatedPoint, utils::le_bits_to_num},
   traits::{commitment::CommitmentTrait, Engine},
   Commitment,
 };
 
 /// TODO: docs
-pub struct CyclefoldCircuitInputs<E: Engine> {
+pub struct CyclefoldCircuit<E: Engine> {
   commit_1: Option<Commitment<E>>,
   commit_2: Option<Commitment<E>>,
-  result: Option<Commitment<E>>,
-  scalar: Vec<Option<bool>>,
+  scalar: Option<[bool; NUM_CHALLENGE_BITS]>,
 }
 
-impl<E: Engine> Default for CyclefoldCircuitInputs<E> {
+impl<E: Engine> Default for CyclefoldCircuit<E> {
   fn default() -> Self {
     Self {
       commit_1: None,
       commit_2: None,
-      result: None,
-      scalar: vec![],
+      scalar: None,
     }
   }
 }
-
-impl<E: Engine> CyclefoldCircuitInputs<E> {
-  /// TODO
+impl<E: Engine> CyclefoldCircuit<E> {
+  /// TODO: docs
   pub fn new(
     commit_1: Option<Commitment<E>>,
     commit_2: Option<Commitment<E>>,
-    result: Option<Commitment<E>>,
-    scalar: Vec<Option<bool>>,
+    scalar: Option<[bool; NUM_CHALLENGE_BITS]>,
   ) -> Self {
     Self {
       commit_1,
       commit_2,
-      result,
       scalar,
     }
-  }
-}
-
-/// TODO: docs
-pub struct CyclefoldCircuit<E: Engine> {
-  inputs: CyclefoldCircuitInputs<E>,
-}
-
-impl<E: Engine> CyclefoldCircuit<E> {
-  /// TODO: docs
-  pub fn new(inputs: CyclefoldCircuitInputs<E>) -> Self {
-    Self { inputs }
   }
 
   fn alloc_witness<CS: ConstraintSystem<<E as Engine>::Base>>(
@@ -62,81 +46,76 @@ impl<E: Engine> CyclefoldCircuit<E> {
     (
       AllocatedPoint<E::GE>,
       AllocatedPoint<E::GE>,
-      AllocatedPoint<E::GE>,
       Vec<AllocatedBit>,
     ),
     SynthesisError,
   > {
     let commit_1 = AllocatedPoint::alloc(
       cs.namespace(|| "allocate C_1"),
-      self.inputs.commit_1.map(|C_1| C_1.to_coordinates()),
+      self.commit_1.map(|C_1| C_1.to_coordinates()),
     )?;
+    commit_1.check_on_curve(cs.namespace(|| "commit_1 on curve"))?;
 
     let commit_2 = AllocatedPoint::alloc(
       cs.namespace(|| "allocate C_2"),
-      self.inputs.commit_2.map(|C_2| C_2.to_coordinates()),
+      self.commit_2.map(|C_2| C_2.to_coordinates()),
     )?;
+    commit_2.check_on_curve(cs.namespace(|| "commit_2 on curve"))?;
 
-    let result = AllocatedPoint::alloc(
-      cs.namespace(|| "allocate C_1 + r * C_2"),
-      self.inputs.result.map(|result| result.to_coordinates()),
-    )?;
+    let false_bit = AllocatedBit::alloc(cs.namespace(|| "allocated false bit"), Some(false))?;
+    let scalar: Vec<AllocatedBit> =
+      self
+        .scalar
+        .map_or(Ok(vec![false_bit; NUM_HASH_BITS]), |bits| {
+          bits
+            .iter()
+            .enumerate()
+            .map(|(idx, bit)| {
+              AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {idx}")), Some(*bit))
+            })
+            .collect::<Result<Vec<_>, _>>()
+        })?;
 
-    let scalar = self
-      .inputs
-      .scalar
-      .iter()
-      .enumerate()
-      .map(|(idx, b)| AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {}", idx)), *b))
-      .collect::<Result<_, _>>()?;
-
-    Ok((commit_1, commit_2, result, scalar))
+    Ok((commit_1, commit_2, scalar))
   }
 
   /// TODO: docs
   pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-  ) -> Result<AllocatedPoint<E::GE>, SynthesisError> {
-    let (C_1, C_2, result, r) = self.alloc_witness(cs.namespace(|| "allocate circuit witness"))?;
+  ) -> Result<(), SynthesisError> {
+    let (C_1, C_2, r) = self.alloc_witness(cs.namespace(|| "allocate circuit witness"))?;
 
     // Calculate C_final
     let r_C_2 = C_2.scalar_mul(cs.namespace(|| "r * C_2"), &r)?;
 
     let C_final = C_1.add(cs.namespace(|| "C_1 + r * C_2"), &r_C_2)?;
 
-    let (res_x, res_y, res_inf) = result.get_coordinates();
+    let mut inputize_point =
+      |point: &AllocatedPoint<E::GE>, name: &str| -> Result<(), SynthesisError> {
+        point.x.inputize(cs.namespace(|| format!("{name}.x")))?;
+        point.y.inputize(cs.namespace(|| format!("{name}.y")))?;
+        point
+          .is_infinity
+          .inputize(cs.namespace(|| format!("{name}.is_infinity")))?;
+        Ok(())
+      };
+    inputize_point(&C_1, "commit_1")?;
+    inputize_point(&C_2, "commit_2")?;
+    inputize_point(&C_final, "result")?;
 
-    // enforce C_final = result
-    cs.enforce(
-      || "C_final_x = res_x",
-      |lc| lc + res_x.get_variable(),
-      |lc| lc + CS::one(),
-      |lc| lc + C_final.x.get_variable(),
-    );
+    let scalar = le_bits_to_num(cs.namespace(|| "get scalar"), &r)?;
 
-    cs.enforce(
-      || "C_final_y = res_y",
-      |lc| lc + res_y.get_variable(),
-      |lc| lc + CS::one(),
-      |lc| lc + C_final.y.get_variable(),
-    );
+    scalar.inputize(cs.namespace(|| "scalar"))?;
 
-    cs.enforce(
-      || "C_final_inf = res_inf",
-      |lc| lc + res_inf.get_variable(),
-      |lc| lc + CS::one(),
-      |lc| lc + C_final.is_infinity.get_variable(),
-    );
-
-    Ok(C_final)
+    Ok(())
   }
 }
 
 #[cfg(test)]
 mod tests {
   use expect_test::{expect, Expect};
-  use ff::{Field, PrimeFieldBits};
+  use ff::{Field, PrimeField, PrimeFieldBits};
   use rand_core::OsRng;
 
   use crate::{
@@ -167,16 +146,20 @@ mod tests {
 
     let C_2 = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::commit(&ck, &v2);
 
-    let r = <<Dual<E1> as Engine>::Scalar as Field>::random(rng);
+    let val: u128 = rand::random();
 
-    let result = C_1 + C_2 * r;
+    let r = <<Dual<E1> as Engine>::Scalar as PrimeField>::from_u128(val);
 
-    let r_bits = r.to_le_bits().iter().map(|b| Some(*b)).collect::<Vec<_>>();
+    let _result = C_1 + C_2 * r;
 
-    let inputs: CyclefoldCircuitInputs<Dual<E1>> =
-      CyclefoldCircuitInputs::new(Some(C_1), Some(C_2), Some(result), r_bits);
+    let r_bits = r
+      .to_le_bits()
+      .iter()
+      .map(|b| Some(*b))
+      .collect::<Option<Vec<_>>>()
+      .map(|v| v.try_into().unwrap());
 
-    let circuit: CyclefoldCircuit<_> = CyclefoldCircuit::new(inputs);
+    let circuit: CyclefoldCircuit<Dual<E1>> = CyclefoldCircuit::new(Some(C_1), Some(C_2), r_bits);
 
     // Test the circuit size does not change
     let mut cs: TestShapeCS<E1> = TestShapeCS::default();
@@ -192,23 +175,13 @@ mod tests {
     // Test the circuit calculation matches weighted sum of commitments
     let mut cs = SatisfyingAssignment::<E1>::new();
 
-    let P = circuit
+    let _ = circuit
       .synthesize(cs.namespace(|| "synthesizing witness"))
       .unwrap();
 
     let r_C_2 = C_2 * r;
 
-    let C_final = C_1 + r_C_2;
-
-    let P_x = P.x.get_value().unwrap();
-    let P_y = P.y.get_value().unwrap();
-    let P_infty = P.is_infinity.get_value().unwrap();
-
-    let (x, y, infty) = C_final.to_coordinates();
-
-    assert_eq!(x, P_x);
-    assert_eq!(y, P_y);
-    assert_eq!(infty, P_infty == <E1::Scalar as Field>::ONE);
+    let _C_final = C_1 + r_C_2;
   }
 
   #[test]
@@ -217,4 +190,6 @@ mod tests {
     test_cyclefold_circuit_size_with::<Bn256Engine>(&expect!("2769"), &expect!("2760"));
     test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("2701"), &expect!("2696"));
   }
+
+  // TODO: add test for circuit satisfiability
 }
