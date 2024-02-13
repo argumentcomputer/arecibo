@@ -1,7 +1,7 @@
 use arecibo::provider::{
   hyperkzg::EvaluationEngine as MLEvaluationEngine,
-  ipa_pc::EvaluationEngine as IPAEvaluationEngine, non_hiding_zeromorph::ZMPCS, Bn256Engine,
-  Bn256EngineKZG, Bn256EngineZM,
+  ipa_pc::EvaluationEngine as IPAEvaluationEngine, non_hiding_zeromorph::ZMPCS,
+  shplonk::EvaluationEngine as Shplonk, Bn256Engine, Bn256EngineKZG, Bn256EngineZM,
 };
 use arecibo::spartan::polys::multilinear::MultilinearPolynomial;
 use arecibo::traits::{
@@ -41,7 +41,7 @@ criterion_main!(pcs);
 
 const NUM_VARS_TEST_VECTOR: [usize; 6] = [10, 12, 14, 16, 18, 20];
 
-struct BenchAssests<E: Engine, EE: EvaluationEngineTrait<E>> {
+struct BenchAssets<E: Engine, EE: EvaluationEngineTrait<E>> {
   poly: MultilinearPolynomial<<E as Engine>::Scalar>,
   point: Vec<<E as Engine>::Scalar>,
   eval: <E as Engine>::Scalar,
@@ -73,7 +73,7 @@ pub fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
   (poly, point, eval)
 }
 
-impl<E: Engine, EE: EvaluationEngineTrait<E>> BenchAssests<E, EE> {
+impl<E: Engine, EE: EvaluationEngineTrait<E>> BenchAssets<E, EE> {
   pub(crate) fn from_num_vars<R: CryptoRng + RngCore>(num_vars: usize, rng: &mut R) -> Self {
     let (poly, point, eval) = random_poly_with_eval::<E, R>(num_vars, rng);
 
@@ -117,7 +117,7 @@ macro_rules! benchmark_all_engines {
             let mut rng = rand::rngs::StdRng::seed_from_u64(*num_vars as u64);
 
             $(
-                let $assets: BenchAssests<_, $eval_engine> = BenchAssests::from_num_vars::<StdRng>(*num_vars, &mut rng);
+                let $assets: BenchAssets<_, $eval_engine> = BenchAssets::from_num_vars::<StdRng>(*num_vars, &mut rng);
             )*
 
             // Proving group
@@ -159,13 +159,14 @@ fn bench_pcs(c: &mut Criterion) {
     bench_pcs_verifying_internal,
     (ipa_assets, IPAEvaluationEngine<Bn256Engine>),
     (hyperkzg_assets, MLEvaluationEngine<Bn256, Bn256EngineKZG>),
-    (zm_assets, ZMPCS<Bn256, Bn256EngineZM>)
+    (zm_assets, ZMPCS<Bn256, Bn256EngineZM>),
+    (shplonk_assets, Shplonk<Bn256, Bn256EngineKZG>)
   );
 }
 
 fn bench_pcs_proving_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
   b: &mut Bencher<'_>,
-  bench_assets: &BenchAssests<E, EE>,
+  bench_assets: &BenchAssets<E, EE>,
 ) {
   // Bench generate proof.
   b.iter(|| {
@@ -184,7 +185,7 @@ fn bench_pcs_proving_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
 
 fn bench_pcs_verifying_internal<E: Engine, EE: EvaluationEngineTrait<E>>(
   b: &mut Bencher<'_>,
-  bench_assets: &BenchAssests<E, EE>,
+  bench_assets: &BenchAssets<E, EE>,
 ) {
   // Bench verify proof.
   b.iter(|| {

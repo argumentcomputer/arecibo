@@ -4,6 +4,7 @@
 pub mod hyperkzg;
 pub mod ipa_pc;
 pub mod non_hiding_zeromorph;
+pub mod shplonk;
 
 // crate-public modules, made crate-public mostly for tests
 pub(crate) mod bn256_grumpkin;
@@ -15,7 +16,6 @@ pub(crate) mod traits;
 // a non-hiding variant of {kzg, zeromorph}
 mod kzg_commitment;
 mod non_hiding_kzg;
-mod shplonk;
 pub(crate) mod util;
 
 // crate-private modules

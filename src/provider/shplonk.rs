@@ -1,3 +1,4 @@
+//! Shplonk PCS
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
 use crate::provider::non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam};
 use crate::provider::pedersen::Commitment;
@@ -23,6 +24,7 @@ use itertools::Itertools;
 use ref_cast::RefCast as _;
 use std::sync::Arc;
 
+/// EvaluationArgument of Shplonk
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound(
   serialize = "E::G1Affine: Serialize, E::Fr: Serialize",
@@ -36,6 +38,7 @@ pub struct EvaluationArgument<E: Engine> {
   C_H: E::G1Affine,
 }
 
+/// EvaluationEngine of Shplonk
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvaluationEngine<E, NE> {
   _p: PhantomData<(E, NE)>,
@@ -278,7 +281,7 @@ where
     // here we check that Pi polynomials were correctly constructed by the prover, using 'r' as a random point, e.g:
     // P_i_even = P_i(r) + P_i(-r) * 1/2
     // P_i_odd = P_i(r) - P_i(-r) * 1/2*r
-    // P_i+1(r^2) == (1 - point_i) * P_i_even + point_i * P_i_odd -> should hold, according to Shplonk
+    // P_i+1(r^2) == (1 - point_i) * P_i_even + point_i * P_i_odd -> should hold, according to Gemini transformation
     let mut point = point.to_vec();
     point.reverse();
     #[allow(clippy::disallowed_methods)]
