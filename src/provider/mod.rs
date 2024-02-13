@@ -4,6 +4,7 @@
 pub mod hyperkzg;
 pub mod ipa_pc;
 pub mod non_hiding_zeromorph;
+pub mod shplonk;
 
 // crate-public modules, made crate-public mostly for tests
 pub(crate) mod bn256_grumpkin;

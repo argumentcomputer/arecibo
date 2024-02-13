@@ -226,7 +226,7 @@ pub struct UVKZGProof<E: Engine> {
 }
 
 /// Polynomial and its associated types
-pub type UVKZGPoly<F> = crate::spartan::polys::univariate::UniPoly<F>;
+type UVKZGPoly<F> = crate::spartan::polys::univariate::UniPoly<F>;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 /// KZG Polynomial Commitment Scheme on univariate polynomial.

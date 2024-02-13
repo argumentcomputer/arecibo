@@ -7,7 +7,7 @@ use crate::{
   errors::{NovaError, PCSError},
   provider::{
     non_hiding_kzg::{
-      KZGProverKey, KZGVerifierKey, UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof,
+      KZGProverKey, KZGVerifierKey, UVKZGCommitment, UVKZGEvaluation, UVKZGProof,
       UniversalKZGParam, UVKZGPCS,
     },
     traits::DlogGroup,
@@ -33,6 +33,7 @@ use std::sync::Arc;
 use std::{borrow::Borrow, iter, marker::PhantomData};
 
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
+use crate::spartan::polys::univariate::UniPoly;
 
 /// `ZMProverKey` is used to generate a proof
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -156,7 +157,7 @@ where
     if pp.commit_pp.powers_of_g().len() < poly.Z.len() {
       return Err(PCSError::LengthError.into());
     }
-    UVKZGPCS::commit(&pp.commit_pp, UVKZGPoly::ref_cast(&poly.Z)).map(|c| c.into())
+    UVKZGPCS::commit(&pp.commit_pp, UniPoly::ref_cast(&poly.Z)).map(|c| c.into())
   }
 
   /// On input a polynomial `poly` and a point `point`, outputs a proof for the
@@ -184,10 +185,7 @@ where
     debug_assert_eq!(remainder, eval.0);
 
     // Compute the multilinear quotients q_k = q_k(X_0, ..., X_{k-1})
-    let quotients_polys = quotients
-      .into_iter()
-      .map(UVKZGPoly::new)
-      .collect::<Vec<_>>();
+    let quotients_polys = quotients.into_iter().map(UniPoly::new).collect::<Vec<_>>();
 
     // Compute and absorb commitments C_{q_k} = [q_k], k = 0,...,d-1
     let q_comms = quotients_polys
@@ -215,7 +213,7 @@ where
     let (eval_scalar, (degree_check_q_scalars, zmpoly_q_scalars)) =
       eval_and_quotient_scalars(y, x, z, point);
     // f = z * poly.Z + q_hat + (-z * Φ_n(x) * e) + ∑_k (q_scalars_k * q_k)
-    let mut f = UVKZGPoly::new(poly.Z.clone());
+    let mut f = UniPoly::new(poly.Z.clone());
     f *= &z;
     f += &q_hat;
     f[0] += eval_scalar * eval.0;
@@ -360,8 +358,8 @@ fn quotients<F: PrimeField>(poly: &MultilinearPolynomial<F>, point: &[F]) -> (Ve
 // Compute the batched, lifted-degree quotient `\hat{q}`
 fn batched_lifted_degree_quotient<F: PrimeField>(
   y: F,
-  quotients_polys: &[UVKZGPoly<F>],
-) -> (UVKZGPoly<F>, usize) {
+  quotients_polys: &[UniPoly<F>],
+) -> (UniPoly<F>, usize) {
   let num_vars = quotients_polys.len();
 
   let powers_of_y = (0..num_vars)
@@ -390,7 +388,7 @@ fn batched_lifted_degree_quotient<F: PrimeField>(
       },
     );
 
-  (UVKZGPoly::new(q_hat), 1 << (num_vars - 1))
+  (UniPoly::new(q_hat), 1 << (num_vars - 1))
 }
 
 /// Computes some key terms necessary for computing the partially evaluated univariate ZM polynomial
@@ -523,12 +521,11 @@ mod test {
 
   use super::quotients;
 
+  use crate::spartan::polys::univariate::UniPoly;
   use crate::{
     errors::PCSError,
     provider::{
-      non_hiding_kzg::{
-        trim, KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS,
-      },
+      non_hiding_kzg::{trim, KZGProverKey, UVKZGCommitment, UniversalKZGParam, UVKZGPCS},
       non_hiding_zeromorph::{batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMPCS},
       traits::DlogGroup,
       util::test_utils::prove_verify_from_num_vars,
@@ -598,9 +595,9 @@ mod test {
     let n = 1 << num_vars; // Assuming N = 2^num_vars
 
     // Define mock q_k with deg(q_k) = 2^k - 1
-    let q_0 = UVKZGPoly::new(vec![Scalar::one()]);
-    let q_1 = UVKZGPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
-    let q_2 = UVKZGPoly::new(vec![
+    let q_0 = UniPoly::new(vec![Scalar::one()]);
+    let q_1 = UniPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
+    let q_2 = UniPoly::new(vec![
       Scalar::from(4),
       Scalar::from(5),
       Scalar::from(6),
@@ -644,10 +641,7 @@ mod test {
       });
 
     // Compare the computed and expected batched quotients
-    assert_eq!(
-      batched_quotient.0,
-      UVKZGPoly::new(batched_quotient_expected)
-    );
+    assert_eq!(batched_quotient.0, UniPoly::new(batched_quotient_expected));
   }
 
   #[test]
@@ -657,9 +651,9 @@ mod test {
     let num_vars = 3;
 
     // Define some mock q_k with deg(q_k) = 2^k - 1
-    let _q_0 = UVKZGPoly::new(vec![Scalar::one()]);
-    let _q_1 = UVKZGPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
-    let _q_2 = UVKZGPoly::new(vec![
+    let _q_0 = UniPoly::new(vec![Scalar::one()]);
+    let _q_1 = UniPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
+    let _q_2 = UniPoly::new(vec![
       Scalar::from(4),
       Scalar::from(5),
       Scalar::from(6),
@@ -713,9 +707,9 @@ mod test {
     let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
     // Define some mock q_k with deg(q_k) = 2^k - 1
-    let _q_0 = UVKZGPoly::new(vec![Scalar::one()]);
-    let _q_1 = UVKZGPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
-    let _q_2 = UVKZGPoly::new(vec![
+    let _q_0 = UniPoly::new(vec![Scalar::one()]);
+    let _q_1 = UniPoly::new(vec![Scalar::from(2), Scalar::from(3)]);
+    let _q_2 = UniPoly::new(vec![
       Scalar::from(4),
       Scalar::from(5),
       Scalar::from(6),
@@ -755,7 +749,7 @@ mod test {
 
   fn commit_filtered<E>(
     prover_param: impl Borrow<KZGProverKey<E>>,
-    poly: &UVKZGPoly<E::Fr>,
+    poly: &UniPoly<E::Fr>,
   ) -> Result<UVKZGCommitment<E>, NovaError>
   where
     E: MultiMillerLoop,
@@ -802,10 +796,7 @@ mod test {
     }
 
     let (quotients, _remainder) = quotients(&multilinear_poly, random_points.as_slice());
-    let quotients_polys = quotients
-      .into_iter()
-      .map(UVKZGPoly::new)
-      .collect::<Vec<_>>();
+    let quotients_polys = quotients.into_iter().map(UniPoly::new).collect::<Vec<_>>();
 
     let (q_hat, offset) = batched_lifted_degree_quotient(E::Fr::random(&mut rng), &quotients_polys);
 

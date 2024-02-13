@@ -61,18 +61,20 @@ where
   E::Fr: TranscriptReprTrait<E::G1>,
   E::G1Affine: TranscriptReprTrait<E::G1>, // TODO: this bound on DlogGroup is really unusable!
 {
-  fn compute_challenge(
+  /// TODO: write doc
+  pub fn compute_challenge(
     com: &[E::G1Affine],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
-    transcript.absorb(b"c", &com.to_vec().as_slice());
+    transcript.absorb(b"c", &com);
     transcript.squeeze(b"c").unwrap()
   }
 
+  /// TODO: write doc
   // Compute challenge q = Hash(vk, C0, ..., C_{k-1}, u0, ...., u_{t-1},
   // (f_i(u_j))_{i=0..k-1,j=0..t-1})
   // It is assumed that both 'C' and 'u' are already absorbed by the transcript
-  fn get_batch_challenge(
+  pub fn get_batch_challenge(
     v: &[Vec<E::Fr>],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
@@ -88,14 +90,15 @@ where
     transcript.squeeze(b"r").unwrap()
   }
 
-  fn batch_challenge_powers(q: E::Fr, k: usize) -> Vec<E::Fr> {
-    // Compute powers of q : (1, q, q^2, ..., q^(k-1))
+  /// Compute powers of q : (1, q, q^2, ..., q^(k-1))
+  pub fn batch_challenge_powers(q: E::Fr, k: usize) -> Vec<E::Fr> {
     std::iter::successors(Some(E::Fr::ONE), |&x| Some(x * q))
       .take(k)
       .collect()
   }
 
-  fn verifier_second_challenge(
+  /// TODO: write doc
+  pub fn verifier_second_challenge(
     W: &[E::G1Affine],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
