@@ -89,9 +89,15 @@ where
     ),
     NovaError,
   > {
+    let arity = U1.X.len();
+
+    if arity != U2.X.len() {
+      return Err(NovaError::InvalidInputLength);
+    }
+
     let mut ro = E2::RO::new(
       ro_consts.clone(),
-      1 + NUM_FE_IN_EMULATED_POINT + 2 + NUM_FE_IN_EMULATED_POINT, // pp_digest + u.W + u.X + T
+      1 + NUM_FE_IN_EMULATED_POINT + arity + NUM_FE_IN_EMULATED_POINT, // pp_digest + u.W + u.X + T
     );
 
     ro.absorb(*pp_digest);

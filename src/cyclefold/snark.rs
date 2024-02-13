@@ -526,5 +526,61 @@ where
 
 #[cfg(test)]
 mod test {
-  // use super::*;
+  use std::marker::PhantomData;
+
+  use bellpepper_core::num::AllocatedNum;
+
+  use super::*;
+  use crate::{
+    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    traits::snark::default_ck_hint,
+  };
+
+  #[derive(Clone)]
+  struct SquareCircuit<F> {
+    _p: PhantomData<F>,
+  }
+
+  impl<F: PrimeField> StepCircuit<F> for SquareCircuit<F> {
+    fn arity(&self) -> usize {
+      1
+    }
+
+    fn synthesize<CS: ConstraintSystem<F>>(
+      &self,
+      cs: &mut CS,
+      z: &[AllocatedNum<F>],
+    ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+      let x = &z[0];
+      let x_sq = x.square(cs.namespace(|| "x_sq"))?;
+
+      Ok(vec![x_sq])
+    }
+  }
+
+  fn test_trivial_cyclefold_prove_verify_with<E: CurveCycleEquipped>() {
+    let num_steps = 1;
+    let primary_circuit = SquareCircuit::<E::Scalar> { _p: PhantomData };
+
+    let pp = PublicParams::<E>::setup(&primary_circuit, &*default_ck_hint(), &*default_ck_hint());
+
+    let z0 = vec![E::Scalar::from(2u64)];
+
+    let mut recursive_snark = RecursiveSNARK::new(&pp, &primary_circuit, &z0).unwrap();
+
+    let res = recursive_snark.prove_step(&pp, &primary_circuit);
+
+    assert!(res.is_ok());
+
+    let res = recursive_snark.verify(&pp, num_steps, &z0);
+
+    assert!(res.is_ok());
+  }
+
+  #[test]
+  fn test_cyclefold_prove_verify() {
+    test_trivial_cyclefold_prove_verify_with::<PallasEngine>();
+    test_trivial_cyclefold_prove_verify_with::<Bn256Engine>();
+    test_trivial_cyclefold_prove_verify_with::<Secp256k1Engine>();
+  }
 }

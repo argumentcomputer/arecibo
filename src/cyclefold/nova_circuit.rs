@@ -524,7 +524,7 @@ mod test {
 
   use super::*;
 
-  fn test_circuit_size_with<E>()
+  fn test_augmented_circuit_size_with<E>()
   where
     E: CurveCycleEquipped,
   {
@@ -552,9 +552,9 @@ mod test {
   }
 
   #[test]
-  fn test_circuit_size() {
-    test_circuit_size_with::<PallasEngine>();
-    test_circuit_size_with::<Secp256k1Engine>();
-    test_circuit_size_with::<Bn256Engine>();
+  fn test_augmented_circuit_size() {
+    test_augmented_circuit_size_with::<PallasEngine>();
+    test_augmented_circuit_size_with::<Secp256k1Engine>();
+    test_augmented_circuit_size_with::<Bn256Engine>();
   }
 }

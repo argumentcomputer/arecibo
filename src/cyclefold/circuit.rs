@@ -157,7 +157,10 @@ mod tests {
       .iter()
       .map(|b| Some(*b))
       .collect::<Option<Vec<_>>>()
-      .map(|v| v.try_into().unwrap());
+      .map(|mut vec| {
+        vec.resize_with(128, || false);
+        vec.try_into().unwrap()
+      });
 
     let circuit: CyclefoldCircuit<Dual<E1>> = CyclefoldCircuit::new(Some(C_1), Some(C_2), r_bits);
 
