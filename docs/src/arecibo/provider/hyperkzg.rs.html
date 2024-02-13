@@ -596,6 +596,9 @@
 <a href="#595" id="595">595</a>
 <a href="#596" id="596">596</a>
 <a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
 //! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
 //! However, there are some key differences:
@@ -659,18 +662,20 @@
   E::Fr: TranscriptReprTrait&lt;E::G1&gt;,
   E::G1Affine: TranscriptReprTrait&lt;E::G1&gt;, <span class="comment">// TODO: this bound on DlogGroup is really unusable!
 </span>{
-  <span class="kw">fn </span>compute_challenge(
+  <span class="doccomment">/// TODO: write doc
+  </span><span class="kw">pub fn </span>compute_challenge(
     com: <span class="kw-2">&amp;</span>[E::G1Affine],
     transcript: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>TranscriptEngineTrait&lt;NE&gt;,
   ) -&gt; E::Fr {
-    transcript.absorb(<span class="string">b"c"</span>, <span class="kw-2">&amp;</span>com.to_vec().as_slice());
+    transcript.absorb(<span class="string">b"c"</span>, <span class="kw-2">&amp;</span>com);
     transcript.squeeze(<span class="string">b"c"</span>).unwrap()
   }
 
-  <span class="comment">// Compute challenge q = Hash(vk, C0, ..., C_{k-1}, u0, ...., u_{t-1},
+  <span class="doccomment">/// TODO: write doc
+  </span><span class="comment">// Compute challenge q = Hash(vk, C0, ..., C_{k-1}, u0, ...., u_{t-1},
   // (f_i(u_j))_{i=0..k-1,j=0..t-1})
   // It is assumed that both 'C' and 'u' are already absorbed by the transcript
-  </span><span class="kw">fn </span>get_batch_challenge(
+  </span><span class="kw">pub fn </span>get_batch_challenge(
     v: <span class="kw-2">&amp;</span>[Vec&lt;E::Fr&gt;],
     transcript: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>TranscriptEngineTrait&lt;NE&gt;,
   ) -&gt; E::Fr {
@@ -686,14 +691,15 @@
     transcript.squeeze(<span class="string">b"r"</span>).unwrap()
   }
 
-  <span class="kw">fn </span>batch_challenge_powers(q: E::Fr, k: usize) -&gt; Vec&lt;E::Fr&gt; {
-    <span class="comment">// Compute powers of q : (1, q, q^2, ..., q^(k-1))
-    </span>std::iter::successors(<span class="prelude-val">Some</span>(E::Fr::ONE), |<span class="kw-2">&amp;</span>x| <span class="prelude-val">Some</span>(x * q))
+  <span class="doccomment">/// Compute powers of q : (1, q, q^2, ..., q^(k-1))
+  </span><span class="kw">pub fn </span>batch_challenge_powers(q: E::Fr, k: usize) -&gt; Vec&lt;E::Fr&gt; {
+    std::iter::successors(<span class="prelude-val">Some</span>(E::Fr::ONE), |<span class="kw-2">&amp;</span>x| <span class="prelude-val">Some</span>(x * q))
       .take(k)
       .collect()
   }
 
-  <span class="kw">fn </span>verifier_second_challenge(
+  <span class="doccomment">/// TODO: write doc
+  </span><span class="kw">pub fn </span>verifier_second_challenge(
     W: <span class="kw-2">&amp;</span>[E::G1Affine],
     transcript: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>TranscriptEngineTrait&lt;NE&gt;,
   ) -&gt; E::Fr {

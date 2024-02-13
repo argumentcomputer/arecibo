@@ -821,15 +821,6 @@
 <a href="#820" id="820">820</a>
 <a href="#821" id="821">821</a>
 <a href="#822" id="822">822</a>
-<a href="#823" id="823">823</a>
-<a href="#824" id="824">824</a>
-<a href="#825" id="825">825</a>
-<a href="#826" id="826">826</a>
-<a href="#827" id="827">827</a>
-<a href="#828" id="828">828</a>
-<a href="#829" id="829">829</a>
-<a href="#830" id="830">830</a>
-<a href="#831" id="831">831</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Non-hiding Zeromorph scheme for Multilinear Polynomials.
 //!
 //!
@@ -839,7 +830,7 @@
   errors::{NovaError, PCSError},
   provider::{
     non_hiding_kzg::{
-      KZGProverKey, KZGVerifierKey, UVKZGCommitment, UVKZGEvaluation, UVKZGPoly, UVKZGProof,
+      KZGProverKey, KZGVerifierKey, UVKZGCommitment, UVKZGEvaluation, UVKZGProof,
       UniversalKZGParam, UVKZGPCS,
     },
     traits::DlogGroup,
@@ -865,6 +856,7 @@
 <span class="kw">use </span>std::{borrow::Borrow, iter, marker::PhantomData};
 
 <span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::KZGCommitmentEngine;
+<span class="kw">use </span><span class="kw">crate</span>::spartan::polys::univariate::UniPoly;
 
 <span class="doccomment">/// `ZMProverKey` is used to generate a proof
 </span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq)]
@@ -988,7 +980,7 @@
     <span class="kw">if </span>pp.commit_pp.powers_of_g().len() &lt; poly.Z.len() {
       <span class="kw">return </span><span class="prelude-val">Err</span>(PCSError::LengthError.into());
     }
-    UVKZGPCS::commit(<span class="kw-2">&amp;</span>pp.commit_pp, UVKZGPoly::ref_cast(<span class="kw-2">&amp;</span>poly.Z)).map(|c| c.into())
+    UVKZGPCS::commit(<span class="kw-2">&amp;</span>pp.commit_pp, UniPoly::ref_cast(<span class="kw-2">&amp;</span>poly.Z)).map(|c| c.into())
   }
 
   <span class="doccomment">/// On input a polynomial `poly` and a point `point`, outputs a proof for the
@@ -1016,10 +1008,7 @@
     <span class="macro">debug_assert_eq!</span>(remainder, eval.<span class="number">0</span>);
 
     <span class="comment">// Compute the multilinear quotients q_k = q_k(X_0, ..., X_{k-1})
-    </span><span class="kw">let </span>quotients_polys = quotients
-      .into_iter()
-      .map(UVKZGPoly::new)
-      .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    </span><span class="kw">let </span>quotients_polys = quotients.into_iter().map(UniPoly::new).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
     <span class="comment">// Compute and absorb commitments C_{q_k} = [q_k], k = 0,...,d-1
     </span><span class="kw">let </span>q_comms = quotients_polys
@@ -1047,7 +1036,7 @@
     </span><span class="kw">let </span>(eval_scalar, (degree_check_q_scalars, zmpoly_q_scalars)) =
       eval_and_quotient_scalars(y, x, z, point);
     <span class="comment">// f = z * poly.Z + q_hat + (-z * Φ_n(x) * e) + ∑_k (q_scalars_k * q_k)
-    </span><span class="kw">let </span><span class="kw-2">mut </span>f = UVKZGPoly::new(poly.Z.clone());
+    </span><span class="kw">let </span><span class="kw-2">mut </span>f = UniPoly::new(poly.Z.clone());
     f <span class="kw-2">*</span>= <span class="kw-2">&amp;</span>z;
     f += <span class="kw-2">&amp;</span>q_hat;
     f[<span class="number">0</span>] += eval_scalar * eval.<span class="number">0</span>;
@@ -1192,8 +1181,8 @@
 <span class="comment">// Compute the batched, lifted-degree quotient `\hat{q}`
 </span><span class="kw">fn </span>batched_lifted_degree_quotient&lt;F: PrimeField&gt;(
   y: F,
-  quotients_polys: <span class="kw-2">&amp;</span>[UVKZGPoly&lt;F&gt;],
-) -&gt; (UVKZGPoly&lt;F&gt;, usize) {
+  quotients_polys: <span class="kw-2">&amp;</span>[UniPoly&lt;F&gt;],
+) -&gt; (UniPoly&lt;F&gt;, usize) {
   <span class="kw">let </span>num_vars = quotients_polys.len();
 
   <span class="kw">let </span>powers_of_y = (<span class="number">0</span>..num_vars)
@@ -1222,7 +1211,7 @@
       },
     );
 
-  (UVKZGPoly::new(q_hat), <span class="number">1 </span>&lt;&lt; (num_vars - <span class="number">1</span>))
+  (UniPoly::new(q_hat), <span class="number">1 </span>&lt;&lt; (num_vars - <span class="number">1</span>))
 }
 
 <span class="doccomment">/// Computes some key terms necessary for computing the partially evaluated univariate ZM polynomial
@@ -1355,12 +1344,11 @@
 
   <span class="kw">use </span><span class="kw">super</span>::quotients;
 
+  <span class="kw">use </span><span class="kw">crate</span>::spartan::polys::univariate::UniPoly;
   <span class="kw">use crate</span>::{
     errors::PCSError,
     provider::{
-      non_hiding_kzg::{
-        trim, KZGProverKey, UVKZGCommitment, UVKZGPoly, UniversalKZGParam, UVKZGPCS,
-      },
+      non_hiding_kzg::{trim, KZGProverKey, UVKZGCommitment, UniversalKZGParam, UVKZGPCS},
       non_hiding_zeromorph::{batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMPCS},
       traits::DlogGroup,
       util::test_utils::prove_verify_from_num_vars,
@@ -1430,9 +1418,9 @@
     <span class="kw">let </span>n = <span class="number">1 </span>&lt;&lt; num_vars; <span class="comment">// Assuming N = 2^num_vars
 
     // Define mock q_k with deg(q_k) = 2^k - 1
-    </span><span class="kw">let </span>q_0 = UVKZGPoly::new(<span class="macro">vec!</span>[Scalar::one()]);
-    <span class="kw">let </span>q_1 = UVKZGPoly::new(<span class="macro">vec!</span>[Scalar::from(<span class="number">2</span>), Scalar::from(<span class="number">3</span>)]);
-    <span class="kw">let </span>q_2 = UVKZGPoly::new(<span class="macro">vec!</span>[
+    </span><span class="kw">let </span>q_0 = UniPoly::new(<span class="macro">vec!</span>[Scalar::one()]);
+    <span class="kw">let </span>q_1 = UniPoly::new(<span class="macro">vec!</span>[Scalar::from(<span class="number">2</span>), Scalar::from(<span class="number">3</span>)]);
+    <span class="kw">let </span>q_2 = UniPoly::new(<span class="macro">vec!</span>[
       Scalar::from(<span class="number">4</span>),
       Scalar::from(<span class="number">5</span>),
       Scalar::from(<span class="number">6</span>),
@@ -1476,10 +1464,7 @@
       });
 
     <span class="comment">// Compare the computed and expected batched quotients
-    </span><span class="macro">assert_eq!</span>(
-      batched_quotient.<span class="number">0</span>,
-      UVKZGPoly::new(batched_quotient_expected)
-    );
+    </span><span class="macro">assert_eq!</span>(batched_quotient.<span class="number">0</span>, UniPoly::new(batched_quotient_expected));
   }
 
   <span class="attr">#[test]
@@ -1489,9 +1474,9 @@
     <span class="kw">let </span>num_vars = <span class="number">3</span>;
 
     <span class="comment">// Define some mock q_k with deg(q_k) = 2^k - 1
-    </span><span class="kw">let </span>_q_0 = UVKZGPoly::new(<span class="macro">vec!</span>[Scalar::one()]);
-    <span class="kw">let </span>_q_1 = UVKZGPoly::new(<span class="macro">vec!</span>[Scalar::from(<span class="number">2</span>), Scalar::from(<span class="number">3</span>)]);
-    <span class="kw">let </span>_q_2 = UVKZGPoly::new(<span class="macro">vec!</span>[
+    </span><span class="kw">let </span>_q_0 = UniPoly::new(<span class="macro">vec!</span>[Scalar::one()]);
+    <span class="kw">let </span>_q_1 = UniPoly::new(<span class="macro">vec!</span>[Scalar::from(<span class="number">2</span>), Scalar::from(<span class="number">3</span>)]);
+    <span class="kw">let </span>_q_2 = UniPoly::new(<span class="macro">vec!</span>[
       Scalar::from(<span class="number">4</span>),
       Scalar::from(<span class="number">5</span>),
       Scalar::from(<span class="number">6</span>),
@@ -1545,9 +1530,9 @@
     <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha20Rng::from_seed([<span class="number">0u8</span>; <span class="number">32</span>]);
 
     <span class="comment">// Define some mock q_k with deg(q_k) = 2^k - 1
-    </span><span class="kw">let </span>_q_0 = UVKZGPoly::new(<span class="macro">vec!</span>[Scalar::one()]);
-    <span class="kw">let </span>_q_1 = UVKZGPoly::new(<span class="macro">vec!</span>[Scalar::from(<span class="number">2</span>), Scalar::from(<span class="number">3</span>)]);
-    <span class="kw">let </span>_q_2 = UVKZGPoly::new(<span class="macro">vec!</span>[
+    </span><span class="kw">let </span>_q_0 = UniPoly::new(<span class="macro">vec!</span>[Scalar::one()]);
+    <span class="kw">let </span>_q_1 = UniPoly::new(<span class="macro">vec!</span>[Scalar::from(<span class="number">2</span>), Scalar::from(<span class="number">3</span>)]);
+    <span class="kw">let </span>_q_2 = UniPoly::new(<span class="macro">vec!</span>[
       Scalar::from(<span class="number">4</span>),
       Scalar::from(<span class="number">5</span>),
       Scalar::from(<span class="number">6</span>),
@@ -1587,7 +1572,7 @@
 
   <span class="kw">fn </span>commit_filtered&lt;E&gt;(
     prover_param: <span class="kw">impl </span>Borrow&lt;KZGProverKey&lt;E&gt;&gt;,
-    poly: <span class="kw-2">&amp;</span>UVKZGPoly&lt;E::Fr&gt;,
+    poly: <span class="kw-2">&amp;</span>UniPoly&lt;E::Fr&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;UVKZGCommitment&lt;E&gt;, NovaError&gt;
   <span class="kw">where
     </span>E: MultiMillerLoop,
@@ -1634,10 +1619,7 @@
     }
 
     <span class="kw">let </span>(quotients, _remainder) = quotients(<span class="kw-2">&amp;</span>multilinear_poly, random_points.as_slice());
-    <span class="kw">let </span>quotients_polys = quotients
-      .into_iter()
-      .map(UVKZGPoly::new)
-      .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    <span class="kw">let </span>quotients_polys = quotients.into_iter().map(UniPoly::new).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
     <span class="kw">let </span>(q_hat, offset) = batched_lifted_degree_quotient(E::Fr::random(<span class="kw-2">&amp;mut </span>rng), <span class="kw-2">&amp;</span>quotients_polys);
 
