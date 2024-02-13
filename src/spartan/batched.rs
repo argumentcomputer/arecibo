@@ -615,20 +615,13 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E>
     U: &RelaxedR1CSInstance<E>,
     W: &RelaxedR1CSWitness<E>,
   ) -> Result<Self, NovaError> {
-    // We manifest a slice for the single element U
-    let ptr_U = U as *const _;
-    let slice_U = unsafe { slice::from_raw_parts(ptr_U, 1) };
-    // We manifest a slice for the single element W
-    let ptr_W = W as *const _;
-    let slice_W = unsafe { slice::from_raw_parts(ptr_W, 1) };
-
+    let slice_U = slice::from_ref(U);
+    let slice_W = slice::from_ref(W);
     <Self as BatchedRelaxedR1CSSNARKTrait<E>>::prove(ck, pk, vec![S], slice_U, slice_W)
   }
 
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
-    // We manifest a slice for the single element U
-    let ptr = U as *const _;
-    let slice = unsafe { slice::from_raw_parts(ptr, 1) };
+    let slice = slice::from_ref(U);
     <Self as BatchedRelaxedR1CSSNARKTrait<E>>::verify(self, vk, slice)
   }
 }
