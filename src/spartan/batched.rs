@@ -6,6 +6,7 @@
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
+use core::slice;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use rayon::prelude::*;
@@ -31,7 +32,7 @@ use crate::{
   },
   traits::{
     evaluation::EvaluationEngineTrait,
-    snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
+    snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Engine, TranscriptEngineTrait,
   },
   zip_with, CommitmentKey,
@@ -586,5 +587,41 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     )?;
 
     Ok(())
+  }
+}
+
+impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E>
+  for BatchedRelaxedR1CSSNARK<E, EE>
+{
+  type ProverKey = ProverKey<E, EE>;
+
+  type VerifierKey = VerifierKey<E, EE>;
+
+  fn ck_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<E>) -> usize> {
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::ck_floor()
+  }
+
+  fn setup(
+    ck: Arc<CommitmentKey<E>>,
+    S: &R1CSShape<E>,
+  ) -> Result<(Self::ProverKey, Self::VerifierKey), NovaError> {
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::setup(ck, vec![S])
+  }
+
+  fn prove(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    S: &R1CSShape<E>,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+  ) -> Result<Self, NovaError> {
+    let slice_U = slice::from_ref(U);
+    let slice_W = slice::from_ref(W);
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::prove(ck, pk, vec![S], slice_U, slice_W)
+  }
+
+  fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
+    let slice = slice::from_ref(U);
+    <Self as BatchedRelaxedR1CSSNARKTrait<E>>::verify(self, vk, slice)
   }
 }
