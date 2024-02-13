@@ -589,6 +589,43 @@
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
 <a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `BatchedRelaxedR1CSSNARKTrait` using Spartan that is generic over the polynomial commitment
 //! and evaluation argument (i.e., a PCS) This version of Spartan does not use preprocessing so the verifier keeps the
 //! entire description of R1CS matrices. This is essentially optimal for the verifier when using an IPA-based polynomial
@@ -597,6 +634,7 @@
 </span><span class="kw">use </span>ff::Field;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
+<span class="kw">use </span>core::slice;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
@@ -622,7 +660,7 @@
   },
   traits::{
     evaluation::EvaluationEngineTrait,
-    snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait},
+    snark::{BatchedRelaxedR1CSSNARKTrait, DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Engine, TranscriptEngineTrait,
   },
   zip_with, CommitmentKey,
@@ -1177,6 +1215,42 @@
     )<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
+  }
+}
+
+<span class="kw">impl</span>&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; RelaxedR1CSSNARKTrait&lt;E&gt;
+  <span class="kw">for </span>BatchedRelaxedR1CSSNARK&lt;E, EE&gt;
+{
+  <span class="kw">type </span>ProverKey = ProverKey&lt;E, EE&gt;;
+
+  <span class="kw">type </span>VerifierKey = VerifierKey&lt;E, EE&gt;;
+
+  <span class="kw">fn </span>ck_floor() -&gt; Box&lt;<span class="kw">dyn for</span>&lt;<span class="lifetime">'a</span>&gt; Fn(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>R1CSShape&lt;E&gt;) -&gt; usize&gt; {
+    &lt;<span class="self">Self </span><span class="kw">as </span>BatchedRelaxedR1CSSNARKTrait&lt;E&gt;&gt;::ck_floor()
+  }
+
+  <span class="kw">fn </span>setup(
+    ck: Arc&lt;CommitmentKey&lt;E&gt;&gt;,
+    S: <span class="kw-2">&amp;</span>R1CSShape&lt;E&gt;,
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>::ProverKey, <span class="self">Self</span>::VerifierKey), NovaError&gt; {
+    &lt;<span class="self">Self </span><span class="kw">as </span>BatchedRelaxedR1CSSNARKTrait&lt;E&gt;&gt;::setup(ck, <span class="macro">vec!</span>[S])
+  }
+
+  <span class="kw">fn </span>prove(
+    ck: <span class="kw-2">&amp;</span>CommitmentKey&lt;E&gt;,
+    pk: <span class="kw-2">&amp;</span><span class="self">Self</span>::ProverKey,
+    S: <span class="kw-2">&amp;</span>R1CSShape&lt;E&gt;,
+    U: <span class="kw-2">&amp;</span>RelaxedR1CSInstance&lt;E&gt;,
+    W: <span class="kw-2">&amp;</span>RelaxedR1CSWitness&lt;E&gt;,
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
+    <span class="kw">let </span>slice_U = slice::from_ref(U);
+    <span class="kw">let </span>slice_W = slice::from_ref(W);
+    &lt;<span class="self">Self </span><span class="kw">as </span>BatchedRelaxedR1CSSNARKTrait&lt;E&gt;&gt;::prove(ck, pk, <span class="macro">vec!</span>[S], slice_U, slice_W)
+  }
+
+  <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, vk: <span class="kw-2">&amp;</span><span class="self">Self</span>::VerifierKey, U: <span class="kw-2">&amp;</span>RelaxedR1CSInstance&lt;E&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), NovaError&gt; {
+    <span class="kw">let </span>slice = slice::from_ref(U);
+    &lt;<span class="self">Self </span><span class="kw">as </span>BatchedRelaxedR1CSSNARKTrait&lt;E&gt;&gt;::verify(<span class="self">self</span>, vk, slice)
   }
 }
 </code></pre></div></section></main></body></html>
