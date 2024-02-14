@@ -46,13 +46,11 @@ impl<E: Engine, const N: usize> AllocatedR1CSInstance<E, N> {
           u.map(|u| u.X[idx]),
         )
       })
-      .collect::<Result<Vec<_>, _>>()
-      .map(|vec| {
-        let len = vec.len();
-        vec
-          .try_into()
-          .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{len} != {N}")))
-      })??;
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
     Ok(Self { W, X })
   }
@@ -110,13 +108,11 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
           n_limbs,
         )
       })
-      .collect::<Result<Vec<_>, _>>()
-      .map(|vec| {
-        let len = vec.len();
-        vec
-          .try_into()
-          .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{len} != {N}")))
-      })??;
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
     Ok(Self { W, E, u, X })
   }
@@ -146,13 +142,11 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
           n_limbs,
         )
       })
-      .collect::<Result<Vec<_>, _>>()
-      .map(|vec| {
-        let len = vec.len();
-        vec
-          .try_into()
-          .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{len} != {N}")))
-      })??;
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
     Ok(Self { W, E, u, X })
   }
@@ -181,13 +175,11 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
           n_limbs,
         )
       })
-      .collect::<Result<Vec<_>, _>>()
-      .map(|vec| {
-        let len = vec.len();
-        vec
-          .try_into()
-          .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{len} != {N}")))
-      })??;
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
     Ok(Self { W: inst.W, E, u, X })
   }
@@ -206,20 +198,19 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
     ro.absorb(&self.E.is_infinity);
     ro.absorb(&self.u);
 
-    for (idx, X) in self.X.iter().enumerate() {
-      let X_bn = X
-        .as_limbs()
+    self.X.iter().enumerate().try_for_each(|(idx, X)| {
+      X.as_limbs()
         .iter()
         .enumerate()
-        .map(|(i, limb)| {
-          limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[{idx}] to num")))
+        .try_for_each(|(i, limb)| -> Result<(), SynthesisError> {
+          ro.absorb(
+            &limb.as_allocated_num(
+              cs.namespace(|| format!("convert limb {i} of X_r[{idx}] to num")),
+            )?,
+          );
+          Ok(())
         })
-        .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
-
-      for limb in X_bn {
-        ro.absorb(&limb);
-      }
-    }
+    })?;
 
     Ok(())
   }
@@ -300,11 +291,9 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
       X_fold.push(X_i_fold);
     }
 
-    let X_fold_len = X_fold.len();
-
-    let X_fold = X_fold
-      .try_into()
-      .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{X_fold_len} != {N}")))?;
+    let X_fold = X_fold.try_into().map_err(|err: Vec<_>| {
+      SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+    })?;
 
     Ok(Self {
       W: W_fold,
@@ -351,11 +340,9 @@ pub fn conditionally_select_alloc_relaxed_r1cs<
     })
     .collect::<Result<Vec<_>, _>>()?;
 
-  let c_X_len = c_X.len();
-
-  let c_X = c_X
-    .try_into()
-    .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{c_X_len} != {N}")))?;
+  let c_X = c_X.try_into().map_err(|err: Vec<_>| {
+    SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+  })?;
 
   let c = AllocatedRelaxedR1CSInstance {
     W: conditionally_select_point(
