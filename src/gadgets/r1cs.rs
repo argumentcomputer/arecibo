@@ -39,23 +39,20 @@ impl<E: Engine, const N: usize> AllocatedR1CSInstance<E, N> {
     )?;
     W.check_on_curve(cs.namespace(|| "check W on curve"))?;
 
-    let X: [AllocatedNum<E::Base>; N] = u
-      .map(|u| {
-        u.X
-          .iter()
-          .enumerate()
-          .map(|(idx, x)| {
-            alloc_scalar_as_base::<E, _>(cs.namespace(|| format!("allocate X[{}]", idx)), Some(*x))
-          })
-          .collect::<Result<Vec<_>, _>>()
-          .map(|vec| {
-            let len = vec.len();
-            vec
-              .try_into()
-              .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{len} != {N}")))
-          })
+    let X: [AllocatedNum<E::Base>; N] = (0..N)
+      .map(|idx| {
+        alloc_scalar_as_base::<E, _>(
+          cs.namespace(|| format!("allocating X[{idx}]")),
+          u.map(|u| u.X[idx]),
+        )
       })
-      .unwrap_or_else(|| Err(SynthesisError::AssignmentMissing))??;
+      .collect::<Result<Vec<_>, _>>()
+      .map(|vec| {
+        let len = vec.len();
+        vec
+          .try_into()
+          .map_err(|_| SynthesisError::IncompatibleLengthVector(format!("{len} != {N}")))
+      })??;
 
     Ok(Self { W, X })
   }
