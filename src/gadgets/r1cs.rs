@@ -22,13 +22,12 @@ use itertools::Itertools as _;
 
 /// An Allocated R1CS Instance
 #[derive(Clone)]
-pub struct AllocatedR1CSInstance<E: Engine> {
+pub struct AllocatedR1CSInstance<E: Engine, const N: usize> {
   pub(crate) W: AllocatedPoint<E::GE>,
-  pub(crate) X0: AllocatedNum<E::Base>,
-  pub(crate) X1: AllocatedNum<E::Base>,
+  pub(crate) X: [AllocatedNum<E::Base>; N],
 }
 
-impl<E: Engine> AllocatedR1CSInstance<E> {
+impl<E: Engine, const N: usize> AllocatedR1CSInstance<E, N> {
   /// Takes the r1cs instance and creates a new allocated r1cs instance
   pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
@@ -40,10 +39,20 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
     )?;
     W.check_on_curve(cs.namespace(|| "check W on curve"))?;
 
-    let X0 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.X[0]))?;
-    let X1 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.X[1]))?;
+    let X: [AllocatedNum<E::Base>; N] = (0..N)
+      .map(|idx| {
+        alloc_scalar_as_base::<E, _>(
+          cs.namespace(|| format!("allocating X[{idx}]")),
+          u.map(|u| u.X[idx]),
+        )
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
-    Ok(Self { W, X0, X1 })
+    Ok(Self { W, X })
   }
 
   /// Absorb the provided instance in the RO
@@ -51,22 +60,20 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
     ro.absorb(&self.W.x);
     ro.absorb(&self.W.y);
     ro.absorb(&self.W.is_infinity);
-    ro.absorb(&self.X0);
-    ro.absorb(&self.X1);
+    self.X.iter().for_each(|x| ro.absorb(x));
   }
 }
 
 /// An Allocated Relaxed R1CS Instance
 #[derive(Clone)]
-pub struct AllocatedRelaxedR1CSInstance<E: Engine> {
+pub struct AllocatedRelaxedR1CSInstance<E: Engine, const N: usize> {
   pub(crate) W: AllocatedPoint<E::GE>,
   pub(crate) E: AllocatedPoint<E::GE>,
   pub(crate) u: AllocatedNum<E::Base>,
-  pub(crate) X0: BigNat<E::Base>,
-  pub(crate) X1: BigNat<E::Base>,
+  pub(crate) X: [BigNat<E::Base>; N],
 }
 
-impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
+impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
   /// Allocates the given `RelaxedR1CSInstance` as a witness of the circuit
   pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
@@ -91,22 +98,23 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     // So we parse all of its bytes as a E::Base element
     let u = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate u"), inst.map(|inst| inst.u))?;
 
-    // Allocate X0 and X1. If the input instance is None, then allocate default values 0.
-    let X0 = BigNat::alloc_from_nat(
-      cs.namespace(|| "allocate X[0]"),
-      || Ok(f_to_nat(&inst.map_or(E::Scalar::ZERO, |inst| inst.X[0]))),
-      limb_width,
-      n_limbs,
-    )?;
+    // Allocate X. If the input instance is None then allocate components as zero.
+    let X = (0..N)
+      .map(|idx| {
+        BigNat::alloc_from_nat(
+          cs.namespace(|| format!("allocate X[{idx}]")),
+          || Ok(f_to_nat(&inst.map_or(E::Scalar::ZERO, |inst| inst.X[idx]))),
+          limb_width,
+          n_limbs,
+        )
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
-    let X1 = BigNat::alloc_from_nat(
-      cs.namespace(|| "allocate X[1]"),
-      || Ok(f_to_nat(&inst.map_or(E::Scalar::ZERO, |inst| inst.X[1]))),
-      limb_width,
-      n_limbs,
-    )?;
-
-    Ok(Self { W, E, u, X0, X1 })
+    Ok(Self { W, E, u, X })
   }
 
   /// Allocates the hardcoded default `RelaxedR1CSInstance` in the circuit.
@@ -121,31 +129,33 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 
     let u = W.x.clone(); // In the default case, W.x = u = 0
 
-    // X0 and X1 are allocated and in the honest prover case set to zero
+    // X is allocated and in the honest prover case set to zero
     // If the prover is malicious, it can set to arbitrary values, but the resulting
     // relaxed R1CS instance with the the checked default values of W, E, and u must still be satisfying
-    let X0 = BigNat::alloc_from_nat(
-      cs.namespace(|| "allocate x_default[0]"),
-      || Ok(f_to_nat(&E::Scalar::ZERO)),
-      limb_width,
-      n_limbs,
-    )?;
 
-    let X1 = BigNat::alloc_from_nat(
-      cs.namespace(|| "allocate x_default[1]"),
-      || Ok(f_to_nat(&E::Scalar::ZERO)),
-      limb_width,
-      n_limbs,
-    )?;
+    let X = (0..N)
+      .map(|idx| {
+        BigNat::alloc_from_nat(
+          cs.namespace(|| format!("allocate X_default[{idx}]")),
+          || Ok(f_to_nat(&E::Scalar::ZERO)),
+          limb_width,
+          n_limbs,
+        )
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
-    Ok(Self { W, E, u, X0, X1 })
+    Ok(Self { W, E, u, X })
   }
 
   /// Allocates the R1CS Instance as a `RelaxedR1CSInstance` in the circuit.
   /// E = 0, u = 1
   pub fn from_r1cs_instance<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
-    inst: AllocatedR1CSInstance<E>,
+    inst: AllocatedR1CSInstance<E, N>,
     limb_width: usize,
     n_limbs: usize,
   ) -> Result<Self, SynthesisError> {
@@ -153,27 +163,25 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 
     let u = alloc_one(cs.namespace(|| "one"));
 
-    let X0 = BigNat::from_num(
-      cs.namespace(|| "allocate X0 from relaxed r1cs"),
-      &Num::from(inst.X0),
-      limb_width,
-      n_limbs,
-    )?;
+    let X = inst
+      .X
+      .into_iter()
+      .enumerate()
+      .map(|(idx, x)| {
+        BigNat::from_num(
+          cs.namespace(|| format!("allocate X[{idx}] from relaxed r1cs")),
+          &Num::from(x),
+          limb_width,
+          n_limbs,
+        )
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+      })?;
 
-    let X1 = BigNat::from_num(
-      cs.namespace(|| "allocate X1 from relaxed r1cs"),
-      &Num::from(inst.X1),
-      limb_width,
-      n_limbs,
-    )?;
-
-    Ok(Self {
-      W: inst.W,
-      E,
-      u,
-      X0,
-      X1,
-    })
+    Ok(Self { W: inst.W, E, u, X })
   }
 
   /// Absorb the provided instance in the RO
@@ -190,37 +198,19 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     ro.absorb(&self.E.is_infinity);
     ro.absorb(&self.u);
 
-    // Analyze X0 as limbs
-    let X0_bn = self
-      .X0
-      .as_limbs()
-      .iter()
-      .enumerate()
-      .map(|(i, limb)| {
-        limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[0] to num")))
-      })
-      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
-
-    // absorb each of the limbs of X[0]
-    for limb in X0_bn {
-      ro.absorb(&limb);
-    }
-
-    // Analyze X1 as limbs
-    let X1_bn = self
-      .X1
-      .as_limbs()
-      .iter()
-      .enumerate()
-      .map(|(i, limb)| {
-        limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[1] to num")))
-      })
-      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
-
-    // absorb each of the limbs of X[1]
-    for limb in X1_bn {
-      ro.absorb(&limb);
-    }
+    self.X.iter().enumerate().try_for_each(|(idx, X)| {
+      X.as_limbs()
+        .iter()
+        .enumerate()
+        .try_for_each(|(i, limb)| -> Result<(), SynthesisError> {
+          ro.absorb(
+            &limb.as_allocated_num(
+              cs.namespace(|| format!("convert limb {i} of X_r[{idx}] to num")),
+            )?,
+          );
+          Ok(())
+        })
+    })?;
 
     Ok(())
   }
@@ -230,7 +220,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     &self,
     mut cs: CS,
     params: &AllocatedNum<E::Base>, // hash of R1CSShape of F'
-    u: &AllocatedR1CSInstance<E>,
+    u: &AllocatedR1CSInstance<E, N>,
     T: &AllocatedPoint<E::GE>,
     ro_consts: ROConstantsCircuit<E>,
     limb_width: usize,
@@ -285,42 +275,31 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
       n_limbs,
     )?;
 
-    // Analyze X0 to bignat
-    let X0_bn = BigNat::from_num(
-      cs.namespace(|| "allocate X0_bn"),
-      &Num::from(u.X0.clone()),
-      limb_width,
-      n_limbs,
-    )?;
+    let mut X_fold = vec![];
 
-    // Fold self.X[0] + r * X[0]
-    let (_, r_0) = X0_bn.mult_mod(cs.namespace(|| "r*X[0]"), &r_bn, &m_bn)?;
-    // add X_r[0]
-    let r_new_0 = self.X0.add(&r_0)?;
-    // Now reduce
-    let X0_fold = r_new_0.red_mod(cs.namespace(|| "reduce folded X[0]"), &m_bn)?;
+    for (idx, (X, x)) in self.X.iter().zip_eq(u.X.iter()).enumerate() {
+      let x_bn = BigNat::from_num(
+        cs.namespace(|| format!("allocate u.X[{idx}]_bn")),
+        &Num::from(x.clone()),
+        limb_width,
+        n_limbs,
+      )?;
 
-    // Analyze X1 to bignat
-    let X1_bn = BigNat::from_num(
-      cs.namespace(|| "allocate X1_bn"),
-      &Num::from(u.X1.clone()),
-      limb_width,
-      n_limbs,
-    )?;
+      let (_, r) = x_bn.mult_mod(cs.namespace(|| format!("r*u.X[{idx}]")), &r_bn, &m_bn)?;
+      let r_new = X.add(&r)?;
+      let X_i_fold = r_new.red_mod(cs.namespace(|| format!("reduce folded X[{idx}]")), &m_bn)?;
+      X_fold.push(X_i_fold);
+    }
 
-    // Fold self.X[1] + r * X[1]
-    let (_, r_1) = X1_bn.mult_mod(cs.namespace(|| "r*X[1]"), &r_bn, &m_bn)?;
-    // add X_r[1]
-    let r_new_1 = self.X1.add(&r_1)?;
-    // Now reduce
-    let X1_fold = r_new_1.red_mod(cs.namespace(|| "reduce folded X[1]"), &m_bn)?;
+    let X_fold = X_fold.try_into().map_err(|err: Vec<_>| {
+      SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+    })?;
 
     Ok(Self {
       W: W_fold,
       E: E_fold,
       u: u_fold,
-      X0: X0_fold,
-      X1: X1_fold,
+      X: X_fold,
     })
   }
 
@@ -339,12 +318,32 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 pub fn conditionally_select_alloc_relaxed_r1cs<
   E: Engine,
   CS: ConstraintSystem<<E as Engine>::Base>,
+  const N: usize,
 >(
   mut cs: CS,
-  a: &AllocatedRelaxedR1CSInstance<E>,
-  b: &AllocatedRelaxedR1CSInstance<E>,
+  a: &AllocatedRelaxedR1CSInstance<E, N>,
+  b: &AllocatedRelaxedR1CSInstance<E, N>,
   condition: &Boolean,
-) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
+) -> Result<AllocatedRelaxedR1CSInstance<E, N>, SynthesisError> {
+  let c_X = a
+    .X
+    .iter()
+    .zip_eq(b.X.iter())
+    .enumerate()
+    .map(|(idx, (a, b))| {
+      conditionally_select_bignat(
+        cs.namespace(|| format!("X[{idx}] = cond ? a.X[{idx}] : b.X[{idx}]")),
+        a,
+        b,
+        condition,
+      )
+    })
+    .collect::<Result<Vec<_>, _>>()?;
+
+  let c_X = c_X.try_into().map_err(|err: Vec<_>| {
+    SynthesisError::IncompatibleLengthVector(format!("{} != {N}", err.len()))
+  })?;
+
   let c = AllocatedRelaxedR1CSInstance {
     W: conditionally_select_point(
       cs.namespace(|| "W = cond ? a.W : b.W"),
@@ -364,18 +363,7 @@ pub fn conditionally_select_alloc_relaxed_r1cs<
       &b.u,
       condition,
     )?,
-    X0: conditionally_select_bignat(
-      cs.namespace(|| "X[0] = cond ? a.X[0] : b.X[0]"),
-      &a.X0,
-      &b.X0,
-      condition,
-    )?,
-    X1: conditionally_select_bignat(
-      cs.namespace(|| "X[1] = cond ? a.X[1] : b.X[1]"),
-      &a.X1,
-      &b.X1,
-      condition,
-    )?,
+    X: c_X,
   };
   Ok(c)
 }
@@ -384,12 +372,13 @@ pub fn conditionally_select_alloc_relaxed_r1cs<
 pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
   E: Engine,
   CS: ConstraintSystem<<E as Engine>::Base>,
+  const N: usize,
 >(
   mut cs: CS,
-  a: &[AllocatedRelaxedR1CSInstance<E>],
-  b: &[AllocatedRelaxedR1CSInstance<E>],
+  a: &[AllocatedRelaxedR1CSInstance<E, N>],
+  b: &[AllocatedRelaxedR1CSInstance<E, N>],
   condition: &Boolean,
-) -> Result<Vec<AllocatedRelaxedR1CSInstance<E>>, SynthesisError> {
+) -> Result<Vec<AllocatedRelaxedR1CSInstance<E, N>>, SynthesisError> {
   a.iter()
     .enumerate()
     .zip_eq(b.iter())
@@ -400,7 +389,7 @@ pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
         condition,
       )
     })
-    .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E>>, _>>()
+    .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E, N>>, _>>()
 }
 
 /// c = cond ? a: b, where a, b: `AllocatedPoint`

@@ -7,13 +7,14 @@ use ff::PrimeField;
 use itertools::Itertools as _;
 
 use crate::{
+  constants::NIO_NOVA_FOLD,
   gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
   traits::Engine,
 };
 
 /// Return the element of `a` given by the indicator bit in `selector_vec`.
 ///
-/// This function assumes `selector_vec` has been properly constrained", i.e. that exactly one entry is equal to 1.  
+/// This function assumes `selector_vec` has been properly constrained", i.e. that exactly one entry is equal to 1.
 //
 // NOTE: When `a` is greater than 5 (estimated), it will be cheaper to use a multicase gadget.
 //
@@ -22,13 +23,13 @@ use crate::{
 // larger the elements, the fewer are needed before multicase becomes cost-effective.
 pub fn get_from_vec_alloc_relaxed_r1cs<E: Engine, CS: ConstraintSystem<<E as Engine>::Base>>(
   mut cs: CS,
-  a: &[AllocatedRelaxedR1CSInstance<E>],
+  a: &[AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>],
   selector_vec: &[Boolean],
-) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
+) -> Result<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>, SynthesisError> {
   assert_eq!(a.len(), selector_vec.len());
 
   // Compare all instances in `a` to the first one
-  let first: AllocatedRelaxedR1CSInstance<E> = a
+  let first: AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD> = a
     .first()
     .cloned()
     .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?;
@@ -127,7 +128,7 @@ mod test {
 
       let vec = (0..n)
         .map(|i| {
-          AllocatedRelaxedR1CSInstance::<PallasEngine>::default(
+          AllocatedRelaxedR1CSInstance::<PallasEngine, NIO_NOVA_FOLD>::default(
             &mut cs.namespace(|| format!("elt-{i}")),
             4,
             64,

@@ -5,7 +5,7 @@
 //! Each circuit folds the last invocation of the other into the running instance
 
 use crate::{
-  constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
+  constants::{NIO_NOVA_FOLD, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
@@ -117,8 +117,8 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       AllocatedNum<E::Base>,
       Vec<AllocatedNum<E::Base>>,
       Vec<AllocatedNum<E::Base>>,
-      AllocatedRelaxedR1CSInstance<E>,
-      AllocatedR1CSInstance<E>,
+      AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>,
+      AllocatedR1CSInstance<E, NIO_NOVA_FOLD>,
       AllocatedPoint<E::GE>,
     ),
     SynthesisError,
@@ -152,7 +152,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
     // Allocate the running instance
-    let U: AllocatedRelaxedR1CSInstance<E> = AllocatedRelaxedR1CSInstance::alloc(
+    let U: AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD> = AllocatedRelaxedR1CSInstance::alloc(
       cs.namespace(|| "Allocate U"),
       self.inputs.as_ref().and_then(|inputs| inputs.U.as_ref()),
       self.params.limb_width,
@@ -182,24 +182,25 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
   fn synthesize_base_case<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-    u: AllocatedR1CSInstance<E>,
-  ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
-    let U_default: AllocatedRelaxedR1CSInstance<E> = if self.params.is_primary_circuit {
-      // The primary circuit just returns the default R1CS instance
-      AllocatedRelaxedR1CSInstance::default(
-        cs.namespace(|| "Allocate U_default"),
-        self.params.limb_width,
-        self.params.n_limbs,
-      )?
-    } else {
-      // The secondary circuit returns the incoming R1CS instance
-      AllocatedRelaxedR1CSInstance::from_r1cs_instance(
-        cs.namespace(|| "Allocate U_default"),
-        u,
-        self.params.limb_width,
-        self.params.n_limbs,
-      )?
-    };
+    u: AllocatedR1CSInstance<E, NIO_NOVA_FOLD>,
+  ) -> Result<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>, SynthesisError> {
+    let U_default: AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD> =
+      if self.params.is_primary_circuit {
+        // The primary circuit just returns the default R1CS instance
+        AllocatedRelaxedR1CSInstance::default(
+          cs.namespace(|| "Allocate U_default"),
+          self.params.limb_width,
+          self.params.n_limbs,
+        )?
+      } else {
+        // The secondary circuit returns the incoming R1CS instance
+        AllocatedRelaxedR1CSInstance::from_r1cs_instance(
+          cs.namespace(|| "Allocate U_default"),
+          u,
+          self.params.limb_width,
+          self.params.n_limbs,
+        )?
+      };
     Ok(U_default)
   }
 
@@ -212,11 +213,11 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     i: &AllocatedNum<E::Base>,
     z_0: &[AllocatedNum<E::Base>],
     z_i: &[AllocatedNum<E::Base>],
-    U: &AllocatedRelaxedR1CSInstance<E>,
-    u: &AllocatedR1CSInstance<E>,
+    U: &AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>,
+    u: &AllocatedR1CSInstance<E, NIO_NOVA_FOLD>,
     T: &AllocatedPoint<E::GE>,
     arity: usize,
-  ) -> Result<(AllocatedRelaxedR1CSInstance<E>, AllocatedBit), SynthesisError> {
+  ) -> Result<(AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>, AllocatedBit), SynthesisError> {
     // Check that u.x[0] = Hash(params, U, i, z0, zi)
     let mut ro = E::ROCircuit::new(
       self.ro_consts.clone(),
@@ -236,7 +237,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     let hash = le_bits_to_num(cs.namespace(|| "bits to hash"), &hash_bits)?;
     let check_pass = alloc_num_equals(
       cs.namespace(|| "check consistency of u.X[0] with H(params, U, i, z0, zi)"),
-      &u.X0,
+      &u.X[0],
       &hash,
     )?;
 
@@ -352,8 +353,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     let hash = le_bits_to_num(cs.namespace(|| "convert hash to num"), &hash_bits)?;
 
     // Outputs the computed hash and u.X[1] that corresponds to the hash of the other circuit
-    u.X1
-      .inputize(cs.namespace(|| "Output unmodified hash of the other circuit"))?;
+    u.X[1].inputize(cs.namespace(|| "Output unmodified hash of the other circuit"))?;
     hash.inputize(cs.namespace(|| "output new hash of this circuit"))?;
 
     Ok(z_next)
