@@ -62,7 +62,7 @@ impl<E: Engine, const N: usize> AllocatedR1CSInstance<E, N> {
     ro.absorb(&self.W.x);
     ro.absorb(&self.W.y);
     ro.absorb(&self.W.is_infinity);
-    self.X.iter().for_each(|x| ro.absorb(&x));
+    self.X.iter().for_each(|x| ro.absorb(x));
   }
 }
 
