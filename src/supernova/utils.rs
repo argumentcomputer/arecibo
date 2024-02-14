@@ -7,7 +7,7 @@ use ff::PrimeField;
 use itertools::Itertools as _;
 
 use crate::{
-  constants::NUM_IO_IN_NOVA,
+  constants::NIO_NOVA_FOLD,
   gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
   traits::Engine,
 };
@@ -23,13 +23,13 @@ use crate::{
 // larger the elements, the fewer are needed before multicase becomes cost-effective.
 pub fn get_from_vec_alloc_relaxed_r1cs<E: Engine, CS: ConstraintSystem<<E as Engine>::Base>>(
   mut cs: CS,
-  a: &[AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>],
+  a: &[AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>],
   selector_vec: &[Boolean],
-) -> Result<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>, SynthesisError> {
+) -> Result<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>, SynthesisError> {
   assert_eq!(a.len(), selector_vec.len());
 
   // Compare all instances in `a` to the first one
-  let first: AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA> = a
+  let first: AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD> = a
     .first()
     .cloned()
     .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?;
@@ -128,7 +128,7 @@ mod test {
 
       let vec = (0..n)
         .map(|i| {
-          AllocatedRelaxedR1CSInstance::<PallasEngine, NUM_IO_IN_NOVA>::default(
+          AllocatedRelaxedR1CSInstance::<PallasEngine, NIO_NOVA_FOLD>::default(
             &mut cs.namespace(|| format!("elt-{i}")),
             4,
             64,

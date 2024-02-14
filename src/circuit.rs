@@ -5,7 +5,7 @@
 //! Each circuit folds the last invocation of the other into the running instance
 
 use crate::{
-  constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS, NUM_IO_IN_NOVA},
+  constants::{NIO_NOVA_FOLD, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
@@ -117,8 +117,8 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       AllocatedNum<E::Base>,
       Vec<AllocatedNum<E::Base>>,
       Vec<AllocatedNum<E::Base>>,
-      AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>,
-      AllocatedR1CSInstance<E, NUM_IO_IN_NOVA>,
+      AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>,
+      AllocatedR1CSInstance<E, NIO_NOVA_FOLD>,
       AllocatedPoint<E::GE>,
     ),
     SynthesisError,
@@ -152,7 +152,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
     // Allocate the running instance
-    let U: AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA> = AllocatedRelaxedR1CSInstance::alloc(
+    let U: AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD> = AllocatedRelaxedR1CSInstance::alloc(
       cs.namespace(|| "Allocate U"),
       self.inputs.as_ref().and_then(|inputs| inputs.U.as_ref()),
       self.params.limb_width,
@@ -182,9 +182,9 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
   fn synthesize_base_case<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-    u: AllocatedR1CSInstance<E, NUM_IO_IN_NOVA>,
-  ) -> Result<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>, SynthesisError> {
-    let U_default: AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA> =
+    u: AllocatedR1CSInstance<E, NIO_NOVA_FOLD>,
+  ) -> Result<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>, SynthesisError> {
+    let U_default: AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD> =
       if self.params.is_primary_circuit {
         // The primary circuit just returns the default R1CS instance
         AllocatedRelaxedR1CSInstance::default(
@@ -213,17 +213,11 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     i: &AllocatedNum<E::Base>,
     z_0: &[AllocatedNum<E::Base>],
     z_i: &[AllocatedNum<E::Base>],
-    U: &AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>,
-    u: &AllocatedR1CSInstance<E, NUM_IO_IN_NOVA>,
+    U: &AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>,
+    u: &AllocatedR1CSInstance<E, NIO_NOVA_FOLD>,
     T: &AllocatedPoint<E::GE>,
     arity: usize,
-  ) -> Result<
-    (
-      AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>,
-      AllocatedBit,
-    ),
-    SynthesisError,
-  > {
+  ) -> Result<(AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>, AllocatedBit), SynthesisError> {
     // Check that u.x[0] = Hash(params, U, i, z0, zi)
     let mut ro = E::ROCircuit::new(
       self.ro_consts.clone(),
