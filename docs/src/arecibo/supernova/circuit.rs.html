@@ -884,6 +884,11 @@
 <a href="#883" id="883">883</a>
 <a href="#884" id="884">884</a>
 <a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Supernova implementation support arbitrary argumented circuits and running instances.
 //! There are two Verification Circuits for each argumented circuit: The primary and the secondary.
 //! Each of them is over a Pasta curve but
@@ -898,7 +903,7 @@
 //!    3. (optional by F logic) F circuit might check `program_counter_{i}` invoked current F circuit is legal or not.
 //!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F' argumented circuit.
 </span><span class="kw">use crate</span>::{
-  constants::NUM_HASH_BITS,
+  constants::{NIO_NOVA_FOLD, NUM_HASH_BITS},
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{
@@ -1156,8 +1161,8 @@
       AllocatedNum&lt;E::Base&gt;,
       Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;,
       Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;,
-      Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;,
-      AllocatedR1CSInstance&lt;E&gt;,
+      Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;&gt;,
+      AllocatedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
       AllocatedPoint&lt;E::GE&gt;,
       <span class="prelude-ty">Option</span>&lt;AllocatedNum&lt;E::Base&gt;&gt;,
       Vec&lt;Boolean&gt;,
@@ -1228,7 +1233,7 @@
           <span class="self">self</span>.params.n_limbs,
         )
       })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
 
     <span class="comment">// Allocate the r1cs instance to be folded in
     </span><span class="kw">let </span>u = AllocatedR1CSInstance::alloc(
@@ -1270,9 +1275,9 @@
   </span><span class="kw">fn </span>synthesize_base_case&lt;CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
-    u: AllocatedR1CSInstance&lt;E&gt;,
+    u: AllocatedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
     last_augmented_circuit_selector: <span class="kw-2">&amp;</span>[Boolean],
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, SynthesisError&gt; {
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;&gt;, SynthesisError&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>cs = cs.namespace(|| <span class="string">"alloc U_i default"</span>);
 
     <span class="comment">// Allocate a default relaxed r1cs instance
@@ -1307,7 +1312,7 @@
             equal_bit,
           )
         })
-        .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?
+        .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?
     </span>};
     <span class="prelude-val">Ok</span>(U_default)
   }
@@ -1321,13 +1326,19 @@
     i: <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;,
     z_0: <span class="kw-2">&amp;</span>[AllocatedNum&lt;E::Base&gt;],
     z_i: <span class="kw-2">&amp;</span>[AllocatedNum&lt;E::Base&gt;],
-    U: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E&gt;],
-    u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E&gt;,
+    U: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;],
+    u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
     T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E::GE&gt;,
     arity: usize,
     last_augmented_circuit_selector: <span class="kw-2">&amp;</span>[Boolean],
     program_counter: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;AllocatedNum&lt;E::Base&gt;&gt;,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, AllocatedBit), SynthesisError&gt; {
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;
+    (
+      Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;&gt;,
+      AllocatedBit,
+    ),
+    SynthesisError,
+  &gt; {
     <span class="comment">// Check that u.x[0] = Hash(params, i, program_counter, z0, zi, U[])
     </span><span class="kw">let </span><span class="kw-2">mut </span>ro = E::ROCircuit::new(
       <span class="self">self</span>.ro_consts.clone(),
@@ -1364,7 +1375,7 @@
     <span class="kw">let </span>hash = le_bits_to_num(cs.namespace(|| <span class="string">"bits to hash"</span>), <span class="kw-2">&amp;</span>hash_bits)<span class="question-mark">?</span>;
     <span class="kw">let </span>check_pass: AllocatedBit = alloc_num_equals(
       cs.namespace(|| <span class="string">"check consistency of u.X[0] with H(params, U, i, z0, zi)"</span>),
-      <span class="kw-2">&amp;</span>u.X0,
+      <span class="kw-2">&amp;</span>u.X[<span class="number">0</span>],
       <span class="kw-2">&amp;</span>hash,
     )<span class="question-mark">?</span>;
 
@@ -1385,7 +1396,7 @@
     )<span class="question-mark">?</span>;
 
     <span class="comment">// update AllocatedRelaxedR1CSInstance on index match augmented circuit index
-    </span><span class="kw">let </span>U_next: Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt; = U
+    </span><span class="kw">let </span>U_next: Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;&gt; = U
       .iter()
       .zip_eq(last_augmented_circuit_selector.iter())
       .map(|(U, equal_bit)| {
@@ -1396,7 +1407,7 @@
           equal_bit,
         )
       })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>((U_next, check_pass))
   }
@@ -1575,8 +1586,7 @@
     <span class="comment">// We are cycling of curve implementation, so primary/secondary will rotate hash in IO for the others to check
     // bypass unmodified hash of other circuit as next X[0]
     // and output the computed the computed hash as next X[1]
-    </span>u.X1
-      .inputize(cs.namespace(|| <span class="string">"bypass unmodified hash of the other circuit"</span>))<span class="question-mark">?</span>;
+    </span>u.X[<span class="number">1</span>].inputize(cs.namespace(|| <span class="string">"bypass unmodified hash of the other circuit"</span>))<span class="question-mark">?</span>;
     hash.inputize(cs.namespace(|| <span class="string">"output new hash of this circuit"</span>))<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>((program_counter_new, z_next))

@@ -509,7 +509,7 @@
 //! Each circuit folds the last invocation of the other into the running instance
 
 </span><span class="kw">use crate</span>::{
-  constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
+  constants::{NIO_NOVA_FOLD, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
@@ -621,8 +621,8 @@
       AllocatedNum&lt;E::Base&gt;,
       Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;,
       Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;,
-      AllocatedRelaxedR1CSInstance&lt;E&gt;,
-      AllocatedR1CSInstance&lt;E&gt;,
+      AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
+      AllocatedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
       AllocatedPoint&lt;E::GE&gt;,
     ),
     SynthesisError,
@@ -656,7 +656,7 @@
       .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
 
     <span class="comment">// Allocate the running instance
-    </span><span class="kw">let </span>U: AllocatedRelaxedR1CSInstance&lt;E&gt; = AllocatedRelaxedR1CSInstance::alloc(
+    </span><span class="kw">let </span>U: AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt; = AllocatedRelaxedR1CSInstance::alloc(
       cs.namespace(|| <span class="string">"Allocate U"</span>),
       <span class="self">self</span>.inputs.as_ref().and_then(|inputs| inputs.U.as_ref()),
       <span class="self">self</span>.params.limb_width,
@@ -686,24 +686,25 @@
   </span><span class="kw">fn </span>synthesize_base_case&lt;CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
-    u: AllocatedR1CSInstance&lt;E&gt;,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;, SynthesisError&gt; {
-    <span class="kw">let </span>U_default: AllocatedRelaxedR1CSInstance&lt;E&gt; = <span class="kw">if </span><span class="self">self</span>.params.is_primary_circuit {
-      <span class="comment">// The primary circuit just returns the default R1CS instance
-      </span>AllocatedRelaxedR1CSInstance::default(
-        cs.namespace(|| <span class="string">"Allocate U_default"</span>),
-        <span class="self">self</span>.params.limb_width,
-        <span class="self">self</span>.params.n_limbs,
-      )<span class="question-mark">?
-    </span>} <span class="kw">else </span>{
-      <span class="comment">// The secondary circuit returns the incoming R1CS instance
-      </span>AllocatedRelaxedR1CSInstance::from_r1cs_instance(
-        cs.namespace(|| <span class="string">"Allocate U_default"</span>),
-        u,
-        <span class="self">self</span>.params.limb_width,
-        <span class="self">self</span>.params.n_limbs,
-      )<span class="question-mark">?
-    </span>};
+    u: AllocatedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;, SynthesisError&gt; {
+    <span class="kw">let </span>U_default: AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt; =
+      <span class="kw">if </span><span class="self">self</span>.params.is_primary_circuit {
+        <span class="comment">// The primary circuit just returns the default R1CS instance
+        </span>AllocatedRelaxedR1CSInstance::default(
+          cs.namespace(|| <span class="string">"Allocate U_default"</span>),
+          <span class="self">self</span>.params.limb_width,
+          <span class="self">self</span>.params.n_limbs,
+        )<span class="question-mark">?
+      </span>} <span class="kw">else </span>{
+        <span class="comment">// The secondary circuit returns the incoming R1CS instance
+        </span>AllocatedRelaxedR1CSInstance::from_r1cs_instance(
+          cs.namespace(|| <span class="string">"Allocate U_default"</span>),
+          u,
+          <span class="self">self</span>.params.limb_width,
+          <span class="self">self</span>.params.n_limbs,
+        )<span class="question-mark">?
+      </span>};
     <span class="prelude-val">Ok</span>(U_default)
   }
 
@@ -716,11 +717,11 @@
     i: <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;,
     z_0: <span class="kw-2">&amp;</span>[AllocatedNum&lt;E::Base&gt;],
     z_i: <span class="kw-2">&amp;</span>[AllocatedNum&lt;E::Base&gt;],
-    U: <span class="kw-2">&amp;</span>AllocatedRelaxedR1CSInstance&lt;E&gt;,
-    u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E&gt;,
+    U: <span class="kw-2">&amp;</span>AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
+    u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;,
     T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E::GE&gt;,
     arity: usize,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;(AllocatedRelaxedR1CSInstance&lt;E&gt;, AllocatedBit), SynthesisError&gt; {
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;(AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;, AllocatedBit), SynthesisError&gt; {
     <span class="comment">// Check that u.x[0] = Hash(params, U, i, z0, zi)
     </span><span class="kw">let </span><span class="kw-2">mut </span>ro = E::ROCircuit::new(
       <span class="self">self</span>.ro_consts.clone(),
@@ -740,7 +741,7 @@
     <span class="kw">let </span>hash = le_bits_to_num(cs.namespace(|| <span class="string">"bits to hash"</span>), <span class="kw-2">&amp;</span>hash_bits)<span class="question-mark">?</span>;
     <span class="kw">let </span>check_pass = alloc_num_equals(
       cs.namespace(|| <span class="string">"check consistency of u.X[0] with H(params, U, i, z0, zi)"</span>),
-      <span class="kw-2">&amp;</span>u.X0,
+      <span class="kw-2">&amp;</span>u.X[<span class="number">0</span>],
       <span class="kw-2">&amp;</span>hash,
     )<span class="question-mark">?</span>;
 
@@ -856,8 +857,7 @@
     <span class="kw">let </span>hash = le_bits_to_num(cs.namespace(|| <span class="string">"convert hash to num"</span>), <span class="kw-2">&amp;</span>hash_bits)<span class="question-mark">?</span>;
 
     <span class="comment">// Outputs the computed hash and u.X[1] that corresponds to the hash of the other circuit
-    </span>u.X1
-      .inputize(cs.namespace(|| <span class="string">"Output unmodified hash of the other circuit"</span>))<span class="question-mark">?</span>;
+    </span>u.X[<span class="number">1</span>].inputize(cs.namespace(|| <span class="string">"Output unmodified hash of the other circuit"</span>))<span class="question-mark">?</span>;
     hash.inputize(cs.namespace(|| <span class="string">"output new hash of this circuit"</span>))<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(z_next)

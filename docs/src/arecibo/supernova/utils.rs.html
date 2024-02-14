@@ -178,6 +178,7 @@
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,
@@ -187,13 +188,14 @@
 <span class="kw">use </span>itertools::Itertools <span class="kw">as _</span>;
 
 <span class="kw">use crate</span>::{
+  constants::NIO_NOVA_FOLD,
   gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
   traits::Engine,
 };
 
 <span class="doccomment">/// Return the element of `a` given by the indicator bit in `selector_vec`.
 ///
-/// This function assumes `selector_vec` has been properly constrained", i.e. that exactly one entry is equal to 1.  
+/// This function assumes `selector_vec` has been properly constrained", i.e. that exactly one entry is equal to 1.
 </span><span class="comment">//
 // NOTE: When `a` is greater than 5 (estimated), it will be cheaper to use a multicase gadget.
 //
@@ -202,13 +204,13 @@
 // larger the elements, the fewer are needed before multicase becomes cost-effective.
 </span><span class="kw">pub fn </span>get_from_vec_alloc_relaxed_r1cs&lt;E: Engine, CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
   <span class="kw-2">mut </span>cs: CS,
-  a: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E&gt;],
+  a: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;],
   selector_vec: <span class="kw-2">&amp;</span>[Boolean],
-) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;, SynthesisError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt;, SynthesisError&gt; {
   <span class="macro">assert_eq!</span>(a.len(), selector_vec.len());
 
   <span class="comment">// Compare all instances in `a` to the first one
-  </span><span class="kw">let </span>first: AllocatedRelaxedR1CSInstance&lt;E&gt; = a
+  </span><span class="kw">let </span>first: AllocatedRelaxedR1CSInstance&lt;E, NIO_NOVA_FOLD&gt; = a
     .first()
     .cloned()
     .ok_or_else(|| SynthesisError::IncompatibleLengthVector(<span class="string">"empty vec length"</span>.to_string()))<span class="question-mark">?</span>;
@@ -307,7 +309,7 @@
 
       <span class="kw">let </span>vec = (<span class="number">0</span>..n)
         .map(|i| {
-          AllocatedRelaxedR1CSInstance::&lt;PallasEngine&gt;::default(
+          AllocatedRelaxedR1CSInstance::&lt;PallasEngine, NIO_NOVA_FOLD&gt;::default(
             <span class="kw-2">&amp;mut </span>cs.namespace(|| <span class="macro">format!</span>(<span class="string">"elt-{i}"</span>)),
             <span class="number">4</span>,
             <span class="number">64</span>,

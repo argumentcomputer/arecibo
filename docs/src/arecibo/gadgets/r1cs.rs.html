@@ -422,17 +422,6 @@
 <a href="#421" id="421">421</a>
 <a href="#422" id="422">422</a>
 <a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements various gadgets necessary for folding R1CS types.
 </span><span class="kw">use </span><span class="kw">super</span>::nonnative::{
   bignat::BigNat,
@@ -457,13 +446,12 @@
 
 <span class="doccomment">/// An Allocated R1CS Instance
 </span><span class="attr">#[derive(Clone)]
-</span><span class="kw">pub struct </span>AllocatedR1CSInstance&lt;E: Engine&gt; {
+</span><span class="kw">pub struct </span>AllocatedR1CSInstance&lt;E: Engine, <span class="kw">const </span>N: usize&gt; {
   <span class="kw">pub</span>(<span class="kw">crate</span>) W: AllocatedPoint&lt;E::GE&gt;,
-  <span class="kw">pub</span>(<span class="kw">crate</span>) X0: AllocatedNum&lt;E::Base&gt;,
-  <span class="kw">pub</span>(<span class="kw">crate</span>) X1: AllocatedNum&lt;E::Base&gt;,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) X: [AllocatedNum&lt;E::Base&gt;; N],
 }
 
-<span class="kw">impl</span>&lt;E: Engine&gt; AllocatedR1CSInstance&lt;E&gt; {
+<span class="kw">impl</span>&lt;E: Engine, <span class="kw">const </span>N: usize&gt; AllocatedR1CSInstance&lt;E, N&gt; {
   <span class="doccomment">/// Takes the r1cs instance and creates a new allocated r1cs instance
   </span><span class="kw">pub fn </span>alloc&lt;CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
@@ -475,10 +463,20 @@
     )<span class="question-mark">?</span>;
     W.check_on_curve(cs.namespace(|| <span class="string">"check W on curve"</span>))<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>X0 = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">"allocate X[0]"</span>), u.map(|u| u.X[<span class="number">0</span>]))<span class="question-mark">?</span>;
-    <span class="kw">let </span>X1 = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">"allocate X[1]"</span>), u.map(|u| u.X[<span class="number">1</span>]))<span class="question-mark">?</span>;
+    <span class="kw">let </span>X: [AllocatedNum&lt;E::Base&gt;; N] = (<span class="number">0</span>..N)
+      .map(|idx| {
+        alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(
+          cs.namespace(|| <span class="macro">format!</span>(<span class="string">"allocating X[{idx}]"</span>)),
+          u.map(|u| u.X[idx]),
+        )
+      })
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?
+      </span>.try_into()
+      .map_err(|err: Vec&lt;<span class="kw">_</span>&gt;| {
+        SynthesisError::IncompatibleLengthVector(<span class="macro">format!</span>(<span class="string">"{} != {N}"</span>, err.len()))
+      })<span class="question-mark">?</span>;
 
-    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W, X0, X1 })
+    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W, X })
   }
 
   <span class="doccomment">/// Absorb the provided instance in the RO
@@ -486,22 +484,20 @@
     ro.absorb(<span class="kw-2">&amp;</span><span class="self">self</span>.W.x);
     ro.absorb(<span class="kw-2">&amp;</span><span class="self">self</span>.W.y);
     ro.absorb(<span class="kw-2">&amp;</span><span class="self">self</span>.W.is_infinity);
-    ro.absorb(<span class="kw-2">&amp;</span><span class="self">self</span>.X0);
-    ro.absorb(<span class="kw-2">&amp;</span><span class="self">self</span>.X1);
+    <span class="self">self</span>.X.iter().for_each(|x| ro.absorb(x));
   }
 }
 
 <span class="doccomment">/// An Allocated Relaxed R1CS Instance
 </span><span class="attr">#[derive(Clone)]
-</span><span class="kw">pub struct </span>AllocatedRelaxedR1CSInstance&lt;E: Engine&gt; {
+</span><span class="kw">pub struct </span>AllocatedRelaxedR1CSInstance&lt;E: Engine, <span class="kw">const </span>N: usize&gt; {
   <span class="kw">pub</span>(<span class="kw">crate</span>) W: AllocatedPoint&lt;E::GE&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) E: AllocatedPoint&lt;E::GE&gt;,
   <span class="kw">pub</span>(<span class="kw">crate</span>) u: AllocatedNum&lt;E::Base&gt;,
-  <span class="kw">pub</span>(<span class="kw">crate</span>) X0: BigNat&lt;E::Base&gt;,
-  <span class="kw">pub</span>(<span class="kw">crate</span>) X1: BigNat&lt;E::Base&gt;,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) X: [BigNat&lt;E::Base&gt;; N],
 }
 
-<span class="kw">impl</span>&lt;E: Engine&gt; AllocatedRelaxedR1CSInstance&lt;E&gt; {
+<span class="kw">impl</span>&lt;E: Engine, <span class="kw">const </span>N: usize&gt; AllocatedRelaxedR1CSInstance&lt;E, N&gt; {
   <span class="doccomment">/// Allocates the given `RelaxedR1CSInstance` as a witness of the circuit
   </span><span class="kw">pub fn </span>alloc&lt;CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
@@ -526,22 +522,23 @@
     // So we parse all of its bytes as a E::Base element
     </span><span class="kw">let </span>u = alloc_scalar_as_base::&lt;E, <span class="kw">_</span>&gt;(cs.namespace(|| <span class="string">"allocate u"</span>), inst.map(|inst| inst.u))<span class="question-mark">?</span>;
 
-    <span class="comment">// Allocate X0 and X1. If the input instance is None, then allocate default values 0.
-    </span><span class="kw">let </span>X0 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">"allocate X[0]"</span>),
-      || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>inst.map_or(E::Scalar::ZERO, |inst| inst.X[<span class="number">0</span>]))),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
+    <span class="comment">// Allocate X. If the input instance is None then allocate components as zero.
+    </span><span class="kw">let </span>X = (<span class="number">0</span>..N)
+      .map(|idx| {
+        BigNat::alloc_from_nat(
+          cs.namespace(|| <span class="macro">format!</span>(<span class="string">"allocate X[{idx}]"</span>)),
+          || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>inst.map_or(E::Scalar::ZERO, |inst| inst.X[idx]))),
+          limb_width,
+          n_limbs,
+        )
+      })
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?
+      </span>.try_into()
+      .map_err(|err: Vec&lt;<span class="kw">_</span>&gt;| {
+        SynthesisError::IncompatibleLengthVector(<span class="macro">format!</span>(<span class="string">"{} != {N}"</span>, err.len()))
+      })<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>X1 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">"allocate X[1]"</span>),
-      || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>inst.map_or(E::Scalar::ZERO, |inst| inst.X[<span class="number">1</span>]))),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W, E, u, X0, X1 })
+    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W, E, u, X })
   }
 
   <span class="doccomment">/// Allocates the hardcoded default `RelaxedR1CSInstance` in the circuit.
@@ -556,31 +553,33 @@
 
     <span class="kw">let </span>u = W.x.clone(); <span class="comment">// In the default case, W.x = u = 0
 
-    // X0 and X1 are allocated and in the honest prover case set to zero
+    // X is allocated and in the honest prover case set to zero
     // If the prover is malicious, it can set to arbitrary values, but the resulting
     // relaxed R1CS instance with the the checked default values of W, E, and u must still be satisfying
-    </span><span class="kw">let </span>X0 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">"allocate x_default[0]"</span>),
-      || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>E::Scalar::ZERO)),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>X1 = BigNat::alloc_from_nat(
-      cs.namespace(|| <span class="string">"allocate x_default[1]"</span>),
-      || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>E::Scalar::ZERO)),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>X = (<span class="number">0</span>..N)
+      .map(|idx| {
+        BigNat::alloc_from_nat(
+          cs.namespace(|| <span class="macro">format!</span>(<span class="string">"allocate X_default[{idx}]"</span>)),
+          || <span class="prelude-val">Ok</span>(f_to_nat(<span class="kw-2">&amp;</span>E::Scalar::ZERO)),
+          limb_width,
+          n_limbs,
+        )
+      })
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?
+      </span>.try_into()
+      .map_err(|err: Vec&lt;<span class="kw">_</span>&gt;| {
+        SynthesisError::IncompatibleLengthVector(<span class="macro">format!</span>(<span class="string">"{} != {N}"</span>, err.len()))
+      })<span class="question-mark">?</span>;
 
-    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W, E, u, X0, X1 })
+    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W, E, u, X })
   }
 
   <span class="doccomment">/// Allocates the R1CS Instance as a `RelaxedR1CSInstance` in the circuit.
   /// E = 0, u = 1
   </span><span class="kw">pub fn </span>from_r1cs_instance&lt;CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
-    inst: AllocatedR1CSInstance&lt;E&gt;,
+    inst: AllocatedR1CSInstance&lt;E, N&gt;,
     limb_width: usize,
     n_limbs: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
@@ -588,27 +587,25 @@
 
     <span class="kw">let </span>u = alloc_one(cs.namespace(|| <span class="string">"one"</span>));
 
-    <span class="kw">let </span>X0 = BigNat::from_num(
-      cs.namespace(|| <span class="string">"allocate X0 from relaxed r1cs"</span>),
-      <span class="kw-2">&amp;</span>Num::from(inst.X0),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
+    <span class="kw">let </span>X = inst
+      .X
+      .into_iter()
+      .enumerate()
+      .map(|(idx, x)| {
+        BigNat::from_num(
+          cs.namespace(|| <span class="macro">format!</span>(<span class="string">"allocate X[{idx}] from relaxed r1cs"</span>)),
+          <span class="kw-2">&amp;</span>Num::from(x),
+          limb_width,
+          n_limbs,
+        )
+      })
+      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?
+      </span>.try_into()
+      .map_err(|err: Vec&lt;<span class="kw">_</span>&gt;| {
+        SynthesisError::IncompatibleLengthVector(<span class="macro">format!</span>(<span class="string">"{} != {N}"</span>, err.len()))
+      })<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>X1 = BigNat::from_num(
-      cs.namespace(|| <span class="string">"allocate X1 from relaxed r1cs"</span>),
-      <span class="kw-2">&amp;</span>Num::from(inst.X1),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-      W: inst.W,
-      E,
-      u,
-      X0,
-      X1,
-    })
+    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ W: inst.W, E, u, X })
   }
 
   <span class="doccomment">/// Absorb the provided instance in the RO
@@ -625,37 +622,19 @@
     ro.absorb(<span class="kw-2">&amp;</span><span class="self">self</span>.E.is_infinity);
     ro.absorb(<span class="kw-2">&amp;</span><span class="self">self</span>.u);
 
-    <span class="comment">// Analyze X0 as limbs
-    </span><span class="kw">let </span>X0_bn = <span class="self">self
-      </span>.X0
-      .as_limbs()
-      .iter()
-      .enumerate()
-      .map(|(i, limb)| {
-        limb.as_allocated_num(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"convert limb {i} of X_r[0] to num"</span>)))
-      })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
-
-    <span class="comment">// absorb each of the limbs of X[0]
-    </span><span class="kw">for </span>limb <span class="kw">in </span>X0_bn {
-      ro.absorb(<span class="kw-2">&amp;</span>limb);
-    }
-
-    <span class="comment">// Analyze X1 as limbs
-    </span><span class="kw">let </span>X1_bn = <span class="self">self
-      </span>.X1
-      .as_limbs()
-      .iter()
-      .enumerate()
-      .map(|(i, limb)| {
-        limb.as_allocated_num(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"convert limb {i} of X_r[1] to num"</span>)))
-      })
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedNum&lt;E::Base&gt;&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
-
-    <span class="comment">// absorb each of the limbs of X[1]
-    </span><span class="kw">for </span>limb <span class="kw">in </span>X1_bn {
-      ro.absorb(<span class="kw-2">&amp;</span>limb);
-    }
+    <span class="self">self</span>.X.iter().enumerate().try_for_each(|(idx, X)| {
+      X.as_limbs()
+        .iter()
+        .enumerate()
+        .try_for_each(|(i, limb)| -&gt; <span class="prelude-ty">Result</span>&lt;(), SynthesisError&gt; {
+          ro.absorb(
+            <span class="kw-2">&amp;</span>limb.as_allocated_num(
+              cs.namespace(|| <span class="macro">format!</span>(<span class="string">"convert limb {i} of X_r[{idx}] to num"</span>)),
+            )<span class="question-mark">?</span>,
+          );
+          <span class="prelude-val">Ok</span>(())
+        })
+    })<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
   }
@@ -665,7 +644,7 @@
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="kw-2">mut </span>cs: CS,
     params: <span class="kw-2">&amp;</span>AllocatedNum&lt;E::Base&gt;, <span class="comment">// hash of R1CSShape of F'
-    </span>u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E&gt;,
+    </span>u: <span class="kw-2">&amp;</span>AllocatedR1CSInstance&lt;E, N&gt;,
     T: <span class="kw-2">&amp;</span>AllocatedPoint&lt;E::GE&gt;,
     ro_consts: ROConstantsCircuit&lt;E&gt;,
     limb_width: usize,
@@ -720,42 +699,31 @@
       n_limbs,
     )<span class="question-mark">?</span>;
 
-    <span class="comment">// Analyze X0 to bignat
-    </span><span class="kw">let </span>X0_bn = BigNat::from_num(
-      cs.namespace(|| <span class="string">"allocate X0_bn"</span>),
-      <span class="kw-2">&amp;</span>Num::from(u.X0.clone()),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>X_fold = <span class="macro">vec!</span>[];
 
-    <span class="comment">// Fold self.X[0] + r * X[0]
-    </span><span class="kw">let </span>(<span class="kw">_</span>, r_0) = X0_bn.mult_mod(cs.namespace(|| <span class="string">"r*X[0]"</span>), <span class="kw-2">&amp;</span>r_bn, <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
-    <span class="comment">// add X_r[0]
-    </span><span class="kw">let </span>r_new_0 = <span class="self">self</span>.X0.add(<span class="kw-2">&amp;</span>r_0)<span class="question-mark">?</span>;
-    <span class="comment">// Now reduce
-    </span><span class="kw">let </span>X0_fold = r_new_0.red_mod(cs.namespace(|| <span class="string">"reduce folded X[0]"</span>), <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+    <span class="kw">for </span>(idx, (X, x)) <span class="kw">in </span><span class="self">self</span>.X.iter().zip_eq(u.X.iter()).enumerate() {
+      <span class="kw">let </span>x_bn = BigNat::from_num(
+        cs.namespace(|| <span class="macro">format!</span>(<span class="string">"allocate u.X[{idx}]_bn"</span>)),
+        <span class="kw-2">&amp;</span>Num::from(x.clone()),
+        limb_width,
+        n_limbs,
+      )<span class="question-mark">?</span>;
 
-    <span class="comment">// Analyze X1 to bignat
-    </span><span class="kw">let </span>X1_bn = BigNat::from_num(
-      cs.namespace(|| <span class="string">"allocate X1_bn"</span>),
-      <span class="kw-2">&amp;</span>Num::from(u.X1.clone()),
-      limb_width,
-      n_limbs,
-    )<span class="question-mark">?</span>;
+      <span class="kw">let </span>(<span class="kw">_</span>, r) = x_bn.mult_mod(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"r*u.X[{idx}]"</span>)), <span class="kw-2">&amp;</span>r_bn, <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+      <span class="kw">let </span>r_new = X.add(<span class="kw-2">&amp;</span>r)<span class="question-mark">?</span>;
+      <span class="kw">let </span>X_i_fold = r_new.red_mod(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"reduce folded X[{idx}]"</span>)), <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+      X_fold.push(X_i_fold);
+    }
 
-    <span class="comment">// Fold self.X[1] + r * X[1]
-    </span><span class="kw">let </span>(<span class="kw">_</span>, r_1) = X1_bn.mult_mod(cs.namespace(|| <span class="string">"r*X[1]"</span>), <span class="kw-2">&amp;</span>r_bn, <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
-    <span class="comment">// add X_r[1]
-    </span><span class="kw">let </span>r_new_1 = <span class="self">self</span>.X1.add(<span class="kw-2">&amp;</span>r_1)<span class="question-mark">?</span>;
-    <span class="comment">// Now reduce
-    </span><span class="kw">let </span>X1_fold = r_new_1.red_mod(cs.namespace(|| <span class="string">"reduce folded X[1]"</span>), <span class="kw-2">&amp;</span>m_bn)<span class="question-mark">?</span>;
+    <span class="kw">let </span>X_fold = X_fold.try_into().map_err(|err: Vec&lt;<span class="kw">_</span>&gt;| {
+      SynthesisError::IncompatibleLengthVector(<span class="macro">format!</span>(<span class="string">"{} != {N}"</span>, err.len()))
+    })<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
       W: W_fold,
       E: E_fold,
       u: u_fold,
-      X0: X0_fold,
-      X1: X1_fold,
+      X: X_fold,
     })
   }
 
@@ -774,12 +742,32 @@
 </span><span class="kw">pub fn </span>conditionally_select_alloc_relaxed_r1cs&lt;
   E: Engine,
   CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;,
+  <span class="kw">const </span>N: usize,
 &gt;(
   <span class="kw-2">mut </span>cs: CS,
-  a: <span class="kw-2">&amp;</span>AllocatedRelaxedR1CSInstance&lt;E&gt;,
-  b: <span class="kw-2">&amp;</span>AllocatedRelaxedR1CSInstance&lt;E&gt;,
+  a: <span class="kw-2">&amp;</span>AllocatedRelaxedR1CSInstance&lt;E, N&gt;,
+  b: <span class="kw-2">&amp;</span>AllocatedRelaxedR1CSInstance&lt;E, N&gt;,
   condition: <span class="kw-2">&amp;</span>Boolean,
-) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;, SynthesisError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedRelaxedR1CSInstance&lt;E, N&gt;, SynthesisError&gt; {
+  <span class="kw">let </span>c_X = a
+    .X
+    .iter()
+    .zip_eq(b.X.iter())
+    .enumerate()
+    .map(|(idx, (a, b))| {
+      conditionally_select_bignat(
+        cs.namespace(|| <span class="macro">format!</span>(<span class="string">"X[{idx}] = cond ? a.X[{idx}] : b.X[{idx}]"</span>)),
+        a,
+        b,
+        condition,
+      )
+    })
+    .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+
+  <span class="kw">let </span>c_X = c_X.try_into().map_err(|err: Vec&lt;<span class="kw">_</span>&gt;| {
+    SynthesisError::IncompatibleLengthVector(<span class="macro">format!</span>(<span class="string">"{} != {N}"</span>, err.len()))
+  })<span class="question-mark">?</span>;
+
   <span class="kw">let </span>c = AllocatedRelaxedR1CSInstance {
     W: conditionally_select_point(
       cs.namespace(|| <span class="string">"W = cond ? a.W : b.W"</span>),
@@ -799,18 +787,7 @@
       <span class="kw-2">&amp;</span>b.u,
       condition,
     )<span class="question-mark">?</span>,
-    X0: conditionally_select_bignat(
-      cs.namespace(|| <span class="string">"X[0] = cond ? a.X[0] : b.X[0]"</span>),
-      <span class="kw-2">&amp;</span>a.X0,
-      <span class="kw-2">&amp;</span>b.X0,
-      condition,
-    )<span class="question-mark">?</span>,
-    X1: conditionally_select_bignat(
-      cs.namespace(|| <span class="string">"X[1] = cond ? a.X[1] : b.X[1]"</span>),
-      <span class="kw-2">&amp;</span>a.X1,
-      <span class="kw-2">&amp;</span>b.X1,
-      condition,
-    )<span class="question-mark">?</span>,
+    X: c_X,
   };
   <span class="prelude-val">Ok</span>(c)
 }
@@ -819,12 +796,13 @@
 </span><span class="kw">pub fn </span>conditionally_select_vec_allocated_relaxed_r1cs_instance&lt;
   E: Engine,
   CS: ConstraintSystem&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base&gt;,
+  <span class="kw">const </span>N: usize,
 &gt;(
   <span class="kw-2">mut </span>cs: CS,
-  a: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E&gt;],
-  b: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E&gt;],
+  a: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E, N&gt;],
+  b: <span class="kw-2">&amp;</span>[AllocatedRelaxedR1CSInstance&lt;E, N&gt;],
   condition: <span class="kw-2">&amp;</span>Boolean,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, SynthesisError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, N&gt;&gt;, SynthesisError&gt; {
   a.iter()
     .enumerate()
     .zip_eq(b.iter())
@@ -835,7 +813,7 @@
         condition,
       )
     })
-    .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E&gt;&gt;, <span class="kw">_</span>&gt;&gt;()
+    .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedRelaxedR1CSInstance&lt;E, N&gt;&gt;, <span class="kw">_</span>&gt;&gt;()
 }
 
 <span class="doccomment">/// c = cond ? a: b, where a, b: `AllocatedPoint`
