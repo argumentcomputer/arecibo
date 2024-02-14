@@ -206,13 +206,13 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
     ro.absorb(&self.E.is_infinity);
     ro.absorb(&self.u);
 
-    for X in self.X.iter() {
+    for (idx, X) in self.X.iter().enumerate() {
       let X_bn = X
         .as_limbs()
         .iter()
         .enumerate()
         .map(|(i, limb)| {
-          limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[0] to num")))
+          limb.as_allocated_num(cs.namespace(|| format!("convert limb {i} of X_r[{idx}] to num")))
         })
         .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
