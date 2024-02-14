@@ -12,7 +12,7 @@
 //!    3. (optional by F logic) F circuit might check `program_counter_{i}` invoked current F circuit is legal or not.
 //!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F' argumented circuit.
 use crate::{
-  constants::NUM_HASH_BITS,
+  constants::{NUM_HASH_BITS, NUM_IO_IN_NOVA},
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{
@@ -270,8 +270,8 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
       AllocatedNum<E::Base>,
       Vec<AllocatedNum<E::Base>>,
       Vec<AllocatedNum<E::Base>>,
-      Vec<AllocatedRelaxedR1CSInstance<E>>,
-      AllocatedR1CSInstance<E>,
+      Vec<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>>,
+      AllocatedR1CSInstance<E, NUM_IO_IN_NOVA>,
       AllocatedPoint<E::GE>,
       Option<AllocatedNum<E::Base>>,
       Vec<Boolean>,
@@ -342,7 +342,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
           self.params.n_limbs,
         )
       })
-      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E>>, _>>()?;
+      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>>, _>>()?;
 
     // Allocate the r1cs instance to be folded in
     let u = AllocatedR1CSInstance::alloc(
@@ -384,9 +384,9 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
   fn synthesize_base_case<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-    u: AllocatedR1CSInstance<E>,
+    u: AllocatedR1CSInstance<E, NUM_IO_IN_NOVA>,
     last_augmented_circuit_selector: &[Boolean],
-  ) -> Result<Vec<AllocatedRelaxedR1CSInstance<E>>, SynthesisError> {
+  ) -> Result<Vec<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>>, SynthesisError> {
     let mut cs = cs.namespace(|| "alloc U_i default");
 
     // Allocate a default relaxed r1cs instance
@@ -421,7 +421,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
             equal_bit,
           )
         })
-        .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E>>, _>>()?
+        .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>>, _>>()?
     };
     Ok(U_default)
   }
@@ -435,13 +435,19 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     i: &AllocatedNum<E::Base>,
     z_0: &[AllocatedNum<E::Base>],
     z_i: &[AllocatedNum<E::Base>],
-    U: &[AllocatedRelaxedR1CSInstance<E>],
-    u: &AllocatedR1CSInstance<E>,
+    U: &[AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>],
+    u: &AllocatedR1CSInstance<E, NUM_IO_IN_NOVA>,
     T: &AllocatedPoint<E::GE>,
     arity: usize,
     last_augmented_circuit_selector: &[Boolean],
     program_counter: &Option<AllocatedNum<E::Base>>,
-  ) -> Result<(Vec<AllocatedRelaxedR1CSInstance<E>>, AllocatedBit), SynthesisError> {
+  ) -> Result<
+    (
+      Vec<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>>,
+      AllocatedBit,
+    ),
+    SynthesisError,
+  > {
     // Check that u.x[0] = Hash(params, i, program_counter, z0, zi, U[])
     let mut ro = E::ROCircuit::new(
       self.ro_consts.clone(),
@@ -478,7 +484,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     let hash = le_bits_to_num(cs.namespace(|| "bits to hash"), &hash_bits)?;
     let check_pass: AllocatedBit = alloc_num_equals(
       cs.namespace(|| "check consistency of u.X[0] with H(params, U, i, z0, zi)"),
-      &u.X0,
+      &u.X[0],
       &hash,
     )?;
 
@@ -499,7 +505,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     )?;
 
     // update AllocatedRelaxedR1CSInstance on index match augmented circuit index
-    let U_next: Vec<AllocatedRelaxedR1CSInstance<E>> = U
+    let U_next: Vec<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>> = U
       .iter()
       .zip_eq(last_augmented_circuit_selector.iter())
       .map(|(U, equal_bit)| {
@@ -510,7 +516,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
           equal_bit,
         )
       })
-      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E>>, _>>()?;
+      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E, NUM_IO_IN_NOVA>>, _>>()?;
 
     Ok((U_next, check_pass))
   }
@@ -689,8 +695,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     // We are cycling of curve implementation, so primary/secondary will rotate hash in IO for the others to check
     // bypass unmodified hash of other circuit as next X[0]
     // and output the computed the computed hash as next X[1]
-    u.X1
-      .inputize(cs.namespace(|| "bypass unmodified hash of the other circuit"))?;
+    u.X[1].inputize(cs.namespace(|| "bypass unmodified hash of the other circuit"))?;
     hash.inputize(cs.namespace(|| "output new hash of this circuit"))?;
 
     Ok((program_counter_new, z_next))
