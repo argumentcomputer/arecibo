@@ -246,29 +246,12 @@ where
     let q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
     let R_x = UniPoly::new(pi.R_x.clone());
 
-    let mut evals_at_r = vec![];
-    let mut evals_at_minus_r = vec![];
-    let mut evals_at_r_squared = vec![];
     for (i, evals_i) in pi.evals.iter().enumerate() {
-      let mut evals = evals_i.to_vec();
-      evals.push(*P_of_x);
-
-      if i == 0 {
-        evals_at_r = evals.clone();
-      }
-      if i == 1 {
-        evals_at_minus_r = evals.clone();
-      }
-      if i == 2 {
-        evals_at_r_squared = evals.clone();
-      }
-
-      let batched_eval = UniPoly::ref_cast(evals_i).evaluate(&q);
-
       // here we check correlation between R polynomial and batched evals, e.g.:
       // 1) R(r) == eval at r
       // 2) R(-r) == eval at -r
       // 3) R(r^2) == eval at r^2
+      let batched_eval = UniPoly::ref_cast(evals_i).evaluate(&q);
       if batched_eval != R_x.evaluate(&u[i]) {
         return Err(NovaError::ProofVerifyError);
       }
@@ -281,10 +264,11 @@ where
     let mut point = point.to_vec();
     point.reverse();
     #[allow(clippy::disallowed_methods)]
-    for (index, ((eval_r, eval_minus_r), eval_r_squared)) in evals_at_r
+    for (index, ((eval_r, eval_minus_r), eval_r_squared)) in pi.evals[0]
       .iter()
-      .zip_eq(evals_at_minus_r.iter())
-      .zip(evals_at_r_squared[1..].iter())
+      .chain(&[*P_of_x])
+      .zip_eq(pi.evals[1].iter().chain(&[*P_of_x]))
+      .zip(pi.evals[2][1..].iter().chain(&[*P_of_x]))
       .enumerate()
     {
       let even = (*eval_r + eval_minus_r) * (E::Fr::from(2).invert().unwrap());
