@@ -1115,36 +1115,36 @@ mod tests {
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["492fd902cd7174159bc9a6f827d92eb54ff25efa9d0673dffdb0efd02995df01"],
+      &expect!["582db42439c0dcfc60d24b023ab83d81d97382ac2efa883c6f23147345efeb01"],
     );
 
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["9b0701d9422658e3f74a85ab3e485c06f3ecca9c2b1800aab80004034d754f01"],
+      &expect!["83ef7f741c983bfc9193f1ba387b4966ca8d0818acac65583e30d72593b0f600"],
     );
 
     test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["1267235eb3d139e466dd9c814eaf73f01b063ccb4cad04848c0eb62f079a9601"],
+      &expect!["09e1cc324b4469aec5abc55d48d8add5d161cbb70aa023f78e171c58e3199600"],
     );
 
     test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["57afac2edd20d39b202151906e41154ba186c9dde497448d1332dc6de2f76302"],
+      &expect!["7602bf1fdf3d86b8a7228de4c163e11cc3908b93412548f8cf3ebc1bc638fd00"],
     );
 
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["04b5d1798be6d74b3701390b87078e70ebf3ddaad80c375319f320cedf8bca00"],
+      &expect!["dbbfd46ea48118694ec96631015c41cccc721c4f3aaf5b542bf18cca37878b02"],
     );
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["346b5f27cf24c79386f4de7a8bfb58970181ae7f0de7d2e3f10ad5dfd8fc2302"],
+      &expect!["c71fd5e574129205426e07edcb5fd0b26f78991d1ab883b1dfb7e82844480801"],
     );
   }
 
