@@ -9,13 +9,13 @@ use crate::{
 };
 
 use bellpepper_core::{ConstraintSystem, SynthesisError};
-pub struct AllocatedFoldingData<E: Engine> {
-  pub U: AllocatedRelaxedR1CSInstance<E>,
-  pub u: AllocatedR1CSInstance<E>,
+pub struct AllocatedFoldingData<E: Engine, const N: usize> {
+  pub U: AllocatedRelaxedR1CSInstance<E, N>,
+  pub u: AllocatedR1CSInstance<E, N>,
   pub T: AllocatedPoint<E::GE>,
 }
 
-impl<E: Engine> AllocatedFoldingData<E> {
+impl<E: Engine, const N: usize> AllocatedFoldingData<E, N> {
   pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
     inst: Option<&FoldingData<E>>,

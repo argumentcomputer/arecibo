@@ -1,7 +1,9 @@
 //! This module defines the Nova augmented circuit used for Cyclefold
 
 use crate::{
-  constants::{NUM_FE_IN_EMULATED_POINT, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
+  constants::{
+    NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS,
+  },
   gadgets::{
     r1cs::AllocatedRelaxedR1CSInstance,
     utils::{
@@ -141,15 +143,15 @@ where
     arity: usize,
   ) -> Result<
     (
-      AllocatedNum<E1::Base>,               // pp_digest
-      AllocatedNum<E1::Base>,               // i
-      Vec<AllocatedNum<E1::Base>>,          // z0
-      Vec<AllocatedNum<E1::Base>>,          // zi
-      emulated::AllocatedFoldingData<E1>,   //data_p
-      AllocatedFoldingData<E1>,             // data_c_1
-      AllocatedFoldingData<E1>,             // data_c_2
-      emulated::AllocatedEmulPoint<E1::GE>, // E_new
-      emulated::AllocatedEmulPoint<E1::GE>, // W_new
+      AllocatedNum<E1::Base>,                   // pp_digest
+      AllocatedNum<E1::Base>,                   // i
+      Vec<AllocatedNum<E1::Base>>,              // z0
+      Vec<AllocatedNum<E1::Base>>,              // zi
+      emulated::AllocatedFoldingData<E1>,       //data_p
+      AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_1
+      AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_2
+      emulated::AllocatedEmulPoint<E1::GE>,     // E_new
+      emulated::AllocatedEmulPoint<E1::GE>,     // W_new
     ),
     SynthesisError,
   > {
@@ -248,7 +250,7 @@ where
     mut cs: CS,
   ) -> Result<
     (
-      AllocatedRelaxedR1CSInstance<E1>,
+      AllocatedRelaxedR1CSInstance<E1, NIO_CYCLE_FOLD>,
       emulated::AllocatedEmulRelaxedR1CSInstance<E1>,
     ),
     SynthesisError,
@@ -276,14 +278,14 @@ where
     z_0: &[AllocatedNum<E1::Base>],
     z_i: &[AllocatedNum<E1::Base>],
     data_p: &emulated::AllocatedFoldingData<E1>,
-    data_c_1: &AllocatedFoldingData<E1>,
-    data_c_2: &AllocatedFoldingData<E1>,
+    data_c_1: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
+    data_c_2: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
     E_new: &emulated::AllocatedEmulPoint<E1::GE>,
     W_new: &emulated::AllocatedEmulPoint<E1::GE>,
     arity: usize,
   ) -> Result<
     (
-      AllocatedRelaxedR1CSInstance<E1>,
+      AllocatedRelaxedR1CSInstance<E1, NIO_CYCLE_FOLD>,
       emulated::AllocatedEmulRelaxedR1CSInstance<E1>,
       AllocatedBit,
     ),
