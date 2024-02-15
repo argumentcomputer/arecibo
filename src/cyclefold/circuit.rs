@@ -68,10 +68,10 @@ impl<E: Engine> CyclefoldCircuit<E> {
         .scalar
         .map_or(Ok(vec![false_bit; NUM_HASH_BITS]), |bits| {
           bits
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(idx, bit)| {
-              AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {idx}")), Some(*bit))
+              AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {idx}")), Some(bit))
             })
             .collect::<Result<Vec<_>, _>>()
         })?;
@@ -119,20 +119,25 @@ mod tests {
   use rand_core::OsRng;
 
   use crate::{
-    bellpepper::{solver::SatisfyingAssignment, test_shape_cs::TestShapeCS},
+    bellpepper::{
+      r1cs::{NovaShape, NovaWitness},
+      shape_cs::ShapeCS,
+      solver::SatisfyingAssignment,
+    },
     provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
-    traits::{commitment::CommitmentEngineTrait, CurveCycleEquipped, Dual},
+    traits::{commitment::CommitmentEngineTrait, snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
 
   use super::*;
 
+  // TODO: Split this test up into multiple tests
   fn test_cyclefold_circuit_size_with<E1>(expected_constraints: &Expect, expected_vars: &Expect)
   where
     E1: CurveCycleEquipped,
   {
     let rng = OsRng;
 
-    let ck = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::setup(b"hi", 5);
+    let ck = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::setup(b"test", 5);
 
     let v1 = (0..5)
       .map(|_| <<Dual<E1> as Engine>::Scalar as Field>::random(rng))
@@ -150,12 +155,14 @@ mod tests {
 
     let r = <<Dual<E1> as Engine>::Scalar as PrimeField>::from_u128(val);
 
-    let _result = C_1 + C_2 * r;
+    let native_result = C_1 + C_2 * r;
+
+    let (res_X, res_Y, res_is_infinity) = native_result.to_coordinates();
 
     let r_bits = r
       .to_le_bits()
-      .iter()
-      .map(|b| Some(*b))
+      .into_iter()
+      .map(|b| Some(b))
       .collect::<Option<Vec<_>>>()
       .map(|mut vec| {
         vec.resize_with(128, || false);
@@ -164,34 +171,51 @@ mod tests {
 
     let circuit: CyclefoldCircuit<Dual<E1>> = CyclefoldCircuit::new(Some(C_1), Some(C_2), r_bits);
 
-    // Test the circuit size does not change
-    let mut cs: TestShapeCS<E1> = TestShapeCS::default();
+    let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit.synthesize(cs.namespace(|| "synthesizing shape"));
 
     let num_constraints = cs.num_constraints();
-
     let num_variables = cs.num_aux();
+    let num_io = cs.num_inputs();
 
     expected_constraints.assert_eq(&num_constraints.to_string());
     expected_vars.assert_eq(&num_variables.to_string());
+    assert_eq!(num_io, 11);
 
-    // Test the circuit calculation matches weighted sum of commitments
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
+
     let mut cs = SatisfyingAssignment::<E1>::new();
 
     let _ = circuit
       .synthesize(cs.namespace(|| "synthesizing witness"))
       .unwrap();
 
-    let r_C_2 = C_2 * r;
+    let (instance, witness) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
 
-    let _C_final = C_1 + r_C_2;
+    let X = &instance.X;
+
+    let circuit_res_X = X[6];
+    let circuit_res_Y = X[7];
+    let circuit_res_is_infinity = X[8];
+
+    dbg!(res_X, res_Y, res_is_infinity);
+    dbg!(X);
+
+    assert_eq!(res_X, circuit_res_X);
+    assert_eq!(res_Y, circuit_res_Y);
+    assert_eq!(
+      res_is_infinity,
+      circuit_res_is_infinity == <Dual<E1> as Engine>::Base::ONE
+    );
+
+    assert!(shape.is_sat(&ck, &instance, &witness).is_ok());
   }
 
   #[test]
   fn test_cyclefold_circuit_size() {
-    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("2735"), &expect!("2728"));
-    test_cyclefold_circuit_size_with::<Bn256Engine>(&expect!("2769"), &expect!("2760"));
-    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("2701"), &expect!("2696"));
+    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("1371"), &expect!("1359"));
+    test_cyclefold_circuit_size_with::<Bn256Engine>(&expect!("1371"), &expect!("1359"));
+    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("1371"), &expect!("1359"));
   }
 
   // TODO: add test for circuit satisfiability
