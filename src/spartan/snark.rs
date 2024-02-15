@@ -179,8 +179,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
     // claims from the end of sum-check
     let (claim_Az, claim_Bz): (E::Scalar, E::Scalar) = (claims_outer[1], claims_outer[2]);
-    let claim_Cz = poly_Cz.evaluate(&r_x);
-    let eval_E = MultilinearPolynomial::evaluate_with(&W.E, &r_x);
+    let chis_r_x = EqPolynomial::evals_from_points(&r_x);
+
+    let claim_Cz = MultilinearPolynomial::evaluate_with_chis(poly_Cz.evaluations(), &chis_r_x);
+    let eval_E = MultilinearPolynomial::evaluate_with_chis(&W.E, &chis_r_x);
     transcript.absorb(
       b"claims_outer",
       &[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),
