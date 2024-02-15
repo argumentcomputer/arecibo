@@ -12,13 +12,15 @@ use crate::{CommitmentEngineTrait, NovaError};
 use ff::{Field, PrimeFieldBits};
 use group::{Curve, Group as group_Group};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
+use rayon::iter::{
+  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use crate::provider::hyperkzg::EvaluationEngine as HyperKZG;
 use group::prime::PrimeCurveAffine;
-use itertools::Itertools;
 use ref_cast::RefCast as _;
 use std::sync::Arc;
 
@@ -246,15 +248,16 @@ where
     let q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
     let R_x = UniPoly::new(pi.R_x.clone());
 
-    for (i, evals_i) in pi.evals.iter().enumerate() {
+    let verification_failed = pi.evals.par_iter().enumerate().any(|(i, evals_i)| {
       // here we check correlation between R polynomial and batched evals, e.g.:
       // 1) R(r) == eval at r
       // 2) R(-r) == eval at -r
       // 3) R(r^2) == eval at r^2
       let batched_eval = UniPoly::ref_cast(evals_i).evaluate(&q);
-      if batched_eval != R_x.evaluate(&u[i]) {
-        return Err(NovaError::ProofVerifyError);
-      }
+      batched_eval != R_x.evaluate(&u[i])
+    });
+    if verification_failed {
+      return Err(NovaError::ProofVerifyError);
     }
 
     // here we check that Pi polynomials were correctly constructed by the prover, using 'r' as a random point, e.g:
@@ -263,23 +266,39 @@ where
     // P_i+1(r^2) == (1 - point_i) * P_i_even + point_i * P_i_odd -> should hold, according to Gemini transformation
     let mut point = point.to_vec();
     point.reverse();
-    #[allow(clippy::disallowed_methods)]
-    for (index, ((eval_r, eval_minus_r), eval_r_squared)) in pi.evals[0]
-      .iter()
-      .chain(&[*P_of_x])
-      .zip_eq(pi.evals[1].iter().chain(&[*P_of_x]))
-      .zip(pi.evals[2][1..].iter().chain(&[*P_of_x]))
-      .enumerate()
-    {
-      let even = (*eval_r + eval_minus_r) * (E::Fr::from(2).invert().unwrap());
-      let odd = (*eval_r - eval_minus_r) * ((E::Fr::from(2) * r).invert().unwrap());
 
-      if *eval_r_squared != ((E::Fr::ONE - point[index]) * even) + (point[index] * odd) {
-        return Err(NovaError::ProofVerifyError);
-      }
+    #[allow(clippy::disallowed_methods)]
+    let verification_failed = pi.evals[0]
+      .par_iter()
+      .chain(&[*P_of_x])
+      .zip_eq(pi.evals[1].par_iter().chain(&[*P_of_x]))
+      .zip(pi.evals[2][1..].par_iter().chain(&[*P_of_x]))
+      .enumerate()
+      .any(|(index, ((eval_r, eval_minus_r), eval_r_squared))| {
+        let even = (*eval_r + eval_minus_r) * (E::Fr::from(2).invert().unwrap());
+        let odd = (*eval_r - eval_minus_r) * ((E::Fr::from(2) * r).invert().unwrap());
+
+        *eval_r_squared != ((E::Fr::ONE - point[index]) * even) + (point[index] * odd)
+      });
+
+    if verification_failed {
+      return Err(NovaError::ProofVerifyError);
     }
 
+//<<<<<<< HEAD
     let C_P: E::G1 = pi.comms.par_iter().map(|comm| comm.to_curve()).rlc(&q);
+//=======
+/*    // TODO: revisit C_P computing later with progress in https://github.com/huitseeker/arecibo/tree/rayon-parscan
+    let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, pi.comms.len());
+    #[allow(clippy::redundant_closure)]
+    let C_P: E::G1 = pi
+      .comms
+      .par_iter()
+      .zip_eq(q_powers.par_iter())
+      .fold(|| E::G1::identity(), |acc, (comm, q_i)| acc + *comm * q_i)
+      .sum::<E::G1>();
+*/
+//>>>>>>> 7b7f469 (feat: Parallelized verifier)
     let C_Q = pi.C_Q;
     let C_H = pi.C_H;
     let r_squared = u[2];
