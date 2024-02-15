@@ -116,11 +116,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
 
   /// Evaluates the polynomial with the given evaluations and chi coefficients
   pub fn evaluate_with_chis(Z: &[Scalar], chis: &[Scalar]) -> Scalar {
-    zip_with!(
-      (chis.into_par_iter(), Z.par_iter()),
-      |a, b| *a * b
-    )
-    .sum()
+    zip_with!(par_iter, (chis, Z), |a, b| *a * b).sum()
   }
 }
 
