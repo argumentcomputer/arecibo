@@ -20,7 +20,9 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use crate::provider::hyperkzg::EvaluationEngine as HyperKZG;
+use crate::spartan::math::Math;
 use group::prime::PrimeCurveAffine;
+use itertools::Itertools;
 use ref_cast::RefCast as _;
 use std::sync::Arc;
 
@@ -80,22 +82,20 @@ where
       polys.push(Pi);
     }
 
-    assert_eq!(polys.len(), (hat_P.len() as f32).log2().ceil() as usize);
+    assert_eq!(polys.len(), hat_P.len().log_2());
 
     polys
   }
 
   fn compute_commitments(
     ck: &UniversalKZGParam<E>,
-    C: &Commitment<NE>,
+    _C: &Commitment<NE>,
     polys: &[Vec<E::Fr>],
   ) -> Vec<E::G1Affine> {
-    let mut comms: Vec<NE::GE> = (1..polys.len())
+    let comms: Vec<NE::GE> = (1..polys.len())
       .into_par_iter()
       .map(|i| <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i]).comm)
       .collect();
-
-    comms.insert(0, C.comm);
 
     let mut comms_affine: Vec<E::G1Affine> = vec![E::G1Affine::identity(); comms.len()];
     NE::GE::batch_normalize(&comms, &mut comms_affine);
@@ -239,22 +239,19 @@ where
       return Err(NovaError::ProofVerifyError);
     }
 
-    // Check correlation between proof and commitment to original polynomial
-    let c_expected = pi.comms.first().unwrap();
-    if C.comm.to_affine() != *c_expected {
-      return Err(NovaError::ProofVerifyError);
-    }
+    let mut comms = pi.comms.to_vec();
+    comms.insert(0, C.comm.to_affine());
 
     let q = HyperKZG::<E, NE>::get_batch_challenge(&pi.evals, transcript);
     let R_x = UniPoly::new(pi.R_x.clone());
 
-    let verification_failed = pi.evals.par_iter().enumerate().any(|(i, evals_i)| {
+    let verification_failed = pi.evals.iter().zip_eq(u.iter()).any(|(evals_i, u_i)| {
       // here we check correlation between R polynomial and batched evals, e.g.:
       // 1) R(r) == eval at r
       // 2) R(-r) == eval at -r
       // 3) R(r^2) == eval at r^2
       let batched_eval = UniPoly::ref_cast(evals_i).evaluate(&q);
-      batched_eval != R_x.evaluate(&u[i])
+      batched_eval != R_x.evaluate(u_i)
     });
     if verification_failed {
       return Err(NovaError::ProofVerifyError);
@@ -267,6 +264,7 @@ where
     let mut point = point.to_vec();
     point.reverse();
 
+    let r_mul_2 = E::Fr::from(2) * r;
     #[allow(clippy::disallowed_methods)]
     let verification_failed = pi.evals[0]
       .par_iter()
@@ -275,30 +273,23 @@ where
       .zip(pi.evals[2][1..].par_iter().chain(&[*P_of_x]))
       .enumerate()
       .any(|(index, ((eval_r, eval_minus_r), eval_r_squared))| {
-        let even = (*eval_r + eval_minus_r) * (E::Fr::from(2).invert().unwrap());
-        let odd = (*eval_r - eval_minus_r) * ((E::Fr::from(2) * r).invert().unwrap());
+        // some optimisation to avoid using expensive inversions:
+        // P_i+1(r^2) == (1 - point_i) * (P_i(r) + P_i(-r)) * 1/2 + point_i * (P_i(r) - P_i(-r)) * 1/2 * r
+        // is equivalent to:
+        // 2 * r * P_i+1(r^2) == r * (1 - point_i) * (P_i(r) + P_i(-r)) + point_i * (P_i(r) - P_i(-r))
 
-        *eval_r_squared != ((E::Fr::ONE - point[index]) * even) + (point[index] * odd)
+        let even = *eval_r + eval_minus_r;
+        let odd = *eval_r - eval_minus_r;
+        let right = r * ((E::Fr::ONE - point[index]) * even) + (point[index] * odd);
+        let left = *eval_r_squared * r_mul_2;
+        left != right
       });
 
     if verification_failed {
       return Err(NovaError::ProofVerifyError);
     }
 
-//<<<<<<< HEAD
-    let C_P: E::G1 = pi.comms.par_iter().map(|comm| comm.to_curve()).rlc(&q);
-//=======
-/*    // TODO: revisit C_P computing later with progress in https://github.com/huitseeker/arecibo/tree/rayon-parscan
-    let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, pi.comms.len());
-    #[allow(clippy::redundant_closure)]
-    let C_P: E::G1 = pi
-      .comms
-      .par_iter()
-      .zip_eq(q_powers.par_iter())
-      .fold(|| E::G1::identity(), |acc, (comm, q_i)| acc + *comm * q_i)
-      .sum::<E::G1>();
-*/
-//>>>>>>> 7b7f469 (feat: Parallelized verifier)
+    let C_P: E::G1 = comms.par_iter().map(|comm| comm.to_curve()).rlc(&q);
     let C_Q = pi.C_Q;
     let C_H = pi.C_H;
     let r_squared = u[2];
@@ -355,7 +346,8 @@ mod tests {
     _eval: &Fr,
   ) {
     let polys = EvaluationEngine::<E, NE>::compute_pi_polynomials(poly, point);
-    let comms = EvaluationEngine::<E, NE>::compute_commitments(ck, C, &polys);
+    let mut comms = EvaluationEngine::<E, NE>::compute_commitments(ck, C, &polys);
+    comms.insert(0, C.comm.to_affine());
 
     let q = Fr::from(8165763);
     let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, polys.len());
