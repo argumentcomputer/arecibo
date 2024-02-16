@@ -145,7 +145,7 @@ impl<E: Engine> R1CSShape<E> {
 
     // We require the number of public inputs/outputs to be even
     if num_io % 2 != 0 {
-      return Err(NovaError::OddInputLength);
+      return Err(NovaError::InvalidStepCircuitIO);
     }
 
     Ok(Self {

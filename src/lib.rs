@@ -241,14 +241,14 @@ where
   /// let ck_hint1 = &*SPrime::<E1>::ck_floor();
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
   ///
-  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2);
+  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2).unwrap();
   /// ```
   pub fn setup<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<<Dual<E1> as Engine>::Scalar>>(
     c_primary: &C1,
     c_secondary: &C2,
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<Dual<E1>>,
-  ) -> Self {
+  ) -> Result<Self, NovaError> {
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let augmented_circuit_params_secondary =
@@ -276,7 +276,6 @@ where
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
     let ck_primary = Arc::new(ck_primary);
-    let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -289,9 +288,15 @@ where
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let ck_secondary = Arc::new(ck_secondary);
+
+    if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
+      return Err(NovaError::InvalidStepCircuitIO);
+    }
+
+    let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
     let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
-    Self {
+    Ok(Self {
       F_arity_primary,
       F_arity_secondary,
       ro_consts_primary,
@@ -305,7 +310,7 @@ where
       augmented_circuit_params_primary,
       augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-    }
+    })
   }
 
   /// Retrieve the digest of the public parameters.
@@ -1095,7 +1100,7 @@ mod tests {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let ck_hint1 = &*SPrime::<E1, EE1>::ck_floor();
     let ck_hint2 = &*SPrime::<Dual<E1>, EE2>::ck_floor();
-    let pp = PublicParams::<E1>::setup(circuit1, circuit2, ck_hint1, ck_hint2);
+    let pp = PublicParams::<E1>::setup(circuit1, circuit2, ck_hint1, ck_hint2).unwrap();
 
     let digest_str = pp
       .digest()
@@ -1161,7 +1166,8 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
     let num_steps = 1;
 
     // produce a recursive SNARK
@@ -1208,7 +1214,8 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1285,7 +1292,8 @@ mod tests {
       &circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1532,7 +1540,8 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1593,7 +1602,8 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 1;
 
@@ -1632,5 +1642,66 @@ mod tests {
     test_ivc_base_with::<PallasEngine>();
     test_ivc_base_with::<Bn256EngineKZG>();
     test_ivc_base_with::<Secp256k1Engine>();
+  }
+
+  fn test_setup_with<E1: CurveCycleEquipped>() {
+    #[derive(Clone, Debug, Default)]
+    struct CircuitWithInputize<F: PrimeField> {
+      _p: PhantomData<F>,
+    }
+
+    impl<F: PrimeField> StepCircuit<F> for CircuitWithInputize<F> {
+      fn arity(&self) -> usize {
+        1
+      }
+
+      fn synthesize<CS: ConstraintSystem<F>>(
+        &self,
+        cs: &mut CS,
+        z: &[AllocatedNum<F>],
+      ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+        let x = &z[0];
+        // a simplified version of this test would only have one input
+        // but beside the Nova Public parameter requirement for a num_io = 2, being
+        // probed in this test, we *also* require num_io to be even, so
+        // negative testing requires at least 4 inputs
+        let y = x.square(cs.namespace(|| "x_sq"))?;
+        y.inputize(cs.namespace(|| "y"))?; // inputize y
+        let y2 = x.square(cs.namespace(|| "x_sq2"))?;
+        y2.inputize(cs.namespace(|| "y2"))?; // inputize y2
+        let y3 = x.square(cs.namespace(|| "x_sq3"))?;
+        y3.inputize(cs.namespace(|| "y3"))?; // inputize y2
+        let y4 = x.square(cs.namespace(|| "x_sq4"))?;
+        y4.inputize(cs.namespace(|| "y4"))?; // inputize y2
+        Ok(vec![y, y2, y3, y4])
+      }
+    }
+
+    // produce public parameters with trivial secondary
+    let circuit = CircuitWithInputize::<<E1 as Engine>::Scalar>::default();
+    let pp = PublicParams::<E1>::setup(
+      &circuit,
+      &TrivialCircuit::default(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
+    assert!(pp.is_err());
+    assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
+
+    // produce public parameters with the trivial primary
+    let circuit = CircuitWithInputize::<<Dual<E1> as Engine>::Scalar>::default();
+    let pp = PublicParams::<E1>::setup(
+      &TrivialCircuit::default(),
+      &circuit,
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
+    assert!(pp.is_err());
+    assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
+  }
+
+  #[test]
+  fn test_setup() {
+    test_setup_with::<Bn256EngineKZG>();
   }
 }

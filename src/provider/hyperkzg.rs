@@ -418,10 +418,9 @@ where
 mod tests {
   use super::*;
   use crate::provider::util::test_utils::prove_verify_from_num_vars;
-  use crate::{
-    provider::keccak::Keccak256Transcript, traits::commitment::CommitmentTrait, CommitmentKey,
-  };
+  use crate::{provider::keccak::Keccak256Transcript, CommitmentKey};
   use bincode::Options;
+  use expect_test::expect;
 
   type E = halo2curves::bn256::Bn256;
   type NE = crate::provider::Bn256EngineKZG;
@@ -578,15 +577,12 @@ mod tests {
     // same state
     assert_eq!(post_c_p, post_c_v);
 
-    let my_options = bincode::DefaultOptions::new()
+    let proof_bytes = bincode::DefaultOptions::new()
       .with_big_endian()
-      .with_fixint_encoding();
-    let mut output_bytes = my_options.serialize(&vk).unwrap();
-    output_bytes.append(&mut my_options.serialize(&C.compress()).unwrap());
-    output_bytes.append(&mut my_options.serialize(&point).unwrap());
-    output_bytes.append(&mut my_options.serialize(&eval).unwrap());
-    output_bytes.append(&mut my_options.serialize(&proof).unwrap());
-    println!("total output = {} bytes", output_bytes.len());
+      .with_fixint_encoding()
+      .serialize(&proof)
+      .unwrap();
+    expect!["368"].assert_eq(&proof_bytes.len().to_string());
 
     // Change the proof and expect verification to fail
     let mut bad_proof = proof.clone();
