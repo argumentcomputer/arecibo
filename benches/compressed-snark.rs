@@ -204,6 +204,8 @@ fn bench_compressed_batched_snark(c: &mut Criterion) {
     65536,
     131072,
     262144,
+    524288,
+    1048576,
   ]
   .iter()
   {
