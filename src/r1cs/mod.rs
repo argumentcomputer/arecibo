@@ -820,7 +820,7 @@ pub fn default_T<E: Engine>(num_cons: usize) -> Vec<E::Scalar> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use ff::Field;
   use rand_chacha::ChaCha20Rng;
   use rand_core::SeedableRng;
@@ -832,7 +832,7 @@ mod tests {
     traits::Engine,
   };
 
-  fn tiny_r1cs<E: Engine>(num_vars: usize) -> R1CSShape<E> {
+  pub(crate) fn tiny_r1cs<E: Engine>(num_vars: usize) -> R1CSShape<E> {
     let one = <E::Scalar as Field>::ONE;
     let (num_cons, num_vars, num_io, A, B, C) = {
       let num_cons = 4;
