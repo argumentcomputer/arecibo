@@ -653,7 +653,7 @@
 <a href="#652" id="652">652</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Shplonk PCS
 </span><span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::KZGCommitmentEngine;
-<span class="kw">use </span><span class="kw">crate</span>::provider::non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam};
+<span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::{KZGProverKey, KZGVerifierKey, UniversalKZGParam};
 <span class="kw">use </span><span class="kw">crate</span>::provider::pedersen::Commitment;
 <span class="kw">use </span><span class="kw">crate</span>::provider::traits::DlogGroup;
 <span class="kw">use </span><span class="kw">crate</span>::provider::util::iterators::DoubleEndedIteratorExt;
@@ -814,7 +814,7 @@
 
   <span class="kw">fn </span>setup(ck: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;) -&gt; (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) {
     <span class="kw">let </span>len = ck.length() - <span class="number">1</span>;
-    trim(ck, len)
+    UniversalKZGParam::trim(ck, len)
   }
 
   <span class="kw">fn </span>prove(

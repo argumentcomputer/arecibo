@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ZMCommitment","ZMEvaluation","ZMPCS","ZMProof","ZMProverKey","ZMVerifierKey"]};
+window.SIDEBAR_ITEMS = {"struct":["UVKZGEvaluation","UVKZGPCS","UVKZGProof","ZMCommitment","ZMEvaluation","ZMPCS","ZMProof","ZMProverKey","ZMVerifierKey"],"type":["UVKZGPoly"]};

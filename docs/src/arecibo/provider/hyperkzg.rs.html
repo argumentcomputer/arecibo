@@ -599,6 +599,21 @@
 <a href="#598" id="598">598</a>
 <a href="#599" id="599">599</a>
 <a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
 //! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
 //! However, there are some key differences:
@@ -610,8 +625,7 @@
 </span><span class="kw">use crate</span>::{
   errors::NovaError,
   provider::{
-    kzg_commitment::KZGCommitmentEngine,
-    non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
+    kzg_commitment::{KZGCommitmentEngine, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
     util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>,
@@ -728,7 +742,7 @@
 
   <span class="kw">fn </span>setup(ck: Arc&lt;UniversalKZGParam&lt;E&gt;&gt;) -&gt; (<span class="self">Self</span>::ProverKey, <span class="self">Self</span>::VerifierKey) {
     <span class="kw">let </span>len = ck.length() - <span class="number">1</span>;
-    trim(ck, len)
+    UniversalKZGParam::trim(ck, len)
   }
 
   <span class="kw">fn </span>prove(
@@ -1038,36 +1052,52 @@
     <span class="kw">let </span>ck: CommitmentKey&lt;NE&gt; =
       &lt;KZGCommitmentEngine&lt;E&gt; <span class="kw">as </span>CommitmentEngineTrait&lt;NE&gt;&gt;::setup(<span class="string">b"test"</span>, n);
     <span class="kw">let </span>ck = Arc::new(ck);
-    <span class="kw">let </span>(pk, _vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) =
+    <span class="kw">let </span>(pk, vk): (KZGProverKey&lt;E&gt;, KZGVerifierKey&lt;E&gt;) =
       EvaluationEngine::&lt;E, NE&gt;::setup(ck.clone());
 
     <span class="comment">// poly is in eval. representation; evaluated at [(0,0), (0,1), (1,0), (1,1)]
     </span><span class="kw">let </span>poly = <span class="macro">vec!</span>[Fr::from(<span class="number">1</span>), Fr::from(<span class="number">2</span>), Fr::from(<span class="number">2</span>), Fr::from(<span class="number">4</span>)];
 
     <span class="kw">let </span>C = &lt;KZGCommitmentEngine&lt;E&gt; <span class="kw">as </span>CommitmentEngineTrait&lt;NE&gt;&gt;::commit(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>poly);
-    <span class="kw">let </span><span class="kw-2">mut </span>tr = Keccak256Transcript::&lt;NE&gt;::new(<span class="string">b"TestEval"</span>);
 
-    <span class="comment">// Call the prover with a (point, eval) pair. The prover recomputes
-    // poly(point) = eval', and fails if eval' != eval
+    <span class="kw">let </span>test_inner = |point: Vec&lt;Fr&gt;, eval: Fr| -&gt; <span class="prelude-ty">Result</span>&lt;(), NovaError&gt; {
+      <span class="kw">let </span><span class="kw-2">mut </span>tr = Keccak256Transcript::&lt;NE&gt;::new(<span class="string">b"TestEval"</span>);
+      <span class="kw">let </span>proof =
+        EvaluationEngine::&lt;E, NE&gt;::prove(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;mut </span>tr, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval).unwrap();
+      <span class="kw">let </span><span class="kw-2">mut </span>tr = Keccak256Transcript::new(<span class="string">b"TestEval"</span>);
+      EvaluationEngine::&lt;E, NE&gt;::verify(<span class="kw-2">&amp;</span>vk, <span class="kw-2">&amp;mut </span>tr, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval, <span class="kw-2">&amp;</span>proof)
+    };
+
+    <span class="comment">// Call the prover with a (point, eval) pair.
+    // The prover does not recompute so it may produce a proof, but it should not verify
     </span><span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">0</span>), Fr::from(<span class="number">0</span>)];
     <span class="kw">let </span>eval = Fr::ONE;
-    <span class="macro">assert!</span>(EvaluationEngine::&lt;E, NE&gt;::prove(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;mut </span>tr, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval).is_ok());
+    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">0</span>), Fr::from(<span class="number">1</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">2</span>);
-    <span class="macro">assert!</span>(EvaluationEngine::&lt;E, NE&gt;::prove(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;mut </span>tr, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval).is_ok());
+    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">1</span>), Fr::from(<span class="number">1</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">4</span>);
-    <span class="macro">assert!</span>(EvaluationEngine::&lt;E, NE&gt;::prove(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;mut </span>tr, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval).is_ok());
+    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">0</span>), Fr::from(<span class="number">2</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">3</span>);
-    <span class="macro">assert!</span>(EvaluationEngine::&lt;E, NE&gt;::prove(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;mut </span>tr, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval).is_ok());
+    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">2</span>), Fr::from(<span class="number">2</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">9</span>);
-    <span class="macro">assert!</span>(EvaluationEngine::&lt;E, NE&gt;::prove(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;mut </span>tr, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval).is_ok());
+    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
+
+    <span class="comment">// Try a couple incorrect evaluations and expect failure
+    </span><span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">2</span>), Fr::from(<span class="number">2</span>)];
+    <span class="kw">let </span>eval = Fr::from(<span class="number">50</span>);
+    <span class="macro">assert!</span>(test_inner(point, eval).is_err());
+
+    <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">0</span>), Fr::from(<span class="number">2</span>)];
+    <span class="kw">let </span>eval = Fr::from(<span class="number">4</span>);
+    <span class="macro">assert!</span>(test_inner(point, eval).is_err());
   }
 
   <span class="attr">#[test]
