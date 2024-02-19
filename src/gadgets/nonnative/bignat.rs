@@ -208,11 +208,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       .collect::<Result<Vec<_>, _>>()?;
     Ok(Self {
       value,
-      limb_values: if !limb_values.is_empty() {
-        Some(limb_values)
-      } else {
-        None
-      },
+      limb_values: (!limb_values.is_empty()).then_some(limb_values),
       limbs,
       params: BigNatParams::new(limb_width, n_limbs),
     })
@@ -304,11 +300,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       };
       allocations.extend(bv.allocations);
     }
-    let values = if !values.is_empty() {
-      Some(values)
-    } else {
-      None
-    };
+    let values = (!values.is_empty()).then_some(values);
     Ok(Bitvector {
       bits,
       values,

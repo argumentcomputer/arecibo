@@ -314,10 +314,7 @@ where
       }
 
       // return error if acc is zero
-      acc = match Option::from(acc.invert()) {
-        Some(inv) => inv,
-        None => return Err(NovaError::InternalError),
-      };
+      acc = Option::from(acc.invert()).ok_or(NovaError::InternalError)?;
 
       // compute the inverse once for all entries
       let mut inv = vec![E::Scalar::ZERO; v.len()];

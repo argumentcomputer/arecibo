@@ -297,10 +297,7 @@ where
 }
 
 fn compute_path(ns: &[String], this: &str) -> String {
-  assert!(
-    !this.chars().any(|a| a == '/'),
-    "'/' is not allowed in names"
-  );
+  assert!(!this.contains('/'), "'/' is not allowed in names");
 
   let mut name = String::new();
 

@@ -1067,7 +1067,7 @@ mod tests {
     let result = padded::<PallasEngine>(&v, n, &e);
 
     assert_eq!(result.len(), n);
-    assert_eq!(&result[0..10], &v[..]);
+    assert_eq!(&result[..10], &v[..]);
     assert!(result[10..].iter().all(|&i| i == e));
   }
 }
