@@ -339,6 +339,7 @@ mod tests {
   use super::*;
   use crate::provider::util::iterators::DoubleEndedIteratorExt as _;
   use crate::traits::TranscriptEngineTrait;
+  use crate::zip_with;
   use crate::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
   use halo2curves::bn256::G1;
   use itertools::Itertools;
@@ -487,10 +488,7 @@ mod tests {
         .map(|poly| UniPoly::new(poly).evaluate(evaluation_scalar))
         .collect::<Vec<Fr>>();
 
-      let expected = evals
-        .iter()
-        .zip_eq(q_powers.iter())
-        .map(|(eval, q)| eval * q)
+      let expected = zip_with!((evals.iter(), q_powers.iter()), |eval, q| eval * q)
         .collect::<Vec<Fr>>()
         .into_iter()
         .sum::<Fr>();

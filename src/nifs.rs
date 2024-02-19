@@ -178,7 +178,7 @@ mod tests {
       test_shape_cs::TestShapeCS,
     },
     provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
-    r1cs::{commitment_key, SparseMatrix},
+    r1cs::commitment_key,
     traits::{snark::default_ck_hint, Engine},
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
