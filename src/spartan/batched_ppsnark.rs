@@ -840,7 +840,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let rho = transcript.squeeze(b"r")?;
 
     let s = transcript.squeeze(b"r")?;
-    let s_powers = powers::<E>(&s, num_instances * num_claims_per_instance);
+    let s_powers = powers(&s, num_instances * num_claims_per_instance);
 
     let (claim_sc_final, rand_sc) = {
       // Gather all claims into a single vector
@@ -1176,7 +1176,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARK<E, EE> {
 
     // Sample a challenge for the random linear combination of all scaled claims
     let s = transcript.squeeze(b"r")?;
-    let coeffs = powers::<E>(&s, claims.len());
+    let coeffs = powers(&s, claims.len());
 
     // At the start of each round, the running claim is equal to the random linear combination
     // of the Sumcheck claims, evaluated over the bound polynomials.

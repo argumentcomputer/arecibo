@@ -3,7 +3,7 @@ use crate::provider::kzg_commitment::KZGCommitmentEngine;
 use crate::provider::kzg_commitment::{KZGProverKey, KZGVerifierKey, UniversalKZGParam};
 use crate::provider::pedersen::Commitment;
 use crate::provider::traits::DlogGroup;
-use crate::provider::util::iterators::DoubleEndedIteratorExt;
+use crate::provider::util::iterators::IndexedParallelIteratorExt as _;
 use crate::spartan::polys::univariate::UniPoly;
 use crate::traits::commitment::Len;
 use crate::traits::evaluation::EvaluationEngineTrait;
@@ -12,9 +12,7 @@ use crate::{CommitmentEngineTrait, NovaError};
 use ff::{Field, PrimeFieldBits};
 use group::{Curve, Group as group_Group};
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
-use rayon::iter::{
-  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
-};
+use rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::marker::PhantomData;
 
@@ -191,7 +189,7 @@ where
     // Phase 3
     // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
     let q = HyperKZG::<E, NE>::get_batch_challenge(&evals, transcript);
-    let batched_Pi: UniPoly<E::Fr> = polys.into_iter().map(UniPoly::new).rlc(&q);
+    let batched_Pi: UniPoly<E::Fr> = polys.into_par_iter().map(UniPoly::new).rlc(&q);
 
     // Q(x), R(x) = P(x) / D(x), where D(x) = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
     let D = UniPoly::new(vec![u[2] * u[2], -u[2], -u[2], E::Fr::from(1)]);
@@ -300,7 +298,7 @@ where
       }
     }
 
-    let C_P: E::G1 = pi.comms.iter().map(|comm| comm.to_curve()).rlc(&q);
+    let C_P: E::G1 = pi.comms.par_iter().map(|comm| comm.to_curve()).rlc(&q);
     let C_Q = pi.C_Q;
     let C_H = pi.C_H;
     let r_squared = u[2];
@@ -339,6 +337,7 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::provider::util::iterators::DoubleEndedIteratorExt as _;
   use crate::traits::TranscriptEngineTrait;
   use crate::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
   use halo2curves::bn256::G1;

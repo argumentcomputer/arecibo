@@ -24,16 +24,17 @@ use crate::{
 use ff::Field;
 use itertools::Itertools as _;
 use polys::multilinear::SparsePolynomial;
-
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
+use rayon_scan::ScanParallelIterator as _;
 use ref_cast::RefCast;
 
 // Creates a vector of the first `n` powers of `s`.
-fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
+/// Creates a vector of the first `n` powers of `s`.
+pub fn powers<F: Field>(s: &F, n: usize) -> Vec<F> {
   assert!(n >= 1);
-  std::iter::successors(Some(E::Scalar::ONE), |&x| Some(x * s))
-    .take(n)
-    .collect()
+  let mut v = vec![*s; n];
+  v[0] = F::ONE;
+  v.into_par_iter().scan(|a, b| *a * *b, F::ONE).collect()
 }
 
 /// A type that holds a witness to a polynomial evaluation instance
@@ -51,7 +52,7 @@ impl<E: Engine> PolyEvalWitness<E> {
   /// We allow the input polynomials to have different sizes, and interpret smaller ones as
   /// being padded with 0 to the maximum size of all polynomials.
   fn batch_diff_size(W: &[&Self], s: E::Scalar) -> Self {
-    let powers = powers::<E>(&s, W.len());
+    let powers = powers(&s, W.len());
 
     let size_max = W.iter().map(|w| w.p.len()).max().unwrap();
     let p_vec = W.par_iter().map(|w| &w.p);
@@ -128,7 +129,7 @@ impl<E: Engine> PolyEvalInstance<E> {
     assert_eq!(e_vec.len(), num_instances);
 
     let num_vars_max = x.len();
-    let powers: Vec<E::Scalar> = powers::<E>(&s, num_instances);
+    let powers: Vec<E::Scalar> = powers(&s, num_instances);
     // Rescale evaluations by the first Lagrange polynomial,
     // so that we can check its evaluation against x
     let evals_scaled = zip_with!(iter, (e_vec, num_vars), |eval, num_rounds| {
@@ -222,7 +223,7 @@ mod tests {
         .skip(1)
         .for_each(|p| assert_eq!(p.len(), p_vec[0].len()));
 
-      let powers_of_s = powers::<E>(s, p_vec.len());
+      let powers_of_s = powers(s, p_vec.len());
 
       let p = zip_with!(par_iter, (p_vec, powers_of_s), |v, weight| {
         // compute the weighted sum for each vector
@@ -250,7 +251,7 @@ mod tests {
       let num_instances = c_vec.len();
       assert_eq!(e_vec.len(), num_instances);
 
-      let powers_of_s = powers::<E>(s, num_instances);
+      let powers_of_s = powers(s, num_instances);
       // Weighted sum of evaluations
       let e = zip_with!(par_iter, (e_vec, powers_of_s), |e, p| *e * p).sum();
       // Weighted sum of commitments

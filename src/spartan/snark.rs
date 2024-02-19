@@ -453,7 +453,7 @@ pub(in crate::spartan) fn batch_eval_prove<E: Engine>(
 
   // generate a challenge, and powers of it for random linear combination
   let rho = transcript.squeeze(b"r")?;
-  let powers_of_rho = powers::<E>(&rho, num_claims);
+  let powers_of_rho = powers(&rho, num_claims);
 
   let (claims, u_xs, comms): (Vec<_>, Vec<_>, Vec<_>) =
     u_vec.into_iter().map(|u| (u.e, u.x, u.c)).multiunzip();
@@ -511,7 +511,7 @@ pub(in crate::spartan) fn batch_eval_verify<E: Engine>(
 
   // generate a challenge
   let rho = transcript.squeeze(b"r")?;
-  let powers_of_rho = powers::<E>(&rho, num_claims);
+  let powers_of_rho = powers(&rho, num_claims);
 
   // Compute nᵢ and n = maxᵢ{nᵢ}
   let num_rounds = u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();

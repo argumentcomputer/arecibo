@@ -12,9 +12,14 @@ pub mod msm {
 }
 
 pub mod iterators {
-  use std::borrow::Borrow;
+  use ff::Field;
+  use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+  use rayon_scan::ScanParallelIterator;
   use std::iter::DoubleEndedIterator;
-  use std::ops::{AddAssign, MulAssign};
+  use std::{
+    borrow::Borrow,
+    ops::{AddAssign, MulAssign},
+  };
 
   pub trait DoubleEndedIteratorExt: DoubleEndedIterator {
     /// This function employs Horner's scheme and core traits to create a combination of an iterator input with the powers
@@ -38,6 +43,42 @@ pub mod iterators {
   }
 
   impl<I: DoubleEndedIterator> DoubleEndedIteratorExt for I {}
+
+  pub trait IndexedParallelIteratorExt: IndexedParallelIterator {
+    /// This function core traits to create a combination of an iterator input with the powers
+    /// of a provided coefficient.
+    fn rlc<T, F>(self, coefficient: &F) -> T
+    where
+      F: Field,
+      Self::Item: Borrow<T>,
+      T: Clone + for<'a> MulAssign<&'a F> + for<'r> AddAssign<&'r T> + Send + Sync,
+    {
+      debug_assert!(self.len() > 0);
+      // generate an iterator of powers of the right length
+      let v = {
+        let mut v = vec![*coefficient; self.len()];
+        v[0] = F::ONE;
+        v
+      };
+      // the collect is due to Scan being unindexed
+      let powers: Vec<_> = v.into_par_iter().scan(|a, b| *a * *b, F::ONE).collect();
+
+      self
+        .zip_eq(powers.into_par_iter())
+        .map(|(pt, val)| {
+          let mut pt = pt.borrow().clone();
+          pt *= &val;
+          pt
+        })
+        .reduce_with(|mut a, b| {
+          a += &b;
+          a
+        })
+        .unwrap()
+    }
+  }
+
+  impl<I: IndexedParallelIterator> IndexedParallelIteratorExt for I {}
 }
 
 #[cfg(test)]
