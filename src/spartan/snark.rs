@@ -149,6 +149,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     let (mut poly_Az, mut poly_Bz, poly_Cz, mut poly_uCz_E) = {
       let (poly_Az, poly_Bz, poly_Cz) = S.multiply_vec(&z)?;
       let poly_uCz_E = (0..S.num_cons)
+        .into_par_iter()
         .map(|i| U.u * poly_Cz[i] + W.E[i])
         .collect::<Vec<E::Scalar>>();
       (
