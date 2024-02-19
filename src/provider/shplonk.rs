@@ -1,6 +1,6 @@
 //! Shplonk PCS
 use crate::provider::kzg_commitment::KZGCommitmentEngine;
-use crate::provider::non_hiding_kzg::{trim, KZGProverKey, KZGVerifierKey, UniversalKZGParam};
+use crate::provider::kzg_commitment::{KZGProverKey, KZGVerifierKey, UniversalKZGParam};
 use crate::provider::pedersen::Commitment;
 use crate::provider::traits::DlogGroup;
 use crate::provider::util::iterators::DoubleEndedIteratorExt;
@@ -161,7 +161,7 @@ where
 
   fn setup(ck: Arc<UniversalKZGParam<E>>) -> (KZGProverKey<E>, KZGVerifierKey<E>) {
     let len = ck.length() - 1;
-    trim(ck, len)
+    UniversalKZGParam::trim(ck, len)
   }
 
   fn prove(
