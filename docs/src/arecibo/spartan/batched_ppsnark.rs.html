@@ -2219,7 +2219,7 @@
     <span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>s_powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, num_instances * num_claims_per_instance);
+    <span class="kw">let </span>s_powers = powers(<span class="kw-2">&amp;</span>s, num_instances * num_claims_per_instance);
 
     <span class="kw">let </span>(claim_sc_final, rand_sc) = {
       <span class="comment">// Gather all claims into a single vector
@@ -2555,7 +2555,7 @@
 
     <span class="comment">// Sample a challenge for the random linear combination of all scaled claims
     </span><span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>coeffs = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, claims.len());
+    <span class="kw">let </span>coeffs = powers(<span class="kw-2">&amp;</span>s, claims.len());
 
     <span class="comment">// At the start of each round, the running claim is equal to the random linear combination
     // of the Sumcheck claims, evaluated over the bound polynomials.

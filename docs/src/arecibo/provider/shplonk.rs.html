@@ -650,13 +650,12 @@
 <a href="#649" id="649">649</a>
 <a href="#650" id="650">650</a>
 <a href="#651" id="651">651</a>
-<a href="#652" id="652">652</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Shplonk PCS
 </span><span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::KZGCommitmentEngine;
 <span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::{KZGProverKey, KZGVerifierKey, UniversalKZGParam};
 <span class="kw">use </span><span class="kw">crate</span>::provider::pedersen::Commitment;
 <span class="kw">use </span><span class="kw">crate</span>::provider::traits::DlogGroup;
-<span class="kw">use </span><span class="kw">crate</span>::provider::util::iterators::DoubleEndedIteratorExt;
+<span class="kw">use </span><span class="kw">crate</span>::provider::util::iterators::IndexedParallelIteratorExt <span class="kw">as _</span>;
 <span class="kw">use </span><span class="kw">crate</span>::spartan::polys::univariate::UniPoly;
 <span class="kw">use </span><span class="kw">crate</span>::traits::commitment::Len;
 <span class="kw">use </span><span class="kw">crate</span>::traits::evaluation::EvaluationEngineTrait;
@@ -665,9 +664,7 @@
 <span class="kw">use </span>ff::{Field, PrimeFieldBits};
 <span class="kw">use </span>group::{Curve, Group <span class="kw">as </span>group_Group};
 <span class="kw">use </span>pairing::{Engine, MillerLoopResult, MultiMillerLoop};
-<span class="kw">use </span>rayon::iter::{
-  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
-};
+<span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
 <span class="kw">use </span>std::marker::PhantomData;
 
@@ -844,7 +841,7 @@
     <span class="comment">// Phase 3
     // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
     </span><span class="kw">let </span>q = HyperKZG::&lt;E, NE&gt;::get_batch_challenge(<span class="kw-2">&amp;</span>evals, transcript);
-    <span class="kw">let </span>batched_Pi: UniPoly&lt;E::Fr&gt; = polys.into_iter().map(UniPoly::new).rlc(<span class="kw-2">&amp;</span>q);
+    <span class="kw">let </span>batched_Pi: UniPoly&lt;E::Fr&gt; = polys.into_par_iter().map(UniPoly::new).rlc(<span class="kw-2">&amp;</span>q);
 
     <span class="comment">// Q(x), R(x) = P(x) / D(x), where D(x) = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
     </span><span class="kw">let </span>D = UniPoly::new(<span class="macro">vec!</span>[u[<span class="number">2</span>] * u[<span class="number">2</span>], -u[<span class="number">2</span>], -u[<span class="number">2</span>], E::Fr::from(<span class="number">1</span>)]);
@@ -953,7 +950,7 @@
       }
     }
 
-    <span class="kw">let </span>C_P: E::G1 = pi.comms.iter().map(|comm| comm.to_curve()).rlc(<span class="kw-2">&amp;</span>q);
+    <span class="kw">let </span>C_P: E::G1 = pi.comms.par_iter().map(|comm| comm.to_curve()).rlc(<span class="kw-2">&amp;</span>q);
     <span class="kw">let </span>C_Q = pi.C_Q;
     <span class="kw">let </span>C_H = pi.C_H;
     <span class="kw">let </span>r_squared = u[<span class="number">2</span>];
@@ -992,6 +989,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
+  <span class="kw">use </span><span class="kw">crate</span>::provider::util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>;
   <span class="kw">use </span><span class="kw">crate</span>::traits::TranscriptEngineTrait;
   <span class="kw">use crate</span>::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
   <span class="kw">use </span>halo2curves::bn256::G1;

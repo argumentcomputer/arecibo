@@ -326,6 +326,7 @@
 <a href="#325" id="325">325</a>
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! We provide two implementations, one in snark.rs (which does not use any preprocessing)
@@ -352,16 +353,17 @@
 <span class="kw">use </span>ff::Field;
 <span class="kw">use </span>itertools::Itertools <span class="kw">as _</span>;
 <span class="kw">use </span>polys::multilinear::SparsePolynomial;
-
 <span class="kw">use </span>rayon::{iter::IntoParallelRefIterator, prelude::<span class="kw-2">*</span>};
+<span class="kw">use </span>rayon_scan::ScanParallelIterator <span class="kw">as _</span>;
 <span class="kw">use </span>ref_cast::RefCast;
 
 <span class="comment">// Creates a vector of the first `n` powers of `s`.
-</span><span class="kw">fn </span>powers&lt;E: Engine&gt;(s: <span class="kw-2">&amp;</span>E::Scalar, n: usize) -&gt; Vec&lt;E::Scalar&gt; {
+</span><span class="doccomment">/// Creates a vector of the first `n` powers of `s`.
+</span><span class="kw">pub fn </span>powers&lt;F: Field&gt;(s: <span class="kw-2">&amp;</span>F, n: usize) -&gt; Vec&lt;F&gt; {
   <span class="macro">assert!</span>(n &gt;= <span class="number">1</span>);
-  std::iter::successors(<span class="prelude-val">Some</span>(E::Scalar::ONE), |<span class="kw-2">&amp;</span>x| <span class="prelude-val">Some</span>(x * s))
-    .take(n)
-    .collect()
+  <span class="kw">let </span><span class="kw-2">mut </span>v = <span class="macro">vec!</span>[<span class="kw-2">*</span>s; n];
+  v[<span class="number">0</span>] = F::ONE;
+  v.into_par_iter().scan(|a, b| <span class="kw-2">*</span>a * <span class="kw-2">*</span>b, F::ONE).collect()
 }
 
 <span class="doccomment">/// A type that holds a witness to a polynomial evaluation instance
@@ -379,7 +381,7 @@
   /// We allow the input polynomials to have different sizes, and interpret smaller ones as
   /// being padded with 0 to the maximum size of all polynomials.
   </span><span class="kw">fn </span>batch_diff_size(W: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>], s: E::Scalar) -&gt; <span class="self">Self </span>{
-    <span class="kw">let </span>powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, W.len());
+    <span class="kw">let </span>powers = powers(<span class="kw-2">&amp;</span>s, W.len());
 
     <span class="kw">let </span>size_max = W.iter().map(|w| w.p.len()).max().unwrap();
     <span class="kw">let </span>p_vec = W.par_iter().map(|w| <span class="kw-2">&amp;</span>w.p);
@@ -456,7 +458,7 @@
     <span class="macro">assert_eq!</span>(e_vec.len(), num_instances);
 
     <span class="kw">let </span>num_vars_max = x.len();
-    <span class="kw">let </span>powers: Vec&lt;E::Scalar&gt; = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, num_instances);
+    <span class="kw">let </span>powers: Vec&lt;E::Scalar&gt; = powers(<span class="kw-2">&amp;</span>s, num_instances);
     <span class="comment">// Rescale evaluations by the first Lagrange polynomial,
     // so that we can check its evaluation against x
     </span><span class="kw">let </span>evals_scaled = <span class="macro">zip_with!</span>(iter, (e_vec, num_vars), |eval, num_rounds| {
@@ -550,7 +552,7 @@
         .skip(<span class="number">1</span>)
         .for_each(|p| <span class="macro">assert_eq!</span>(p.len(), p_vec[<span class="number">0</span>].len()));
 
-      <span class="kw">let </span>powers_of_s = powers::&lt;E&gt;(s, p_vec.len());
+      <span class="kw">let </span>powers_of_s = powers(s, p_vec.len());
 
       <span class="kw">let </span>p = <span class="macro">zip_with!</span>(par_iter, (p_vec, powers_of_s), |v, weight| {
         <span class="comment">// compute the weighted sum for each vector
@@ -578,7 +580,7 @@
       <span class="kw">let </span>num_instances = c_vec.len();
       <span class="macro">assert_eq!</span>(e_vec.len(), num_instances);
 
-      <span class="kw">let </span>powers_of_s = powers::&lt;E&gt;(s, num_instances);
+      <span class="kw">let </span>powers_of_s = powers(s, num_instances);
       <span class="comment">// Weighted sum of evaluations
       </span><span class="kw">let </span>e = <span class="macro">zip_with!</span>(par_iter, (e_vec, powers_of_s), |e, p| <span class="kw-2">*</span>e * p).sum();
       <span class="comment">// Weighted sum of commitments

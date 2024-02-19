@@ -830,7 +830,7 @@
 
     <span class="comment">// Sample challenge for random linear-combination of outer claims
     </span><span class="kw">let </span>outer_r = transcript.squeeze(<span class="string">b"out_r"</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>outer_r_powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>outer_r, num_instances);
+    <span class="kw">let </span>outer_r_powers = powers(<span class="kw-2">&amp;</span>outer_r, num_instances);
 
     <span class="comment">// Verify outer sumcheck: Az * Bz - uCz_E for each instance
     </span><span class="kw">let </span>(sc_proof_outer, r_x, claims_outer) = SumcheckProof::prove_cubic_with_additive_term_batch(
@@ -885,7 +885,7 @@
     <span class="kw">let </span>inner_r = transcript.squeeze(<span class="string">b"in_r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>inner_r_square = inner_r.square();
     <span class="kw">let </span>inner_r_cube = inner_r_square * inner_r;
-    <span class="kw">let </span>inner_r_powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>inner_r_cube, num_instances);
+    <span class="kw">let </span>inner_r_powers = powers(<span class="kw-2">&amp;</span>inner_r_cube, num_instances);
 
     <span class="kw">let </span>claims_inner_joint = evals_Az_Bz_Cz
       .iter()
@@ -1033,7 +1033,7 @@
 
     <span class="comment">// Sample challenge for random linear-combination of outer claims
     </span><span class="kw">let </span>outer_r = transcript.squeeze(<span class="string">b"out_r"</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>outer_r_powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>outer_r, num_instances);
+    <span class="kw">let </span>outer_r_powers = powers(<span class="kw-2">&amp;</span>outer_r, num_instances);
 
     <span class="kw">let </span>(claim_outer_final, r_x) = <span class="self">self</span>.sc_proof_outer.verify_batch(
       <span class="kw-2">&amp;</span><span class="macro">vec!</span>[E::Scalar::ZERO; num_instances],
@@ -1084,7 +1084,7 @@
     <span class="kw">let </span>inner_r = transcript.squeeze(<span class="string">b"in_r"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>inner_r_square = inner_r.square();
     <span class="kw">let </span>inner_r_cube = inner_r_square * inner_r;
-    <span class="kw">let </span>inner_r_powers = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>inner_r_cube, num_instances);
+    <span class="kw">let </span>inner_r_powers = powers(<span class="kw-2">&amp;</span>inner_r_cube, num_instances);
 
     <span class="comment">// Compute inner claims Mzᵢ = (Azᵢ + r⋅Bzᵢ + r²⋅Czᵢ),
     // which are batched by Sumcheck into one claim:  ∑ᵢ r³ⁱ⋅Mzᵢ

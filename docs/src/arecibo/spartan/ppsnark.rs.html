@@ -1441,7 +1441,7 @@
       .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
 
     <span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>coeffs = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, claims.len());
+    <span class="kw">let </span>coeffs = powers(<span class="kw-2">&amp;</span>s, claims.len());
 
     <span class="comment">// compute the joint claim
     </span><span class="kw">let </span>claim = <span class="macro">zip_with!</span>((claims.iter(), coeffs.iter()), |c_1, c_2| <span class="kw-2">*</span>c_1 * c_2).sum();
@@ -1953,7 +1953,7 @@
 
     <span class="kw">let </span>num_claims = <span class="number">10</span>;
     <span class="kw">let </span>s = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span>coeffs = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>s, num_claims);
+    <span class="kw">let </span>coeffs = powers(<span class="kw-2">&amp;</span>s, num_claims);
     <span class="kw">let </span>claim = (coeffs[<span class="number">7</span>] + coeffs[<span class="number">8</span>]) * claim; <span class="comment">// rest are zeros
 
     // verify sc

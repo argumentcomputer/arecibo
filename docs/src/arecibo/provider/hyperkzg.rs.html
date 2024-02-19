@@ -612,8 +612,6 @@
 <a href="#611" id="611">611</a>
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
 //! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
 //! However, there are some key differences:
@@ -628,9 +626,9 @@
     kzg_commitment::{KZGCommitmentEngine, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
     pedersen::Commitment,
     traits::DlogGroup,
-    util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>,
+    util::iterators::IndexedParallelIteratorExt <span class="kw">as _</span>,
   },
-  spartan::polys::univariate::UniPoly,
+  spartan::{polys::univariate::UniPoly, powers},
   traits::{
     commitment::{CommitmentEngineTrait, Len},
     evaluation::EvaluationEngineTrait,
@@ -707,9 +705,7 @@
 
   <span class="doccomment">/// Compute powers of q : (1, q, q^2, ..., q^(k-1))
   </span><span class="kw">pub fn </span>batch_challenge_powers(q: E::Fr, k: usize) -&gt; Vec&lt;E::Fr&gt; {
-    std::iter::successors(<span class="prelude-val">Some</span>(E::Fr::ONE), |<span class="kw-2">&amp;</span>x| <span class="prelude-val">Some</span>(x * q))
-      .take(k)
-      .collect()
+    powers(<span class="kw-2">&amp;</span>q, k)
   }
 
   <span class="doccomment">/// TODO: write doc
@@ -797,7 +793,7 @@
      -&gt; (Vec&lt;E::G1Affine&gt;, Vec&lt;Vec&lt;E::Fr&gt;&gt;) {
       <span class="kw">let </span>kzg_compute_batch_polynomial = |f: Vec&lt;Vec&lt;E::Fr&gt;&gt;, q: E::Fr| -&gt; Vec&lt;E::Fr&gt; {
         <span class="comment">// Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
-        </span><span class="kw">let </span>B: UniPoly&lt;E::Fr&gt; = f.into_iter().map(UniPoly::new).rlc(<span class="kw-2">&amp;</span>q);
+        </span><span class="kw">let </span>B: UniPoly&lt;E::Fr&gt; = f.into_par_iter().map(UniPoly::new).rlc(<span class="kw-2">&amp;</span>q);
         B.coeffs
       };
       <span class="comment">///////// END kzg_open_batch closure helpers

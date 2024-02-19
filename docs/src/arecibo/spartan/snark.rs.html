@@ -1006,7 +1006,7 @@
 
   <span class="comment">// generate a challenge, and powers of it for random linear combination
   </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
-  <span class="kw">let </span>powers_of_rho = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>rho, num_claims);
+  <span class="kw">let </span>powers_of_rho = powers(<span class="kw-2">&amp;</span>rho, num_claims);
 
   <span class="kw">let </span>(claims, u_xs, comms): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) =
     u_vec.into_iter().map(|u| (u.e, u.x, u.c)).multiunzip();
@@ -1064,7 +1064,7 @@
 
   <span class="comment">// generate a challenge
   </span><span class="kw">let </span>rho = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
-  <span class="kw">let </span>powers_of_rho = powers::&lt;E&gt;(<span class="kw-2">&amp;</span>rho, num_claims);
+  <span class="kw">let </span>powers_of_rho = powers(<span class="kw-2">&amp;</span>rho, num_claims);
 
   <span class="comment">// Compute nᵢ and n = maxᵢ{nᵢ}
   </span><span class="kw">let </span>num_rounds = u_vec.iter().map(|u| u.x.len()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
