@@ -22,7 +22,7 @@ rayon = "1.7"
 rand_core = { version = "0.6", default-features = false }
 rand_chacha = "0.3"
 subtle = "2.5"
-pasta_curves = { git = "https://github.com/lurk-lab/pasta_curves", branch="dev", features = ["repr-c", "serde"] }
+pasta_curves = { version = "0.5.0", features = ["repr-c", "serde"] }
 neptune = { git = "https://github.com/lurk-lab/neptune", branch="dev", default-features = false, features = ["abomonation"] }
 generic-array = "1.0.0"
 num-bigint = { version = "0.4", features = ["serde", "rand"] }
@@ -49,7 +49,7 @@ static_assertions = "1.1.0"
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
 # grumpkin-msm has been patched to support MSMs for the pasta curve cycle
 # see: https://github.com/lurk-lab/grumpkin-msm/pull/3
-grumpkin-msm = { git = "https://github.com/lurk-lab/grumpkin-msm", branch = "dev" }
+grumpkin-msm = { git = "https://github.com/huitseeker/grumpkin-msm", branch = "move_out_from_pasta_fork" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # see https://github.com/rust-random/rand/pull/948
@@ -116,10 +116,6 @@ asm = ["halo2curves/asm"]
 portable = ["grumpkin-msm/portable"]
 cuda = ["grumpkin-msm/cuda"]
 flamegraph = ["pprof/flamegraph", "pprof/criterion"]
-
-# This is needed to ensure halo2curves, which imports pasta-curves, uses the *same* traits in bn256_grumpkin
-[patch.crates-io]
-pasta_curves = { git = "https://github.com/lurk-lab/pasta_curves", branch = "dev" }
 
 [profile.dev-ci]
 inherits = "dev"
