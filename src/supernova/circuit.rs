@@ -462,11 +462,10 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     ro.absorb(i);
 
     if self.params.is_primary_circuit {
-      if let Some(program_counter) = program_counter.as_ref() {
-        ro.absorb(program_counter)
-      } else {
-        Err(SynthesisError::AssignmentMissing)?
-      }
+      let Some(program_counter) = program_counter.as_ref() else {
+        return Err(SynthesisError::AssignmentMissing);
+      };
+      ro.absorb(program_counter)
     }
 
     for e in z_0 {
