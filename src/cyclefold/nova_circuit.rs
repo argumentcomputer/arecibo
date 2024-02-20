@@ -2,7 +2,8 @@
 
 use crate::{
   constants::{
-    BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS,
+    BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT,
+    /*NUM_FE_WITHOUT_IO_FOR_CRHF,*/ NUM_HASH_BITS,
   },
   gadgets::{
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
@@ -336,7 +337,7 @@ where
       &hash_p,
     )?;
 
-    let mut ro_c = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+    let mut ro_c = E1::ROCircuit::new(self.ro_consts.clone(), 73); // TODO: Be more dilligent about this
 
     ro_c.absorb(pp_digest);
     ro_c.absorb(i);
@@ -392,7 +393,7 @@ where
     )?;
 
     // Calculate h_int = H(pp, U_c_int)
-    let mut ro_c_int = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF - 1);
+    let mut ro_c_int = E1::ROCircuit::new(self.ro_consts.clone(), 72); // TODO: Fix this
     ro_c_int.absorb(pp_digest);
     U_int.absorb_in_ro(cs.namespace(|| "absorb U_c_int"), &mut ro_c_int)?;
     let h_c_int_bits =
@@ -400,7 +401,7 @@ where
     let h_c_int = le_bits_to_num(cs.namespace(|| "intermediate hash"), &h_c_int_bits)?;
 
     // Calculate h_1 = H(pp, U_c_1)
-    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF - 1);
+    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), 72); // TODO: Fix this
     ro_c_1.absorb(pp_digest);
     data_c_2
       .U
@@ -542,7 +543,7 @@ where
     let hash_p_bits = ro_p.squeeze(cs.namespace(|| "hash_p_bits"), NUM_HASH_BITS)?;
     let hash_p = le_bits_to_num(cs.namespace(|| "hash_p"), &hash_p_bits)?;
 
-    let mut ro_c = E1::ROCircuit::new(self.ro_consts, NUM_FE_WITHOUT_IO_FOR_CRHF);
+    let mut ro_c = E1::ROCircuit::new(self.ro_consts, 72); // TODO: Fix this
     ro_c.absorb(&pp_digest);
     ro_c.absorb(&i_new);
     Unew_c.absorb_in_ro(cs.namespace(|| "absorb Unew_c"), &mut ro_c)?;
@@ -624,7 +625,8 @@ pub fn cyclefold_invocation_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine
   instance: &AllocatedR1CSInstance<E1, NIO_CYCLE_FOLD>,
 ) -> Result<(), SynthesisError> {
   let (point_1_io, point_23_io) = instance.X.split_at(5);
-  let (point_2_io, point_3_io) = point_23_io.split_at(5);
+  let (point_2_io, point_3_io_plus_scalar) = point_23_io.split_at(5);
+  let point_3_io = point_3_io_plus_scalar.split_at(5).0;
   emulated_point_check::<E1, _>(cs.namespace(|| "check point C_1"), C_1, point_1_io)?;
   emulated_point_check::<E1, _>(cs.namespace(|| "check point C_2"), C_2, point_2_io)?;
   emulated_point_check::<E1, _>(cs.namespace(|| "check point C_res"), C_res, point_3_io)?;
