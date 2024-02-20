@@ -291,7 +291,7 @@ where
     ),
     SynthesisError,
   > {
-    // Follows the outline written down here https://hackmd.io/@mpenciak/HybHrnNFT
+    // Follows the outline written down here https://hackmd.io/@lurk-lab/HybHrnNFT
     let mut ro_p = E1::ROCircuit::new(
       self.ro_consts.clone(),
       2 + 2 * arity + 2 * NUM_FE_IN_EMULATED_POINT + 3,
