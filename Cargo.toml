@@ -12,7 +12,7 @@ keywords = ["zkSNARKs", "cryptography", "proofs"]
 rust-version="1.71.0"
 
 [dependencies]
-bellpepper-core = { git="https://github.com/lurk-lab/bellpepper", branch="dev", default-features = false }
+bellpepper-core = { version = "0.4.0", default-features = false }
 bellpepper = { git="https://github.com/lurk-lab/bellpepper", branch="dev", default-features = false }
 ff = { version = "0.13.0", features = ["derive"] }
 digest = "0.10"
