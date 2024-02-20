@@ -72,11 +72,10 @@ impl<E: Engine> TranscriptEngineTrait<E> for Keccak256Transcript<E> {
 
     // update state
     self.round = {
-      if let Some(v) = self.round.checked_add(1) {
-        v
-      } else {
-        return Err(NovaError::InternalTranscriptError);
-      }
+      self
+        .round
+        .checked_add(1)
+        .ok_or(NovaError::InternalTranscriptError)?
     };
     self.state.copy_from_slice(&output);
     self.transcript = Keccak256::new();

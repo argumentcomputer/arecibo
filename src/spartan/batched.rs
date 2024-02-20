@@ -424,7 +424,6 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       .collect::<Vec<_>>();
 
     // Extract evaluations into a vector [(Azᵢ, Bzᵢ, Czᵢ, Eᵢ)]
-    // TODO: This is a multizip, simplify
     let ABCE_evals = || self.claims_outer.iter().zip_eq(self.evals_E.iter());
 
     // Add evaluations of Az, Bz, Cz, E to transcript

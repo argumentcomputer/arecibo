@@ -26,7 +26,7 @@ use crate::{
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait, ROConstantsCircuit},
-  Commitment,
+  zip_with, Commitment,
 };
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
@@ -462,11 +462,10 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     ro.absorb(i);
 
     if self.params.is_primary_circuit {
-      if let Some(program_counter) = program_counter.as_ref() {
-        ro.absorb(program_counter)
-      } else {
-        Err(SynthesisError::AssignmentMissing)?
-      }
+      let Some(program_counter) = program_counter.as_ref() else {
+        return Err(SynthesisError::AssignmentMissing);
+      };
+      ro.absorb(program_counter)
     }
 
     for e in z_0 {
@@ -505,18 +504,18 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     )?;
 
     // update AllocatedRelaxedR1CSInstance on index match augmented circuit index
-    let U_next: Vec<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>> = U
-      .iter()
-      .zip_eq(last_augmented_circuit_selector.iter())
-      .map(|(U, equal_bit)| {
+    let U_next: Vec<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>> = zip_with!(
+      (U.iter(), last_augmented_circuit_selector.iter()),
+      |U, equal_bit| {
         conditionally_select_alloc_relaxed_r1cs(
           cs.namespace(|| "select on index namespace"),
           &U_fold,
           U,
           equal_bit,
         )
-      })
-      .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>>, _>>()?;
+      }
+    )
+    .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E, NIO_NOVA_FOLD>>, _>>()?;
 
     Ok((U_next, check_pass))
   }

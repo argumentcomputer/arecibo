@@ -233,17 +233,17 @@ where
       let r_inverse = r.invert().unwrap();
 
       // fold the left half and the right half
-      let a_vec_folded = a_vec[0..n / 2]
-        .par_iter()
-        .zip_eq(a_vec[n / 2..n].par_iter())
-        .map(|(a_L, a_R)| *a_L * r + r_inverse * *a_R)
-        .collect::<Vec<E::Scalar>>();
+      let a_vec_folded = zip_with!(
+        (a_vec[0..n / 2].par_iter(), a_vec[n / 2..n].par_iter()),
+        |a_L, a_R| *a_L * r + r_inverse * *a_R
+      )
+      .collect::<Vec<E::Scalar>>();
 
-      let b_vec_folded = b_vec[0..n / 2]
-        .par_iter()
-        .zip_eq(b_vec[n / 2..n].par_iter())
-        .map(|(b_L, b_R)| *b_L * r_inverse + r * *b_R)
-        .collect::<Vec<E::Scalar>>();
+      let b_vec_folded = zip_with!(
+        (b_vec[0..n / 2].par_iter(), b_vec[n / 2..n].par_iter()),
+        |b_L, b_R| *b_L * r_inverse + r * *b_R
+      )
+      .collect::<Vec<E::Scalar>>();
 
       let ck_folded = CommitmentKeyExtTrait::fold(&ck_L, &ck_R, &r_inverse, &r);
 
@@ -314,10 +314,7 @@ where
       }
 
       // return error if acc is zero
-      acc = match Option::from(acc.invert()) {
-        Some(inv) => inv,
-        None => return Err(NovaError::InternalError),
-      };
+      acc = Option::from(acc.invert()).ok_or(NovaError::InternalError)?;
 
       // compute the inverse once for all entries
       let mut inv = vec![E::Scalar::ZERO; v.len()];
