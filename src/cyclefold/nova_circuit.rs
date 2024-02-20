@@ -2,10 +2,10 @@
 
 use crate::{
   constants::{
-    NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS,
+    BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS,
   },
   gadgets::{
-    r1cs::AllocatedRelaxedR1CSInstance,
+    r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
     utils::{
       alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     },
@@ -21,6 +21,7 @@ use abomonation_derive::Abomonation;
 use bellpepper::gadgets::{boolean::Boolean, num::AllocatedNum, Assignment};
 use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, SynthesisError};
 use ff::Field;
+use itertools::{chain, Itertools};
 use serde::{Deserialize, Serialize};
 
 use super::gadgets::{emulated, AllocatedFoldingData};
@@ -334,6 +335,10 @@ where
       &hash_c,
     )?;
 
+    // TODO: Add `cyclefold_invocation_check`s here after I change the circuit IO
+    // cyclefold_invocation_check(cs, C_1, C_2, C_res, instance);
+    // cyclefold_invocation_check(cs, C_1, C_2, C_res, instance);
+
     let check_io = AllocatedBit::and(
       cs.namespace(|| "both IOs match"),
       &check_primary,
@@ -515,6 +520,81 @@ where
   }
 }
 
+// TODO: Clean this up
+pub fn emulated_point_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine>::Base>>(
+  mut cs: CS,
+  point: &emulated::AllocatedEmulPoint<E1::GE>,
+  io_limbs: &[AllocatedNum<<E1 as Engine>::Base>],
+) -> Result<(), SynthesisError> {
+  let x_limbs = point
+    .x
+    .group_limbs(BN_N_LIMBS / 2)
+    .as_limbs()
+    .iter()
+    .enumerate()
+    .map(|(idx, limb)| limb.as_allocated_num(cs.namespace(|| format!("alloc x_limb[{idx}]"))))
+    .collect::<Result<Vec<_>, _>>()?;
+
+  let y_limbs = point
+    .y
+    .group_limbs(BN_N_LIMBS / 2)
+    .as_limbs()
+    .iter()
+    .enumerate()
+    .map(|(idx, limb)| limb.as_allocated_num(cs.namespace(|| format!("alloc y_limb[{idx}]"))))
+    .collect::<Result<Vec<_>, _>>()?;
+
+  let is_infinity = AllocatedNum::alloc(cs.namespace(|| "allocate is_infinity"), || {
+    if *point.is_infinity.get_value().get()? {
+      Ok(<E1 as Engine>::Base::ONE)
+    } else {
+      Ok(<E1 as Engine>::Base::ZERO)
+    }
+  })?;
+
+  cs.enforce(
+    || "enforcing is_infinity",
+    |lc| lc,
+    |lc| lc,
+    |lc| lc + is_infinity.get_variable() - point.is_infinity.get_variable(),
+  );
+
+  let all_variables = chain!(x_limbs, y_limbs, vec![is_infinity]);
+
+  all_variables
+    .into_iter()
+    .zip_eq(io_limbs)
+    .enumerate()
+    .try_for_each(|(idx, (var, limb))| -> Result<(), SynthesisError> {
+      cs.enforce(
+        || format!("enforcing equality {idx}"),
+        |lc| lc,
+        |lc| lc,
+        |lc| lc + var.get_variable() - limb.get_variable(),
+      );
+
+      Ok(())
+    })?;
+
+  Ok(())
+}
+
+// TODO: Clean this up
+pub fn cyclefold_invocation_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine>::Base>>(
+  mut cs: CS,
+  C_1: &emulated::AllocatedEmulPoint<E1::GE>,
+  C_2: &emulated::AllocatedEmulPoint<E1::GE>,
+  C_res: &emulated::AllocatedEmulPoint<E1::GE>,
+  instance: AllocatedR1CSInstance<E1, NIO_CYCLE_FOLD>,
+) -> Result<(), SynthesisError> {
+  let (point_1_io, point_23_io) = instance.X.split_at(5);
+  let (point_2_io, point_3_io) = point_23_io.split_at(5);
+  emulated_point_check::<E1, _>(cs.namespace(|| "check point C_1"), C_1, point_1_io)?;
+  emulated_point_check::<E1, _>(cs.namespace(|| "check point C_2"), C_2, point_2_io)?;
+  emulated_point_check::<E1, _>(cs.namespace(|| "check point C_res"), C_res, point_3_io)?;
+
+  Ok(())
+}
 #[cfg(test)]
 mod test {
   use crate::{

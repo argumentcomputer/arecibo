@@ -138,9 +138,9 @@ pub mod emulated {
   where
     G: Group,
   {
-    x: BigNat<G::Base>,
-    y: BigNat<G::Base>,
-    is_infinity: AllocatedBit,
+    pub x: BigNat<G::Base>,
+    pub y: BigNat<G::Base>,
+    pub is_infinity: AllocatedBit,
   }
 
   impl<G> AllocatedEmulPoint<G>
