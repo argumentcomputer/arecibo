@@ -150,6 +150,9 @@
 <a href="#149" id="149">149</a>
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Support for generating R1CS using bellpepper.
 
 </span><span class="attr">#![allow(non_snake_case)]
@@ -269,17 +272,20 @@
   <span class="macro">assert_eq!</span>(n + <span class="number">1</span>, C.indptr.len(), <span class="string">"C: invalid shape"</span>);
 
   <span class="kw">let </span>add_constraint_component = |index: Index, coeff: <span class="kw-2">&amp;</span>S, M: <span class="kw-2">&amp;mut </span>SparseMatrix&lt;S&gt;| {
-    <span class="kw">match </span>index {
-      Index::Input(idx) =&gt; {
-        <span class="comment">// Inputs come last, with input 0, representing 'one',
-        // at position num_vars within the witness vector.
-        </span><span class="kw">let </span>idx = idx + num_vars;
-        M.data.push(<span class="kw-2">*</span>coeff);
-        M.indices.push(idx);
-      }
-      Index::Aux(idx) =&gt; {
-        M.data.push(<span class="kw-2">*</span>coeff);
-        M.indices.push(idx);
+    <span class="comment">// we add constraints to the matrix only if the associated coefficient is non-zero
+    </span><span class="kw">if </span><span class="kw-2">*</span>coeff != S::ZERO {
+      <span class="kw">match </span>index {
+        Index::Input(idx) =&gt; {
+          <span class="comment">// Inputs come last, with input 0, representing 'one',
+          // at position num_vars within the witness vector.
+          </span><span class="kw">let </span>idx = idx + num_vars;
+          M.data.push(<span class="kw-2">*</span>coeff);
+          M.indices.push(idx);
+        }
+        Index::Aux(idx) =&gt; {
+          M.data.push(<span class="kw-2">*</span>coeff);
+          M.indices.push(idx);
+        }
       }
     }
   };

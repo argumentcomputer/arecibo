@@ -962,7 +962,7 @@
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span><span class="self">self</span>::sparse::SparseMatrix;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>sparse::SparseMatrix;
 
 <span class="doccomment">/// A type that holds the shape of the R1CS matrices
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
@@ -1082,7 +1082,7 @@
 
     <span class="comment">// We require the number of public inputs/outputs to be even
     </span><span class="kw">if </span>num_io % <span class="number">2 </span>!= <span class="number">0 </span>{
-      <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::OddInputLength);
+      <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::InvalidStepCircuitIO);
     }
 
     <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
@@ -1764,7 +1764,7 @@
 
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use crate</span>::{
-    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{Bn256EngineIPA, Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     r1cs::sparse::SparseMatrix,
     traits::Engine,
   };
@@ -1847,7 +1847,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_pad_tiny_r1cs() {
     test_pad_tiny_r1cs_with::&lt;PallasEngine&gt;();
-    test_pad_tiny_r1cs_with::&lt;Bn256Engine&gt;();
+    test_pad_tiny_r1cs_with::&lt;Bn256EngineKZG&gt;();
     test_pad_tiny_r1cs_with::&lt;Secp256k1Engine&gt;();
   }
 
@@ -1868,7 +1868,7 @@
 
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_random_r1cs() {
-    test_random_r1cs_with::&lt;Bn256Engine&gt;();
+    test_random_r1cs_with::&lt;Bn256EngineIPA&gt;();
   }
 }
 </code></pre></div></section></main></body></html>

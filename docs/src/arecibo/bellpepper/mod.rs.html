@@ -81,7 +81,7 @@
       shape_cs::ShapeCS,
       solver::SatisfyingAssignment,
     },
-    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     traits::{snark::default_ck_hint, Engine},
   };
   <span class="kw">use </span>bellpepper_core::{num::AllocatedNum, ConstraintSystem};
@@ -125,7 +125,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_alloc_bit() {
     test_alloc_bit_with::&lt;PallasEngine&gt;();
-    test_alloc_bit_with::&lt;Bn256Engine&gt;();
+    test_alloc_bit_with::&lt;Bn256EngineKZG&gt;();
     test_alloc_bit_with::&lt;Secp256k1Engine&gt;();
   }
 }

@@ -989,7 +989,7 @@
 </span><span class="kw">mod </span>test {
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use crate</span>::{
-    provider::{ipa_pc, Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{ipa_pc, Bn256EngineIPA, PallasEngine, Secp256k1Engine},
     spartan::{batched, batched_ppsnark, snark::RelaxedR1CSSNARK},
     supernova::{circuit::TrivialSecondaryCircuit, NonUniformCircuit, StepCircuit},
   };
@@ -1220,11 +1220,11 @@
   </span><span class="kw">fn </span>test_nivc_trivial_with_compression() {
     <span class="comment">// ppSNARK
     </span>test_nivc_trivial_with_compression_with::&lt;PallasEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_nivc_trivial_with_compression_with::&lt;Bn256Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_nivc_trivial_with_compression_with::&lt;Bn256EngineIPA, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     test_nivc_trivial_with_compression_with::&lt;Secp256k1Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="comment">// classic SNARK
     </span>test_nivc_trivial_with_compression_with::&lt;PallasEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_nivc_trivial_with_compression_with::&lt;Bn256Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_nivc_trivial_with_compression_with::&lt;Bn256EngineIPA, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     test_nivc_trivial_with_compression_with::&lt;Secp256k1Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
   }
 
@@ -1403,11 +1403,11 @@
   </span><span class="kw">fn </span>test_compression_with_circuit_size_difference() {
     <span class="comment">// ppSNARK
     </span>test_compression_with_circuit_size_difference_with::&lt;PallasEngine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_compression_with_circuit_size_difference_with::&lt;Bn256Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_compression_with_circuit_size_difference_with::&lt;Bn256EngineIPA, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     test_compression_with_circuit_size_difference_with::&lt;Secp256k1Engine, S1PP&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="comment">// classic SNARK
     </span>test_compression_with_circuit_size_difference_with::&lt;PallasEngine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
-    test_compression_with_circuit_size_difference_with::&lt;Bn256Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
+    test_compression_with_circuit_size_difference_with::&lt;Bn256EngineIPA, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
     test_compression_with_circuit_size_difference_with::&lt;Secp256k1Engine, S1&lt;<span class="kw">_</span>&gt;, S2&lt;<span class="kw">_</span>&gt;&gt;();
   }
 }

@@ -625,7 +625,7 @@
       solver::SatisfyingAssignment,
       test_shape_cs::TestShapeCS,
     },
-    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     r1cs::{commitment_key, SparseMatrix},
     traits::{snark::default_ck_hint, Engine},
   };
@@ -706,7 +706,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_tiny_r1cs_bellpepper() {
     test_tiny_r1cs_bellpepper_with::&lt;PallasEngine&gt;();
-    test_tiny_r1cs_bellpepper_with::&lt;Bn256Engine&gt;();
+    test_tiny_r1cs_bellpepper_with::&lt;Bn256EngineKZG&gt;();
     test_tiny_r1cs_bellpepper_with::&lt;Secp256k1Engine&gt;();
   }
 
@@ -889,7 +889,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_tiny_r1cs() {
     test_tiny_r1cs_with::&lt;PallasEngine&gt;();
-    test_tiny_r1cs_with::&lt;Bn256Engine&gt;();
+    test_tiny_r1cs_with::&lt;Bn256EngineKZG&gt;();
     test_tiny_r1cs_with::&lt;Secp256k1Engine&gt;();
   }
 }

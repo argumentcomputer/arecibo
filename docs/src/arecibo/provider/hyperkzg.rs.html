@@ -608,10 +608,6 @@
 <a href="#607" id="607">607</a>
 <a href="#608" id="608">608</a>
 <a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
 //! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
 //! However, there are some key differences:
@@ -1032,10 +1028,9 @@
 </span><span class="kw">mod </span>tests {
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use </span><span class="kw">crate</span>::provider::util::test_utils::prove_verify_from_num_vars;
-  <span class="kw">use crate</span>::{
-    provider::keccak::Keccak256Transcript, traits::commitment::CommitmentTrait, CommitmentKey,
-  };
+  <span class="kw">use crate</span>::{provider::keccak::Keccak256Transcript, CommitmentKey};
   <span class="kw">use </span>bincode::Options;
+  <span class="kw">use </span>expect_test::expect;
 
   <span class="kw">type </span>E = halo2curves::bn256::Bn256;
   <span class="kw">type </span>NE = <span class="kw">crate</span>::provider::Bn256EngineKZG;
@@ -1192,15 +1187,12 @@
     // same state
     </span><span class="macro">assert_eq!</span>(post_c_p, post_c_v);
 
-    <span class="kw">let </span>my_options = bincode::DefaultOptions::new()
+    <span class="kw">let </span>proof_bytes = bincode::DefaultOptions::new()
       .with_big_endian()
-      .with_fixint_encoding();
-    <span class="kw">let </span><span class="kw-2">mut </span>output_bytes = my_options.serialize(<span class="kw-2">&amp;</span>vk).unwrap();
-    output_bytes.append(<span class="kw-2">&amp;mut </span>my_options.serialize(<span class="kw-2">&amp;</span>C.compress()).unwrap());
-    output_bytes.append(<span class="kw-2">&amp;mut </span>my_options.serialize(<span class="kw-2">&amp;</span>point).unwrap());
-    output_bytes.append(<span class="kw-2">&amp;mut </span>my_options.serialize(<span class="kw-2">&amp;</span>eval).unwrap());
-    output_bytes.append(<span class="kw-2">&amp;mut </span>my_options.serialize(<span class="kw-2">&amp;</span>proof).unwrap());
-    <span class="macro">println!</span>(<span class="string">"total output = {} bytes"</span>, output_bytes.len());
+      .with_fixint_encoding()
+      .serialize(<span class="kw-2">&amp;</span>proof)
+      .unwrap();
+    <span class="macro">expect!</span>[<span class="string">"368"</span>].assert_eq(<span class="kw-2">&amp;</span>proof_bytes.len().to_string());
 
     <span class="comment">// Change the proof and expect verification to fail
     </span><span class="kw">let </span><span class="kw-2">mut </span>bad_proof = proof.clone();

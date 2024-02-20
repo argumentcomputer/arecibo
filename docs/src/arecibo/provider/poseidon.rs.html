@@ -462,7 +462,7 @@
 </span><span class="kw">mod </span>tests {
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use </span><span class="kw">crate</span>::provider::{
-    Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
+    Bn256EngineKZG, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
   };
   <span class="kw">use crate</span>::{
     bellpepper::solver::SatisfyingAssignment, constants::NUM_CHALLENGE_BITS,
@@ -507,7 +507,7 @@
   </span><span class="kw">fn </span>test_poseidon_ro() {
     test_poseidon_ro_with::&lt;PallasEngine&gt;();
     test_poseidon_ro_with::&lt;VestaEngine&gt;();
-    test_poseidon_ro_with::&lt;Bn256Engine&gt;();
+    test_poseidon_ro_with::&lt;Bn256EngineKZG&gt;();
     test_poseidon_ro_with::&lt;GrumpkinEngine&gt;();
     test_poseidon_ro_with::&lt;Secp256k1Engine&gt;();
     test_poseidon_ro_with::&lt;Secq256k1Engine&gt;();

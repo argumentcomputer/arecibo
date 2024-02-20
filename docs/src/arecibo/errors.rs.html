@@ -91,6 +91,7 @@
 <a href="#90" id="90">90</a>
 <a href="#91" id="91">91</a>
 <a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines errors returned by the library.
 </span><span class="kw">use </span>core::fmt::Debug;
 <span class="kw">use </span>thiserror::Error;
@@ -102,9 +103,10 @@
   <span class="doccomment">/// returned if the supplied row or col in (row,col,val) tuple is out of range
   </span><span class="attr">#[error(<span class="string">"InvalidIndex"</span>)]
   </span>InvalidIndex,
-  <span class="doccomment">/// returned if the supplied input is not even-sized
-  </span><span class="attr">#[error(<span class="string">"OddInputLength"</span>)]
-  </span>OddInputLength,
+  <span class="doccomment">/// returned if the step circuit calls inputize or alloc_io in its synthesize method
+  /// instead of passing output with the return value
+  </span><span class="attr">#[error(<span class="string">"InvalidStepCircuitIO"</span>)]
+  </span>InvalidStepCircuitIO,
   <span class="doccomment">/// returned if the supplied input is not of the right length
   </span><span class="attr">#[error(<span class="string">"InvalidInputLength"</span>)]
   </span>InvalidInputLength,
@@ -167,9 +169,9 @@
 <span class="doccomment">/// Errors specific to the Polynomial commitment scheme
 </span><span class="attr">#[derive(Debug, Eq, PartialEq, Error)]
 </span><span class="kw">pub enum </span>PCSError {
-  <span class="doccomment">/// returned when an invalid inner product argument is provided
-  </span><span class="attr">#[error(<span class="string">"InvalidIPA"</span>)]
-  </span>InvalidIPA,
+  <span class="doccomment">/// returned when an invalid PCS evaluation argument is provided
+  </span><span class="attr">#[error(<span class="string">"InvalidPCS"</span>)]
+  </span>InvalidPCS,
   <span class="doccomment">/// returned when there is a Zeromorph error
   </span><span class="attr">#[error(<span class="string">"ZMError"</span>)]
   </span>ZMError,

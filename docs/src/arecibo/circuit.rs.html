@@ -876,7 +876,7 @@
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::utils::scalar_as_base,
     provider::{
-      poseidon::PoseidonConstantsCircuit, Bn256Engine, GrumpkinEngine, PallasEngine,
+      poseidon::PoseidonConstantsCircuit, Bn256EngineKZG, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     traits::{circuit::TrivialCircuit, snark::default_ck_hint, CurveCycleEquipped, Dual},
@@ -972,13 +972,13 @@
   }
 
   <span class="attr">#[test]
-  </span><span class="kw">fn </span>test_recursive_circuit_grumpkin() {
+  </span><span class="kw">fn </span>test_recursive_circuit_bn256_grumpkin() {
     <span class="kw">let </span>params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">true</span>);
     <span class="kw">let </span>params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">false</span>);
     <span class="kw">let </span>ro_consts1: ROConstantsCircuit&lt;GrumpkinEngine&gt; = PoseidonConstantsCircuit::default();
-    <span class="kw">let </span>ro_consts2: ROConstantsCircuit&lt;Bn256Engine&gt; = PoseidonConstantsCircuit::default();
+    <span class="kw">let </span>ro_consts2: ROConstantsCircuit&lt;Bn256EngineKZG&gt; = PoseidonConstantsCircuit::default();
 
-    test_recursive_circuit_with::&lt;Bn256Engine&gt;(
+    test_recursive_circuit_with::&lt;Bn256EngineKZG&gt;(
       <span class="kw-2">&amp;</span>params1,
       <span class="kw-2">&amp;</span>params2,
       ro_consts1,
@@ -989,7 +989,7 @@
   }
 
   <span class="attr">#[test]
-  </span><span class="kw">fn </span>test_recursive_circuit_secp() {
+  </span><span class="kw">fn </span>test_recursive_circuit_secpq() {
     <span class="kw">let </span>params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">true</span>);
     <span class="kw">let </span>params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">false</span>);
     <span class="kw">let </span>ro_consts1: ROConstantsCircuit&lt;Secq256k1Engine&gt; = PoseidonConstantsCircuit::default();

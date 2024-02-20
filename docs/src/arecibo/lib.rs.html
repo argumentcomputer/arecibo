@@ -1635,6 +1635,77 @@
 <a href="#1634" id="1634">1634</a>
 <a href="#1635" id="1635">1635</a>
 <a href="#1636" id="1636">1636</a>
+<a href="#1637" id="1637">1637</a>
+<a href="#1638" id="1638">1638</a>
+<a href="#1639" id="1639">1639</a>
+<a href="#1640" id="1640">1640</a>
+<a href="#1641" id="1641">1641</a>
+<a href="#1642" id="1642">1642</a>
+<a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
+<a href="#1646" id="1646">1646</a>
+<a href="#1647" id="1647">1647</a>
+<a href="#1648" id="1648">1648</a>
+<a href="#1649" id="1649">1649</a>
+<a href="#1650" id="1650">1650</a>
+<a href="#1651" id="1651">1651</a>
+<a href="#1652" id="1652">1652</a>
+<a href="#1653" id="1653">1653</a>
+<a href="#1654" id="1654">1654</a>
+<a href="#1655" id="1655">1655</a>
+<a href="#1656" id="1656">1656</a>
+<a href="#1657" id="1657">1657</a>
+<a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This library implements Nova, a high-speed recursive SNARK.
 </span><span class="attr">#![deny(
   warnings,
@@ -1878,14 +1949,14 @@
   /// let ck_hint1 = &amp;*SPrime::&lt;E1&gt;::ck_floor();
   /// let ck_hint2 = &amp;*SPrime::&lt;E2&gt;::ck_floor();
   ///
-  /// let pp = PublicParams::setup(&amp;circuit1, &amp;circuit2, ck_hint1, ck_hint2);
+  /// let pp = PublicParams::setup(&amp;circuit1, &amp;circuit2, ck_hint1, ck_hint2).unwrap();
   /// ```
   </span><span class="kw">pub fn </span>setup&lt;C1: StepCircuit&lt;E1::Scalar&gt;, C2: StepCircuit&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;&gt;(
     c_primary: <span class="kw-2">&amp;</span>C1,
     c_secondary: <span class="kw-2">&amp;</span>C2,
     ck_hint1: <span class="kw-2">&amp;</span>CommitmentKeyHint&lt;E1&gt;,
     ck_hint2: <span class="kw-2">&amp;</span>CommitmentKeyHint&lt;Dual&lt;E1&gt;&gt;,
-  ) -&gt; <span class="self">Self </span>{
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
     <span class="kw">let </span>augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, <span class="bool-val">true</span>);
     <span class="kw">let </span>augmented_circuit_params_secondary =
@@ -1913,7 +1984,6 @@
     <span class="kw">let _ </span>= circuit_primary.synthesize(<span class="kw-2">&amp;mut </span>cs);
     <span class="kw">let </span>(r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
     <span class="kw">let </span>ck_primary = Arc::new(ck_primary);
-    <span class="kw">let </span>circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     <span class="comment">// Initialize ck for the secondary
     </span><span class="kw">let </span>circuit_secondary: NovaAugmentedCircuit&lt;<span class="lifetime">'_</span>, E1, C2&gt; = NovaAugmentedCircuit::new(
@@ -1926,9 +1996,15 @@
     <span class="kw">let _ </span>= circuit_secondary.synthesize(<span class="kw-2">&amp;mut </span>cs);
     <span class="kw">let </span>(r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     <span class="kw">let </span>ck_secondary = Arc::new(ck_secondary);
+
+    <span class="kw">if </span>r1cs_shape_primary.num_io != <span class="number">2 </span>|| r1cs_shape_secondary.num_io != <span class="number">2 </span>{
+      <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::InvalidStepCircuitIO);
+    }
+
+    <span class="kw">let </span>circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
     <span class="kw">let </span>circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
-    <span class="self">Self </span>{
+    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
       F_arity_primary,
       F_arity_secondary,
       ro_consts_primary,
@@ -1942,7 +2018,7 @@
       augmented_circuit_params_primary,
       augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-    }
+    })
   }
 
   <span class="doccomment">/// Retrieve the digest of the public parameters.
@@ -2654,7 +2730,7 @@
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use crate</span>::{
     provider::{
-      non_hiding_zeromorph::ZMPCS, Bn256Engine, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
+      non_hiding_zeromorph::ZMPCS, Bn256EngineIPA, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
       Secp256k1Engine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
@@ -2732,7 +2808,7 @@
     <span class="comment">// this tests public parameters with a size specifically intended for a spark-compressed SNARK
     </span><span class="kw">let </span>ck_hint1 = <span class="kw-2">&amp;*</span>SPrime::&lt;E1, EE1&gt;::ck_floor();
     <span class="kw">let </span>ck_hint2 = <span class="kw-2">&amp;*</span>SPrime::&lt;Dual&lt;E1&gt;, EE2&gt;::ck_floor();
-    <span class="kw">let </span>pp = PublicParams::&lt;E1&gt;::setup(circuit1, circuit2, ck_hint1, ck_hint2);
+    <span class="kw">let </span>pp = PublicParams::&lt;E1&gt;::setup(circuit1, circuit2, ck_hint1, ck_hint2).unwrap();
 
     <span class="kw">let </span>digest_str = pp
       .digest()
@@ -2752,36 +2828,36 @@
     test_pp_digest_with::&lt;PallasEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"582db42439c0dcfc60d24b023ab83d81d97382ac2efa883c6f23147345efeb01"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"e5a6a85b77f3fb958b69722a5a21bf656fd21a6b5a012708a4b086b6be6d2b03"</span>],
     );
 
     test_pp_digest_with::&lt;PallasEngine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>CubicCircuit::default(),
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"83ef7f741c983bfc9193f1ba387b4966ca8d0818acac65583e30d72593b0f600"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"ec707a8b822baebca114b6e61b238374f9ed358c542dd37ee73febb47832cd01"</span>],
     );
 
-    test_pp_digest_with::&lt;Bn256Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
+    test_pp_digest_with::&lt;Bn256EngineIPA, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"09e1cc324b4469aec5abc55d48d8add5d161cbb70aa023f78e171c58e3199600"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"df52de22456157eb056003d4dc580a167ab8ce40a151c9944ea09a6fd0028600"</span>],
     );
 
-    test_pp_digest_with::&lt;Bn256Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
+    test_pp_digest_with::&lt;Bn256EngineIPA, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>CubicCircuit::default(),
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"7602bf1fdf3d86b8a7228de4c163e11cc3908b93412548f8cf3ebc1bc638fd00"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"b3ad0f4b734c5bd2ab9e83be8ee0cbaaa120e5cd0270b51cb9d7778a33f0b801"</span>],
     );
 
     test_pp_digest_with::&lt;Secp256k1Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"dbbfd46ea48118694ec96631015c41cccc721c4f3aaf5b542bf18cca37878b02"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"e1feca53664212ee750da857c726b2a09bb30b2964f22ea85a19b58c9eaf5701"</span>],
     );
     test_pp_digest_with::&lt;Secp256k1Engine, <span class="kw">_</span>, <span class="kw">_</span>, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
       <span class="kw-2">&amp;</span>CubicCircuit::default(),
       <span class="kw-2">&amp;</span>TrivialCircuit::default(),
-      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"c71fd5e574129205426e07edcb5fd0b26f78991d1ab883b1dfb7e82844480801"</span>],
+      <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"4ad6b10b6fd24fecba49f08d35bc874a6da9c77735bc0bcf4b78b1914a97e602"</span>],
     );
   }
 
@@ -2798,7 +2874,8 @@
       <span class="kw-2">&amp;</span>test_circuit2,
       <span class="kw-2">&amp;*</span>default_ck_hint(),
       <span class="kw-2">&amp;*</span>default_ck_hint(),
-    );
+    )
+    .unwrap();
     <span class="kw">let </span>num_steps = <span class="number">1</span>;
 
     <span class="comment">// produce a recursive SNARK
@@ -2828,7 +2905,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_trivial() {
     test_ivc_trivial_with::&lt;PallasEngine&gt;();
-    test_ivc_trivial_with::&lt;Bn256Engine&gt;();
+    test_ivc_trivial_with::&lt;Bn256EngineIPA&gt;();
     test_ivc_trivial_with::&lt;Secp256k1Engine&gt;();
   }
 
@@ -2845,7 +2922,8 @@
       <span class="kw-2">&amp;</span>circuit_secondary,
       <span class="kw-2">&amp;*</span>default_ck_hint(),
       <span class="kw-2">&amp;*</span>default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     <span class="kw">let </span>num_steps = <span class="number">3</span>;
 
@@ -2900,7 +2978,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_nontrivial() {
     test_ivc_nontrivial_with::&lt;PallasEngine&gt;();
-    test_ivc_nontrivial_with::&lt;Bn256Engine&gt;();
+    test_ivc_nontrivial_with::&lt;Bn256EngineKZG&gt;();
     test_ivc_nontrivial_with::&lt;Secp256k1Engine&gt;();
   }
 
@@ -2922,7 +3000,8 @@
       <span class="kw-2">&amp;</span>circuit_secondary,
       <span class="kw-2">&amp;*</span>S1::ck_floor(),
       <span class="kw-2">&amp;*</span>S2::ck_floor(),
-    );
+    )
+    .unwrap();
 
     <span class="kw">let </span>num_steps = <span class="number">3</span>;
 
@@ -2999,7 +3078,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_nontrivial_with_compression() {
     test_ivc_nontrivial_with_compression_with::&lt;PallasEngine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
-    test_ivc_nontrivial_with_compression_with::&lt;Bn256Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
+    test_ivc_nontrivial_with_compression_with::&lt;Bn256EngineIPA, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_compression_with::&lt;Secp256k1Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_compression_with::&lt;Bn256EngineZM, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_compression_with::&lt;
@@ -3024,7 +3103,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_nontrivial_with_spark_compression() {
     test_ivc_nontrivial_with_spark_compression_with::&lt;PallasEngine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
-    test_ivc_nontrivial_with_spark_compression_with::&lt;Bn256Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
+    test_ivc_nontrivial_with_spark_compression_with::&lt;Bn256EngineIPA, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_spark_compression_with::&lt;Secp256k1Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_spark_compression_with::&lt;Bn256EngineZM, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_spark_compression_with::&lt;
@@ -3053,7 +3132,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_nontrivial_with_batched_compression() {
     test_ivc_nontrivial_with_batched_compression_with::&lt;PallasEngine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
-    test_ivc_nontrivial_with_batched_compression_with::&lt;Bn256Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
+    test_ivc_nontrivial_with_batched_compression_with::&lt;Bn256EngineIPA, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_batched_compression_with::&lt;Secp256k1Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_batched_compression_with::&lt;Bn256EngineZM, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_batched_compression_with::&lt;
@@ -3080,7 +3159,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_nontrivial_with_batched_spark_compression() {
     test_ivc_nontrivial_with_batched_spark_compression_with::&lt;PallasEngine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
-    test_ivc_nontrivial_with_batched_spark_compression_with::&lt;Bn256Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
+    test_ivc_nontrivial_with_batched_spark_compression_with::&lt;Bn256EngineIPA, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_batched_spark_compression_with::&lt;Secp256k1Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nontrivial_with_batched_spark_compression_with::&lt;Bn256EngineZM, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;(
     );
@@ -3169,7 +3248,8 @@
       <span class="kw-2">&amp;</span>circuit_secondary,
       <span class="kw-2">&amp;*</span>default_ck_hint(),
       <span class="kw-2">&amp;*</span>default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     <span class="kw">let </span>num_steps = <span class="number">3</span>;
 
@@ -3212,7 +3292,7 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_nondet_with_compression() {
     test_ivc_nondet_with_compression_with::&lt;PallasEngine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
-    test_ivc_nondet_with_compression_with::&lt;Bn256Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
+    test_ivc_nondet_with_compression_with::&lt;Bn256EngineIPA, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nondet_with_compression_with::&lt;Secp256k1Engine, EE&lt;<span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
     test_ivc_nondet_with_compression_with::&lt;Bn256EngineZM, ZMPCS&lt;Bn256, <span class="kw">_</span>&gt;, EE&lt;<span class="kw">_</span>&gt;&gt;();
   }
@@ -3230,7 +3310,8 @@
       <span class="kw-2">&amp;</span>test_circuit2,
       <span class="kw-2">&amp;*</span>default_ck_hint(),
       <span class="kw-2">&amp;*</span>default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     <span class="kw">let </span>num_steps = <span class="number">1</span>;
 
@@ -3267,8 +3348,69 @@
   <span class="attr">#[test]
   </span><span class="kw">fn </span>test_ivc_base() {
     test_ivc_base_with::&lt;PallasEngine&gt;();
-    test_ivc_base_with::&lt;Bn256Engine&gt;();
+    test_ivc_base_with::&lt;Bn256EngineKZG&gt;();
     test_ivc_base_with::&lt;Secp256k1Engine&gt;();
+  }
+
+  <span class="kw">fn </span>test_setup_with&lt;E1: CurveCycleEquipped&gt;() {
+    <span class="attr">#[derive(Clone, Debug, Default)]
+    </span><span class="kw">struct </span>CircuitWithInputize&lt;F: PrimeField&gt; {
+      _p: PhantomData&lt;F&gt;,
+    }
+
+    <span class="kw">impl</span>&lt;F: PrimeField&gt; StepCircuit&lt;F&gt; <span class="kw">for </span>CircuitWithInputize&lt;F&gt; {
+      <span class="kw">fn </span>arity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="number">1
+      </span>}
+
+      <span class="kw">fn </span>synthesize&lt;CS: ConstraintSystem&lt;F&gt;&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        cs: <span class="kw-2">&amp;mut </span>CS,
+        z: <span class="kw-2">&amp;</span>[AllocatedNum&lt;F&gt;],
+      ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;AllocatedNum&lt;F&gt;&gt;, SynthesisError&gt; {
+        <span class="kw">let </span>x = <span class="kw-2">&amp;</span>z[<span class="number">0</span>];
+        <span class="comment">// a simplified version of this test would only have one input
+        // but beside the Nova Public parameter requirement for a num_io = 2, being
+        // probed in this test, we *also* require num_io to be even, so
+        // negative testing requires at least 4 inputs
+        </span><span class="kw">let </span>y = x.square(cs.namespace(|| <span class="string">"x_sq"</span>))<span class="question-mark">?</span>;
+        y.inputize(cs.namespace(|| <span class="string">"y"</span>))<span class="question-mark">?</span>; <span class="comment">// inputize y
+        </span><span class="kw">let </span>y2 = x.square(cs.namespace(|| <span class="string">"x_sq2"</span>))<span class="question-mark">?</span>;
+        y2.inputize(cs.namespace(|| <span class="string">"y2"</span>))<span class="question-mark">?</span>; <span class="comment">// inputize y2
+        </span><span class="kw">let </span>y3 = x.square(cs.namespace(|| <span class="string">"x_sq3"</span>))<span class="question-mark">?</span>;
+        y3.inputize(cs.namespace(|| <span class="string">"y3"</span>))<span class="question-mark">?</span>; <span class="comment">// inputize y2
+        </span><span class="kw">let </span>y4 = x.square(cs.namespace(|| <span class="string">"x_sq4"</span>))<span class="question-mark">?</span>;
+        y4.inputize(cs.namespace(|| <span class="string">"y4"</span>))<span class="question-mark">?</span>; <span class="comment">// inputize y2
+        </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[y, y2, y3, y4])
+      }
+    }
+
+    <span class="comment">// produce public parameters with trivial secondary
+    </span><span class="kw">let </span>circuit = CircuitWithInputize::&lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
+    <span class="kw">let </span>pp = PublicParams::&lt;E1&gt;::setup(
+      <span class="kw-2">&amp;</span>circuit,
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;*</span>default_ck_hint(),
+      <span class="kw-2">&amp;*</span>default_ck_hint(),
+    );
+    <span class="macro">assert!</span>(pp.is_err());
+    <span class="macro">assert_eq!</span>(pp.err(), <span class="prelude-val">Some</span>(NovaError::InvalidStepCircuitIO));
+
+    <span class="comment">// produce public parameters with the trivial primary
+    </span><span class="kw">let </span>circuit = CircuitWithInputize::&lt;&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar&gt;::default();
+    <span class="kw">let </span>pp = PublicParams::&lt;E1&gt;::setup(
+      <span class="kw-2">&amp;</span>TrivialCircuit::default(),
+      <span class="kw-2">&amp;</span>circuit,
+      <span class="kw-2">&amp;*</span>default_ck_hint(),
+      <span class="kw-2">&amp;*</span>default_ck_hint(),
+    );
+    <span class="macro">assert!</span>(pp.is_err());
+    <span class="macro">assert_eq!</span>(pp.err(), <span class="prelude-val">Some</span>(NovaError::InvalidStepCircuitIO));
+  }
+
+  <span class="attr">#[test]
+  </span><span class="kw">fn </span>test_setup() {
+    test_setup_with::&lt;Bn256EngineKZG&gt;();
   }
 }
 </code></pre></div></section></main></body></html>

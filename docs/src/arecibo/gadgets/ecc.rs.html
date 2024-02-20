@@ -1183,6 +1183,7 @@
 <a href="#1182" id="1182">1182</a>
 <a href="#1183" id="1183">1183</a>
 <a href="#1184" id="1184">1184</a>
+<a href="#1185" id="1185">1185</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements various elliptic curve gadgets
 </span><span class="attr">#![allow(non_snake_case)]
 </span><span class="kw">use crate</span>::{
@@ -1970,7 +1971,8 @@
     provider::{
       bn256_grumpkin::{bn256, grumpkin},
       secp_secq::{secp256k1, secq256k1},
-      Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
+      Bn256EngineIPA, Bn256EngineKZG, GrumpkinEngine, PallasEngine, Secp256k1Engine,
+      Secq256k1Engine, VestaEngine,
     },
     traits::{snark::default_ck_hint, Engine},
   };
@@ -2110,7 +2112,7 @@
     test_ecc_ops_with::&lt;pallas::Affine, &lt;PallasEngine <span class="kw">as </span>Engine&gt;::GE&gt;();
     test_ecc_ops_with::&lt;vesta::Affine, &lt;VestaEngine <span class="kw">as </span>Engine&gt;::GE&gt;();
 
-    test_ecc_ops_with::&lt;bn256::Affine, &lt;Bn256Engine <span class="kw">as </span>Engine&gt;::GE&gt;();
+    test_ecc_ops_with::&lt;bn256::Affine, &lt;Bn256EngineIPA <span class="kw">as </span>Engine&gt;::GE&gt;();
     test_ecc_ops_with::&lt;grumpkin::Affine, &lt;GrumpkinEngine <span class="kw">as </span>Engine&gt;::GE&gt;();
 
     test_ecc_ops_with::&lt;secp256k1::Affine, &lt;Secp256k1Engine <span class="kw">as </span>Engine&gt;::GE&gt;();
@@ -2197,8 +2199,8 @@
     test_ecc_circuit_ops_with::&lt;PallasEngine, VestaEngine&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2704"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2692"</span>]);
     test_ecc_circuit_ops_with::&lt;VestaEngine, PallasEngine&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2704"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2692"</span>]);
 
-    test_ecc_circuit_ops_with::&lt;Bn256Engine, GrumpkinEngine&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2738"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2724"</span>]);
-    test_ecc_circuit_ops_with::&lt;GrumpkinEngine, Bn256Engine&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2738"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2724"</span>]);
+    test_ecc_circuit_ops_with::&lt;Bn256EngineIPA, GrumpkinEngine&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2738"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2724"</span>]);
+    test_ecc_circuit_ops_with::&lt;GrumpkinEngine, Bn256EngineIPA&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2738"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2724"</span>]);
 
     test_ecc_circuit_ops_with::&lt;Secp256k1Engine, Secq256k1Engine&gt;(
       <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"2670"</span>],
@@ -2260,8 +2262,8 @@
     test_ecc_circuit_add_equal_with::&lt;PallasEngine, VestaEngine&gt;();
     test_ecc_circuit_add_equal_with::&lt;VestaEngine, PallasEngine&gt;();
 
-    test_ecc_circuit_add_equal_with::&lt;Bn256Engine, GrumpkinEngine&gt;();
-    test_ecc_circuit_add_equal_with::&lt;GrumpkinEngine, Bn256Engine&gt;();
+    test_ecc_circuit_add_equal_with::&lt;Bn256EngineKZG, GrumpkinEngine&gt;();
+    test_ecc_circuit_add_equal_with::&lt;GrumpkinEngine, Bn256EngineKZG&gt;();
 
     test_ecc_circuit_add_equal_with::&lt;Secp256k1Engine, Secq256k1Engine&gt;();
     test_ecc_circuit_add_equal_with::&lt;Secq256k1Engine, Secp256k1Engine&gt;();
@@ -2320,11 +2322,11 @@
     test_ecc_circuit_add_negation_with::&lt;PallasEngine, VestaEngine&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"39"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"34"</span>]);
     test_ecc_circuit_add_negation_with::&lt;VestaEngine, PallasEngine&gt;(<span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"39"</span>], <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"34"</span>]);
 
-    test_ecc_circuit_add_negation_with::&lt;Bn256Engine, GrumpkinEngine&gt;(
+    test_ecc_circuit_add_negation_with::&lt;Bn256EngineIPA, GrumpkinEngine&gt;(
       <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"39"</span>],
       <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"34"</span>],
     );
-    test_ecc_circuit_add_negation_with::&lt;GrumpkinEngine, Bn256Engine&gt;(
+    test_ecc_circuit_add_negation_with::&lt;GrumpkinEngine, Bn256EngineIPA&gt;(
       <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"39"</span>],
       <span class="kw-2">&amp;</span><span class="macro">expect!</span>[<span class="string">"34"</span>],
     );

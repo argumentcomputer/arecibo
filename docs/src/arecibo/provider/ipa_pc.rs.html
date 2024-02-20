@@ -813,7 +813,7 @@
     <span class="kw">if </span>P_hat == CE::&lt;E&gt;::commit(<span class="kw-2">&amp;</span>ck_hat.combine(<span class="kw-2">&amp;</span>ck_c), <span class="kw-2">&amp;</span>[<span class="self">self</span>.a_hat, <span class="self">self</span>.a_hat * b_hat]) {
       <span class="prelude-val">Ok</span>(())
     } <span class="kw">else </span>{
-      <span class="prelude-val">Err</span>(NovaError::PCSError(PCSError::InvalidIPA))
+      <span class="prelude-val">Err</span>(NovaError::PCSError(PCSError::InvalidPCS))
     }
   }
 }
