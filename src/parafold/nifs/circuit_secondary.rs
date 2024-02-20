@@ -13,36 +13,32 @@ use crate::gadgets::utils::{alloc_bignat_constant, conditionally_select_bignat, 
 use crate::parafold::ecc::AllocatedPoint;
 use crate::parafold::nifs::{FoldProof, MergeProof, RelaxedR1CSInstance};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
-use crate::traits::Engine;
+use crate::traits::{CurveCycleEquipped, Engine};
 
 #[derive(Debug, Clone)]
-pub struct AllocatedSecondaryRelaxedR1CSInstance<E1: Engine, E2: Engine> {
-  pub u: BigNat<E1::Scalar>,
-  pub X: Vec<BigNat<E1::Scalar>>,
-  pub W: AllocatedPoint<E1::Scalar, E2::GE>,
-  pub E: AllocatedPoint<E1::Scalar, E2::GE>,
+pub struct AllocatedSecondaryRelaxedR1CSInstance<E: CurveCycleEquipped> {
+  pub u: BigNat<E::Scalar>,
+  pub X: Vec<BigNat<E::Scalar>>,
+  pub W: AllocatedPoint<<E::Secondary as Engine>::GE>,
+  pub E: AllocatedPoint<<E::Secondary as Engine>::GE>,
   // q: BigNat<E1::Scalar>, // = E2::Base::MODULUS
 }
 
-impl<E1, E2> AllocatedSecondaryRelaxedR1CSInstance<E1, E2>
-where
-  E1: Engine,
-  E2: Engine<Base = E1::Scalar>,
-{
+impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
   pub fn fold<CS>(
     &mut self,
     mut cs: CS,
-    X_new: Vec<BigNat<E1::Scalar>>,
-    fold_proof: FoldProof<E2>,
-    transcript: &mut AllocatedTranscript<E1>,
+    X_new: Vec<BigNat<E::Scalar>>,
+    fold_proof: FoldProof<E::Secondary>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Result<(), SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     // Allocate the order of the non-native field as a constant
     let q_bn = alloc_bignat_constant(
       cs.namespace(|| "alloc G::Base::modulus"),
-      &BigInt::from_str_radix(E2::Scalar::MODULUS, 16).unwrap(),
+      &BigInt::from_str_radix(E::Base::MODULUS, 16).unwrap(),
       BN_LIMB_WIDTH,
       BN_N_LIMBS,
     )?;
@@ -50,13 +46,12 @@ where
     let FoldProof { W: W_new, T } = fold_proof;
 
     // Allocate W_new, T and add them to the transcript
-    let W_new = AllocatedPoint::alloc_transcript::<_, E1, E2>(
+    let W_new = AllocatedPoint::alloc_transcript::<_, E, _>(
       cs.namespace(|| "alloc W_new"),
       W_new,
       transcript,
     );
-    let T =
-      AllocatedPoint::alloc_transcript::<_, E1, E2>(cs.namespace(|| "alloc T"), T, transcript);
+    let T = AllocatedPoint::alloc_transcript::<_, E, _>(cs.namespace(|| "alloc T"), T, transcript);
 
     // Get challenge `r` but truncate the bits for more efficient scalar multiplication
     let r_bits = transcript.squeeze_bits(cs.namespace(|| "r bits"), NUM_CHALLENGE_BITS)?;
@@ -109,20 +104,21 @@ where
 
     Ok(())
   }
+
   pub fn merge<CS>(
     mut cs: CS,
     self_L: Self,
     self_R: Self,
-    merge_proof: MergeProof<E2>,
-    transcript: &mut AllocatedTranscript<E1>,
+    merge_proof: MergeProof<E::Secondary>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     // Allocate the order of the non-native field as a constant
     let q_bn = alloc_bignat_constant(
       cs.namespace(|| "alloc G::Base::modulus"),
-      &BigInt::from_str_radix(E2::Scalar::MODULUS, 16).unwrap(),
+      &BigInt::from_str_radix(E::Base::MODULUS, 16).unwrap(),
       BN_LIMB_WIDTH,
       BN_N_LIMBS,
     )?;
@@ -130,8 +126,7 @@ where
     let MergeProof { T } = merge_proof;
 
     // Allocate T and add to transcript
-    let T =
-      AllocatedPoint::alloc_transcript::<_, E1, E2>(cs.namespace(|| "alloc T"), T, transcript);
+    let T = AllocatedPoint::alloc_transcript::<_, E, _>(cs.namespace(|| "alloc T"), T, transcript);
     transcript.absorb(T.as_preimage());
 
     // Get truncated challenge
@@ -193,7 +188,7 @@ where
 
   pub fn enforce_trivial<CS>(&self, mut cs: CS, is_trivial: &Boolean)
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     // TODO: If is_trivial
     // u = 0
@@ -206,9 +201,9 @@ where
       .enforce_trivial(cs.namespace(|| "enforce trivial E"), is_trivial);
   }
 
-  fn alloc<CS>(/*mut*/ _cs: CS, _instance: RelaxedR1CSInstance<E2>) -> Self
+  fn alloc<CS>(/*mut*/ _cs: CS, _instance: RelaxedR1CSInstance<E::Secondary>) -> Self
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     // Both u, X need to be allocated as BigInt
     todo!()
@@ -233,11 +228,11 @@ where
   /// Allocate and add the result to the transcript
   pub fn alloc_transcript<CS>(
     mut cs: CS,
-    instance: RelaxedR1CSInstance<E2>,
-    transcript: &mut AllocatedTranscript<E1>,
+    instance: RelaxedR1CSInstance<E::Secondary>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Self
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let instance = Self::alloc(&mut cs, instance);
     transcript.absorb(instance.as_preimage());
@@ -246,7 +241,7 @@ where
 
   pub fn select_default<CS>(self, mut cs: CS, is_default: &Boolean) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<E2::Base>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let bn_zero = alloc_bignat_constant(
       cs.namespace(|| "alloc zero"),
@@ -265,7 +260,7 @@ where
     Ok(Self { u, X, W, E })
   }
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E::Scalar>> {
     vec![]
   }
 }

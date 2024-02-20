@@ -1,4 +1,4 @@
-use ff::{Field, PrimeFieldBits};
+use ff::{Field, PrimeField, PrimeFieldBits};
 use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
 use neptune::sponge::vanilla::Mode::Simplex;
 use neptune::sponge::vanilla::{Sponge, SpongeTrait};
@@ -10,20 +10,20 @@ use crate::traits::Engine;
 use crate::Commitment;
 
 #[derive(Clone, Debug)]
-pub struct Transcript<E: Engine> {
-  constants: TranscriptConstants<E>,
-  state: Vec<E::Scalar>,
+pub struct Transcript<F: PrimeField> {
+  constants: TranscriptConstants<F>,
+  state: Vec<F>,
 }
 
-impl<E: Engine> Transcript<E> {
-  pub fn new(constants: TranscriptConstants<E>) -> Self {
+impl<F: PrimeField> Transcript<F> {
+  pub fn new(constants: TranscriptConstants<F>) -> Self {
     Self {
       constants,
       state: vec![],
     }
   }
 
-  pub fn new_init(init: E::Scalar, constants: TranscriptConstants<E>) -> Self {
+  pub fn new_init(init: F, constants: TranscriptConstants<F>) -> Self {
     Self {
       constants,
       state: vec![init],
@@ -32,22 +32,22 @@ impl<E: Engine> Transcript<E> {
 
   pub fn absorb<I>(&mut self, elements: I)
   where
-    I: IntoIterator<Item = E::Scalar>,
+    I: IntoIterator<Item = F>,
   {
     self.state.extend(elements);
   }
 
-  pub fn absorb_commitment_primary(&mut self, c: Commitment<E>) {
-    let c_hash = HashedCommitment::<E>::new(c);
+  pub fn absorb_commitment_primary<E1: Engine<Scalar = F>>(&mut self, c: Commitment<E1>) {
+    let c_hash = HashedCommitment::<E1>::new(c);
     self.absorb(c_hash.as_preimage());
   }
 
-  pub fn absorb_commitment_secondary<E2: Engine<Base = E::Scalar>>(&mut self, c: Commitment<E2>) {
+  pub fn absorb_commitment_secondary<E2: Engine<Base = F>>(&mut self, c: Commitment<E2>) {
     let (x, y, _) = c.to_coordinates();
     self.absorb([x, y]);
   }
 
-  pub fn squeeze(&mut self) -> E::Scalar {
+  pub fn squeeze(&mut self) -> F {
     let mut sponge = Sponge::new_with_constants(&self.constants, Simplex);
     let num_absorbs = self.state.len() as u32;
     let acc = &mut ();
@@ -61,13 +61,16 @@ impl<E: Engine> Transcript<E> {
     output
   }
 
-  pub fn squeeze_bits_secondary(&mut self, num_bits: usize) -> E::Base {
+  pub fn squeeze_bits_secondary<Base: Field>(&mut self, num_bits: usize) -> Base
+  where
+    F: PrimeFieldBits,
+  {
     let hash = self.squeeze();
 
     // Only return `num_bits`
     let bits = hash.to_le_bits();
-    let mut res = E::Base::ZERO;
-    let mut coeff = E::Base::ONE;
+    let mut res = Base::ZERO;
+    let mut coeff = Base::ONE;
     for bit in bits.into_iter().take(num_bits) {
       if bit {
         res += coeff;
@@ -77,7 +80,7 @@ impl<E: Engine> Transcript<E> {
     res
   }
 
-  pub fn seal(&self) -> E::Scalar {
+  pub fn seal(&self) -> F {
     assert_eq!(self.state.len(), 1);
     self.state[0]
   }

@@ -5,7 +5,7 @@ use crate::parafold::nifs::prover::RelaxedR1CS;
 use crate::parafold::nifs::FoldProof;
 use crate::parafold::transcript::prover::Transcript;
 use crate::r1cs::R1CSShape;
-use crate::traits::Engine;
+use crate::traits::{CurveCycleEquipped, Dual, Engine};
 use crate::{Commitment, CommitmentKey};
 
 /// A [ScalarMulAccumulator] represents a coprocessor for efficiently computing non-native ECC scalar multiplications
@@ -18,11 +18,11 @@ use crate::{Commitment, CommitmentKey};
 ///
 /// All operations are proved in a batch at the end of the circuit in order to minimize latency for the prover.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScalarMulAccumulator<E1: Engine> {
-  deferred: Vec<ScalarMulInstance<E1>>,
+pub struct ScalarMulAccumulator<E: Engine> {
+  deferred: Vec<ScalarMulInstance<E>>,
 }
 
-impl<E1: Engine> ScalarMulAccumulator<E1> {
+impl<E: Engine> ScalarMulAccumulator<E> {
   pub fn new() -> Self {
     Self { deferred: vec![] }
   }
@@ -34,60 +34,59 @@ impl<E1: Engine> ScalarMulAccumulator<E1> {
   /// The tuple `[A, B, x, C]` is added to the `deferred` list which will be proved in a batch later on.
   pub fn scalar_mul(
     &mut self,
-    A: Commitment<E1>,
-    B: Commitment<E1>,
-    x: E1::Scalar,
-    transcript: &mut Transcript<E1>,
-  ) -> Commitment<E1> {
-    let C: Commitment<E1> = A + B * x;
+    A: Commitment<E>,
+    B: Commitment<E>,
+    x: E::Scalar,
+    transcript: &mut Transcript<E::Scalar>,
+  ) -> Commitment<E> {
+    let C: Commitment<E> = A + B * x;
 
-    transcript.absorb_commitment_primary(C.clone());
+    transcript.absorb_commitment_primary::<E>(C.clone());
 
     self.deferred.push(ScalarMulInstance { A, B, x, C });
 
     C
   }
+}
 
+impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
   /// Consume all deferred scalar multiplication instances and create a folding proof for each result.
   /// The proofs are folded into a mutable RelaxedR1CS for the corresponding circuit over the secondary curve.
-  pub fn finalize<E2>(
+  pub fn finalize(
     self,
-    ck: &CommitmentKey<E2>,
-    shape: &R1CSShape<E2>,
-    acc_cf: &mut RelaxedR1CS<E2>,
-    transcript: &mut Transcript<E1>,
-  ) -> Vec<FoldProof<E2>>
-  where
-    E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
-  {
+    ck: &CommitmentKey<E::Secondary>,
+    shape: &R1CSShape<E::Secondary>,
+    acc_cf: &mut RelaxedR1CS<E::Secondary>,
+    transcript: &mut Transcript<E::Scalar>,
+  ) -> Vec<FoldProof<E::Secondary>> {
     self
       .deferred
       .into_iter()
       .map(|_instance| {
-        let cs = SatisfyingAssignment::<E2>::new();
+        let cs = SatisfyingAssignment::<Dual<E>>::new();
         // TODO: synthesize the circuit that proves `instance`
         let (X, W) = cs.to_assignments();
-        acc_cf.fold_secondary(ck, shape, X, &W, transcript)
+        acc_cf.fold_secondary::<E>(ck, shape, X, &W, transcript)
       })
       .collect()
   }
 
-  pub fn simulate_finalize<E2>(self, transcript: &mut Transcript<E1>) -> Vec<FoldProof<E2>>
-  where
-    E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
-  {
+  pub fn simulate_finalize(
+    self,
+    transcript: &mut Transcript<E::Scalar>,
+  ) -> Vec<FoldProof<E::Secondary>> {
     self
       .deferred
       .into_iter()
-      .map(|_| RelaxedR1CS::<E2>::simulate_fold_secondary(transcript))
+      .map(|_| RelaxedR1CS::simulate_fold_secondary::<E>(transcript))
       .collect()
   }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ScalarMulInstance<E1: Engine> {
-  A: Commitment<E1>,
-  B: Commitment<E1>,
-  x: E1::Scalar,
-  C: Commitment<E1>,
+pub struct ScalarMulInstance<E: Engine> {
+  A: Commitment<E>,
+  B: Commitment<E>,
+  x: E::Scalar,
+  C: Commitment<E>,
 }

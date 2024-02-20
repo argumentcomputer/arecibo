@@ -15,31 +15,26 @@ use crate::parafold::nivc::{
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::supernova::EnforcingStepCircuit;
-
-use crate::traits::Engine;
+use crate::traits::CurveCycleEquipped;
 
 /// A representation of a NIVC state, where `io` represents the computations inputs and outputs,
 /// and the `accs` are the accumulators for each step function that was used to produce this result.
 #[derive(Debug, Clone)]
-pub struct AllocatedNIVCState<E1: Engine, E2: Engine> {
-  io: AllocatedNIVCIO<E1::Scalar>,
-  accs_hash: Vec<AllocatedNum<E1::Scalar>>,
-  acc_cf: AllocatedSecondaryRelaxedR1CSInstance<E1, E2>,
+pub struct AllocatedNIVCState<E: CurveCycleEquipped> {
+  io: AllocatedNIVCIO<E::Scalar>,
+  accs_hash: Vec<AllocatedNum<E::Scalar>>,
+  acc_cf: AllocatedSecondaryRelaxedR1CSInstance<E>,
 }
 
-impl<E1, E2> AllocatedNIVCState<E1, E2>
-where
-  E1: Engine,
-  E2: Engine<Base = E1::Scalar>,
-{
+impl<E: CurveCycleEquipped> AllocatedNIVCState<E> {
   /// Loads a previously proved state from a proof of its correctness.
   pub fn from_proof<CS>(
     mut cs: CS,
-    ro_consts: &TranscriptConstants<E1>,
-    proof: NIVCUpdateProof<E1, E2>,
-  ) -> Result<(Self, AllocatedTranscript<E1>), SynthesisError>
+    ro_consts: &TranscriptConstants<E::Scalar>,
+    proof: NIVCUpdateProof<E>,
+  ) -> Result<(Self, AllocatedTranscript<E::Scalar>), SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let NIVCUpdateProof {
       transcript_init,
@@ -112,10 +107,10 @@ where
     &mut self,
     mut cs: CS,
     step_circuit: &SF,
-  ) -> Result<NIVCIO<E1::Scalar>, SynthesisError>
+  ) -> Result<NIVCIO<E::Scalar>, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
-    SF: EnforcingStepCircuit<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
+    SF: EnforcingStepCircuit<E::Scalar>,
   {
     // Run the step circuit
     let cs_step = &mut cs.namespace(|| "synthesize");
@@ -134,12 +129,12 @@ where
     mut cs: CS,
     self_L: Self,
     self_R: Self,
-    ro_consts: &TranscriptConstants<E1>,
-    proof: NIVCMergeProof<E1, E2>,
-    transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<(Self, NIVCIO<E1::Scalar>), SynthesisError>
+    ro_consts: &TranscriptConstants<E::Scalar>,
+    proof: NIVCMergeProof<E>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
+  ) -> Result<(Self, NIVCIO<E::Scalar>), SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let mut acc_sm = AllocatedScalarMulAccumulator::new();
 
@@ -218,7 +213,7 @@ where
 
   pub fn inputize<CS>(&self, mut cs: CS) -> Result<(), SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     for x in self.as_preimage() {
       x.inputize(cs.namespace(|| "inputize"))?
@@ -228,11 +223,11 @@ where
 
   fn alloc_transcript<CS>(
     mut cs: CS,
-    state: NIVCStateInstance<E1, E2>,
-    transcript: &mut AllocatedTranscript<E1>,
+    state: NIVCStateInstance<E>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Self
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let NIVCStateInstance {
       io,
@@ -240,7 +235,7 @@ where
       acc_cf,
     } = state;
 
-    let io = AllocatedNIVCIO::alloc_transcript(cs.namespace(|| "alloc io"), io, transcript);
+    let io = AllocatedNIVCIO::alloc_transcript::<_, E>(cs.namespace(|| "alloc io"), io, transcript);
 
     let accs_hash = accs_hash
       .into_iter()
@@ -267,7 +262,7 @@ where
 
   fn enforce_base_case<CS>(&self, mut cs: CS, is_base_case: &Boolean)
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     // We only need to enforce that the NIVC IO is trivial.
     // We do not need to check that `accs` and `acc_sm` are trivial, the only requirement is that they are
@@ -286,17 +281,17 @@ where
   fn update_accs<CS>(
     &mut self,
     mut cs: CS,
-    ro_consts: &TranscriptConstants<E1>,
-    transcript_init: AllocatedNum<E1::Scalar>,
-    acc_prev: RelaxedR1CSInstance<E1>,
+    ro_consts: &TranscriptConstants<E::Scalar>,
+    transcript_init: AllocatedNum<E::Scalar>,
+    acc_prev: RelaxedR1CSInstance<E>,
     index_prev: Option<usize>,
-    nifs_fold_proof: FoldProof<E1>,
+    nifs_fold_proof: FoldProof<E>,
     is_base_case: &Boolean,
-    acc_sm: &mut AllocatedScalarMulAccumulator<E1>,
-    transcript: &mut AllocatedTranscript<E1>,
+    acc_sm: &mut AllocatedScalarMulAccumulator<E>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Result<(), SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let (acc_prev_hash, acc_curr_hash) = {
       // Load pre-image of accumulator to be updated
@@ -361,7 +356,7 @@ where
         || "is_base.not = ∑_i bits[i]",
         |lc| lc,
         |lc| lc,
-        |_| is_base_case.not().lc(CS::one(), E1::Scalar::ONE) - &lc_sum,
+        |_| is_base_case.not().lc(CS::one(), E::Scalar::ONE) - &lc_sum,
       );
 
       bits
@@ -384,7 +379,7 @@ where
     Ok(())
   }
 
-  fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> + '_ {
+  fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E::Scalar>> + '_ {
     chain![
       self.io.as_preimage(),
       self.accs_hash.iter().cloned(),
@@ -394,16 +389,16 @@ where
 
   fn load_accs<CS>(
     mut cs: CS,
-    accs_native: Vec<RelaxedR1CSInstance<E1>>,
-    accs_hash: Vec<AllocatedNum<E1::Scalar>>,
-    ro_consts: &TranscriptConstants<E1>,
-  ) -> Result<Vec<AllocatedRelaxedR1CSInstance<E1>>, SynthesisError>
+    accs_native: Vec<RelaxedR1CSInstance<E>>,
+    accs_hash: Vec<AllocatedNum<E::Scalar>>,
+    ro_consts: &TranscriptConstants<E::Scalar>,
+  ) -> Result<Vec<AllocatedRelaxedR1CSInstance<E>>, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     zip_eq(accs_native, accs_hash)
       .map(
-        |(acc_native, acc_hash): (RelaxedR1CSInstance<E1>, AllocatedNum<E1::Scalar>)| {
+        |(acc_native, acc_hash): (RelaxedR1CSInstance<E>, AllocatedNum<E::Scalar>)| {
           let acc = AllocatedRelaxedR1CSInstance::alloc(cs.namespace(|| "alloc acc"), acc_native);
           let acc_hash_real = acc.hash(cs.namespace(|| "hash acc"), ro_consts)?;
 
@@ -490,10 +485,10 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
     ]
   }
 
-  pub fn alloc_transcript<CS, E1: Engine<Scalar = F>>(
+  pub fn alloc_transcript<CS, E1: CurveCycleEquipped<Scalar = F>>(
     mut cs: CS,
     state: NIVCIO<F>,
-    transcript: &mut AllocatedTranscript<E1>,
+    transcript: &mut AllocatedTranscript<E1::Scalar>,
   ) -> Self
   where
     CS: ConstraintSystem<F>,

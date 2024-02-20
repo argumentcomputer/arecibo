@@ -2,29 +2,27 @@ use crate::parafold::nivc::prover::NIVCState;
 use crate::parafold::nivc::NIVCUpdateProof;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::r1cs::R1CSShape;
-use crate::{CommitmentKey, Engine};
-pub struct ProvingKey<E1: Engine, E2: Engine> {
+use crate::traits::CurveCycleEquipped;
+use crate::CommitmentKey;
+
+pub struct ProvingKey<E: CurveCycleEquipped> {
   // public params
-  ck: CommitmentKey<E1>,
-  ck_cf: CommitmentKey<E2>,
+  ck: CommitmentKey<E>,
+  ck_cf: CommitmentKey<E::Secondary>,
   // Shapes for each augmented StepCircuit. The last shape is for the merge circuit.
-  shapes: Vec<R1CSShape<E1>>,
-  shape_cf: R1CSShape<E2>,
-  ro_consts: TranscriptConstants<E1>,
+  shapes: Vec<R1CSShape<E>>,
+  shape_cf: R1CSShape<E::Secondary>,
+  ro_consts: TranscriptConstants<E::Scalar>,
 }
 
-pub struct RecursiveSNARK<E1: Engine, E2: Engine> {
+pub struct RecursiveSNARK<E: CurveCycleEquipped> {
   // state
-  state: NIVCState<E1, E2>,
-  proof: NIVCUpdateProof<E1, E2>,
+  state: NIVCState<E>,
+  proof: NIVCUpdateProof<E>,
 }
 
-impl<E1, E2> RecursiveSNARK<E1, E2>
-where
-  E1: Engine,
-  E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
-{
-  pub fn new(pk: &ProvingKey<E1, E2>, pc_init: usize, z_init: Vec<E1::Scalar>) -> Self {
+impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
+  pub fn new(pk: &ProvingKey<E>, pc_init: usize, z_init: Vec<E::Scalar>) -> Self {
     let num_circuits = pk.shapes.len();
     assert!(pc_init < num_circuits);
     // Check arity z_init.len();

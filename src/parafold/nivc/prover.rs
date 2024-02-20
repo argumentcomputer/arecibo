@@ -8,28 +8,24 @@ use crate::parafold::nivc::{NIVCMergeProof, NIVCStateInstance, NIVCUpdateProof, 
 use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::r1cs::R1CSShape;
-use crate::traits::Engine;
+use crate::traits::{CurveCycleEquipped, Engine};
 use crate::CommitmentKey;
 
 #[derive(Debug)]
-pub struct NIVCState<E1: Engine, E2: Engine> {
-  transcript: Transcript<E1>,
-  io: NIVCIO<E1::Scalar>,
-  accs: Vec<RelaxedR1CS<E1>>,
-  acc_cf: RelaxedR1CS<E2>,
+pub struct NIVCState<E: CurveCycleEquipped> {
+  transcript: Transcript<E::Scalar>,
+  io: NIVCIO<E::Scalar>,
+  accs: Vec<RelaxedR1CS<E>>,
+  acc_cf: RelaxedR1CS<E::Secondary>,
 }
 
 #[derive(Debug)]
-pub struct NIVCUpdateWitness<E1: Engine> {
+pub struct NIVCUpdateWitness<E: Engine> {
   pub(crate) index: usize,
-  pub(crate) W: Vec<E1::Scalar>,
+  pub(crate) W: Vec<E::Scalar>,
 }
 
-impl<E1, E2> NIVCState<E1, E2>
-where
-  E1: Engine,
-  E2: Engine<Base = E1::Scalar, Scalar = E1::Base>,
-{
+impl<E: CurveCycleEquipped> NIVCState<E> {
   /// Initialize the prover state and create a default proof for the first iteration.
   ///
   /// # Details
@@ -40,13 +36,13 @@ where
   ///
   ///
   pub fn init(
-    shapes: &[R1CSShape<E1>],
-    shape_cf: &R1CSShape<E2>,
-    ro_consts: &TranscriptConstants<E1>,
+    shapes: &[R1CSShape<E>],
+    shape_cf: &R1CSShape<E::Secondary>,
+    ro_consts: &TranscriptConstants<E::Scalar>,
     pc_init: usize,
-    z_init: Vec<E1::Scalar>,
-  ) -> (Self, NIVCUpdateProof<E1, E2>) {
-    let transcript_init = E1::Scalar::ZERO;
+    z_init: Vec<E::Scalar>,
+  ) -> (Self, NIVCUpdateProof<E>) {
+    let transcript_init = E::Scalar::ZERO;
     let mut state = Self {
       transcript: Transcript::new_init(transcript_init, ro_consts.clone()),
       io: NIVCIO::new(pc_init, z_init),
@@ -62,7 +58,7 @@ where
 
     let mut acc_sm = ScalarMulAccumulator::new();
     let nifs_fold_proof = RelaxedR1CS::simulate_fold_primary(&mut acc_sm, &mut state.transcript);
-    let sm_fold_proofs: [FoldProof<E2>; 2] = acc_sm
+    let sm_fold_proofs: [FoldProof<E::Secondary>; 2] = acc_sm
       .simulate_finalize(&mut state.transcript)
       .try_into()
       .unwrap();
@@ -81,14 +77,14 @@ where
 
   fn update(
     &mut self,
-    ck: &CommitmentKey<E1>,
-    ck_cf: &CommitmentKey<E2>,
-    ro_consts: &TranscriptConstants<E1>,
-    shapes: &[R1CSShape<E1>],
-    shape_cf: &R1CSShape<E2>,
-    witness_prev: &NIVCUpdateWitness<E1>,
-  ) -> NIVCUpdateProof<E1, E2> {
-    let mut acc_sm = ScalarMulAccumulator::<E1>::new();
+    ck: &CommitmentKey<E>,
+    ck_cf: &CommitmentKey<E::Secondary>,
+    ro_consts: &TranscriptConstants<E::Scalar>,
+    shapes: &[R1CSShape<E>],
+    shape_cf: &R1CSShape<E::Secondary>,
+    witness_prev: &NIVCUpdateWitness<E>,
+  ) -> NIVCUpdateProof<E> {
+    let mut acc_sm = ScalarMulAccumulator::<E>::new();
     let transcript_init = self.transcript.seal();
 
     let state = self.instance(ro_consts);
@@ -115,7 +111,7 @@ where
       &mut self.transcript,
     );
 
-    let sm_fold_proofs: [FoldProof<E2>; 2] = acc_sm
+    let sm_fold_proofs: [FoldProof<E::Secondary>; 2] = acc_sm
       .finalize(ck_cf, shape_cf, &mut self.acc_cf, &mut self.transcript)
       .try_into()
       .unwrap();
@@ -131,13 +127,13 @@ where
   }
 
   pub fn merge(
-    ck: &CommitmentKey<E1>,
-    ck_cf: &CommitmentKey<E2>,
-    shapes: &[R1CSShape<E1>],
-    shape_cf: &R1CSShape<E2>,
+    ck: &CommitmentKey<E>,
+    ck_cf: &CommitmentKey<E::Secondary>,
+    shapes: &[R1CSShape<E>],
+    shape_cf: &R1CSShape<E::Secondary>,
     self_L: Self,
     self_R: &Self,
-  ) -> (Self, NIVCMergeProof<E1, E2>) {
+  ) -> (Self, NIVCMergeProof<E>) {
     let Self {
       transcript: transcript_L,
       io: io_L,
@@ -170,8 +166,13 @@ where
     let (accs, nivc_merge_proof) =
       RelaxedR1CS::merge_many(ck, shapes, accs_L, accs_R, &mut acc_sm, &mut transcript);
 
-    let (mut acc_cf, cf_merge_proof) =
-      RelaxedR1CS::merge_secondary(ck_cf, shape_cf, acc_cf_L, acc_cf_R, &mut transcript);
+    let (mut acc_cf, cf_merge_proof) = RelaxedR1CS::<E::Secondary>::merge_secondary::<E>(
+      ck_cf,
+      shape_cf,
+      acc_cf_L,
+      acc_cf_R,
+      &mut transcript,
+    );
 
     let sm_fold_proofs = acc_sm.finalize(ck_cf, shape_cf, &mut acc_cf, &mut transcript);
 
@@ -193,7 +194,7 @@ where
     (self_next, merge_proof)
   }
 
-  pub fn instance(&self, ro_consts: &TranscriptConstants<E1>) -> NIVCStateInstance<E1, E2> {
+  pub fn instance(&self, ro_consts: &TranscriptConstants<E::Scalar>) -> NIVCStateInstance<E> {
     let accs_hash = self
       .accs
       .iter()
@@ -208,12 +209,8 @@ where
   }
 }
 
-impl<E1, E2> NIVCStateInstance<E1, E2>
-where
-  E1: Engine,
-  E2: Engine<Base = E1::Scalar>,
-{
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = E1::Scalar> + '_ {
+impl<E: CurveCycleEquipped> NIVCStateInstance<E> {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = E::Scalar> + '_ {
     chain![
       self.io.as_preimage(),
       self.accs_hash.iter().cloned(),

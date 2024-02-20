@@ -6,18 +6,14 @@ use crate::parafold::cycle_fold::AllocatedHashedCommitment;
 use crate::parafold::nifs::circuit_secondary::AllocatedSecondaryRelaxedR1CSInstance;
 use crate::parafold::nifs::FoldProof;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
-
-use crate::traits::Engine;
+use crate::traits::{CurveCycleEquipped, Engine};
 
 #[derive(Debug, Clone)]
-pub struct AllocatedScalarMulAccumulator<E1: Engine> {
-  deferred: Vec<AllocatedScalarMulInstance<E1>>,
+pub struct AllocatedScalarMulAccumulator<E: Engine> {
+  deferred: Vec<AllocatedScalarMulInstance<E>>,
 }
 
-impl<E1> AllocatedScalarMulAccumulator<E1>
-where
-  E1: Engine,
-{
+impl<E: Engine> AllocatedScalarMulAccumulator<E> {
   pub fn new() -> Self {
     Self { deferred: vec![] }
   }
@@ -26,13 +22,13 @@ where
   pub fn scalar_mul<CS>(
     &mut self,
     mut cs: CS,
-    A: AllocatedHashedCommitment<E1>,
-    B: AllocatedHashedCommitment<E1>,
-    x: AllocatedNum<E1::Scalar>,
-    transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<AllocatedHashedCommitment<E1>, SynthesisError>
+    A: AllocatedHashedCommitment<E>,
+    B: AllocatedHashedCommitment<E>,
+    x: AllocatedNum<E::Scalar>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
+  ) -> Result<AllocatedHashedCommitment<E>, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let A_value = A.value;
     let B_value = B.value;
@@ -59,17 +55,18 @@ where
     self_L.deferred.append(&mut self_R.deferred);
     self_L
   }
+}
 
-  pub fn finalize<CS, E2>(
+impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
+  pub fn finalize<CS>(
     self,
     mut cs: CS,
-    mut acc_cf: AllocatedSecondaryRelaxedR1CSInstance<E1, E2>,
-    proofs: impl IntoIterator<Item = FoldProof<E2>>,
-    transcript: &mut AllocatedTranscript<E1>,
-  ) -> Result<AllocatedSecondaryRelaxedR1CSInstance<E1, E2>, SynthesisError>
+    mut acc_cf: AllocatedSecondaryRelaxedR1CSInstance<E>,
+    proofs: impl IntoIterator<Item = FoldProof<E::Secondary>>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
+  ) -> Result<AllocatedSecondaryRelaxedR1CSInstance<E>, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
-    E2: Engine<Base = E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     for (instance, proof) in zip_eq(self.deferred, proofs) {
       let AllocatedScalarMulInstance { A, B, x, C } = instance;
@@ -91,15 +88,15 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct AllocatedScalarMulInstance<E1: Engine> {
-  A: AllocatedHashedCommitment<E1>,
-  B: AllocatedHashedCommitment<E1>,
-  x: AllocatedNum<E1::Scalar>,
-  C: AllocatedHashedCommitment<E1>,
+pub struct AllocatedScalarMulInstance<E: Engine> {
+  A: AllocatedHashedCommitment<E>,
+  B: AllocatedHashedCommitment<E>,
+  x: AllocatedNum<E::Scalar>,
+  C: AllocatedHashedCommitment<E>,
 }
 
-impl<E1: Engine> AllocatedScalarMulInstance<E1> {
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> + '_ {
+impl<E: Engine> AllocatedScalarMulInstance<E> {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E::Scalar>> + '_ {
     chain![
       self.A.as_preimage(),
       self.B.as_preimage(),

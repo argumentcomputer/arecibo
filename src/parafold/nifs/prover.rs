@@ -9,7 +9,7 @@ use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::r1cs::R1CSShape;
 use crate::traits::commitment::{CommitmentEngineTrait, CommitmentTrait};
-use crate::traits::Engine;
+use crate::traits::{CurveCycleEquipped, Engine};
 use crate::{zip_with, Commitment, CommitmentKey, CE};
 
 /// A full Relaxed-R1CS accumulator for a circuit
@@ -46,33 +46,22 @@ impl<E: Engine> RelaxedR1CS<E> {
   /// while updating the transcript with the standard pattern.
   pub fn simulate_fold_primary(
     acc_sm: &mut ScalarMulAccumulator<E>,
-    transcript: &mut Transcript<E>,
+    transcript: &mut Transcript<E::Scalar>,
   ) -> FoldProof<E> {
     let W = Commitment::<E>::default();
     let T = Commitment::<E>::default();
-    transcript.absorb_commitment_primary(W);
-    transcript.absorb_commitment_primary(T);
+    transcript.absorb_commitment_primary::<E>(W);
+    transcript.absorb_commitment_primary::<E>(T);
     let r = transcript.squeeze();
     let _ = acc_sm.scalar_mul(W, W, r, transcript);
     let _ = acc_sm.scalar_mul(T, T, r, transcript);
     FoldProof { W, T }
   }
 
-  pub fn simulate_fold_secondary<E1: Engine<Scalar = E::Base, Base = E::Scalar>>(
-    transcript: &mut Transcript<E1>,
-  ) -> FoldProof<E> {
-    let W = Commitment::<E>::default();
-    let T = Commitment::<E>::default();
-    transcript.absorb_commitment_secondary::<E>(W);
-    transcript.absorb_commitment_secondary::<E>(T);
-    let _r = transcript.squeeze();
-    FoldProof { W, T }
-  }
-
   /// Given the public IO `X_new` for a circuit with R1CS representation `shape`,
   /// along with a satisfying witness vector `W_new`, and assuming `self` is a valid accumulator for the same circuit,
   /// this function will fold the statement into `self` and return a [FoldProof] that will allow the verifier to perform
-  /// the same transformation over the corresponding [RelaxedR1CSInstance] of the input `self`.  
+  /// the same transformation over the corresponding [RelaxedR1CSInstance] of the input `self`.
   ///
   /// # Warning
   /// We assume the R1CS IO `X_new` has already been absorbed in some form into the transcript in order to avoid
@@ -84,14 +73,14 @@ impl<E: Engine> RelaxedR1CS<E> {
     X_new: Vec<E::Scalar>,
     W_new: &[E::Scalar],
     acc_sm: &mut ScalarMulAccumulator<E>,
-    transcript: &mut Transcript<E>,
+    transcript: &mut Transcript<E::Scalar>,
   ) -> FoldProof<E> {
     // TODO: Parallelize both of these operations
     let W_comm_new = { E::CE::commit(ck, W_new) };
     let (T, T_comm) = { self.compute_fold_proof(ck, shape, None, &X_new, W_new) };
 
-    transcript.absorb_commitment_primary(W_comm_new);
-    transcript.absorb_commitment_primary(T_comm);
+    transcript.absorb_commitment_primary::<E>(W_comm_new);
+    transcript.absorb_commitment_primary::<E>(T_comm);
 
     let r = transcript.squeeze();
 
@@ -128,51 +117,6 @@ impl<E: Engine> RelaxedR1CS<E> {
     }
   }
 
-  pub fn fold_secondary<E1: Engine<Scalar = E::Base, Base = E::Scalar>>(
-    &mut self,
-    ck: &CommitmentKey<E>,
-    shape: &R1CSShape<E>,
-    X_new: Vec<E::Scalar>,
-    W_new: &[E::Scalar],
-    transcript: &mut Transcript<E1>,
-  ) -> FoldProof<E> {
-    // TODO: Parallelize both of these operations
-    let W_comm_new = { E::CE::commit(ck, W_new) };
-    let (T, T_comm) = { self.compute_fold_proof(ck, shape, None, &X_new, W_new) };
-
-    transcript.absorb(comm_to_base::<E>(&W_comm_new));
-    transcript.absorb(comm_to_base::<E>(&T_comm));
-    // TODO: Squeeze
-    let r = transcript.squeeze_bits_secondary(NUM_CHALLENGE_BITS);
-
-    self
-      .W
-      .par_iter_mut()
-      .zip_eq(W_new.par_iter())
-      .for_each(|(w, w_new)| *w += r * w_new);
-    self
-      .E
-      .par_iter_mut()
-      .zip_eq(T.par_iter())
-      .for_each(|(e, t)| *e += r * t);
-
-    // For non-relaxed instances, u_new = 1
-    self.instance.u += r;
-    self
-      .instance
-      .X
-      .iter_mut()
-      .zip_eq(X_new)
-      .for_each(|(x, x_new)| *x += r * x_new);
-    self.instance.W = self.instance.W + W_comm_new * r;
-    self.instance.E = self.instance.E + T_comm * r;
-
-    FoldProof {
-      W: W_comm_new,
-      T: T_comm,
-    }
-  }
-
   /// Given two lists of [RelaxedR1CS] accumulators,
   pub fn merge_many(
     ck: &CommitmentKey<E>,
@@ -180,7 +124,7 @@ impl<E: Engine> RelaxedR1CS<E> {
     mut accs_L: Vec<Self>,
     accs_R: &[Self],
     acc_sm: &mut ScalarMulAccumulator<E>,
-    transcript: &mut Transcript<E>,
+    transcript: &mut Transcript<E::Scalar>,
   ) -> (Vec<Self>, Vec<MergeProof<E>>) {
     // TODO: parallelize
     let (Ts, T_comms): (Vec<_>, Vec<_>) = zip_with!(
@@ -198,7 +142,7 @@ impl<E: Engine> RelaxedR1CS<E> {
     .unzip();
 
     for T_comm in &T_comms {
-      transcript.absorb_commitment_primary(*T_comm);
+      transcript.absorb_commitment_primary::<E>(*T_comm);
     }
     let r = transcript.squeeze();
 
@@ -247,57 +191,6 @@ impl<E: Engine> RelaxedR1CS<E> {
       }
     )
     .unzip()
-  }
-
-  /// Given two lists of [RelaxedR1CS] accumulators,
-  pub fn merge_secondary<E1: Engine<Scalar = E::Base, Base = E::Scalar>>(
-    ck: &CommitmentKey<E>,
-    shape: &R1CSShape<E>,
-    acc_L: Self,
-    acc_R: &Self,
-    transcript: &mut Transcript<E1>,
-  ) -> (Self, MergeProof<E>) {
-    let (T, T_comm) = acc_L.compute_fold_proof(
-      ck,
-      shape,
-      Some(acc_R.instance.u),
-      &acc_R.instance.X,
-      &acc_R.W,
-    );
-
-    transcript.absorb(comm_to_base::<E>(&T_comm));
-    let r = transcript.squeeze_bits_secondary(NUM_CHALLENGE_BITS);
-
-    let W = zip_with!(
-      (acc_L.W.into_par_iter(), acc_R.W.par_iter()),
-      |w_L, w_R| w_L + r * w_R
-    )
-    .collect();
-
-    let E = zip_with!(
-      (acc_L.E.into_par_iter(), T.par_iter(), acc_R.E.par_iter()),
-      |e_L, t, e_R| e_L + r * (*t + r * e_R)
-    )
-    .collect();
-
-    let instance = {
-      let u = acc_L.instance.u + r * acc_R.instance.u;
-      let X = zip_eq(acc_L.instance.X, &acc_R.instance.X)
-        .map(|(x_L, x_R)| x_L + r * x_R)
-        .collect();
-
-      let W = acc_L.instance.W + acc_R.instance.W * r;
-      let E_tmp = T_comm + acc_R.instance.E * r;
-      let E = acc_L.instance.E + E_tmp * r;
-
-      RelaxedR1CSInstance { u, X, W, E }
-    };
-
-    let acc = Self { instance, W, E };
-
-    let merge_proof = MergeProof { T: T_comm };
-
-    (acc, merge_proof)
   }
 
   fn compute_fold_proof(
@@ -355,6 +248,122 @@ impl<E: Engine> RelaxedR1CS<E> {
   }
 }
 
+impl<E2: Engine> RelaxedR1CS<E2> {
+  pub fn simulate_fold_secondary<E>(transcript: &mut Transcript<E::Scalar>) -> FoldProof<E2>
+  where
+    E: CurveCycleEquipped<Secondary = E2, Scalar = E2::Base>,
+  {
+    let W = Commitment::<E2>::default();
+    let T = Commitment::<E2>::default();
+    transcript.absorb_commitment_secondary::<E2>(W);
+    transcript.absorb_commitment_secondary::<E2>(T);
+    let _r = transcript.squeeze();
+    FoldProof { W, T }
+  }
+
+  pub fn fold_secondary<E>(
+    &mut self,
+    ck: &CommitmentKey<E2>,
+    shape: &R1CSShape<E2>,
+    X_new: Vec<E2::Scalar>,
+    W_new: &[E2::Scalar],
+    transcript: &mut Transcript<E::Scalar>,
+  ) -> FoldProof<E2>
+  where
+    E: CurveCycleEquipped<Secondary = E2, Scalar = E2::Base>,
+  {
+    // TODO: Parallelize both of these operations
+    let W_comm_new = { E2::CE::commit(ck, W_new) };
+    let (T, T_comm) = { self.compute_fold_proof(ck, shape, None, &X_new, W_new) };
+
+    transcript.absorb(comm_to_base::<E2>(&W_comm_new));
+    transcript.absorb(comm_to_base::<E2>(&T_comm));
+    // TODO: Squeeze
+    let r = transcript.squeeze_bits_secondary(NUM_CHALLENGE_BITS);
+
+    self
+      .W
+      .par_iter_mut()
+      .zip_eq(W_new.par_iter())
+      .for_each(|(w, w_new)| *w += r * w_new);
+    self
+      .E
+      .par_iter_mut()
+      .zip_eq(T.par_iter())
+      .for_each(|(e, t)| *e += r * t);
+
+    // For non-relaxed instances, u_new = 1
+    self.instance.u += r;
+    self
+      .instance
+      .X
+      .iter_mut()
+      .zip_eq(X_new)
+      .for_each(|(x, x_new)| *x += r * x_new);
+    self.instance.W = self.instance.W + W_comm_new * r;
+    self.instance.E = self.instance.E + T_comm * r;
+
+    FoldProof {
+      W: W_comm_new,
+      T: T_comm,
+    }
+  }
+
+  /// Given two lists of [RelaxedR1CS] accumulators,
+  pub fn merge_secondary<E>(
+    ck: &CommitmentKey<E2>,
+    shape: &R1CSShape<E2>,
+    acc_L: Self,
+    acc_R: &Self,
+    transcript: &mut Transcript<E::Scalar>,
+  ) -> (Self, MergeProof<E2>)
+  where
+    E: CurveCycleEquipped<Secondary = E2, Scalar = E2::Base>,
+  {
+    let (T, T_comm) = acc_L.compute_fold_proof(
+      ck,
+      shape,
+      Some(acc_R.instance.u),
+      &acc_R.instance.X,
+      &acc_R.W,
+    );
+
+    transcript.absorb(comm_to_base::<E2>(&T_comm));
+    let r = transcript.squeeze_bits_secondary(NUM_CHALLENGE_BITS);
+
+    let W = zip_with!(
+      (acc_L.W.into_par_iter(), acc_R.W.par_iter()),
+      |w_L, w_R| w_L + r * w_R
+    )
+    .collect();
+
+    let E = zip_with!(
+      (acc_L.E.into_par_iter(), T.par_iter(), acc_R.E.par_iter()),
+      |e_L, t, e_R| e_L + r * (*t + r * e_R)
+    )
+    .collect();
+
+    let instance = {
+      let u = acc_L.instance.u + r * acc_R.instance.u;
+      let X = zip_eq(acc_L.instance.X, &acc_R.instance.X)
+        .map(|(x_L, x_R)| x_L + r * x_R)
+        .collect();
+
+      let W = acc_L.instance.W + acc_R.instance.W * r;
+      let E_tmp = T_comm + acc_R.instance.E * r;
+      let E = acc_L.instance.E + E_tmp * r;
+
+      RelaxedR1CSInstance { u, X, W, E }
+    };
+
+    let acc = Self { instance, W, E };
+
+    let merge_proof = MergeProof { T: T_comm };
+
+    (acc, merge_proof)
+  }
+}
+
 impl<E: Engine> RelaxedR1CSInstance<E> {
   pub(crate) fn default(num_io: usize) -> Self {
     Self {
@@ -388,16 +397,16 @@ impl<E2: Engine> RelaxedR1CSInstance<E2> {
   }
 }
 
-impl<E1: Engine> RelaxedR1CSInstance<E1> {
+impl<E: Engine> RelaxedR1CSInstance<E> {
   /// On the primary curve, the instances are stored as hashes in the recursive state.
-  pub fn hash(&self, transcript_constants: &TranscriptConstants<E1>) -> E1::Scalar {
-    let mut transcript = Transcript::<E1>::new(transcript_constants.clone());
+  pub fn hash(&self, transcript_constants: &TranscriptConstants<E::Scalar>) -> E::Scalar {
+    let mut transcript = Transcript::new(transcript_constants.clone());
     let Self { u, X, W, E } = self;
 
     transcript.absorb([*u]);
     transcript.absorb(X.iter().cloned());
-    transcript.absorb_commitment_primary(*W);
-    transcript.absorb_commitment_primary(*E);
+    transcript.absorb_commitment_primary::<E>(*W);
+    transcript.absorb_commitment_primary::<E>(*E);
 
     transcript.squeeze()
   }

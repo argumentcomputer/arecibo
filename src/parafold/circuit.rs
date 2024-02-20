@@ -5,19 +5,18 @@ use crate::parafold::nivc::{NIVCMergeProof, NIVCUpdateProof, NIVCIO};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::supernova::StepCircuit;
-use crate::traits::Engine;
+use crate::traits::CurveCycleEquipped;
 
-pub fn synthesize_step<E1, E2, CS, SF>(
+pub fn synthesize_step<E, CS, SF>(
   mut cs: CS,
-  ro_consts: &TranscriptConstants<E1>,
-  proof: NIVCUpdateProof<E1, E2>,
+  ro_consts: &TranscriptConstants<E::Scalar>,
+  proof: NIVCUpdateProof<E>,
   step_circuit: &SF,
-) -> Result<NIVCIO<E1::Scalar>, SynthesisError>
+) -> Result<NIVCIO<E::Scalar>, SynthesisError>
 where
-  E1: Engine,
-  E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
-  CS: ConstraintSystem<E1::Scalar>,
-  SF: StepCircuit<E1::Scalar>,
+  E: CurveCycleEquipped,
+  CS: ConstraintSystem<E::Scalar>,
+  SF: StepCircuit<E::Scalar>,
 {
   // Fold proof for previous state
   let (mut state, transcript) =
@@ -30,18 +29,18 @@ where
 
   io
 }
+
 /// Circuit
-pub fn synthesize_merge<E1, E2, CS>(
+pub fn synthesize_merge<E, CS>(
   mut cs: CS,
-  ro_consts: &TranscriptConstants<E1>,
-  proof_L: NIVCUpdateProof<E1, E2>,
-  proof_R: NIVCUpdateProof<E1, E2>,
-  proof_merge: NIVCMergeProof<E1, E2>,
-) -> Result<NIVCIO<E1::Scalar>, SynthesisError>
+  ro_consts: &TranscriptConstants<E::Scalar>,
+  proof_L: NIVCUpdateProof<E>,
+  proof_R: NIVCUpdateProof<E>,
+  proof_merge: NIVCMergeProof<E>,
+) -> Result<NIVCIO<E::Scalar>, SynthesisError>
 where
-  E1: Engine,
-  E2: Engine<Scalar = E1::Base, Base = E1::Scalar>,
-  CS: ConstraintSystem<E1::Scalar>,
+  E: CurveCycleEquipped,
+  CS: ConstraintSystem<E::Scalar>,
 {
   // Verify L
   let (self_L, transcript_L) =

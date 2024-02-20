@@ -45,24 +45,24 @@ pub mod prover;
 /// so this additional hashing that occurs in the secondary circuit ensure we only need to perform this expensive
 /// operation 4 times. Moreover, the fact that r<q ensures that the scalar x \in F_r can be trivially embedded into F_q.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HashedCommitment<E1: Engine> {
-  point: Commitment<E1>,
+pub struct HashedCommitment<E: Engine> {
+  point: Commitment<E>,
   // Poseidon hash of (x,y) = point. We set hash = 0 when `point` = infinity
-  hash: E1::Base,
+  hash: E::Base,
   // E1 representation of `hash` with `BN_N_LIMBS` limbs of BN_LIMB_WIDTH bits.
-  hash_limbs: [E1::Scalar; BN_N_LIMBS],
+  hash_limbs: [E::Scalar; BN_N_LIMBS],
 }
 
-impl<E1: Engine> HashedCommitment<E1> {
+impl<E: Engine> HashedCommitment<E> {
   /// Convert a [Commitment] to it's compressed representation.
-  pub fn new(point: Commitment<E1>) -> Self {
-    let constants = PoseidonConstants::<E1::Base, U2>::new();
+  pub fn new(point: Commitment<E>) -> Self {
+    let constants = PoseidonConstants::<E::Base, U2>::new();
     let (x, y, infinity) = point.to_coordinates();
     if infinity {
       Self {
         point,
-        hash: E1::Base::ZERO,
-        hash_limbs: [E1::Scalar::ZERO; BN_N_LIMBS],
+        hash: E::Base::ZERO,
+        hash_limbs: [E::Scalar::ZERO; BN_N_LIMBS],
       }
     } else {
       let hash = Poseidon::new_with_preimage(&[x, y], &constants).hash();
@@ -71,17 +71,17 @@ impl<E1: Engine> HashedCommitment<E1> {
         .chunks_exact(BN_LIMB_WIDTH)
         .map(|limb_bits| {
           // TODO: Find more efficient trick
-          let mut limb = E1::Scalar::ZERO;
+          let mut limb = E::Scalar::ZERO;
           for bit in limb_bits.iter().rev() {
             // double limb
             limb += limb;
             if *bit {
-              limb += E1::Scalar::ONE;
+              limb += E::Scalar::ONE;
             }
           }
           limb
         })
-        .collect::<Vec<E1::Scalar>>();
+        .collect::<Vec<E::Scalar>>();
 
       Self {
         point,
@@ -91,7 +91,7 @@ impl<E1: Engine> HashedCommitment<E1> {
     }
   }
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = E1::Scalar> {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = E::Scalar> {
     self.hash_limbs
   }
 }
@@ -106,18 +106,18 @@ impl<E1: Engine> HashedCommitment<E1> {
 /// - Investigate whether a `is_infinity` flag is needed. It could be used to avoid synthesizing secondary circuits
 ///   when the scalar multiplication is trivial.
 #[derive(Debug, Clone)]
-pub struct AllocatedHashedCommitment<E1: Engine> {
-  value: Commitment<E1>,
+pub struct AllocatedHashedCommitment<E: Engine> {
+  value: Commitment<E>,
   // hash = if let Some(point) = value { H_secondary(point) } else { 0 }
-  hash_limbs: [AllocatedNum<E1::Scalar>; BN_N_LIMBS],
+  hash_limbs: [AllocatedNum<E::Scalar>; BN_N_LIMBS],
 }
 
-impl<E1: Engine> AllocatedHashedCommitment<E1> {
-  pub fn alloc<CS>(mut cs: CS, c: Commitment<E1>) -> Self
+impl<E: Engine> AllocatedHashedCommitment<E> {
+  pub fn alloc<CS>(mut cs: CS, c: Commitment<E>) -> Self
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
-    let hashed = HashedCommitment::<E1>::new(c);
+    let hashed = HashedCommitment::<E>::new(c);
     let hash_limbs = hashed
       .hash_limbs
       .map(|limb| AllocatedNum::alloc_infallible(cs.namespace(|| "alloc limb"), || limb));
@@ -130,18 +130,18 @@ impl<E1: Engine> AllocatedHashedCommitment<E1> {
 
   pub fn alloc_transcript<CS>(
     mut cs: CS,
-    c: Commitment<E1>,
-    transcript: &mut AllocatedTranscript<E1>,
+    c: Commitment<E>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Self
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let c = AllocatedHashedCommitment::alloc(&mut cs, c);
     transcript.absorb(c.as_preimage());
     c
   }
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E::Scalar>> {
     self.hash_limbs.clone()
   }
 }

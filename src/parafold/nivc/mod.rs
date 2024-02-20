@@ -2,7 +2,7 @@ use bellpepper_core::num::AllocatedNum;
 use ff::PrimeField;
 
 use crate::parafold::nifs::{FoldProof, MergeProof, RelaxedR1CSInstance};
-use crate::traits::Engine;
+use crate::traits::CurveCycleEquipped;
 
 pub mod circuit;
 pub mod prover;
@@ -30,33 +30,33 @@ pub struct AllocatedNIVCIO<F: PrimeField> {
 
 /// Succinct representation of the recursive NIVC state that is known
 #[derive(Clone, Debug)]
-pub struct NIVCStateInstance<E1: Engine, E2: Engine> {
-  io: NIVCIO<E1::Scalar>,
-  accs_hash: Vec<E1::Scalar>,
-  acc_cf: RelaxedR1CSInstance<E2>,
+pub struct NIVCStateInstance<E: CurveCycleEquipped> {
+  io: NIVCIO<E::Scalar>,
+  accs_hash: Vec<E::Scalar>,
+  acc_cf: RelaxedR1CSInstance<E::Secondary>,
 }
 
 /// A proof for loading a previous NIVC output inside a circuit.
 #[derive(Debug, Clone)]
-pub struct NIVCUpdateProof<E1: Engine, E2: Engine> {
-  transcript_init: E1::Scalar,
+pub struct NIVCUpdateProof<E: CurveCycleEquipped> {
+  transcript_init: E::Scalar,
 
-  state: NIVCStateInstance<E1, E2>,
+  state: NIVCStateInstance<E>,
 
-  acc_prev: RelaxedR1CSInstance<E1>,
+  acc_prev: RelaxedR1CSInstance<E>,
   index_prev: Option<usize>,
-  nifs_fold_proof: FoldProof<E1>,
+  nifs_fold_proof: FoldProof<E>,
 
-  sm_fold_proofs: [FoldProof<E2>; 2],
+  sm_fold_proofs: [FoldProof<E::Secondary>; 2],
 }
 
 #[derive(Debug, Clone)]
-pub struct NIVCMergeProof<E1: Engine, E2: Engine> {
-  accs_L: Vec<RelaxedR1CSInstance<E1>>,
-  accs_R: Vec<RelaxedR1CSInstance<E1>>,
-  nivc_merge_proof: Vec<MergeProof<E1>>,
+pub struct NIVCMergeProof<E: CurveCycleEquipped> {
+  accs_L: Vec<RelaxedR1CSInstance<E>>,
+  accs_R: Vec<RelaxedR1CSInstance<E>>,
+  nivc_merge_proof: Vec<MergeProof<E>>,
 
-  cf_merge_proof: MergeProof<E2>,
+  cf_merge_proof: MergeProof<E::Secondary>,
 
-  sm_fold_proofs: Vec<FoldProof<E2>>,
+  sm_fold_proofs: Vec<FoldProof<E::Secondary>>,
 }

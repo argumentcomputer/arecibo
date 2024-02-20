@@ -12,25 +12,25 @@ use crate::traits::Engine;
 
 /// Allocated [RelaxedR1CSInstance] for a circuit over the primary curve.
 #[derive(Debug, Clone)]
-pub struct AllocatedRelaxedR1CSInstance<E1: Engine> {
-  u: AllocatedNum<E1::Scalar>,
-  X: Vec<AllocatedNum<E1::Scalar>>,
-  W: AllocatedHashedCommitment<E1>,
-  E: AllocatedHashedCommitment<E1>,
+pub struct AllocatedRelaxedR1CSInstance<E: Engine> {
+  u: AllocatedNum<E::Scalar>,
+  X: Vec<AllocatedNum<E::Scalar>>,
+  W: AllocatedHashedCommitment<E>,
+  E: AllocatedHashedCommitment<E>,
 }
 
-impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
+impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
   /// Folds an R1CSInstance into `self`
   pub fn fold<CS>(
     self,
     mut cs: CS,
-    X_new: Vec<AllocatedNum<E1::Scalar>>,
-    acc_sm: &mut AllocatedScalarMulAccumulator<E1>,
-    fold_proof: FoldProof<E1>,
-    transcript: &mut AllocatedTranscript<E1>,
+    X_new: Vec<AllocatedNum<E::Scalar>>,
+    acc_sm: &mut AllocatedScalarMulAccumulator<E>,
+    fold_proof: FoldProof<E>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     let FoldProof { W: W_new, T } = fold_proof;
 
@@ -87,12 +87,12 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
     mut cs: CS,
     accs_L: Vec<Self>,
     accs_R: Vec<Self>,
-    acc_sm: &mut AllocatedScalarMulAccumulator<E1>,
-    proofs: Vec<MergeProof<E1>>,
-    transcript: &mut AllocatedTranscript<E1>,
+    acc_sm: &mut AllocatedScalarMulAccumulator<E>,
+    proofs: Vec<MergeProof<E>>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Result<Vec<Self>, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     // Add all cross-term commitments to the transcript.
     let Ts = proofs
@@ -171,19 +171,19 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
   pub fn hash<CS>(
     &self,
     mut cs: CS,
-    constants: &TranscriptConstants<E1>,
-  ) -> Result<AllocatedNum<E1::Scalar>, SynthesisError>
+    constants: &TranscriptConstants<E::Scalar>,
+  ) -> Result<AllocatedNum<E::Scalar>, SynthesisError>
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
-    let mut transcript = AllocatedTranscript::<E1>::new(constants.clone());
+    let mut transcript = AllocatedTranscript::new(constants.clone());
     transcript.absorb(self.as_preimage());
     transcript.squeeze(&mut cs)
   }
 
-  pub fn alloc<CS>(mut cs: CS, instance: RelaxedR1CSInstance<E1>) -> Self
+  pub fn alloc<CS>(mut cs: CS, instance: RelaxedR1CSInstance<E>) -> Self
   where
-    CS: ConstraintSystem<E1::Scalar>,
+    CS: ConstraintSystem<E::Scalar>,
   {
     // TODO: Add the circuit digest
     let RelaxedR1CSInstance { u, X, W, E } = instance;
@@ -199,7 +199,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
     Self { u, X, W, E }
   }
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> + '_ {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E::Scalar>> + '_ {
     // TODO: Add the circuit digest
     chain![
       [self.u.clone()],

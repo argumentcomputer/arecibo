@@ -1,10 +1,8 @@
-use std::marker::PhantomData;
-
 use bellpepper::gadgets::Assignment;
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
-use ff::PrimeField;
+use ff::{Field, PrimeField};
 
 use crate::gadgets::utils::{
   alloc_num_equals, alloc_one, alloc_zero, conditionally_select, conditionally_select2,
@@ -13,26 +11,21 @@ use crate::gadgets::utils::{
 };
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::commitment::CommitmentTrait;
-use crate::traits::{Engine, Group};
+use crate::traits::{CurveCycleEquipped, Engine, Group};
 use crate::Commitment;
 
 /// `AllocatedPoint` provides an elliptic curve abstraction inside a circuit.
 #[derive(Debug, Clone)]
-pub struct AllocatedPoint<F: PrimeField, G: Group> {
-  pub(crate) x: AllocatedNum<F>,
-  pub(crate) y: AllocatedNum<F>,
-  pub(crate) is_infinity: AllocatedNum<F>,
-  _marker: PhantomData<G>,
+pub struct AllocatedPoint<G: Group> {
+  pub(crate) x: AllocatedNum<G::Base>,
+  pub(crate) y: AllocatedNum<G::Base>,
+  pub(crate) is_infinity: AllocatedNum<G::Base>,
 }
 
-impl<F, G> AllocatedPoint<F, G>
-where
-  F: PrimeField,
-  G: Group<Base = F>,
-{
+impl<G: Group> AllocatedPoint<G> {
   pub fn select_default<CS>(self, mut cs: CS, is_default: &Boolean) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     let zero = alloc_zero(cs.namespace(|| "alloc 0"));
     let one = alloc_one(cs.namespace(|| "alloc 1"));
@@ -47,17 +40,12 @@ where
       &is_infinity,
       is_default,
     )?;
-    Ok(Self {
-      x,
-      y,
-      is_infinity,
-      _marker: Default::default(),
-    })
+    Ok(Self { x, y, is_infinity })
   }
 
   pub fn enforce_trivial<CS>(&self, mut cs: CS, is_trivial: &Boolean)
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     // is_trivial => (is_identity == 1)
     // is_trivial == is_identity
@@ -65,19 +53,19 @@ where
       || "is_trivial - E.is_infinity = 0",
       |lc| lc,
       |lc| lc,
-      |_| is_trivial.lc(CS::one(), F::ONE) - self.is_infinity.get_variable(),
+      |_| is_trivial.lc(CS::one(), G::Base::ONE) - self.is_infinity.get_variable(),
     );
   }
 
-  pub fn alloc_transcript<CS, E1, E2>(
+  pub fn alloc_transcript<CS, E, E2>(
     mut cs: CS,
-    c: Commitment<E2>,
-    transcript: &mut AllocatedTranscript<E1>,
+    c: Commitment<E::Secondary>,
+    transcript: &mut AllocatedTranscript<E::Scalar>,
   ) -> Self
   where
-    CS: ConstraintSystem<F>,
-    E1: Engine<Scalar = F>,
-    E2: Engine<Base = E1::Scalar, GE = G>,
+    CS: ConstraintSystem<G::Base>,
+    E: CurveCycleEquipped<Secondary = E2, Scalar = G::Base>,
+    E2: Engine<Base = G::Base>,
   {
     let c = Self::alloc(&mut cs, Some(c.to_coordinates())).unwrap();
     c.check_on_curve(cs.namespace(|| "check on curve")).unwrap();
@@ -87,17 +75,24 @@ where
 
   /// Allocates a new point on the curve using coordinates provided by `coords`.
   /// If coords = None, it allocates the default infinity point
-  pub fn alloc<CS>(mut cs: CS, coords: Option<(F, F, bool)>) -> Result<Self, SynthesisError>
+  pub fn alloc<CS>(
+    mut cs: CS,
+    coords: Option<(G::Base, G::Base, bool)>,
+  ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
-    let x = AllocatedNum::alloc(cs.namespace(|| "x"), || Ok(coords.map_or(F::ZERO, |c| c.0)))?;
-    let y = AllocatedNum::alloc(cs.namespace(|| "y"), || Ok(coords.map_or(F::ZERO, |c| c.1)))?;
+    let x = AllocatedNum::alloc(cs.namespace(|| "x"), || {
+      Ok(coords.map_or(G::Base::ZERO, |c| c.0))
+    })?;
+    let y = AllocatedNum::alloc(cs.namespace(|| "y"), || {
+      Ok(coords.map_or(G::Base::ZERO, |c| c.1))
+    })?;
     let is_infinity = AllocatedNum::alloc(cs.namespace(|| "is_infinity"), || {
       Ok(if coords.map_or(true, |c| c.2) {
-        F::ONE
+        G::Base::ONE
       } else {
-        F::ZERO
+        G::Base::ZERO
       })
     })?;
     cs.enforce(
@@ -107,18 +102,13 @@ where
       |lc| lc,
     );
 
-    Ok(Self {
-      x,
-      y,
-      is_infinity,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y, is_infinity })
   }
 
   /// checks if `self` is on the curve or if it is infinity
   pub fn check_on_curve<CS>(&self, mut cs: CS) -> Result<(), SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     // check that (x,y) is on the curve if it is not infinity
     // we will check that (1- is_infinity) * y^2 = (1-is_infinity) * (x^3 + Ax + B)
@@ -128,8 +118,8 @@ where
     let x_cube = self.x.mul(cs.namespace(|| "x_cube"), &x_square)?;
 
     let rhs = AllocatedNum::alloc(cs.namespace(|| "rhs"), || {
-      if *self.is_infinity.get_value().get()? == F::ONE {
-        Ok(F::ZERO)
+      if *self.is_infinity.get_value().get()? == G::Base::ONE {
+        Ok(G::Base::ZERO)
       } else {
         Ok(
           *x_cube.get_value().get()?
@@ -164,7 +154,7 @@ where
   /// Allocates a default point on the curve, set to the identity point.
   pub fn default<CS>(mut cs: CS) -> Self
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     let zero = alloc_zero(cs.namespace(|| "zero"));
     let one = alloc_one(cs.namespace(|| "one"));
@@ -173,19 +163,24 @@ where
       x: zero.clone(),
       y: zero,
       is_infinity: one,
-      _marker: PhantomData,
     }
   }
 
   /// Returns coordinates associated with the point.
-  pub const fn get_coordinates(&self) -> (&AllocatedNum<F>, &AllocatedNum<F>, &AllocatedNum<F>) {
+  pub const fn get_coordinates(
+    &self,
+  ) -> (
+    &AllocatedNum<G::Base>,
+    &AllocatedNum<G::Base>,
+    &AllocatedNum<G::Base>,
+  ) {
     (&self.x, &self.y, &self.is_infinity)
   }
 
   /// Negates the provided point
   pub fn negate<CS>(&self, mut cs: CS) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     let y = AllocatedNum::alloc(cs.namespace(|| "y"), || Ok(-*self.y.get_value().get()?))?;
 
@@ -200,14 +195,13 @@ where
       x: self.x.clone(),
       y,
       is_infinity: self.is_infinity.clone(),
-      _marker: PhantomData,
     })
   }
 
   /// Add two points (may be equal)
   pub fn add<CS>(&self, mut cs: CS, other: &Self) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     // Compute boolean equal indicating if self = other
 
@@ -260,7 +254,7 @@ where
     equal_x: &AllocatedBit,
   ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     //************************************************************************/
     // lambda = (other.y - self.y) * (other.x - self.x).invert().unwrap();
@@ -274,9 +268,9 @@ where
     // NOT(NOT(self.is_ifninity) AND NOT(other.is_infinity))
     let at_least_one_inf = AllocatedNum::alloc(cs.namespace(|| "at least one inf"), || {
       Ok(
-        F::ONE
-          - (F::ONE - *self.is_infinity.get_value().get()?)
-            * (F::ONE - *other.is_infinity.get_value().get()?),
+        G::Base::ONE
+          - (G::Base::ONE - *self.is_infinity.get_value().get()?)
+            * (G::Base::ONE - *other.is_infinity.get_value().get()?),
       )
     })?;
     cs.enforce(
@@ -290,7 +284,7 @@ where
     let x_diff_is_actual =
       AllocatedNum::alloc(cs.namespace(|| "allocate x_diff_is_actual"), || {
         Ok(if *equal_x.get_value().get()? {
-          F::ONE
+          G::Base::ONE
         } else {
           *at_least_one_inf.get_value().get()?
         })
@@ -312,9 +306,9 @@ where
     )?;
 
     let lambda = AllocatedNum::alloc(cs.namespace(|| "lambda"), || {
-      let x_diff_inv = if *x_diff_is_actual.get_value().get()? == F::ONE {
+      let x_diff_inv = if *x_diff_is_actual.get_value().get()? == G::Base::ONE {
         // Set to default
-        F::ONE
+        G::Base::ONE
       } else {
         // Set to the actual inverse
         (*other.x.get_value().get()? - *self.x.get_value().get()?)
@@ -415,18 +409,13 @@ where
       &self.is_infinity,
     )?;
 
-    Ok(Self {
-      x,
-      y,
-      is_infinity,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y, is_infinity })
   }
 
   /// Doubles the supplied point.
   pub fn double<CS>(&self, mut cs: CS) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     //*************************************************************/
     // lambda = (G::Base::from(3) * self.x * self.x + G::A())
@@ -449,19 +438,19 @@ where
     // Now compute lambda as (G::Base::from(3) * self.x * self.x + G::A()) * tmp_inv
 
     let prod_1 = AllocatedNum::alloc(cs.namespace(|| "alloc prod 1"), || {
-      Ok(F::from(3) * self.x.get_value().get()? * self.x.get_value().get()?)
+      Ok(G::Base::from(3) * self.x.get_value().get()? * self.x.get_value().get()?)
     })?;
     cs.enforce(
       || "Check prod 1",
-      |lc| lc + (F::from(3), self.x.get_variable()),
+      |lc| lc + (G::Base::from(3), self.x.get_variable()),
       |lc| lc + self.x.get_variable(),
       |lc| lc + prod_1.get_variable(),
     );
 
     let lambda = AllocatedNum::alloc(cs.namespace(|| "alloc lambda"), || {
-      let tmp_inv = if *self.is_infinity.get_value().get()? == F::ONE {
+      let tmp_inv = if *self.is_infinity.get_value().get()? == G::Base::ONE {
         // Return default value 1
-        F::ONE
+        G::Base::ONE
       } else {
         // Return the actual inverse
         (*tmp.get_value().get()?).invert().unwrap()
@@ -525,12 +514,7 @@ where
     // is_infinity
     let is_infinity = self.is_infinity.clone();
 
-    Ok(Self {
-      x,
-      y,
-      is_infinity,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y, is_infinity })
   }
 
   /// A gadget for scalar multiplication, optimized to use incomplete addition law.
@@ -542,9 +526,9 @@ where
     scalar_bits: &[AllocatedBit],
   ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
-    let split_len = core::cmp::min(scalar_bits.len(), (F::NUM_BITS - 2) as usize);
+    let split_len = core::cmp::min(scalar_bits.len(), (G::Base::NUM_BITS - 2) as usize);
     let (incomplete_bits, complete_bits) = scalar_bits.split_at(split_len);
 
     // we convert AllocatedPoint into AllocatedPointNonInfinity; we deal with the case where self.is_infinity = 1 below
@@ -609,7 +593,6 @@ where
       x,
       y,
       is_infinity: res.is_infinity,
-      _marker: PhantomData,
     };
     let mut p_complete = p.to_allocated_point(&self.is_infinity);
 
@@ -636,7 +619,7 @@ where
     condition: &Boolean,
   ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     let x = conditionally_select(cs.namespace(|| "select x"), &a.x, &b.x, condition)?;
 
@@ -649,12 +632,7 @@ where
       condition,
     )?;
 
-    Ok(Self {
-      x,
-      y,
-      is_infinity,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y, is_infinity })
   }
 
   /// If condition outputs a otherwise infinity
@@ -664,7 +642,7 @@ where
     condition: &Boolean,
   ) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     let x = select_num_or_zero(cs.namespace(|| "select x"), &a.x, condition)?;
 
@@ -676,45 +654,31 @@ where
       condition,
     )?;
 
-    Ok(Self {
-      x,
-      y,
-      is_infinity,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y, is_infinity })
   }
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<F>> {
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<G::Base>> {
     [self.x.clone(), self.y.clone(), self.is_infinity.clone()]
   }
 }
 
 #[derive(Clone)]
 /// `AllocatedPoint` but one that is guaranteed to be not infinity
-pub struct AllocatedPointNonInfinity<F: PrimeField, G: Group> {
-  x: AllocatedNum<F>,
-  y: AllocatedNum<F>,
-  _marker: PhantomData<G>,
+pub struct AllocatedPointNonInfinity<G: Group> {
+  x: AllocatedNum<G::Base>,
+  y: AllocatedNum<G::Base>,
 }
 
-impl<F, G> AllocatedPointNonInfinity<F, G>
-where
-  F: PrimeField,
-  G: Group<Base = F>,
-{
+impl<G: Group> AllocatedPointNonInfinity<G> {
   /// Creates a new `AllocatedPointNonInfinity` from the specified coordinates
-  pub fn new(x: AllocatedNum<F>, y: AllocatedNum<F>) -> Self {
-    Self {
-      x,
-      y,
-      _marker: PhantomData,
-    }
+  pub fn new(x: AllocatedNum<G::Base>, y: AllocatedNum<G::Base>) -> Self {
+    Self { x, y }
   }
 
   /// Allocates a new point on the curve using coordinates provided by `coords`.
-  pub fn alloc<CS: ConstraintSystem<F>>(
+  pub fn alloc<CS: ConstraintSystem<G::Base>>(
     mut cs: CS,
-    coords: Option<(F, F)>,
+    coords: Option<(G::Base, G::Base)>,
   ) -> Result<Self, SynthesisError> {
     let x = AllocatedNum::alloc(cs.namespace(|| "x"), || {
       coords.map_or(Err(SynthesisError::AssignmentMissing), |c| Ok(c.0))
@@ -723,46 +687,40 @@ where
       coords.map_or(Err(SynthesisError::AssignmentMissing), |c| Ok(c.1))
     })?;
 
-    Ok(Self {
-      x,
-      y,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y })
   }
 
   /// Turns an `AllocatedPoint` into an `AllocatedPointNonInfinity` (assumes it is not infinity)
-  pub fn from_allocated_point(p: &AllocatedPoint<F, G>) -> Self {
+  pub fn from_allocated_point(p: &AllocatedPoint<G>) -> Self {
     Self {
       x: p.x.clone(),
       y: p.y.clone(),
-      _marker: PhantomData,
     }
   }
 
   /// Returns an `AllocatedPoint` from an `AllocatedPointNonInfinity`
-  pub fn to_allocated_point(&self, is_infinity: &AllocatedNum<F>) -> AllocatedPoint<F, G> {
+  pub fn to_allocated_point(&self, is_infinity: &AllocatedNum<G::Base>) -> AllocatedPoint<G> {
     AllocatedPoint {
       x: self.x.clone(),
       y: self.y.clone(),
       is_infinity: is_infinity.clone(),
-      _marker: PhantomData,
     }
   }
 
   /// Returns coordinates associated with the point.
-  pub const fn get_coordinates(&self) -> (&AllocatedNum<F>, &AllocatedNum<F>) {
+  pub const fn get_coordinates(&self) -> (&AllocatedNum<G::Base>, &AllocatedNum<G::Base>) {
     (&self.x, &self.y)
   }
 
   /// Add two points assuming self != +/- other
   pub fn add_incomplete<CS>(&self, mut cs: CS, other: &Self) -> Result<Self, SynthesisError>
   where
-    CS: ConstraintSystem<F>,
+    CS: ConstraintSystem<G::Base>,
   {
     // allocate a free variable that an honest prover sets to lambda = (y2-y1)/(x2-x1)
     let lambda = AllocatedNum::alloc(cs.namespace(|| "lambda"), || {
       if *other.x.get_value().get()? == *self.x.get_value().get()? {
-        Ok(F::ONE)
+        Ok(G::Base::ONE)
       } else {
         Ok(
           (*other.y.get_value().get()? - *self.y.get_value().get()?)
@@ -813,15 +771,11 @@ where
       |lc| lc + y.get_variable() + self.y.get_variable(),
     );
 
-    Ok(Self {
-      x,
-      y,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y })
   }
 
   /// doubles the point; since this is called with a point not at infinity, it is guaranteed to be not infinity
-  pub fn double_incomplete<CS: ConstraintSystem<F>>(
+  pub fn double_incomplete<CS: ConstraintSystem<G::Base>>(
     &self,
     mut cs: CS,
   ) -> Result<Self, SynthesisError> {
@@ -830,10 +784,10 @@ where
     let x_sq = self.x.square(cs.namespace(|| "x_sq"))?;
 
     let lambda = AllocatedNum::alloc(cs.namespace(|| "lambda"), || {
-      let n = F::from(3) * x_sq.get_value().get()? + G::group_params().0;
-      let d = F::from(2) * *self.y.get_value().get()?;
-      if d == F::ZERO {
-        Ok(F::ONE)
+      let n = G::Base::from(3) * x_sq.get_value().get()? + G::group_params().0;
+      let d = G::Base::from(2) * *self.y.get_value().get()?;
+      if d == G::Base::ZERO {
+        Ok(G::Base::ONE)
       } else {
         Ok(n * d.invert().unwrap())
       }
@@ -841,8 +795,8 @@ where
     cs.enforce(
       || "Check that lambda is computed correctly",
       |lc| lc + lambda.get_variable(),
-      |lc| lc + (F::from(2), self.y.get_variable()),
-      |lc| lc + (F::from(3), x_sq.get_variable()) + (G::group_params().0, CS::one()),
+      |lc| lc + (G::Base::from(2), self.y.get_variable()),
+      |lc| lc + (G::Base::from(3), x_sq.get_variable()) + (G::group_params().0, CS::one()),
     );
 
     let x = AllocatedNum::alloc(cs.namespace(|| "x"), || {
@@ -857,7 +811,7 @@ where
       || "check that x is correct",
       |lc| lc + lambda.get_variable(),
       |lc| lc + lambda.get_variable(),
-      |lc| lc + x.get_variable() + (F::from(2), self.x.get_variable()),
+      |lc| lc + x.get_variable() + (G::Base::from(2), self.x.get_variable()),
     );
 
     let y = AllocatedNum::alloc(cs.namespace(|| "y"), || {
@@ -874,15 +828,11 @@ where
       |lc| lc + y.get_variable() + self.y.get_variable(),
     );
 
-    Ok(Self {
-      x,
-      y,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y })
   }
 
   /// If condition outputs a otherwise outputs b
-  pub fn conditionally_select<CS: ConstraintSystem<F>>(
+  pub fn conditionally_select<CS: ConstraintSystem<G::Base>>(
     mut cs: CS,
     a: &Self,
     b: &Self,
@@ -891,10 +841,6 @@ where
     let x = conditionally_select(cs.namespace(|| "select x"), &a.x, &b.x, condition)?;
     let y = conditionally_select(cs.namespace(|| "select y"), &a.y, &b.y, condition)?;
 
-    Ok(Self {
-      x,
-      y,
-      _marker: PhantomData,
-    })
+    Ok(Self { x, y })
   }
 }
