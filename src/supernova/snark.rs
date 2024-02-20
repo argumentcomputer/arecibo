@@ -282,7 +282,7 @@ fn field_as_usize<F: PrimeField>(x: F) -> usize {
 mod test {
   use super::*;
   use crate::{
-    provider::{ipa_pc, Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{ipa_pc, Bn256EngineIPA, PallasEngine, Secp256k1Engine},
     spartan::{batched, batched_ppsnark, snark::RelaxedR1CSSNARK},
     supernova::{circuit::TrivialSecondaryCircuit, NonUniformCircuit, StepCircuit},
   };
@@ -513,11 +513,11 @@ mod test {
   fn test_nivc_trivial_with_compression() {
     // ppSNARK
     test_nivc_trivial_with_compression_with::<PallasEngine, S1PP<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<Bn256Engine, S1PP<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<Bn256EngineIPA, S1PP<_>, S2<_>>();
     test_nivc_trivial_with_compression_with::<Secp256k1Engine, S1PP<_>, S2<_>>();
     // classic SNARK
     test_nivc_trivial_with_compression_with::<PallasEngine, S1<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<Bn256Engine, S1<_>, S2<_>>();
+    test_nivc_trivial_with_compression_with::<Bn256EngineIPA, S1<_>, S2<_>>();
     test_nivc_trivial_with_compression_with::<Secp256k1Engine, S1<_>, S2<_>>();
   }
 
@@ -696,11 +696,11 @@ mod test {
   fn test_compression_with_circuit_size_difference() {
     // ppSNARK
     test_compression_with_circuit_size_difference_with::<PallasEngine, S1PP<_>, S2<_>>();
-    test_compression_with_circuit_size_difference_with::<Bn256Engine, S1PP<_>, S2<_>>();
+    test_compression_with_circuit_size_difference_with::<Bn256EngineIPA, S1PP<_>, S2<_>>();
     test_compression_with_circuit_size_difference_with::<Secp256k1Engine, S1PP<_>, S2<_>>();
     // classic SNARK
     test_compression_with_circuit_size_difference_with::<PallasEngine, S1<_>, S2<_>>();
-    test_compression_with_circuit_size_difference_with::<Bn256Engine, S1<_>, S2<_>>();
+    test_compression_with_circuit_size_difference_with::<Bn256EngineIPA, S1<_>, S2<_>>();
     test_compression_with_circuit_size_difference_with::<Secp256k1Engine, S1<_>, S2<_>>();
   }
 }

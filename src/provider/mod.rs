@@ -35,15 +35,15 @@ use pasta_curves::{pallas, vesta};
 
 use self::kzg_commitment::KZGCommitmentEngine;
 
-/// An implementation of the Nova `Engine` trait with BN254 curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Bn256Engine;
-
 /// An implementation of the Nova `Engine` trait with Grumpkin curve and Pedersen commitment scheme
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GrumpkinEngine;
 
-impl Engine for Bn256Engine {
+/// An implementation of the Nova `Engine` trait with BN254 curve and Pedersen commitment scheme
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Bn256EngineIPA;
+
+impl Engine for Bn256EngineIPA {
   type Base = bn256::Base;
   type Scalar = bn256::Scalar;
   type GE = bn256::Point;
@@ -76,7 +76,7 @@ impl Engine for Bn256EngineZM {
   type TE = Keccak256Transcript<Self>;
   type CE = KZGCommitmentEngine<Bn256>;
 }
-/// An implementation of Nova traits with multilinear KZG over the BN256 curve
+/// An implementation of Nova traits with HyperKZG over the BN256 curve
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Bn256EngineKZG;
 
@@ -90,7 +90,7 @@ impl Engine for Bn256EngineKZG {
   type CE = KZGCommitmentEngine<Bn256>;
 }
 
-impl CurveCycleEquipped for Bn256Engine {
+impl CurveCycleEquipped for Bn256EngineIPA {
   type Secondary = GrumpkinEngine;
 }
 

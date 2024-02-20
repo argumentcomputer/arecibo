@@ -372,7 +372,7 @@ mod tests {
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::utils::scalar_as_base,
     provider::{
-      poseidon::PoseidonConstantsCircuit, Bn256Engine, GrumpkinEngine, PallasEngine,
+      poseidon::PoseidonConstantsCircuit, Bn256EngineKZG, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     traits::{circuit::TrivialCircuit, snark::default_ck_hint, CurveCycleEquipped, Dual},
@@ -468,13 +468,13 @@ mod tests {
   }
 
   #[test]
-  fn test_recursive_circuit_grumpkin() {
+  fn test_recursive_circuit_bn256_grumpkin() {
     let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<GrumpkinEngine> = PoseidonConstantsCircuit::default();
-    let ro_consts2: ROConstantsCircuit<Bn256Engine> = PoseidonConstantsCircuit::default();
+    let ro_consts2: ROConstantsCircuit<Bn256EngineKZG> = PoseidonConstantsCircuit::default();
 
-    test_recursive_circuit_with::<Bn256Engine>(
+    test_recursive_circuit_with::<Bn256EngineKZG>(
       &params1,
       &params2,
       ro_consts1,
@@ -485,7 +485,7 @@ mod tests {
   }
 
   #[test]
-  fn test_recursive_circuit_secp() {
+  fn test_recursive_circuit_secpq() {
     let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<Secq256k1Engine> = PoseidonConstantsCircuit::default();

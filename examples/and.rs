@@ -230,7 +230,8 @@ fn main() {
       &circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
-    );
+    )
+    .unwrap();
     println!("PublicParams::setup, took {:?} ", start.elapsed());
 
     println!(
@@ -290,7 +291,7 @@ fn main() {
     assert!(res.is_ok());
 
     // produce a compressed SNARK
-    println!("Generating a CompressedSNARK using Spartan with multilinear KZG...");
+    println!("Generating a CompressedSNARK using Spartan with HyperKZG...");
     let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();

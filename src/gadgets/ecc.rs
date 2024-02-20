@@ -785,7 +785,8 @@ mod tests {
     provider::{
       bn256_grumpkin::{bn256, grumpkin},
       secp_secq::{secp256k1, secq256k1},
-      Bn256Engine, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
+      Bn256EngineIPA, Bn256EngineKZG, GrumpkinEngine, PallasEngine, Secp256k1Engine,
+      Secq256k1Engine, VestaEngine,
     },
     traits::{snark::default_ck_hint, Engine},
   };
@@ -925,7 +926,7 @@ mod tests {
     test_ecc_ops_with::<pallas::Affine, <PallasEngine as Engine>::GE>();
     test_ecc_ops_with::<vesta::Affine, <VestaEngine as Engine>::GE>();
 
-    test_ecc_ops_with::<bn256::Affine, <Bn256Engine as Engine>::GE>();
+    test_ecc_ops_with::<bn256::Affine, <Bn256EngineIPA as Engine>::GE>();
     test_ecc_ops_with::<grumpkin::Affine, <GrumpkinEngine as Engine>::GE>();
 
     test_ecc_ops_with::<secp256k1::Affine, <Secp256k1Engine as Engine>::GE>();
@@ -1012,8 +1013,8 @@ mod tests {
     test_ecc_circuit_ops_with::<PallasEngine, VestaEngine>(&expect!["2704"], &expect!["2692"]);
     test_ecc_circuit_ops_with::<VestaEngine, PallasEngine>(&expect!["2704"], &expect!["2692"]);
 
-    test_ecc_circuit_ops_with::<Bn256Engine, GrumpkinEngine>(&expect!["2738"], &expect!["2724"]);
-    test_ecc_circuit_ops_with::<GrumpkinEngine, Bn256Engine>(&expect!["2738"], &expect!["2724"]);
+    test_ecc_circuit_ops_with::<Bn256EngineIPA, GrumpkinEngine>(&expect!["2738"], &expect!["2724"]);
+    test_ecc_circuit_ops_with::<GrumpkinEngine, Bn256EngineIPA>(&expect!["2738"], &expect!["2724"]);
 
     test_ecc_circuit_ops_with::<Secp256k1Engine, Secq256k1Engine>(
       &expect!["2670"],
@@ -1075,8 +1076,8 @@ mod tests {
     test_ecc_circuit_add_equal_with::<PallasEngine, VestaEngine>();
     test_ecc_circuit_add_equal_with::<VestaEngine, PallasEngine>();
 
-    test_ecc_circuit_add_equal_with::<Bn256Engine, GrumpkinEngine>();
-    test_ecc_circuit_add_equal_with::<GrumpkinEngine, Bn256Engine>();
+    test_ecc_circuit_add_equal_with::<Bn256EngineKZG, GrumpkinEngine>();
+    test_ecc_circuit_add_equal_with::<GrumpkinEngine, Bn256EngineKZG>();
 
     test_ecc_circuit_add_equal_with::<Secp256k1Engine, Secq256k1Engine>();
     test_ecc_circuit_add_equal_with::<Secq256k1Engine, Secp256k1Engine>();
@@ -1135,11 +1136,11 @@ mod tests {
     test_ecc_circuit_add_negation_with::<PallasEngine, VestaEngine>(&expect!["39"], &expect!["34"]);
     test_ecc_circuit_add_negation_with::<VestaEngine, PallasEngine>(&expect!["39"], &expect!["34"]);
 
-    test_ecc_circuit_add_negation_with::<Bn256Engine, GrumpkinEngine>(
+    test_ecc_circuit_add_negation_with::<Bn256EngineIPA, GrumpkinEngine>(
       &expect!["39"],
       &expect!["34"],
     );
-    test_ecc_circuit_add_negation_with::<GrumpkinEngine, Bn256Engine>(
+    test_ecc_circuit_add_negation_with::<GrumpkinEngine, Bn256EngineIPA>(
       &expect!["39"],
       &expect!["34"],
     );

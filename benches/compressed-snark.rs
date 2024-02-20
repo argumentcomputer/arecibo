@@ -68,7 +68,8 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
   let c_secondary = TrivialCircuit::default();
 
   // Produce public parameters
-  let pp = PublicParams::<E1>::setup(&c_primary, &c_secondary, &*S1::ck_floor(), &*S2::ck_floor());
+  let pp = PublicParams::<E1>::setup(&c_primary, &c_secondary, &*S1::ck_floor(), &*S2::ck_floor())
+    .unwrap();
 
   // Produce prover and verifier keys for CompressedSNARK
   let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();

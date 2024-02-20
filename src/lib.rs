@@ -241,14 +241,14 @@ where
   /// let ck_hint1 = &*SPrime::<E1>::ck_floor();
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
   ///
-  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2);
+  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2).unwrap();
   /// ```
   pub fn setup<C1: StepCircuit<E1::Scalar>, C2: StepCircuit<<Dual<E1> as Engine>::Scalar>>(
     c_primary: &C1,
     c_secondary: &C2,
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<Dual<E1>>,
-  ) -> Self {
+  ) -> Result<Self, NovaError> {
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let augmented_circuit_params_secondary =
@@ -276,7 +276,6 @@ where
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
     let ck_primary = Arc::new(ck_primary);
-    let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -289,9 +288,15 @@ where
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let ck_secondary = Arc::new(ck_secondary);
+
+    if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
+      return Err(NovaError::InvalidStepCircuitIO);
+    }
+
+    let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
     let circuit_shape_secondary = R1CSWithArity::new(r1cs_shape_secondary, F_arity_secondary);
 
-    Self {
+    Ok(Self {
       F_arity_primary,
       F_arity_secondary,
       ro_consts_primary,
@@ -305,7 +310,7 @@ where
       augmented_circuit_params_primary,
       augmented_circuit_params_secondary,
       digest: OnceCell::new(),
-    }
+    })
   }
 
   /// Retrieve the digest of the public parameters.
@@ -1017,7 +1022,7 @@ mod tests {
   use super::*;
   use crate::{
     provider::{
-      non_hiding_zeromorph::ZMPCS, Bn256Engine, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
+      non_hiding_zeromorph::ZMPCS, Bn256EngineIPA, Bn256EngineKZG, Bn256EngineZM, PallasEngine,
       Secp256k1Engine,
     },
     traits::{evaluation::EvaluationEngineTrait, snark::default_ck_hint},
@@ -1095,7 +1100,7 @@ mod tests {
     // this tests public parameters with a size specifically intended for a spark-compressed SNARK
     let ck_hint1 = &*SPrime::<E1, EE1>::ck_floor();
     let ck_hint2 = &*SPrime::<Dual<E1>, EE2>::ck_floor();
-    let pp = PublicParams::<E1>::setup(circuit1, circuit2, ck_hint1, ck_hint2);
+    let pp = PublicParams::<E1>::setup(circuit1, circuit2, ck_hint1, ck_hint2).unwrap();
 
     let digest_str = pp
       .digest()
@@ -1115,36 +1120,36 @@ mod tests {
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["582db42439c0dcfc60d24b023ab83d81d97382ac2efa883c6f23147345efeb01"],
+      &expect!["e5a6a85b77f3fb958b69722a5a21bf656fd21a6b5a012708a4b086b6be6d2b03"],
     );
 
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["83ef7f741c983bfc9193f1ba387b4966ca8d0818acac65583e30d72593b0f600"],
+      &expect!["ec707a8b822baebca114b6e61b238374f9ed358c542dd37ee73febb47832cd01"],
     );
 
-    test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Bn256EngineIPA, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["09e1cc324b4469aec5abc55d48d8add5d161cbb70aa023f78e171c58e3199600"],
+      &expect!["df52de22456157eb056003d4dc580a167ab8ce40a151c9944ea09a6fd0028600"],
     );
 
-    test_pp_digest_with::<Bn256Engine, _, _, EE<_>, EE<_>>(
+    test_pp_digest_with::<Bn256EngineIPA, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["7602bf1fdf3d86b8a7228de4c163e11cc3908b93412548f8cf3ebc1bc638fd00"],
+      &expect!["b3ad0f4b734c5bd2ab9e83be8ee0cbaaa120e5cd0270b51cb9d7778a33f0b801"],
     );
 
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["dbbfd46ea48118694ec96631015c41cccc721c4f3aaf5b542bf18cca37878b02"],
+      &expect!["e1feca53664212ee750da857c726b2a09bb30b2964f22ea85a19b58c9eaf5701"],
     );
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["c71fd5e574129205426e07edcb5fd0b26f78991d1ab883b1dfb7e82844480801"],
+      &expect!["4ad6b10b6fd24fecba49f08d35bc874a6da9c77735bc0bcf4b78b1914a97e602"],
     );
   }
 
@@ -1161,7 +1166,8 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
     let num_steps = 1;
 
     // produce a recursive SNARK
@@ -1191,7 +1197,7 @@ mod tests {
   #[test]
   fn test_ivc_trivial() {
     test_ivc_trivial_with::<PallasEngine>();
-    test_ivc_trivial_with::<Bn256Engine>();
+    test_ivc_trivial_with::<Bn256EngineIPA>();
     test_ivc_trivial_with::<Secp256k1Engine>();
   }
 
@@ -1208,7 +1214,8 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1263,7 +1270,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial() {
     test_ivc_nontrivial_with::<PallasEngine>();
-    test_ivc_nontrivial_with::<Bn256Engine>();
+    test_ivc_nontrivial_with::<Bn256EngineKZG>();
     test_ivc_nontrivial_with::<Secp256k1Engine>();
   }
 
@@ -1285,7 +1292,8 @@ mod tests {
       &circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1362,7 +1370,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_compression() {
     test_ivc_nontrivial_with_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
     test_ivc_nontrivial_with_compression_with::<
@@ -1387,7 +1395,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_spark_compression() {
     test_ivc_nontrivial_with_spark_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
     test_ivc_nontrivial_with_spark_compression_with::<
@@ -1416,7 +1424,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_batched_compression() {
     test_ivc_nontrivial_with_batched_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_batched_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
     test_ivc_nontrivial_with_batched_compression_with::<
@@ -1443,7 +1451,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_batched_spark_compression() {
     test_ivc_nontrivial_with_batched_spark_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_spark_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nontrivial_with_batched_spark_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>(
     );
@@ -1532,7 +1540,8 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 3;
 
@@ -1575,7 +1584,7 @@ mod tests {
   #[test]
   fn test_ivc_nondet_with_compression() {
     test_ivc_nondet_with_compression_with::<PallasEngine, EE<_>, EE<_>>();
-    test_ivc_nondet_with_compression_with::<Bn256Engine, EE<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<Bn256EngineIPA, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Secp256k1Engine, EE<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Bn256EngineZM, ZMPCS<Bn256, _>, EE<_>>();
   }
@@ -1593,7 +1602,8 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-    );
+    )
+    .unwrap();
 
     let num_steps = 1;
 
@@ -1630,7 +1640,68 @@ mod tests {
   #[test]
   fn test_ivc_base() {
     test_ivc_base_with::<PallasEngine>();
-    test_ivc_base_with::<Bn256Engine>();
+    test_ivc_base_with::<Bn256EngineKZG>();
     test_ivc_base_with::<Secp256k1Engine>();
+  }
+
+  fn test_setup_with<E1: CurveCycleEquipped>() {
+    #[derive(Clone, Debug, Default)]
+    struct CircuitWithInputize<F: PrimeField> {
+      _p: PhantomData<F>,
+    }
+
+    impl<F: PrimeField> StepCircuit<F> for CircuitWithInputize<F> {
+      fn arity(&self) -> usize {
+        1
+      }
+
+      fn synthesize<CS: ConstraintSystem<F>>(
+        &self,
+        cs: &mut CS,
+        z: &[AllocatedNum<F>],
+      ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+        let x = &z[0];
+        // a simplified version of this test would only have one input
+        // but beside the Nova Public parameter requirement for a num_io = 2, being
+        // probed in this test, we *also* require num_io to be even, so
+        // negative testing requires at least 4 inputs
+        let y = x.square(cs.namespace(|| "x_sq"))?;
+        y.inputize(cs.namespace(|| "y"))?; // inputize y
+        let y2 = x.square(cs.namespace(|| "x_sq2"))?;
+        y2.inputize(cs.namespace(|| "y2"))?; // inputize y2
+        let y3 = x.square(cs.namespace(|| "x_sq3"))?;
+        y3.inputize(cs.namespace(|| "y3"))?; // inputize y2
+        let y4 = x.square(cs.namespace(|| "x_sq4"))?;
+        y4.inputize(cs.namespace(|| "y4"))?; // inputize y2
+        Ok(vec![y, y2, y3, y4])
+      }
+    }
+
+    // produce public parameters with trivial secondary
+    let circuit = CircuitWithInputize::<<E1 as Engine>::Scalar>::default();
+    let pp = PublicParams::<E1>::setup(
+      &circuit,
+      &TrivialCircuit::default(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
+    assert!(pp.is_err());
+    assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
+
+    // produce public parameters with the trivial primary
+    let circuit = CircuitWithInputize::<<Dual<E1> as Engine>::Scalar>::default();
+    let pp = PublicParams::<E1>::setup(
+      &TrivialCircuit::default(),
+      &circuit,
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
+    assert!(pp.is_err());
+    assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
+  }
+
+  #[test]
+  fn test_setup() {
+    test_setup_with::<Bn256EngineKZG>();
   }
 }

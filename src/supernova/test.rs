@@ -1,6 +1,6 @@
 use crate::gadgets::utils::alloc_zero;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
-use crate::provider::Bn256Engine;
+use crate::provider::Bn256EngineIPA;
 use crate::provider::PallasEngine;
 use crate::provider::Secp256k1Engine;
 use crate::provider::VestaEngine;
@@ -606,18 +606,18 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<PallasEngine, _>(
     &test_rom,
-    &expect!["2cd90507c9e6ae5e9afeec3dfd1544884436737d8c4f92abff0053c361fa6102"],
+    &expect!["698b3592bf271c0cc53245aee71ec3f8e0d16486b3efc73be290a0af27605b01"],
   );
 
   let rom = vec![
     OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1, OPCODE_1, OPCODE_0, OPCODE_0, OPCODE_1,
     OPCODE_1,
   ]; // Rom can be arbitrary length.
-  let test_rom_grumpkin = TestROM::<Bn256Engine>::new(rom);
+  let test_rom_grumpkin = TestROM::<Bn256EngineIPA>::new(rom);
 
-  test_pp_digest_with::<Bn256Engine, _>(
+  test_pp_digest_with::<Bn256EngineIPA, _>(
     &test_rom_grumpkin,
-    &expect!["c335819a49075ca959121d1dd016f944ee742c61122074be7a487ba814c40f00"],
+    &expect!["30418e576c11dd698054a6cc69d1b1e43ddf0f562abfb50b777147afad741a01"],
   );
 
   let rom = vec![
@@ -628,7 +628,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Secp256k1Engine, _>(
     &test_rom_secp,
-    &expect!["828b9e470907cb133898186d56a14e6644cd2005cb07dd6c7e947f32831b8c02"],
+    &expect!["c94ee4e2870e34d6d057aa66157f8315879ecf2692ab9d1e2567c5830bed1103"],
   );
 }
 
@@ -875,6 +875,6 @@ where
 #[test]
 fn test_nivc_nondet() {
   test_nivc_nondet_with::<PallasEngine>();
-  test_nivc_nondet_with::<Bn256Engine>();
+  test_nivc_nondet_with::<Bn256EngineIPA>();
   test_nivc_nondet_with::<Secp256k1Engine>();
 }

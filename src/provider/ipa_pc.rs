@@ -396,7 +396,7 @@ where
     if P_hat == CE::<E>::commit(&ck_hat.combine(&ck_c), &[self.a_hat, self.a_hat * b_hat]) {
       Ok(())
     } else {
-      Err(NovaError::PCSError(PCSError::InvalidIPA))
+      Err(NovaError::PCSError(PCSError::InvalidPCS))
     }
   }
 }
