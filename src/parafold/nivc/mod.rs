@@ -7,6 +7,10 @@ use crate::traits::Engine;
 pub mod circuit;
 pub mod prover;
 
+/// The input and output of a NIVC computation over one or more steps.
+///
+/// # Note
+/// - An IO result is trivial if {pc, z}_in == {pc, z}_out
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NIVCIO<F> {
   pc_in: F,
@@ -15,17 +19,7 @@ pub struct NIVCIO<F> {
   z_out: Vec<F>,
 }
 
-#[derive(Clone, Debug)]
-pub struct NIVCStateInstance<E1: Engine, E2: Engine> {
-  io: NIVCIO<E1::Scalar>,
-  accs_hash: Vec<E1::Scalar>,
-  acc_cf: RelaxedR1CSInstance<E2>,
-}
-
 /// The input and output of a NIVC computation over one or more steps.
-///
-/// # Note
-/// - An IO result is trivial if {pc, z}_in == {pc, z}_out
 #[derive(Debug, Clone)]
 pub struct AllocatedNIVCIO<F: PrimeField> {
   pc_in: AllocatedNum<F>,
@@ -34,6 +28,15 @@ pub struct AllocatedNIVCIO<F: PrimeField> {
   z_out: Vec<AllocatedNum<F>>,
 }
 
+/// Succinct representation of the recursive NIVC state that is known
+#[derive(Clone, Debug)]
+pub struct NIVCStateInstance<E1: Engine, E2: Engine> {
+  io: NIVCIO<E1::Scalar>,
+  accs_hash: Vec<E1::Scalar>,
+  acc_cf: RelaxedR1CSInstance<E2>,
+}
+
+/// A proof for loading a previous NIVC output inside a circuit.
 #[derive(Debug, Clone)]
 pub struct NIVCUpdateProof<E1: Engine, E2: Engine> {
   transcript_init: E1::Scalar,

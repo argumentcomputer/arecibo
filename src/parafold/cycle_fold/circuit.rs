@@ -6,13 +6,11 @@ use crate::parafold::cycle_fold::AllocatedHashedCommitment;
 use crate::parafold::nifs::circuit_secondary::AllocatedSecondaryRelaxedR1CSInstance;
 use crate::parafold::nifs::FoldProof;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
-use crate::parafold::transcript::TranscriptConstants;
+
 use crate::traits::Engine;
-use crate::Commitment;
 
 #[derive(Debug, Clone)]
 pub struct AllocatedScalarMulAccumulator<E1: Engine> {
-  constants: TranscriptConstants<E1>,
   deferred: Vec<AllocatedScalarMulInstance<E1>>,
 }
 
@@ -20,25 +18,8 @@ impl<E1> AllocatedScalarMulAccumulator<E1>
 where
   E1: Engine,
 {
-  pub fn new(constants: TranscriptConstants<E1>) -> Self {
-    Self {
-      constants,
-      deferred: vec![],
-    }
-  }
-
-  pub fn alloc_transcript<CS>(
-    &self,
-    mut cs: CS,
-    commitment: Commitment<E1>,
-    transcript: &mut AllocatedTranscript<E1>,
-  ) -> AllocatedHashedCommitment<E1>
-  where
-    CS: ConstraintSystem<E1::Scalar>,
-  {
-    let c = AllocatedHashedCommitment::alloc(&mut cs, commitment, &self.constants);
-    transcript.absorb(c.as_preimage());
-    c
+  pub fn new() -> Self {
+    Self { deferred: vec![] }
   }
 
   /// Compute the result `C <- A + x * B` by folding a proof over the secondary curve.
@@ -57,7 +38,11 @@ where
     let B_value = B.value;
     let x_value = x.get_value().ok_or(SynthesisError::AssignmentMissing)?;
     let C_value = A_value + B_value * x_value;
-    let C = self.alloc_transcript(cs.namespace(|| "alloc output"), C_value, transcript);
+    let C = AllocatedHashedCommitment::alloc_transcript(
+      cs.namespace(|| "alloc output"),
+      C_value,
+      transcript,
+    );
 
     self.deferred.push(AllocatedScalarMulInstance {
       A,

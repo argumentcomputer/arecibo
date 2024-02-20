@@ -32,10 +32,6 @@ where
   E2: Engine<Base = E1::Scalar>,
 {
   /// Loads a previously proved state from a proof of its correctness.
-  ///
-  /// # Details
-  ///
-  ///
   pub fn from_proof<CS>(
     mut cs: CS,
     ro_consts: &TranscriptConstants<E1>,
@@ -79,8 +75,9 @@ where
     state.enforce_base_case(cs.namespace(|| "base case"), &is_base_case);
 
     // Initialize scalar mul accumulator for folding
-    let mut acc_sm = AllocatedScalarMulAccumulator::new(ro_consts.clone());
+    let mut acc_sm = AllocatedScalarMulAccumulator::new();
 
+    // Update the set of accumulators with the fresh folding proof
     state.update_accs(
       cs.namespace(|| "update accs"),
       ro_consts,
@@ -101,6 +98,8 @@ where
       &mut transcript,
     )?;
 
+    // If this is the first iteration, then reset `acc_cf` to its default state since no scalar multiplications
+    // were actually computed
     state.acc_cf = state
       .acc_cf
       .select_default(cs.namespace(|| "enforce trivial acc_cf"), &is_base_case)?;
@@ -141,7 +140,7 @@ where
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
-    let mut acc_sm = AllocatedScalarMulAccumulator::new(ro_consts.clone());
+    let mut acc_sm = AllocatedScalarMulAccumulator::new();
 
     let Self {
       io: io_L,
@@ -301,7 +300,7 @@ where
     let (acc_prev_hash, acc_curr_hash) = {
       // Load pre-image of accumulator to be updated
       let acc_prev =
-        AllocatedRelaxedR1CSInstance::alloc(cs.namespace(|| "alloc acc_prev"), acc_prev, ro_consts);
+        AllocatedRelaxedR1CSInstance::alloc(cs.namespace(|| "alloc acc_prev"), acc_prev);
 
       // Compute its hash
       let acc_prev_hash = acc_prev.hash(cs.namespace(|| "hash acc_prev"), ro_consts)?;
@@ -404,11 +403,7 @@ where
     zip_eq(accs_native, accs_hash)
       .map(
         |(acc_native, acc_hash): (RelaxedR1CSInstance<E1>, AllocatedNum<E1::Scalar>)| {
-          let acc = AllocatedRelaxedR1CSInstance::alloc(
-            cs.namespace(|| "alloc acc"),
-            acc_native,
-            ro_consts,
-          );
+          let acc = AllocatedRelaxedR1CSInstance::alloc(cs.namespace(|| "alloc acc"), acc_native);
           let acc_hash_real = acc.hash(cs.namespace(|| "hash acc"), ro_consts)?;
 
           // Ensure the loaded accumulator's hash matches the one from the state
@@ -536,6 +531,7 @@ impl<F: PrimeField> AllocatedNIVCIO<F> {
     io
   }
 
+  /// Attempt to extract the native representation.
   pub fn to_native(&self) -> Result<NIVCIO<F>, SynthesisError> {
     let pc_in = self
       .pc_in

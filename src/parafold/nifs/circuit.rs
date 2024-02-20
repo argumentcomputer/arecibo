@@ -10,7 +10,7 @@ use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::traits::Engine;
 
-/// Allocated [RelaxedR1CSInstance]
+/// Allocated [RelaxedR1CSInstance] for a circuit over the primary curve.
 #[derive(Debug, Clone)]
 pub struct AllocatedRelaxedR1CSInstance<E1: Engine> {
   u: AllocatedNum<E1::Scalar>,
@@ -33,8 +33,13 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
     CS: ConstraintSystem<E1::Scalar>,
   {
     let FoldProof { W: W_new, T } = fold_proof;
-    let W_new = acc_sm.alloc_transcript(cs.namespace(|| "alloc W_new"), W_new, transcript);
-    let T = acc_sm.alloc_transcript(cs.namespace(|| "alloc E"), T, transcript);
+
+    let W_new = AllocatedHashedCommitment::alloc_transcript(
+      cs.namespace(|| "alloc W_new"),
+      W_new,
+      transcript,
+    );
+    let T = AllocatedHashedCommitment::alloc_transcript(cs.namespace(|| "alloc E"), T, transcript);
 
     let r = transcript.squeeze(&mut cs.namespace(|| "squeeze r"))?;
 
@@ -53,6 +58,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
         mul_add(cs.namespace(|| format!("X_next[{i}]")), &x_curr, x_new, &r)
       })
       .collect::<Result<Vec<_>, _>>()?;
+    // W_next = W_curr + r * W_new
     let W_next = acc_sm.scalar_mul(
       cs.namespace(|| "W_next"),
       W_curr.clone(),
@@ -91,7 +97,13 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
     // Add all cross-term commitments to the transcript.
     let Ts = proofs
       .into_iter()
-      .map(|proof| acc_sm.alloc_transcript(cs.namespace(|| "alloc Ts"), proof.T, transcript))
+      .map(|proof| {
+        AllocatedHashedCommitment::alloc_transcript(
+          cs.namespace(|| "alloc Ts"),
+          proof.T,
+          transcript,
+        )
+      })
       .collect::<Vec<_>>();
 
     // Get common challenge
@@ -169,11 +181,7 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
     transcript.squeeze(&mut cs)
   }
 
-  pub fn alloc<CS>(
-    mut cs: CS,
-    instance: RelaxedR1CSInstance<E1>,
-    constants: &TranscriptConstants<E1>,
-  ) -> Self
+  pub fn alloc<CS>(mut cs: CS, instance: RelaxedR1CSInstance<E1>) -> Self
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
@@ -185,8 +193,8 @@ impl<E1: Engine> AllocatedRelaxedR1CSInstance<E1> {
       .enumerate()
       .map(|(i, X)| AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc X[{i}]")), || X))
       .collect();
-    let W = AllocatedHashedCommitment::alloc(cs.namespace(|| "alloc W"), W, constants);
-    let E = AllocatedHashedCommitment::alloc(cs.namespace(|| "alloc E"), E, constants);
+    let W = AllocatedHashedCommitment::alloc(cs.namespace(|| "alloc W"), W);
+    let E = AllocatedHashedCommitment::alloc(cs.namespace(|| "alloc E"), E);
 
     Self { u, X, W, E }
   }

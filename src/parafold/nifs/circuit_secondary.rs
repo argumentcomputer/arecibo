@@ -49,6 +49,7 @@ where
 
     let FoldProof { W: W_new, T } = fold_proof;
 
+    // Allocate W_new, T and add them to the transcript
     let W_new = AllocatedPoint::alloc_transcript::<_, E1, E2>(
       cs.namespace(|| "alloc W_new"),
       W_new,
@@ -57,6 +58,7 @@ where
     let T =
       AllocatedPoint::alloc_transcript::<_, E1, E2>(cs.namespace(|| "alloc T"), T, transcript);
 
+    // Get challenge `r` but truncate the bits for more efficient scalar multiplication
     let r_bits = transcript.squeeze_bits(cs.namespace(|| "r bits"), NUM_CHALLENGE_BITS)?;
     let r = le_bits_to_num(cs.namespace(|| "r"), &r_bits)?;
     let r_bn = BigNat::from_num(
@@ -65,6 +67,7 @@ where
       BN_LIMB_WIDTH,
       BN_N_LIMBS,
     )?;
+
     let Self {
       u: u_curr,
       X: X_curr,
@@ -72,6 +75,7 @@ where
       E: E_curr,
     } = self;
 
+    // We have to do a full modular reduction since merging will make `u` full-sized
     let u_next = u_curr
       .add(&r_bn)?
       .red_mod(cs.namespace(|| "u_next = u_curr + r % q"), &q_bn)?;
@@ -88,6 +92,7 @@ where
       })
       .collect::<Result<Vec<_>, _>>()?;
 
+    // Scalar multiplications
     let W_next = W_new
       .scalar_mul(cs.namespace(|| "r * W_new"), &r_bits)?
       .add(cs.namespace(|| "W_curr + r * W_new"), W_curr)?;
@@ -124,10 +129,12 @@ where
 
     let MergeProof { T } = merge_proof;
 
+    // Allocate T and add to transcript
     let T =
       AllocatedPoint::alloc_transcript::<_, E1, E2>(cs.namespace(|| "alloc T"), T, transcript);
     transcript.absorb(T.as_preimage());
 
+    // Get truncated challenge
     let r_bits = transcript.squeeze_bits(cs.namespace(|| "r bits"), NUM_CHALLENGE_BITS)?;
     let r = le_bits_to_num(cs.namespace(|| "r"), &r_bits)?;
     let r_bn = BigNat::from_num(
@@ -199,7 +206,7 @@ where
       .enforce_trivial(cs.namespace(|| "enforce trivial E"), is_trivial);
   }
 
-  pub fn alloc<CS>(/*mut*/ _cs: CS, _instance: RelaxedR1CSInstance<E2>) -> Self
+  fn alloc<CS>(/*mut*/ _cs: CS, _instance: RelaxedR1CSInstance<E2>) -> Self
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
@@ -223,6 +230,7 @@ where
     // }
   }
 
+  /// Allocate and add the result to the transcript
   pub fn alloc_transcript<CS>(
     mut cs: CS,
     instance: RelaxedR1CSInstance<E2>,

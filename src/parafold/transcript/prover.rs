@@ -38,7 +38,7 @@ impl<E: Engine> Transcript<E> {
   }
 
   pub fn absorb_commitment_primary(&mut self, c: Commitment<E>) {
-    let c_hash = HashedCommitment::<E>::new(c, &self.constants);
+    let c_hash = HashedCommitment::<E>::new(c);
     self.absorb(c_hash.as_preimage());
   }
 
@@ -48,7 +48,7 @@ impl<E: Engine> Transcript<E> {
   }
 
   pub fn squeeze(&mut self) -> E::Scalar {
-    let mut sponge = Sponge::new_with_constants(&self.constants.0, Simplex);
+    let mut sponge = Sponge::new_with_constants(&self.constants, Simplex);
     let num_absorbs = self.state.len() as u32;
     let acc = &mut ();
     let parameter = IOPattern(vec![SpongeOp::Absorb(num_absorbs), SpongeOp::Squeeze(1u32)]);

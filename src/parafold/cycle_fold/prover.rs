@@ -1,11 +1,9 @@
 use bellpepper_core::ConstraintSystem;
 
 use crate::bellpepper::solver::SatisfyingAssignment;
-use crate::parafold::cycle_fold::HashedCommitment;
 use crate::parafold::nifs::prover::RelaxedR1CS;
 use crate::parafold::nifs::FoldProof;
 use crate::parafold::transcript::prover::Transcript;
-use crate::parafold::transcript::TranscriptConstants;
 use crate::r1cs::R1CSShape;
 use crate::traits::Engine;
 use crate::{Commitment, CommitmentKey};
@@ -21,16 +19,12 @@ use crate::{Commitment, CommitmentKey};
 /// All operations are proved in a batch at the end of the circuit in order to minimize latency for the prover.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarMulAccumulator<E1: Engine> {
-  constants: TranscriptConstants<E1>,
   deferred: Vec<ScalarMulInstance<E1>>,
 }
 
 impl<E1: Engine> ScalarMulAccumulator<E1> {
-  pub fn new(constants: TranscriptConstants<E1>) -> Self {
-    Self {
-      constants,
-      deferred: vec![],
-    }
+  pub fn new() -> Self {
+    Self { deferred: vec![] }
   }
 
   /// Given two commitments `A`, `B` and a scalar `x`, compute `C <- A + x * B`
@@ -45,27 +39,12 @@ impl<E1: Engine> ScalarMulAccumulator<E1> {
     x: E1::Scalar,
     transcript: &mut Transcript<E1>,
   ) -> Commitment<E1> {
-    let C_value = A + B * x;
+    let C: Commitment<E1> = A + B * x;
 
-    let C = self.add_to_transcript(C_value, transcript);
+    transcript.absorb_commitment_primary(C.clone());
 
-    self.deferred.push(ScalarMulInstance {
-      A: HashedCommitment::new(A, &self.constants),
-      B: HashedCommitment::new(B, &self.constants),
-      x,
-      C,
-    });
-    C_value
-  }
+    self.deferred.push(ScalarMulInstance { A, B, x, C });
 
-  /// Convert a [Commitment] to a [HashedCommitment] and add it to the transcript.
-  pub fn add_to_transcript(
-    &self,
-    C: Commitment<E1>,
-    transcript: &mut Transcript<E1>,
-  ) -> HashedCommitment<E1> {
-    let C = HashedCommitment::new(C, &self.constants);
-    transcript.absorb(C.hash_limbs);
     C
   }
 
@@ -107,8 +86,8 @@ impl<E1: Engine> ScalarMulAccumulator<E1> {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ScalarMulInstance<E1: Engine> {
-  A: HashedCommitment<E1>,
-  B: HashedCommitment<E1>,
+  A: Commitment<E1>,
+  B: Commitment<E1>,
   x: E1::Scalar,
-  C: HashedCommitment<E1>,
+  C: Commitment<E1>,
 }

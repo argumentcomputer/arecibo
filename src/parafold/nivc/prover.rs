@@ -60,7 +60,7 @@ where
     state.transcript.absorb(state_instance.as_preimage());
     let acc_prev = RelaxedR1CSInstance::default(num_io);
 
-    let mut acc_sm = ScalarMulAccumulator::new(ro_consts.clone());
+    let mut acc_sm = ScalarMulAccumulator::new();
     let nifs_fold_proof = RelaxedR1CS::simulate_fold_primary(&mut acc_sm, &mut state.transcript);
     let sm_fold_proofs: [FoldProof<E2>; 2] = acc_sm
       .simulate_finalize(&mut state.transcript)
@@ -88,7 +88,7 @@ where
     shape_cf: &R1CSShape<E2>,
     witness_prev: &NIVCUpdateWitness<E1>,
   ) -> NIVCUpdateProof<E1, E2> {
-    let mut acc_sm = ScalarMulAccumulator::<E1>::new(ro_consts.clone());
+    let mut acc_sm = ScalarMulAccumulator::<E1>::new();
     let transcript_init = self.transcript.seal();
 
     let state = self.instance(ro_consts);
@@ -135,7 +135,6 @@ where
     ck_cf: &CommitmentKey<E2>,
     shapes: &[R1CSShape<E1>],
     shape_cf: &R1CSShape<E2>,
-    ro_consts: &TranscriptConstants<E1>,
     self_L: Self,
     self_R: &Self,
   ) -> (Self, NIVCMergeProof<E1, E2>) {
@@ -152,7 +151,7 @@ where
       acc_cf: acc_cf_R,
     } = self_R;
 
-    let mut acc_sm = ScalarMulAccumulator::new(ro_consts.clone());
+    let mut acc_sm = ScalarMulAccumulator::new();
     let mut transcript = Transcript::merge(transcript_L, transcript_R);
 
     let io = NIVCIO::merge(io_L, io_R.clone());

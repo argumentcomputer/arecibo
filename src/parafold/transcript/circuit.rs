@@ -22,6 +22,7 @@ impl<E: Engine> AllocatedTranscript<E> {
       state: vec![],
     }
   }
+
   pub fn new_init<CS>(
     mut cs: CS,
     init: E::Scalar,
@@ -64,21 +65,12 @@ impl<E: Engine> AllocatedTranscript<E> {
 
     let acc = &mut cs.namespace(|| "squeeze");
 
-    let mut sponge = SpongeCircuit::new_with_constants(&self.constants.0, Simplex);
+    let mut sponge = SpongeCircuit::new_with_constants(&self.constants, Simplex);
     sponge.start(pattern, None, acc);
-    // sponge.start(pattern, None, &mut cs.namespace(|| "start"));
-    SpongeAPI::absorb(
-      &mut sponge,
-      num_absorbs,
-      &self.state,
-      acc,
-      // &mut cs.namespace(|| "absorb"),
-    );
+    SpongeAPI::absorb(&mut sponge, num_absorbs, &self.state, acc);
 
     self.state = SpongeAPI::squeeze(&mut sponge, 1, acc);
-    // self.state = SpongeAPI::squeeze(&mut sponge, 1, &mut cs.namespace(|| "squeeze"));
     sponge.finish(acc).unwrap();
-    // sponge.finish(&mut cs.namespace(|| "finish")).unwrap();
 
     let hash = self.state[0].ensure_allocated(acc, false)?;
 

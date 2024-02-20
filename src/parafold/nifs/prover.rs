@@ -4,7 +4,6 @@ use rayon::prelude::*;
 
 use crate::constants::{BN_N_LIMBS, NUM_CHALLENGE_BITS};
 use crate::parafold::cycle_fold::prover::ScalarMulAccumulator;
-use crate::parafold::cycle_fold::HashedCommitment;
 use crate::parafold::nifs::{FoldProof, MergeProof, RelaxedR1CSInstance};
 use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptConstants;
@@ -17,7 +16,7 @@ use crate::{zip_with, Commitment, CommitmentKey, CE};
 /// # TODO:
 /// It would make sense to store the [R1CSShape] here since
 /// - There is only one accumulator per shape
-/// -   
+/// - We can probably use an Arc to avoid copying
 #[derive(Debug)]
 pub struct RelaxedR1CS<E: Engine> {
   instance: RelaxedR1CSInstance<E>,
@@ -43,6 +42,8 @@ impl<E: Engine> RelaxedR1CS<E> {
     &self.instance
   }
 
+  /// Simulate the fold protocol for a circuit on the primary curve, creating a trivial proof,
+  /// while updating the transcript with the standard pattern.
   pub fn simulate_fold_primary(
     acc_sm: &mut ScalarMulAccumulator<E>,
     transcript: &mut Transcript<E>,
@@ -89,8 +90,9 @@ impl<E: Engine> RelaxedR1CS<E> {
     let W_comm_new = { E::CE::commit(ck, W_new) };
     let (T, T_comm) = { self.compute_fold_proof(ck, shape, None, &X_new, W_new) };
 
-    acc_sm.add_to_transcript(W_comm_new, transcript);
-    acc_sm.add_to_transcript(T_comm, transcript);
+    transcript.absorb_commitment_primary(W_comm_new);
+    transcript.absorb_commitment_primary(T_comm);
+
     let r = transcript.squeeze();
 
     self
@@ -391,14 +393,12 @@ impl<E1: Engine> RelaxedR1CSInstance<E1> {
   pub fn hash(&self, transcript_constants: &TranscriptConstants<E1>) -> E1::Scalar {
     let mut transcript = Transcript::<E1>::new(transcript_constants.clone());
     let Self { u, X, W, E } = self;
-    let W = HashedCommitment::<E1>::new(*W, transcript_constants);
-    let E = HashedCommitment::<E1>::new(*E, transcript_constants);
-    transcript.absorb(chain![
-      [*u],
-      X.iter().cloned(),
-      W.as_preimage(),
-      E.as_preimage()
-    ]);
+
+    transcript.absorb([*u]);
+    transcript.absorb(X.iter().cloned());
+    transcript.absorb_commitment_primary(*W);
+    transcript.absorb_commitment_primary(*E);
+
     transcript.squeeze()
   }
 }

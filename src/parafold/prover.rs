@@ -7,6 +7,7 @@ pub struct ProvingKey<E1: Engine, E2: Engine> {
   // public params
   ck: CommitmentKey<E1>,
   ck_cf: CommitmentKey<E2>,
+  // Shapes for each augmented StepCircuit. The last shape is for the merge circuit.
   shapes: Vec<R1CSShape<E1>>,
   shape_cf: R1CSShape<E2>,
   ro_consts: TranscriptConstants<E1>,
@@ -26,6 +27,8 @@ where
   pub fn new(pk: &ProvingKey<E1, E2>, pc_init: usize, z_init: Vec<E1::Scalar>) -> Self {
     let num_circuits = pk.shapes.len();
     assert!(pc_init < num_circuits);
+    // Check arity z_init.len();
+
     let (state, proof) = NIVCState::init(&pk.shapes, &pk.shape_cf, &pk.ro_consts, pc_init, z_init);
 
     Self { state, proof }

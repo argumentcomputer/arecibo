@@ -1,10 +1,12 @@
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::ConstraintSystem;
 use ff::{Field, PrimeFieldBits};
+use neptune::generic_array::typenum::U2;
+use neptune::poseidon::PoseidonConstants;
 use neptune::Poseidon;
 
 use crate::constants::{BN_LIMB_WIDTH, BN_N_LIMBS};
-use crate::parafold::transcript::TranscriptConstants;
+use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::Engine;
 use crate::Commitment;
@@ -47,16 +49,14 @@ pub struct HashedCommitment<E1: Engine> {
   point: Commitment<E1>,
   // Poseidon hash of (x,y) = point. We set hash = 0 when `point` = infinity
   hash: E1::Base,
-  // E1 representation of `BN_N_LIMBS` limbs with BN_LIMB_WIDTH bits.
+  // E1 representation of `hash` with `BN_N_LIMBS` limbs of BN_LIMB_WIDTH bits.
   hash_limbs: [E1::Scalar; BN_N_LIMBS],
 }
 
 impl<E1: Engine> HashedCommitment<E1> {
   /// Convert a [Commitment] to it's compressed representation.
-  ///
-  /// # TODO:
-  /// - The Poseidon constants for `H(x,y)` over F_q are defined by `constants.1`.
-  pub fn new(point: Commitment<E1>, constants: &TranscriptConstants<E1>) -> Self {
+  pub fn new(point: Commitment<E1>) -> Self {
+    let constants = PoseidonConstants::<E1::Base, U2>::new();
     let (x, y, infinity) = point.to_coordinates();
     if infinity {
       Self {
@@ -65,7 +65,7 @@ impl<E1: Engine> HashedCommitment<E1> {
         hash_limbs: [E1::Scalar::ZERO; BN_N_LIMBS],
       }
     } else {
-      let hash = Poseidon::new_with_preimage(&[x, y], &constants.1).hash();
+      let hash = Poseidon::new_with_preimage(&[x, y], &constants).hash();
       let hash_limbs = hash
         .to_le_bits()
         .chunks_exact(BN_LIMB_WIDTH)
@@ -113,11 +113,11 @@ pub struct AllocatedHashedCommitment<E1: Engine> {
 }
 
 impl<E1: Engine> AllocatedHashedCommitment<E1> {
-  pub fn alloc<CS>(mut cs: CS, c: Commitment<E1>, constants: &TranscriptConstants<E1>) -> Self
+  pub fn alloc<CS>(mut cs: CS, c: Commitment<E1>) -> Self
   where
     CS: ConstraintSystem<E1::Scalar>,
   {
-    let hashed = HashedCommitment::<E1>::new(c, constants);
+    let hashed = HashedCommitment::<E1>::new(c);
     let hash_limbs = hashed
       .hash_limbs
       .map(|limb| AllocatedNum::alloc_infallible(cs.namespace(|| "alloc limb"), || limb));
@@ -126,6 +126,19 @@ impl<E1: Engine> AllocatedHashedCommitment<E1> {
       value: c,
       hash_limbs,
     }
+  }
+
+  pub fn alloc_transcript<CS>(
+    mut cs: CS,
+    c: Commitment<E1>,
+    transcript: &mut AllocatedTranscript<E1>,
+  ) -> Self
+  where
+    CS: ConstraintSystem<E1::Scalar>,
+  {
+    let c = AllocatedHashedCommitment::alloc(&mut cs, c);
+    transcript.absorb(c.as_preimage());
+    c
   }
 
   pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E1::Scalar>> {
