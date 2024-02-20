@@ -4,16 +4,6 @@
 //! of the running instances. Each of these hashes is H(params = H(shape, ck), i, z0, zi, U).
 //! Each circuit folds the last invocation of the other into the running instance
 
-use abomonation_derive::Abomonation;
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{
-  boolean::{AllocatedBit, Boolean},
-  num::AllocatedNum,
-  ConstraintSystem, SynthesisError,
-};
-use ff::Field;
-use serde::{Deserialize, Serialize};
-
 use crate::{
   constants::{NIO_NOVA_FOLD, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
@@ -29,6 +19,15 @@ use crate::{
   },
   Commitment,
 };
+use abomonation_derive::Abomonation;
+use bellpepper::gadgets::Assignment;
+use bellpepper_core::{
+  boolean::{AllocatedBit, Boolean},
+  num::AllocatedNum,
+  ConstraintSystem, SynthesisError,
+};
+use ff::Field;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct NovaAugmentedCircuitParams {
@@ -363,8 +362,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
 
 #[cfg(test)]
 mod tests {
-  use expect_test::{expect, Expect};
-
+  use super::*;
   use crate::{
     bellpepper::{
       r1cs::{NovaShape, NovaWitness},
@@ -379,8 +377,7 @@ mod tests {
     },
     traits::{circuit::TrivialCircuit, snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
-
-  use super::*;
+  use expect_test::{expect, Expect};
 
   // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
   fn test_recursive_circuit_with<E1>(

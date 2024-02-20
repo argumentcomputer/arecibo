@@ -15,6 +15,7 @@ use crate::parafold::nivc::{
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::supernova::EnforcingStepCircuit;
+
 use crate::traits::Engine;
 
 /// A representation of a NIVC state, where `io` represents the computations inputs and outputs,

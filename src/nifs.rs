@@ -274,7 +274,7 @@ mod tests {
   ) {
     // produce a default running instance
     let mut r_W = RelaxedR1CSWitness::default(shape);
-    let mut r_U = RelaxedR1CSInstance::default(shape);
+    let mut r_U = RelaxedR1CSInstance::default(ck, shape);
 
     // produce a step SNARK with (W1, U1) as the first incoming witness-instance pair
     let res = NIFS::prove(ck, ro_consts, pp_digest, shape, &r_U, &r_W, U1, W1);
