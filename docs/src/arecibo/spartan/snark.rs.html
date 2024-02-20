@@ -551,6 +551,7 @@
 <a href="#550" id="550">550</a>
 <a href="#551" id="551">551</a>
 <a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! This version of Spartan does not use preprocessing so the verifier keeps the entire
@@ -702,6 +703,7 @@
     <span class="kw">let </span>(<span class="kw-2">mut </span>poly_Az, <span class="kw-2">mut </span>poly_Bz, poly_Cz, <span class="kw-2">mut </span>poly_uCz_E) = {
       <span class="kw">let </span>(poly_Az, poly_Bz, poly_Cz) = S.multiply_vec(<span class="kw-2">&amp;</span>z)<span class="question-mark">?</span>;
       <span class="kw">let </span>poly_uCz_E = (<span class="number">0</span>..S.num_cons)
+        .into_par_iter()
         .map(|i| U.u * poly_Cz[i] + W.E[i])
         .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
       (

@@ -718,8 +718,6 @@
 <a href="#717" id="717">717</a>
 <a href="#718" id="718">718</a>
 <a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Shplonk PCS
 </span><span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::KZGCommitmentEngine;
 <span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::{KZGProverKey, KZGVerifierKey, UniversalKZGParam};
@@ -1052,6 +1050,7 @@
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use </span><span class="kw">crate</span>::provider::util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>;
   <span class="kw">use </span><span class="kw">crate</span>::traits::TranscriptEngineTrait;
+  <span class="kw">use </span><span class="kw">crate</span>::zip_with;
   <span class="kw">use crate</span>::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
   <span class="kw">use </span>halo2curves::bn256::G1;
   <span class="kw">use </span>itertools::Itertools;
@@ -1201,10 +1200,7 @@
         .map(|poly| UniPoly::new(poly).evaluate(evaluation_scalar))
         .collect::&lt;Vec&lt;Fr&gt;&gt;();
 
-      <span class="kw">let </span>expected = evals
-        .iter()
-        .zip_eq(q_powers.iter())
-        .map(|(eval, q)| eval * q)
+      <span class="kw">let </span>expected = <span class="macro">zip_with!</span>((evals.iter(), q_powers.iter()), |eval, q| eval * q)
         .collect::&lt;Vec&lt;Fr&gt;&gt;()
         .into_iter()
         .sum::&lt;Fr&gt;();

@@ -412,9 +412,6 @@
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `EvaluationEngine` using an IPA-based polynomial commitment scheme
 </span><span class="kw">use crate</span>::{
   digest::SimpleDigestible,
@@ -650,17 +647,17 @@
       <span class="kw">let </span>r_inverse = r.invert().unwrap();
 
       <span class="comment">// fold the left half and the right half
-      </span><span class="kw">let </span>a_vec_folded = a_vec[<span class="number">0</span>..n / <span class="number">2</span>]
-        .par_iter()
-        .zip_eq(a_vec[n / <span class="number">2</span>..n].par_iter())
-        .map(|(a_L, a_R)| <span class="kw-2">*</span>a_L * r + r_inverse * <span class="kw-2">*</span>a_R)
-        .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
+      </span><span class="kw">let </span>a_vec_folded = <span class="macro">zip_with!</span>(
+        (a_vec[<span class="number">0</span>..n / <span class="number">2</span>].par_iter(), a_vec[n / <span class="number">2</span>..n].par_iter()),
+        |a_L, a_R| <span class="kw-2">*</span>a_L * r + r_inverse * <span class="kw-2">*</span>a_R
+      )
+      .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
 
-      <span class="kw">let </span>b_vec_folded = b_vec[<span class="number">0</span>..n / <span class="number">2</span>]
-        .par_iter()
-        .zip_eq(b_vec[n / <span class="number">2</span>..n].par_iter())
-        .map(|(b_L, b_R)| <span class="kw-2">*</span>b_L * r_inverse + r * <span class="kw-2">*</span>b_R)
-        .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
+      <span class="kw">let </span>b_vec_folded = <span class="macro">zip_with!</span>(
+        (b_vec[<span class="number">0</span>..n / <span class="number">2</span>].par_iter(), b_vec[n / <span class="number">2</span>..n].par_iter()),
+        |b_L, b_R| <span class="kw-2">*</span>b_L * r_inverse + r * <span class="kw-2">*</span>b_R
+      )
+      .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
 
       <span class="kw">let </span>ck_folded = CommitmentKeyExtTrait::fold(<span class="kw-2">&amp;</span>ck_L, <span class="kw-2">&amp;</span>ck_R, <span class="kw-2">&amp;</span>r_inverse, <span class="kw-2">&amp;</span>r);
 
@@ -731,10 +728,7 @@
       }
 
       <span class="comment">// return error if acc is zero
-      </span>acc = <span class="kw">match </span>Option::from(acc.invert()) {
-        <span class="prelude-val">Some</span>(inv) =&gt; inv,
-        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::InternalError),
-      };
+      </span>acc = Option::from(acc.invert()).ok_or(NovaError::InternalError)<span class="question-mark">?</span>;
 
       <span class="comment">// compute the inverse once for all entries
       </span><span class="kw">let </span><span class="kw-2">mut </span>inv = <span class="macro">vec!</span>[E::Scalar::ZERO; v.len()];

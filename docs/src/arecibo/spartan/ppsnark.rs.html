@@ -2141,7 +2141,7 @@
     <span class="kw">let </span>result = padded::&lt;PallasEngine&gt;(<span class="kw-2">&amp;</span>v, n, <span class="kw-2">&amp;</span>e);
 
     <span class="macro">assert_eq!</span>(result.len(), n);
-    <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>result[<span class="number">0</span>..<span class="number">10</span>], <span class="kw-2">&amp;</span>v[..]);
+    <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>result[..<span class="number">10</span>], <span class="kw-2">&amp;</span>v[..]);
     <span class="macro">assert!</span>(result[<span class="number">10</span>..].iter().all(|<span class="kw-2">&amp;</span>i| i == e));
   }
 }

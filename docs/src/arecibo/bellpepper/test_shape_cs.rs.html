@@ -314,9 +314,6 @@
 <a href="#313" id="313">313</a>
 <a href="#314" id="314">314</a>
 <a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Support for generating R1CS shape using bellpepper.
 //! `TestShapeCS` implements a superset of `ShapeCS`, adding non-trivial namespace support for use in testing.
 
@@ -616,10 +613,7 @@
 }
 
 <span class="kw">fn </span>compute_path(ns: <span class="kw-2">&amp;</span>[String], this: <span class="kw-2">&amp;</span>str) -&gt; String {
-  <span class="macro">assert!</span>(
-    !this.chars().any(|a| a == <span class="string">'/'</span>),
-    <span class="string">"'/' is not allowed in names"
-  </span>);
+  <span class="macro">assert!</span>(!this.contains(<span class="string">'/'</span>), <span class="string">"'/' is not allowed in names"</span>);
 
   <span class="kw">let </span><span class="kw-2">mut </span>name = String::new();
 

@@ -439,7 +439,7 @@
   }
 
   <span class="kw">pub fn </span>compress(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CompressedUniPoly&lt;Scalar&gt; {
-    <span class="kw">let </span>coeffs_except_linear_term = [<span class="kw-2">&amp;</span><span class="self">self</span>.coeffs[<span class="number">0</span>..<span class="number">1</span>], <span class="kw-2">&amp;</span><span class="self">self</span>.coeffs[<span class="number">2</span>..]].concat();
+    <span class="kw">let </span>coeffs_except_linear_term = [<span class="kw-2">&amp;</span><span class="self">self</span>.coeffs[..<span class="number">1</span>], <span class="kw-2">&amp;</span><span class="self">self</span>.coeffs[<span class="number">2</span>..]].concat();
     <span class="macro">assert_eq!</span>(coeffs_except_linear_term.len() + <span class="number">1</span>, <span class="self">self</span>.coeffs.len());
     CompressedUniPoly {
       coeffs_except_linear_term,
