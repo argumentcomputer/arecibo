@@ -267,11 +267,11 @@ mod tests {
 
     let num_constraints = cs.num_constraints();
     let num_variables = cs.num_aux();
-    let _num_io = cs.num_inputs();
+    let num_io = cs.num_inputs();
 
     expected_constraints.assert_eq(&num_constraints.to_string());
     expected_vars.assert_eq(&num_variables.to_string());
-    // assert_eq!(num_io, 17); // 5 per point (15) + scalar (1) + 1 (1)
+    assert_eq!(num_io, 17); // 5 per point (15) + scalar (1) + 1 (1)
 
     let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
