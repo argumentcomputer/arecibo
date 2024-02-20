@@ -68,6 +68,22 @@ pub fn alloc_one<F: PrimeField, CS: ConstraintSystem<F>>(mut cs: CS) -> Allocate
   one
 }
 
+/// Allocate a constant and constrain it
+pub fn alloc_constant<F: PrimeField, CS: ConstraintSystem<F>>(
+  val: F,
+  mut cs: CS,
+) -> AllocatedNum<F> {
+  let allocated_val = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc"), || val);
+  cs.enforce(
+    || "check val is valid",
+    |lc| lc,
+    |lc| lc,
+    |lc| lc + allocated_val.get_variable() - (val, CS::one()),
+  );
+
+  allocated_val
+}
+
 /// Allocate a scalar as a base. Only to be used is the scalar fits in base!
 pub fn alloc_scalar_as_base<E, CS>(
   mut cs: CS,
