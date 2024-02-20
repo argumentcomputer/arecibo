@@ -313,7 +313,7 @@ where
     let circuit_cyclefold_E: CyclefoldCircuit<E1> =
       CyclefoldCircuit::new(Some(self.r_U_primary.comm_E), Some(comm_T), r_bools.clone());
 
-    let _output_cyclefold_E = circuit_cyclefold_E.synthesize(&mut cs_cyclefold_E);
+    let _ = circuit_cyclefold_E.synthesize(&mut cs_cyclefold_E);
 
     let (l_u_cyclefold_E, l_w_cyclefold_E) = cs_cyclefold_E
       .r1cs_instance_and_witness(&pp.circuit_shape_cyclefold.r1cs_shape, &pp.ck_cyclefold)
@@ -344,7 +344,7 @@ where
       r_bools,
     );
 
-    let _output_cyclefold_W = circuit_cyclefold_W.synthesize(&mut cs_cyclefold_W);
+    let _ = circuit_cyclefold_W.synthesize(&mut cs_cyclefold_W);
 
     let (l_u_cyclefold_W, l_w_cyclefold_W) = cs_cyclefold_W
       .r1cs_instance_and_witness(&pp.circuit_shape_cyclefold.r1cs_shape, &pp.ck_cyclefold)
