@@ -26,6 +26,7 @@ pub mod spartan;
 pub mod traits;
 
 pub mod cyclefold;
+pub mod data;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
@@ -38,6 +39,7 @@ use crate::{
     shape_cs::ShapeCS,
     solver::SatisfyingAssignment,
   },
+  data::{write_arecibo_data, write_data},
   r1cs::R1CSResult,
 };
 use abomonation::Abomonation;
@@ -355,6 +357,13 @@ pub struct ResourceBuffer<E: Engine> {
   T: Vec<E::Scalar>,
 }
 
+/// A very simple config for [`RecursiveSNARK`] in charge of logging behavior.
+/// To be fleshed out and extended in the future.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecursiveSNARKConfig {
+  write_data: bool,
+}
+
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -379,6 +388,8 @@ where
   i: usize,
   zi_primary: Vec<E1::Scalar>,
   zi_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
+
+  config: RecursiveSNARKConfig,
 }
 
 impl<E1> RecursiveSNARK<E1>
@@ -490,6 +501,10 @@ where
       T: r1cs::default_T::<Dual<E1>>(r1cs_secondary.num_cons),
     };
 
+    let config = RecursiveSNARKConfig {
+      write_data: write_data(),
+    };
+
     Ok(Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
@@ -502,9 +517,12 @@ where
 
       buffer_primary,
       buffer_secondary,
+
       i: 0,
       zi_primary,
       zi_secondary,
+
+      config,
     })
   }
 
@@ -593,6 +611,21 @@ where
       &mut self.buffer_primary.ABC_Z_1,
       &mut self.buffer_primary.ABC_Z_2,
     )?;
+
+    if self.config.write_data {
+      let W = l_w_primary.W;
+      write_arecibo_data(
+        format!("witness_{:?}", pp.digest()),
+        format!("len_{}", W.len()),
+        &W,
+      );
+      let T = &self.buffer_primary.T;
+      write_arecibo_data(
+        format!("cross_term_{:?}", pp.digest()),
+        format!("len_{}", T.len()),
+        &T,
+      );
+    }
 
     let mut cs_secondary = SatisfyingAssignment::<Dual<E1>>::with_capacity(
       pp.circuit_shape_secondary.r1cs_shape.num_io + 1,
