@@ -199,6 +199,7 @@ mod tests {
       shape_cs::ShapeCS,
       solver::SatisfyingAssignment,
     },
+    constants::NIO_CYCLE_FOLD,
     provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
     traits::{commitment::CommitmentEngineTrait, snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
@@ -271,7 +272,7 @@ mod tests {
 
     expected_constraints.assert_eq(&num_constraints.to_string());
     expected_vars.assert_eq(&num_variables.to_string());
-    assert_eq!(num_io, 17); // 5 per point (15) + scalar (1) + 1 (1)
+    assert_eq!(num_io, NIO_CYCLE_FOLD + 1); // includes 1
 
     let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
