@@ -200,6 +200,7 @@ where
       None,
       None,
       None,
+      None,
     );
 
     let circuit_primary = AugmentedCircuit::new(
@@ -381,6 +382,7 @@ where
       Some(data_p),
       Some(data_c_E),
       Some(data_c_W),
+      Some(comm_T),
       Some(E_new),
       Some(W_new),
     );

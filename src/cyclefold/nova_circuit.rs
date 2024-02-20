@@ -73,6 +73,8 @@ where
   data_c_1: Option<FoldingData<E1>>,
   data_c_2: Option<FoldingData<E1>>,
 
+  comm_T: Option<Commitment<E2>>,
+
   E_new: Option<Commitment<E2>>,
   W_new: Option<Commitment<E2>>,
 }
@@ -90,6 +92,7 @@ where
     data_p: Option<FoldingData<E2>>,
     data_c_1: Option<FoldingData<E1>>,
     data_c_2: Option<FoldingData<E1>>,
+    comm_T: Option<Commitment<E2>>,
     E_new: Option<Commitment<E2>>,
     W_new: Option<Commitment<E2>>,
   ) -> Self {
@@ -101,6 +104,7 @@ where
       data_p,
       data_c_1,
       data_c_2,
+      comm_T,
       E_new,
       W_new,
     }
@@ -151,6 +155,7 @@ where
       emulated::AllocatedFoldingData<E1>,       //data_p
       AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_1
       AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_2
+      emulated::AllocatedEmulPoint<E1::GE>,     // comm_T
       emulated::AllocatedEmulPoint<E1::GE>,     // E_new
       emulated::AllocatedEmulPoint<E1::GE>,     // W_new
     ),
@@ -219,6 +224,17 @@ where
       self.params.n_limbs,
     )?;
 
+    let comm_T = emulated::AllocatedEmulPoint::alloc(
+      cs.namespace(|| "comm_T"),
+      self
+        .inputs
+        .as_ref()
+        .and_then(|inputs| inputs.comm_T.as_ref())
+        .map(|comm_T| comm_T.to_coordinates()),
+      self.params.limb_width,
+      self.params.n_limbs,
+    )?;
+
     let E_new = emulated::AllocatedEmulPoint::alloc(
       cs.namespace(|| "E_new"),
       self
@@ -242,7 +258,7 @@ where
     )?;
 
     Ok((
-      pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new,
+      pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, comm_T, E_new, W_new,
     ))
   }
 
@@ -281,6 +297,7 @@ where
     data_p: &emulated::AllocatedFoldingData<E1>,
     data_c_1: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
     data_c_2: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
+    comm_T: &emulated::AllocatedEmulPoint<E1::GE>,
     E_new: &emulated::AllocatedEmulPoint<E1::GE>,
     W_new: &emulated::AllocatedEmulPoint<E1::GE>,
     arity: usize,
@@ -335,9 +352,27 @@ where
       &hash_c,
     )?;
 
+    let u_E = &data_c_1.u;
+    let E_1 = &data_p.U.comm_E;
     // TODO: Add `cyclefold_invocation_check`s here after I change the circuit IO
-    // cyclefold_invocation_check(cs, C_1, C_2, C_res, instance);
-    // cyclefold_invocation_check(cs, C_1, C_2, C_res, instance);
+    cyclefold_invocation_check(
+      cs.namespace(|| "cyclefold invocation check E"),
+      &E_1,
+      comm_T,
+      E_new,
+      u_E,
+    )?;
+
+    let u_W = &data_c_2.u;
+    let W_1 = &data_p.U.comm_W;
+    let W_2 = &data_p.u_W;
+    cyclefold_invocation_check(
+      cs.namespace(|| "cyclefold invocation check W"),
+      &W_1,
+      &W_2,
+      W_new,
+      u_W,
+    )?;
 
     let check_io = AllocatedBit::and(
       cs.namespace(|| "both IOs match"),
@@ -413,7 +448,7 @@ where
     // TODO: It's written down here https://hackmd.io/SBvAur_2RQmaduDi7gYbhw
     let arity = self.step_circuit.arity();
 
-    let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new) =
+    let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, comm_T, E_new, W_new) =
       self.alloc_witness(cs.namespace(|| "alloc_witness"), arity)?;
 
     let zero = alloc_zero(cs.namespace(|| "zero"));
@@ -430,6 +465,7 @@ where
       &data_p,
       &data_c_1,
       &data_c_2,
+      &comm_T,
       &E_new,
       &W_new,
       arity,
@@ -585,7 +621,7 @@ pub fn cyclefold_invocation_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine
   C_1: &emulated::AllocatedEmulPoint<E1::GE>,
   C_2: &emulated::AllocatedEmulPoint<E1::GE>,
   C_res: &emulated::AllocatedEmulPoint<E1::GE>,
-  instance: AllocatedR1CSInstance<E1, NIO_CYCLE_FOLD>,
+  instance: &AllocatedR1CSInstance<E1, NIO_CYCLE_FOLD>,
 ) -> Result<(), SynthesisError> {
   let (point_1_io, point_23_io) = instance.X.split_at(5);
   let (point_2_io, point_3_io) = point_23_io.split_at(5);

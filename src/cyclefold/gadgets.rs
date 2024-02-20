@@ -337,8 +337,8 @@ pub mod emulated {
   }
 
   pub struct AllocatedEmulRelaxedR1CSInstance<E: Engine> {
-    comm_W: AllocatedEmulPoint<E::GE>,
-    comm_E: AllocatedEmulPoint<E::GE>,
+    pub comm_W: AllocatedEmulPoint<E::GE>,
+    pub comm_E: AllocatedEmulPoint<E::GE>,
     u: AllocatedNum<E::Base>,
     x0: AllocatedNum<E::Base>,
     x1: AllocatedNum<E::Base>,
