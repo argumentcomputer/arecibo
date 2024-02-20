@@ -26,12 +26,15 @@ pub mod spartan;
 pub mod traits;
 
 pub mod cyclefold;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub mod data;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
 use traits::{CurveCycleEquipped, Dual};
 
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+use crate::data::{write_arecibo_data, write_data};
 use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::{
   bellpepper::{
@@ -39,7 +42,6 @@ use crate::{
     shape_cs::ShapeCS,
     solver::SatisfyingAssignment,
   },
-  data::{write_arecibo_data, write_data},
   r1cs::R1CSResult,
 };
 use abomonation::Abomonation;
@@ -502,7 +504,10 @@ where
     };
 
     let config = RecursiveSNARKConfig {
+      #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
       write_data: write_data(),
+      #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+      write_data: false,
     };
 
     Ok(Self {
@@ -612,6 +617,7 @@ where
       &mut self.buffer_primary.ABC_Z_2,
     )?;
 
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     if self.config.write_data {
       let W = l_w_primary.W;
       write_arecibo_data(

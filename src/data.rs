@@ -30,7 +30,8 @@ pub struct DataConfig {
 /// Initializes the global configuration for Arecibo data storage, setting up the root directory
 /// and initializing counters. We create the root directory if it does not already exist.
 pub fn init_config() -> DataConfig {
-  let root_dir = Utf8PathBuf::from(ARECIBO_DATA);
+  let root_dir = home::home_dir().unwrap().join(ARECIBO_DATA);
+  let root_dir = Utf8PathBuf::from_path_buf(root_dir).unwrap();
   if !root_dir.exists() {
     fs::create_dir_all(&root_dir).expect("Failed to create arecibo data directory");
   }

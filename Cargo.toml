@@ -52,6 +52,7 @@ camino = "1.1.6"
 # grumpkin-msm has been patched to support MSMs for the pasta curve cycle
 # see: https://github.com/lurk-lab/grumpkin-msm/pull/3
 grumpkin-msm = { git = "https://github.com/lurk-lab/grumpkin-msm", branch = "dev" }
+home = "0.5.9"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2.0", default-features = false, features = ["js"] }
