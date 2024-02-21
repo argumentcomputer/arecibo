@@ -103,7 +103,7 @@ impl<G: Group> StepCircuit<G::Scalar> for HashChainCircuit<G> {
   }
 }
 
-/// cargo run --release --example and
+/// cargo run --release --example hashchain
 fn main() {
   println!("=========================================================");
   println!("Nova-based hashchain example");
