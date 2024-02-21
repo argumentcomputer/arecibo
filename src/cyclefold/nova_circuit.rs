@@ -74,8 +74,6 @@ where
   data_c_1: Option<FoldingData<E1>>,
   data_c_2: Option<FoldingData<E1>>,
 
-  comm_T: Option<Commitment<E2>>,
-
   E_new: Option<Commitment<E2>>,
   W_new: Option<Commitment<E2>>,
 }
@@ -93,7 +91,6 @@ where
     data_p: Option<FoldingData<E2>>,
     data_c_1: Option<FoldingData<E1>>,
     data_c_2: Option<FoldingData<E1>>,
-    comm_T: Option<Commitment<E2>>,
     E_new: Option<Commitment<E2>>,
     W_new: Option<Commitment<E2>>,
   ) -> Self {
@@ -105,7 +102,6 @@ where
       data_p,
       data_c_1,
       data_c_2,
-      comm_T,
       E_new,
       W_new,
     }
@@ -156,7 +152,6 @@ where
       emulated::AllocatedFoldingData<E1>,       //data_p
       AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_1
       AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_2
-      emulated::AllocatedEmulPoint<E1::GE>,     // comm_T
       emulated::AllocatedEmulPoint<E1::GE>,     // E_new
       emulated::AllocatedEmulPoint<E1::GE>,     // W_new
     ),
@@ -225,17 +220,6 @@ where
       self.params.n_limbs,
     )?;
 
-    let comm_T = emulated::AllocatedEmulPoint::alloc(
-      cs.namespace(|| "comm_T"),
-      self
-        .inputs
-        .as_ref()
-        .and_then(|inputs| inputs.comm_T.as_ref())
-        .map(|comm_T| comm_T.to_coordinates()),
-      self.params.limb_width,
-      self.params.n_limbs,
-    )?;
-
     let E_new = emulated::AllocatedEmulPoint::alloc(
       cs.namespace(|| "E_new"),
       self
@@ -259,7 +243,7 @@ where
     )?;
 
     Ok((
-      pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, comm_T, E_new, W_new,
+      pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new,
     ))
   }
 
@@ -298,7 +282,6 @@ where
     data_p: &emulated::AllocatedFoldingData<E1>,
     data_c_1: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
     data_c_2: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
-    comm_T: &emulated::AllocatedEmulPoint<E1::GE>,
     E_new: &emulated::AllocatedEmulPoint<E1::GE>,
     W_new: &emulated::AllocatedEmulPoint<E1::GE>,
     arity: usize,
@@ -359,7 +342,7 @@ where
     cyclefold_invocation_check(
       cs.namespace(|| "cyclefold invocation check E"),
       &E_1,
-      comm_T,
+      &data_p.T,
       E_new,
       u_E,
     )?;
@@ -449,7 +432,7 @@ where
     // TODO: It's written down here https://hackmd.io/SBvAur_2RQmaduDi7gYbhw
     let arity = self.step_circuit.arity();
 
-    let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, comm_T, E_new, W_new) =
+    let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new) =
       self.alloc_witness(cs.namespace(|| "alloc_witness"), arity)?;
 
     let zero = alloc_zero(cs.namespace(|| "zero"));
@@ -466,7 +449,6 @@ where
       &data_p,
       &data_c_1,
       &data_c_2,
-      &comm_T,
       &E_new,
       &W_new,
       arity,
