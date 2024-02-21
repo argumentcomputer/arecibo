@@ -577,6 +577,13 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     let right_int = Self::from_poly(right, limb_width, right_max_word);
 
     let always_equal = AllocatedBit::alloc(cs.namespace(|| "always_equal = false"), Some(false))?;
+    cs.enforce(
+      || "enforce always_equal",
+      |lc| lc,
+      |lc| lc,
+      |lc| lc + always_equal.get_variable(),
+    );
+
     left_int.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int, &always_equal)?;
     Ok((quotient, remainder))
   }
@@ -623,6 +630,13 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
 
     let right_int = Self::from_poly(right, limb_width, right_max_word);
     let always_equal = AllocatedBit::alloc(cs.namespace(|| "always_equal = false"), Some(false))?;
+    cs.enforce(
+      || "enforce always_equal",
+      |lc| lc,
+      |lc| lc,
+      |lc| lc + always_equal.get_variable(),
+    );
+
     self.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int, &always_equal)?;
     Ok(remainder)
   }
