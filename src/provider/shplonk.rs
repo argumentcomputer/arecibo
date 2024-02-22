@@ -334,6 +334,7 @@ mod tests {
   use crate::{zip_with, zip_with_for_each};
   use halo2curves::bn256::G1;
   use itertools::Itertools;
+  use crate::spartan::powers;
 
   type E = halo2curves::bn256::Bn256;
   type NE = crate::provider::Bn256EngineKZG;
@@ -351,7 +352,7 @@ mod tests {
     comms.insert(0, C.comm.to_affine());
 
     let q = Fr::from(8165763);
-    let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, polys.len());
+    let q_powers = batch_challenge_powers(q, polys.len());
     let batched_Pi: UniPoly<Fr> = polys.clone().into_iter().map(UniPoly::new).rlc(&q);
 
     let r = Fr::from(1354678);
@@ -472,7 +473,7 @@ mod tests {
 
     let batched_Pi: UniPoly<Fr> = polys.clone().into_iter().map(UniPoly::new).rlc(&q);
 
-    let q_powers = HyperKZG::<E, NE>::batch_challenge_powers(q, polys.len());
+    let q_powers = batch_challenge_powers(q, polys.len());
     for evaluation_scalar in u.iter() {
       let evals = polys
         .clone()
@@ -705,5 +706,10 @@ mod tests {
       &proof
     )
     .is_err());
+  }
+
+  /// Compute powers of q : (1, q, q^2, ..., q^(k-1))
+  fn batch_challenge_powers(q: Fr, k: usize) -> Vec<Fr> {
+    powers(&q, k)
   }
 }
