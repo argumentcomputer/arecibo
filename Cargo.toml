@@ -46,6 +46,7 @@ ref-cast = "1.0.20" # allocation-less conversion in multilinear polys
 derive_more = "0.99.17" # lightens impl macros for pasta
 static_assertions = "1.1.0"
 rayon-scan = "0.1.0"
+smallvec = { version = "1.13.1", features = ["const_generics"] }
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
 # grumpkin-msm has been patched to support MSMs for the pasta curve cycle

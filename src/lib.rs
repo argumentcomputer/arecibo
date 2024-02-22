@@ -15,6 +15,7 @@ mod bellpepper;
 mod circuit;
 mod digest;
 mod nifs;
+mod transcript;
 
 // public modules
 pub mod constants;
