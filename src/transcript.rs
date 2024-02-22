@@ -11,7 +11,7 @@ pub trait Limbable<F: PrimeField> {
   fn limb(self) -> SmallVec<Self::A>;
 }
 
-/// There is a blanket reflexive implementation for `Limbable<F, 1>`
+/// There is a blanket reflexive implementation for `Limbable<F>`
 impl<F: PrimeField> Limbable<F> for F {
   type A = [F; 1];
 
@@ -21,7 +21,7 @@ impl<F: PrimeField> Limbable<F> for F {
 }
 
 /// This is a simple proxy of std::io::Write that exposes writing field elements, rather than bytes.
-// The claim is there should be one and only one `FieldWriter<F>` for each algebraic transcript, using its
+// The claim is there should be one and only one `FieldWriter` for each algebraic transcript, using its
 // native field.
 pub trait FieldWriter {
   type NativeField: PrimeField;
@@ -43,13 +43,13 @@ pub trait FieldWritable {
 }
 
 // We can create a translating FieldWriter using this generic struct
-pub struct FieldEncodingWriter<'a, F: PrimeField, W: FieldWriter> {
+pub struct FieldLimbingWriter<'a, F: PrimeField, W: FieldWriter> {
   writer: &'a mut W,
   _phantom: PhantomData<F>,
 }
 
 // It's a valid FieldWriter, for the field F instead of W's native field
-impl<'a, F, W> FieldWriter for FieldEncodingWriter<'a, F, W>
+impl<'a, F, W> FieldWriter for FieldLimbingWriter<'a, F, W>
 where
   // F is a field limbable in the native field of W
   F: PrimeField + Limbable<<W as FieldWriter>::NativeField>,
@@ -79,7 +79,7 @@ pub trait FieldWritableExt: FieldWritable {
     W: FieldWriter,
     <Self as FieldWritable>::NativeField: Limbable<<W as FieldWriter>::NativeField>,
   {
-    self.write_natively(&mut FieldEncodingWriter {
+    self.write_natively(&mut FieldLimbingWriter {
       writer: field_sink,
       _phantom: PhantomData,
     })
