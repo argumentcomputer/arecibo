@@ -50,7 +50,7 @@ rayon-scan = "0.1.0"
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
 # grumpkin-msm has been patched to support MSMs for the pasta curve cycle
 # see: https://github.com/lurk-lab/grumpkin-msm/pull/3
-grumpkin-msm = { git = "https://github.com/lurk-lab/grumpkin-msm", branch = "dev" }
+grumpkin-msm = { git = "https://github.com/lurk-lab/grumpkin-msm", branch = "mont_t-abs" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2.0", default-features = false, features = ["js"] }
