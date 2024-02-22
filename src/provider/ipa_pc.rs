@@ -401,13 +401,20 @@ where
 #[cfg(test)]
 mod test {
   use crate::provider::ipa_pc::EvaluationEngine;
+  use crate::provider::util::solidity_compatibility_utils::{
+    ec_points_to_json, field_elements_to_json, generate_pcs_solidity_unit_test_data,
+  };
   use crate::provider::util::test_utils::prove_verify_from_num_vars;
-  use crate::provider::GrumpkinEngine;
 
+  use crate::provider::GrumpkinEngine;
+  use group::Curve;
+
+  use crate::provider::pedersen::{CommitmentKey, CommitmentKeyExtTrait};
   use handlebars::Handlebars;
   use serde_json::json;
+  use serde_json::{Map, Value};
 
-  static TEMPLATE: &'static str = "
+  static IPA_COMPATIBILITY_UNIT_TESTING_TEMPLATE: &str = "
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.16;
 import \"@std/Test.sol\";
@@ -443,7 +450,7 @@ uint256 eval = {{ eval }};
 return InnerProductArgument.IpaInputGrumpkin(ck_v, ck_s, point, L_vec, R_vec, commitment, eval, a_hat);
 }
 
-function testIpaGrumpkinVerification_2_Variables() public {
+function testIpaGrumpkinVerification_{{ num_vars }}_Variables() public {
 InnerProductArgument.IpaInputGrumpkin memory input = composeIpaInput();
 assertTrue(InnerProductArgument.verifyGrumpkin(input, getTranscript()));
 }
@@ -466,52 +473,59 @@ return keccak_transcript;
 }
 ";
 
+  // To generate Solidity unit-test:
+  // cargo test test_solidity_compatibility_ipa --release -- --ignored --nocapture > ipa.t.sol
   #[test]
-  fn test_ipa_debug() {
-    //prove_verify_from_num_vars::<_, EvaluationEngine<GrumpkinEngine>>(2);
+  #[ignore]
+  fn test_solidity_compatibility_ipa() {
+    let num_vars = 2;
+
+    // Secondary part of verification is IPA over Grumpkin
+    let (commitment, point, eval, proof, vk) =
+      generate_pcs_solidity_unit_test_data::<_, EvaluationEngine<GrumpkinEngine>>(num_vars);
+
+    let num_vars_string = format!("{}", num_vars);
+    let eval_string = format!("{:?}", eval);
+    let commitment_x_string = format!("{:?}", commitment.comm.to_affine().x);
+    let commitment_y_string = format!("{:?}", commitment.comm.to_affine().y);
+    let proof_a_hat_string = format!("{:?}", proof.a_hat);
+
+    let r_vec = CommitmentKey::<GrumpkinEngine>::reinterpret_commitments_as_ck(&proof.R_vec)
+      .expect("can't reinterpred R_vec");
+    let l_vec = CommitmentKey::<GrumpkinEngine>::reinterpret_commitments_as_ck(&proof.L_vec)
+      .expect("can't reinterpred L_vec");
+
+    let r_vec_array = ec_points_to_json::<GrumpkinEngine>(&r_vec.ck);
+    let l_vec_array = ec_points_to_json::<GrumpkinEngine>(&l_vec.ck);
+    let point_array = field_elements_to_json::<GrumpkinEngine>(&point);
+    let ckv_array = ec_points_to_json::<GrumpkinEngine>(&vk.ck_v.ck);
+    let cks_array = ec_points_to_json::<GrumpkinEngine>(&vk.ck_s.ck);
+
+    let mut map = Map::new();
+    map.insert("num_vars".to_string(), Value::String(num_vars_string));
+    map.insert("eval".to_string(), Value::String(eval_string));
+    map.insert(
+      "commitment_x".to_string(),
+      Value::String(commitment_x_string),
+    );
+    map.insert(
+      "commitment_y".to_string(),
+      Value::String(commitment_y_string),
+    );
+    map.insert("R_vec".to_string(), Value::Array(r_vec_array));
+    map.insert("L_vec".to_string(), Value::Array(l_vec_array));
+    map.insert("a_hat".to_string(), Value::String(proof_a_hat_string));
+    map.insert("point".to_string(), Value::Array(point_array));
+    map.insert("ck_v".to_string(), Value::Array(ckv_array));
+    map.insert("ck_s".to_string(), Value::Array(cks_array));
 
     let mut reg = Handlebars::new();
     reg
-      .register_template_string("ipa.t.sol", TEMPLATE)
+      .register_template_string("ipa.t.sol", IPA_COMPATIBILITY_UNIT_TESTING_TEMPLATE)
       .expect("can't register template");
 
-    println!(
-      "{}",
-      reg
-        .render(
-          "ipa.t.sol",
-          &json!(
-            {
-              "ck_v": [
-                {"i": "0", "x": "0x15afa1c1de43e186ee615ee76389d1ca9de572d426869ab062a03f1ba65808a2", "y": "0x28d6d43cb5ba89778111ceaa56cb8bf2c34a5fb6013988513d5798a60846d423"},
-                {"i": "1", "x": "0x132126b357d7299c5c18e04cbe13c4206b763dbc56a8d19900270cd0c59f3981", "y": "0x169077205c0ed8e9f2738a9f04d064e17c457a531a93e9ec5131e35d587cd381"},
-                {"i": "2", "x": "0x20c9d6e3d55f0142ce09b6d1cd8b86c8eaecf8f204bce4c9b88a75c720e34b74", "y": "0x227f66a87a7649e8a76a2314e14c0c44877e1eca54015d5ecd8b1da08ccbb779"},
-                {"i": "3", "x": "0x1300fe5112d72be0b65d1d365f294a136df15671e4f56e2fbf65be2ffec64e4f", "y": "0x0c93e3b91eeead0adf19f228e2a361b3b6055d1b89e699196c6a5550be5824b9"},
-              ],
-              "ck_s": [
-                {"i": "0", "x": "0x2e8facd7beb3da0e505fa1e33ee77b0b19fa1dfc1c5e04537cda07bf56cc248b", "y": "0x11a32df7bf180b18e526371ee2e21bb42ee2d9a7ac875f0816be6effda4e3dfb"},
-              ],
-              "point": [
-                {"i": "0", "val": "0x1fe29a0b699fa3cbc723126c4ad0e4a5f410c5f699f3599e92c4f0e99c1abd97"},
-                {"i": "1", "val": "0x0ed4861fc966ff194c23744c2e6f63139211dc3550a28a9c8e0979427ff9c677"},
-              ],
-              "L_vec": [
-                {"i": "0", "x": "0x1aedd46eb53cfded07f7c3710015340b8cb21983fe71d24f0e7d9f5ab4854e2d", "y": "0x06d42154bbf58e193faa5443312aa938c3fc88648f1a0912d890ea1f7edc3ade"},
-                {"i": "1", "x": "0x1c95cbc06044e13eca63f164a8d2dbd3bfc7ed470dd244154e2ae5f83592b649", "y": "0x0abde1d3428cfe8b21442f486b010f14042f5d84b54a811d06307104c4755a2c"},
-              ],
-              "R_vec": [
-                {"i": "0", "x": "0x2f1727ea1ac3c3862caa797261db6a9b0714f7d8e65adb97e5f4da457044ccfe", "y": "0x185e59b83d3e903a804f6dcfd68a3e34b5cb9d048aca562e7e89c77b5c7db13e"},
-                {"i": "1", "x": "0x08adac48b78bbb3435da3efc7162332b5693f5db927e184c0d1faaeaaf60fdbd", "y": "0x1770ed9ec1f5ed7815a86ec6a5acc1b66d6c89d9bbbb53a2663ce292f7fe48b0"},
-              ],
-              "a_hat": "0x144237bc694bfa4f625dab1f8bfc854e3e7b9a612027e16bcd840383d088e190",
-              "commitment_x": "0x1e7268591a2b38be3ff689fe1eb31600f9161a2163a08ee9842d458ac0bddf05",
-              "commitment_y": "0x1f3070c0592c3f0135e1aba5100d43785490023f9536025b119bf9c0f96d5281",
-              "eval": "0x2514662a7e8e9a7a4ab7ea7c8e6a3423e7a47fca5105e6f3264d20d88e6d33bf",
-            }
-          )
-        )
-        .expect("can't render")
-    );
+    let solidity_unit_test_source = reg.render("ipa.t.sol", &json!(map)).expect("can't render");
+    println!("{}", solidity_unit_test_source);
   }
 
   #[test]
