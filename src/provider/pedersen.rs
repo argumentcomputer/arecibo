@@ -33,7 +33,7 @@ where
   // this is a hack; we just assume the size of the element.
   // Look for the static assertions in provider macros for a justification
   #[abomonate_with(Vec<[u64; 8]>)]
-  pub(crate) ck: Vec<<E::GE as PrimeCurve>::Affine>,
+  pub(in crate::provider) ck: Vec<<E::GE as PrimeCurve>::Affine>,
 }
 
 impl<E> Len for CommitmentKey<E>
