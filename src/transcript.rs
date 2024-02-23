@@ -90,16 +90,57 @@ pub trait FieldWritableExt: FieldWritable {
 /// native field of `Self`, and that this native field is Limbable into `TargetField`.
 impl<T: FieldWritable> FieldWritableExt for T {}
 
+/// Any digest that implements the `digest` core APIs implements `std::io::Write`,
+/// and field elements are straightforward to convert to bytes, so we could easily define
+/// any such `Digest` as a `FieldWriter`. But the API above brings up the problem
+/// of defining a notion of single "native" Field for such a `digest::Digest`:
+/// there's no inherent constraint to pick one over another.
+///
+/// A variant of this problem presents itself even more acutely when the target writer is a
+/// general std::io::Write (e.g. a serializer) rather than a digest.
+///
+/// So we punt to the user in this case by defining a struct pairing some Writer with a field.
+pub struct FieldEquippedWriter<W, F> {
+  writer: W,
+  _phantom: PhantomData<F>,
+}
+
+impl<W: std::io::Write, F> From<W> for FieldEquippedWriter<W, F> {
+  fn from(writer: W) -> Self {
+    Self {
+      writer,
+      _phantom: PhantomData,
+    }
+  }
+}
+
+impl<F: PrimeField, W: std::io::Write> FieldWriter for FieldEquippedWriter<W, F> {
+  type NativeField = F;
+
+  fn write(&mut self, field_elts: &[Self::NativeField]) -> Result<(), io::Error> {
+    for f in field_elts.iter() {
+      let bytes = f.to_repr();
+      self.writer.write_all(bytes.as_ref())?;
+    }
+    Ok(())
+  }
+
+  fn flush(&mut self) -> Result<(), io::Error> {
+    self.writer.flush()
+  }
+}
+
 #[cfg(test)]
 mod tests {
 
   use ff::PrimeField;
   use num_bigint::BigUint;
   use num_traits::Num;
+  use sha3::{self, Digest, Keccak256};
 
   pub use halo2curves::bn256::{Fq as Base, Fr as Scalar};
 
-  use super::{FieldWritable, FieldWritableExt, FieldWriter, Limbable};
+  use super::{FieldEquippedWriter, FieldWritable, FieldWritableExt, FieldWriter, Limbable};
   use crate::{
     provider::{Bn256EngineKZG, GrumpkinEngine},
     traits::{commitment::CommitmentTrait, Dual},
@@ -188,7 +229,7 @@ mod tests {
   }
 
   #[test]
-  fn it_works() {
+  fn test_limbing_works() {
     let commitment_native_base = Commitment::<Bn256EngineKZG>::default(); // identity element with coordinates in bn256::Base,
     let commitment_dual_base = Commitment::<Dual<Bn256EngineKZG>>::default(); // identity element with coordinates in GrumpkinEngine::Base,
     let mut writer = MockWriter {
@@ -198,5 +239,33 @@ mod tests {
     commitment_native_base.write(&mut writer).unwrap(); // the instance above fires, this writes 2 x 2 = 4 elements
     commitment_dual_base.write(&mut writer).unwrap(); // the blanket reflexive instance of Limbable fires, this writes 2 elements
     assert_eq!(writer.written.len(), 6);
+  }
+
+  #[test]
+  fn test_keccak_works() {
+    let mut keccak_for_scalar = FieldEquippedWriter::<Keccak256, Scalar>::from(Keccak256::new());
+
+    let commitment_native_base = Commitment::<Bn256EngineKZG>::default();
+    let commitment_dual_base = Commitment::<Dual<Bn256EngineKZG>>::default();
+    commitment_native_base
+      .write(&mut keccak_for_scalar)
+      .unwrap();
+    commitment_dual_base.write(&mut keccak_for_scalar).unwrap();
+
+    let result = keccak_for_scalar.writer.finalize();
+
+    // Now do it manually and compare
+    let (x_base, y_base, _) = Commitment::<Bn256EngineKZG>::default().to_coordinates();
+    let (x_scalar, y_scalar, _) = Commitment::<Dual<Bn256EngineKZG>>::default().to_coordinates();
+    let mut hasher = Keccak256::new();
+    for x_limb in <Base as Limbable<Scalar>>::limb(x_base).iter() {
+      hasher.update(x_limb.to_repr().as_ref());
+    }
+    for y_limb in <Base as Limbable<Scalar>>::limb(y_base).iter() {
+      hasher.update(y_limb.to_repr().as_ref());
+    }
+    hasher.update(x_scalar.to_repr().as_ref());
+    hasher.update(y_scalar.to_repr().as_ref());
+    assert_eq!(hasher.finalize(), result);
   }
 }
