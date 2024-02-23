@@ -10,7 +10,11 @@ use crate::{
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness, SparseMatrix},
   spartan::{
     compute_eval_table_sparse,
-    polys::{eq::EqPolynomial, multilinear::MultilinearPolynomial, multilinear::SparsePolynomial},
+    polys::{
+      eq::EqPolynomial,
+      multilinear::{MultilinearPolynomial, SparsePolynomial},
+      power::PowPolynomial,
+    },
     powers,
     sumcheck::SumcheckProof,
     PolyEvalInstance, PolyEvalWitness,
@@ -141,9 +145,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     );
 
     // outer sum-check
-    let tau = (0..num_rounds_x)
-      .map(|_i| transcript.squeeze(b"t"))
-      .collect::<Result<EqPolynomial<_>, NovaError>>()?;
+    let tau: EqPolynomial<_> = PowPolynomial::new(&transcript.squeeze(b"t")?, num_rounds_x).into();
 
     let mut poly_tau = MultilinearPolynomial::new(tau.evals());
     let (mut poly_Az, mut poly_Bz, poly_Cz, mut poly_uCz_E) = {
@@ -284,9 +286,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     );
 
     // outer sum-check
-    let tau = (0..num_rounds_x)
-      .map(|_i| transcript.squeeze(b"t"))
-      .collect::<Result<EqPolynomial<_>, NovaError>>()?;
+    let tau: EqPolynomial<_> = PowPolynomial::new(&transcript.squeeze(b"t")?, num_rounds_x).into();
 
     let (claim_outer_final, r_x) =
       self
