@@ -564,7 +564,11 @@
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness, SparseMatrix},
   spartan::{
     compute_eval_table_sparse,
-    polys::{eq::EqPolynomial, multilinear::MultilinearPolynomial, multilinear::SparsePolynomial},
+    polys::{
+      eq::EqPolynomial,
+      multilinear::{MultilinearPolynomial, SparsePolynomial},
+      power::PowPolynomial,
+    },
     powers,
     sumcheck::SumcheckProof,
     PolyEvalInstance, PolyEvalWitness,
@@ -695,9 +699,7 @@
     );
 
     <span class="comment">// outer sum-check
-    </span><span class="kw">let </span>tau = (<span class="number">0</span>..num_rounds_x)
-      .map(|_i| transcript.squeeze(<span class="string">b"t"</span>))
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;EqPolynomial&lt;<span class="kw">_</span>&gt;, NovaError&gt;&gt;()<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>tau: EqPolynomial&lt;<span class="kw">_</span>&gt; = PowPolynomial::new(<span class="kw-2">&amp;</span>transcript.squeeze(<span class="string">b"t"</span>)<span class="question-mark">?</span>, num_rounds_x).into();
 
     <span class="kw">let </span><span class="kw-2">mut </span>poly_tau = MultilinearPolynomial::new(tau.evals());
     <span class="kw">let </span>(<span class="kw-2">mut </span>poly_Az, <span class="kw-2">mut </span>poly_Bz, poly_Cz, <span class="kw-2">mut </span>poly_uCz_E) = {
@@ -838,9 +840,7 @@
     );
 
     <span class="comment">// outer sum-check
-    </span><span class="kw">let </span>tau = (<span class="number">0</span>..num_rounds_x)
-      .map(|_i| transcript.squeeze(<span class="string">b"t"</span>))
-      .collect::&lt;<span class="prelude-ty">Result</span>&lt;EqPolynomial&lt;<span class="kw">_</span>&gt;, NovaError&gt;&gt;()<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>tau: EqPolynomial&lt;<span class="kw">_</span>&gt; = PowPolynomial::new(<span class="kw-2">&amp;</span>transcript.squeeze(<span class="string">b"t"</span>)<span class="question-mark">?</span>, num_rounds_x).into();
 
     <span class="kw">let </span>(claim_outer_final, r_x) =
       <span class="self">self
