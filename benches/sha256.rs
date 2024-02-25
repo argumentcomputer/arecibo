@@ -179,13 +179,13 @@ fn bench_recursive_snark(c: &mut Criterion) {
         .unwrap();
 
         // produce a recursive SNARK for a step of the recursion
-        assert!(recursive_snark
+        recursive_snark
           .prove_step(
             black_box(&pp),
             black_box(&circuit_primary),
             black_box(&circuit_secondary),
           )
-          .is_ok());
+          .unwrap();
       })
     });
     group.finish();

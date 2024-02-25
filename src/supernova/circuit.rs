@@ -798,7 +798,7 @@ mod tests {
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1).unwrap();
     // Make sure that this is satisfiable
-    assert!(shape1.is_sat(&ck1, &inst1, &witness1).is_ok());
+    shape1.is_sat(&ck1, &inst1, &witness1).unwrap();
 
     // Execute the base case for the secondary
     let zero2 = <<E1 as Engine>::Base as Field>::ZERO;
@@ -826,7 +826,7 @@ mod tests {
     let _ = circuit2.synthesize(&mut cs2);
     let (inst2, witness2) = cs2.r1cs_instance_and_witness(&shape2, &ck2).unwrap();
     // Make sure that it is satisfiable
-    assert!(shape2.is_sat(&ck2, &inst2, &witness2).is_ok());
+    shape2.is_sat(&ck2, &inst2, &witness2).unwrap();
   }
 
   #[test]

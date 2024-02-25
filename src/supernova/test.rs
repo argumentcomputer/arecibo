@@ -518,7 +518,7 @@ fn test_recursive_circuit_with<E1>(
   }
   let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1).unwrap();
   // Make sure that this is satisfiable
-  assert!(shape1.is_sat(&ck1, &inst1, &witness1).is_ok());
+  shape1.is_sat(&ck1, &inst1, &witness1).unwrap();
 
   // Execute the base case for the secondary
   let zero2 = <<E1 as Engine>::Base as Field>::ZERO;
@@ -549,7 +549,7 @@ fn test_recursive_circuit_with<E1>(
   }
   let (inst2, witness2) = cs2.r1cs_instance_and_witness(&shape2, &ck2).unwrap();
   // Make sure that it is satisfiable
-  assert!(shape2.is_sat(&ck2, &inst2, &witness2).is_ok());
+  shape2.is_sat(&ck2, &inst2, &witness2).unwrap();
 }
 
 #[test]
@@ -863,12 +863,12 @@ where
       .is_ok());
 
     // verify the recursive SNARK
-    let res = recursive_snark
+    recursive_snark
       .verify(&pp, &z0_primary, &z0_secondary)
       .map_err(|err| {
         print_constraints_name_on_error_index(&err, &pp, circuit_primary, &circuit_secondary, 2)
-      });
-    assert!(res.is_ok());
+      })
+      .unwrap();
   }
 }
 

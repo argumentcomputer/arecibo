@@ -453,23 +453,23 @@ mod tests {
     // The prover does not recompute so it may produce a proof, but it should not verify
     let point = vec![Fr::from(0), Fr::from(0)];
     let eval = Fr::ONE;
-    assert!(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     let point = vec![Fr::from(0), Fr::from(1)];
     let eval = Fr::from(2);
-    assert!(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     let point = vec![Fr::from(1), Fr::from(1)];
     let eval = Fr::from(4);
-    assert!(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     let point = vec![Fr::from(0), Fr::from(2)];
     let eval = Fr::from(3);
-    assert!(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     let point = vec![Fr::from(2), Fr::from(2)];
     let eval = Fr::from(9);
-    assert!(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     // Try a couple incorrect evaluations and expect failure
     let point = vec![Fr::from(2), Fr::from(2)];
@@ -524,7 +524,7 @@ mod tests {
     // eval = 57
     let eval = Fr::from(57);
 
-    assert!(test_inner(n, &poly, &point, eval).is_ok());
+    test_inner(n, &poly, &point, eval).unwrap();
 
     // wrong eval
     let eval = Fr::from(56);
@@ -562,15 +562,8 @@ mod tests {
 
     // verify the evaluation
     let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
-    assert!(EvaluationEngine::<E, NE>::verify(
-      &vk,
-      &mut verifier_transcript,
-      &C,
-      &point,
-      &eval,
-      &proof
-    )
-    .is_ok());
+    EvaluationEngine::<E, NE>::verify(&vk, &mut verifier_transcript, &C, &point, &eval, &proof)
+      .unwrap();
     let post_c_v = verifier_transcript.squeeze(b"c").unwrap();
 
     // check if the prover transcript and verifier transcript are kept in the

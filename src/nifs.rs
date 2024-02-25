@@ -232,7 +232,7 @@ mod tests {
     let (U1, W1) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
 
     // Make sure that the first instance is satisfiable
-    assert!(shape.is_sat(&ck, &U1, &W1).is_ok());
+    shape.is_sat(&ck, &U1, &W1).unwrap();
 
     // Now get the instance and assignment for second instance
     let mut cs = SatisfyingAssignment::<E>::new();
@@ -240,7 +240,7 @@ mod tests {
     let (U2, W2) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
 
     // Make sure that the second instance is satisfiable
-    assert!(shape.is_sat(&ck, &U2, &W2).is_ok());
+    shape.is_sat(&ck, &U2, &W2).unwrap();
 
     // execute a sequence of folds
     execute_sequence(
@@ -309,7 +309,7 @@ mod tests {
     r_U = U;
 
     // check if the running instance is satisfiable
-    assert!(shape.is_sat_relaxed(ck, &r_U, &r_W).is_ok());
+    shape.is_sat_relaxed(ck, &r_U, &r_W).unwrap();
   }
 
   fn test_tiny_r1cs_with<E: Engine>() {
@@ -352,7 +352,7 @@ mod tests {
         };
 
         // check that generated instance is satisfiable
-        assert!(S.is_sat(ck, &U, &W).is_ok());
+        S.is_sat(ck, &U, &W).unwrap();
 
         (O, U, W)
       };

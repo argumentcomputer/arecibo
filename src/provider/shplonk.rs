@@ -556,15 +556,8 @@ mod tests {
         .unwrap();
 
     let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
-    assert!(EvaluationEngine::<E, NE>::verify(
-      &vk,
-      &mut verifier_transcript,
-      &C,
-      &point,
-      &eval,
-      &proof
-    )
-    .is_ok());
+    EvaluationEngine::<E, NE>::verify(&vk, &mut verifier_transcript, &C, &point, &eval, &proof)
+      .unwrap();
   }
 
   #[test]

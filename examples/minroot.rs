@@ -314,7 +314,6 @@ fn main() {
     for (i, circuit_primary) in minroot_circuits.iter().enumerate() {
       let start = Instant::now();
       let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
-      assert!(res.is_ok());
       println!(
         "RecursiveSNARK::prove_step {}: {:?}, took {:?} ",
         i,
@@ -332,7 +331,7 @@ fn main() {
       res.is_ok(),
       start.elapsed()
     );
-    assert!(res.is_ok());
+    res.unwrap();
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with HyperKZG...");
@@ -372,7 +371,7 @@ fn main() {
       res.is_ok(),
       start.elapsed()
     );
-    assert!(res.is_ok());
+    res.unwrap();
     println!("=========================================================");
   }
 }

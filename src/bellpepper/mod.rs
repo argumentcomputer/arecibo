@@ -53,7 +53,7 @@ mod tests {
     let (inst, witness) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
 
     // Make sure that this is satisfiable
-    assert!(shape.is_sat(&ck, &inst, &witness).is_ok());
+    shape.is_sat(&ck, &inst, &witness).unwrap();
   }
 
   #[test]

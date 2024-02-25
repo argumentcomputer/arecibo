@@ -270,8 +270,9 @@ fn main() {
 
     let start = Instant::now();
     for circuit_primary in circuits.iter() {
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
-      assert!(res.is_ok());
+      recursive_snark
+        .prove_step(&pp, circuit_primary, &circuit_secondary)
+        .unwrap();
     }
     println!(
       "RecursiveSNARK::prove {} AND ops: took {:?} ",
@@ -288,7 +289,7 @@ fn main() {
       &[<E2 as Engine>::Scalar::ZERO],
     );
     println!("RecursiveSNARK::verify: {:?}", res.is_ok(),);
-    assert!(res.is_ok());
+    res.unwrap();
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with HyperKZG...");
@@ -327,7 +328,7 @@ fn main() {
       res.is_ok(),
       start.elapsed()
     );
-    assert!(res.is_ok());
+    res.unwrap();
     println!("=========================================================");
   }
 }

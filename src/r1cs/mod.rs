@@ -874,16 +874,15 @@ pub(crate) mod tests {
     let rows = num_cons;
     let cols = num_vars + num_io + 1;
 
-    let res = R1CSShape::new(
+    R1CSShape::new(
       num_cons,
       num_vars,
       num_io,
       SparseMatrix::new(&A, rows, cols),
       SparseMatrix::new(&B, rows, cols),
       SparseMatrix::new(&C, rows, cols),
-    );
-    assert!(res.is_ok());
-    res.unwrap()
+    )
+    .unwrap()
   }
 
   fn test_pad_tiny_r1cs_with<E: Engine>() {
@@ -913,7 +912,7 @@ pub(crate) mod tests {
     for (num_cons, num_vars, num_io, num_entries) in cases {
       let S = R1CSShape::<E>::random(num_cons, num_vars, num_io, num_entries, &mut rng);
       let (W, U) = S.random_witness_instance(&ck, &mut rng);
-      assert!(S.is_sat_relaxed(&ck, &U, &W).is_ok());
+      S.is_sat_relaxed(&ck, &U, &W).unwrap();
     }
   }
 
