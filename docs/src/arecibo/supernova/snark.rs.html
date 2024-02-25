@@ -697,14 +697,6 @@
 <a href="#696" id="696">696</a>
 <a href="#697" id="697">697</a>
 <a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines a final compressing SNARK for supernova proofs
 
 </span><span class="kw">use super</span>::{error::SuperNovaError, PublicParams, RecursiveSNARK};
@@ -1194,26 +1186,22 @@
     .unwrap();
 
     <span class="kw">for </span>circuit <span class="kw">in </span>test_circuits.iter().take(NUM_STEPS) {
-      <span class="kw">let </span>prove_res = recursive_snark.prove_step(<span class="kw-2">&amp;</span>pp, circuit, <span class="kw-2">&amp;</span>secondary_circuit);
+      recursive_snark
+        .prove_step(<span class="kw-2">&amp;</span>pp, circuit, <span class="kw-2">&amp;</span>secondary_circuit)
+        .unwrap();
 
-      <span class="kw">let </span>verify_res = recursive_snark.verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary);
-
-      <span class="macro">assert!</span>(prove_res.is_ok());
-      <span class="macro">assert!</span>(verify_res.is_ok());
+      recursive_snark
+        .verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary)
+        .unwrap();
     }
 
     <span class="kw">let </span>(prover_key, verifier_key) = CompressedSNARK::&lt;<span class="kw">_</span>, S1, S2&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
 
-    <span class="kw">let </span>compressed_prove_res = CompressedSNARK::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>prover_key, <span class="kw-2">&amp;</span>recursive_snark);
+    <span class="kw">let </span>compressed_snark = CompressedSNARK::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>prover_key, <span class="kw-2">&amp;</span>recursive_snark).unwrap();
 
-    <span class="macro">assert!</span>(compressed_prove_res.is_ok());
-
-    <span class="kw">let </span>compressed_snark = compressed_prove_res.unwrap();
-
-    <span class="kw">let </span>compressed_verify_res =
-      compressed_snark.verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>verifier_key, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary);
-
-    <span class="macro">assert!</span>(compressed_verify_res.is_ok());
+    compressed_snark
+      .verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>verifier_key, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary)
+      .unwrap();
   }
 
   <span class="attr">#[test]
@@ -1377,26 +1365,22 @@
     .unwrap();
 
     <span class="kw">for </span>circuit <span class="kw">in </span>test_circuits.iter().take(NUM_STEPS) {
-      <span class="kw">let </span>prove_res = recursive_snark.prove_step(<span class="kw-2">&amp;</span>pp, circuit, <span class="kw-2">&amp;</span>secondary_circuit);
+      recursive_snark
+        .prove_step(<span class="kw-2">&amp;</span>pp, circuit, <span class="kw-2">&amp;</span>secondary_circuit)
+        .unwrap();
 
-      <span class="kw">let </span>verify_res = recursive_snark.verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary);
-
-      <span class="macro">assert!</span>(prove_res.is_ok());
-      <span class="macro">assert!</span>(verify_res.is_ok());
+      recursive_snark
+        .verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary)
+        .unwrap();
     }
 
     <span class="kw">let </span>(prover_key, verifier_key) = CompressedSNARK::&lt;<span class="kw">_</span>, S1, S2&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
 
-    <span class="kw">let </span>compressed_prove_res = CompressedSNARK::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>prover_key, <span class="kw-2">&amp;</span>recursive_snark);
+    <span class="kw">let </span>compressed_snark = CompressedSNARK::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>prover_key, <span class="kw-2">&amp;</span>recursive_snark).unwrap();
 
-    <span class="macro">assert!</span>(compressed_prove_res.is_ok());
-
-    <span class="kw">let </span>compressed_snark = compressed_prove_res.unwrap();
-
-    <span class="kw">let </span>compressed_verify_res =
-      compressed_snark.verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>verifier_key, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary);
-
-    <span class="macro">assert!</span>(compressed_verify_res.is_ok());
+    compressed_snark
+      .verify(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>verifier_key, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary)
+      .unwrap();
   }
 
   <span class="attr">#[test]

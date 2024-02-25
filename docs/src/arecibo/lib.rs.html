@@ -1706,6 +1706,7 @@
 <a href="#1705" id="1705">1705</a>
 <a href="#1706" id="1706">1706</a>
 <a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This library implements Nova, a high-speed recursive SNARK.
 </span><span class="attr">#![deny(
   warnings,
@@ -2888,18 +2889,19 @@
     )
     .unwrap();
 
-    <span class="kw">let </span>res = recursive_snark.prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>test_circuit1, <span class="kw-2">&amp;</span>test_circuit2);
-
-    <span class="macro">assert!</span>(res.is_ok());
+    recursive_snark
+      .prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>test_circuit1, <span class="kw-2">&amp;</span>test_circuit2)
+      .unwrap();
 
     <span class="comment">// verify the recursive SNARK
-    </span><span class="kw">let </span>res = recursive_snark.verify(
-      <span class="kw-2">&amp;</span>pp,
-      num_steps,
-      <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
-      <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
-    );
-    <span class="macro">assert!</span>(res.is_ok());
+    </span>recursive_snark
+      .verify(
+        <span class="kw-2">&amp;</span>pp,
+        num_steps,
+        <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
+        <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
+      )
+      .unwrap();
   }
 
   <span class="attr">#[test]
@@ -2938,29 +2940,30 @@
     .unwrap();
 
     <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..num_steps {
-      <span class="kw">let </span>res = recursive_snark.prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>circuit_primary, <span class="kw-2">&amp;</span>circuit_secondary);
-      <span class="macro">assert!</span>(res.is_ok());
+      recursive_snark
+        .prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>circuit_primary, <span class="kw-2">&amp;</span>circuit_secondary)
+        .unwrap();
 
       <span class="comment">// verify the recursive snark at each step of recursion
-      </span><span class="kw">let </span>res = recursive_snark.verify(
-        <span class="kw-2">&amp;</span>pp,
-        i + <span class="number">1</span>,
-        <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
-        <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
-      );
-      <span class="macro">assert!</span>(res.is_ok());
+      </span>recursive_snark
+        .verify(
+          <span class="kw-2">&amp;</span>pp,
+          i + <span class="number">1</span>,
+          <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
+          <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
+        )
+        .unwrap();
     }
 
     <span class="comment">// verify the recursive SNARK
-    </span><span class="kw">let </span>res = recursive_snark.verify(
-      <span class="kw-2">&amp;</span>pp,
-      num_steps,
-      <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
-      <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
-    );
-    <span class="macro">assert!</span>(res.is_ok());
-
-    <span class="kw">let </span>(zn_primary, zn_secondary) = res.unwrap();
+    </span><span class="kw">let </span>(zn_primary, zn_secondary) = recursive_snark
+      .verify(
+        <span class="kw-2">&amp;</span>pp,
+        num_steps,
+        <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
+        <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
+      )
+      .unwrap();
 
     <span class="comment">// sanity: check the claimed output with a direct computation of the same
     </span><span class="macro">assert_eq!</span>(zn_primary, <span class="macro">vec!</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE]);
@@ -3016,20 +3019,20 @@
     .unwrap();
 
     <span class="kw">for </span>_i <span class="kw">in </span><span class="number">0</span>..num_steps {
-      <span class="kw">let </span>res = recursive_snark.prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>circuit_primary, <span class="kw-2">&amp;</span>circuit_secondary);
-      <span class="macro">assert!</span>(res.is_ok());
+      recursive_snark
+        .prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>circuit_primary, <span class="kw-2">&amp;</span>circuit_secondary)
+        .unwrap();
     }
 
     <span class="comment">// verify the recursive SNARK
-    </span><span class="kw">let </span>res = recursive_snark.verify(
-      <span class="kw-2">&amp;</span>pp,
-      num_steps,
-      <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
-      <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
-    );
-    <span class="macro">assert!</span>(res.is_ok());
-
-    <span class="kw">let </span>(zn_primary, zn_secondary) = res.unwrap();
+    </span><span class="kw">let </span>(zn_primary, zn_secondary) = recursive_snark
+      .verify(
+        <span class="kw-2">&amp;</span>pp,
+        num_steps,
+        <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
+        <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
+      )
+      .unwrap();
 
     <span class="comment">// sanity: check the claimed output with a direct computation of the same
     </span><span class="macro">assert_eq!</span>(zn_primary, <span class="macro">vec!</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE]);
@@ -3048,9 +3051,7 @@
     </span><span class="kw">let </span>(pk, vk) = CompressedSNARK::&lt;<span class="kw">_</span>, S1, S2&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
 
     <span class="comment">// produce a compressed SNARK
-    </span><span class="kw">let </span>res = CompressedSNARK::&lt;<span class="kw">_</span>, S1, S2&gt;::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>recursive_snark);
-    <span class="macro">assert!</span>(res.is_ok());
-    <span class="kw">let </span>compressed_snark = res.unwrap();
+    </span><span class="kw">let </span>compressed_snark = CompressedSNARK::&lt;<span class="kw">_</span>, S1, S2&gt;::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>recursive_snark).unwrap();
 
     <span class="comment">// verify the compressed SNARK
     </span>compressed_snark
@@ -3268,25 +3269,27 @@
     .unwrap();
 
     <span class="kw">for </span>circuit_primary <span class="kw">in </span>roots.iter().take(num_steps) {
-      <span class="kw">let </span>res = recursive_snark.prove_step(<span class="kw-2">&amp;</span>pp, circuit_primary, <span class="kw-2">&amp;</span>circuit_secondary);
-      <span class="macro">assert!</span>(res.is_ok());
+      recursive_snark
+        .prove_step(<span class="kw-2">&amp;</span>pp, circuit_primary, <span class="kw-2">&amp;</span>circuit_secondary)
+        .unwrap();
     }
 
     <span class="comment">// verify the recursive SNARK
-    </span><span class="kw">let </span>res = recursive_snark.verify(<span class="kw-2">&amp;</span>pp, num_steps, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary);
-    <span class="macro">assert!</span>(res.is_ok());
+    </span>recursive_snark
+      .verify(<span class="kw-2">&amp;</span>pp, num_steps, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary)
+      .unwrap();
 
     <span class="comment">// produce the prover and verifier keys for compressed snark
     </span><span class="kw">let </span>(pk, vk) = CompressedSNARK::&lt;<span class="kw">_</span>, S&lt;E1, EE1&gt;, S&lt;<span class="kw">_</span>, EE2&gt;&gt;::setup(<span class="kw-2">&amp;</span>pp).unwrap();
 
     <span class="comment">// produce a compressed SNARK
-    </span><span class="kw">let </span>res = CompressedSNARK::&lt;<span class="kw">_</span>, S&lt;E1, EE1&gt;, S&lt;<span class="kw">_</span>, EE2&gt;&gt;::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>recursive_snark);
-    <span class="macro">assert!</span>(res.is_ok());
-    <span class="kw">let </span>compressed_snark = res.unwrap();
+    </span><span class="kw">let </span>compressed_snark =
+      CompressedSNARK::&lt;<span class="kw">_</span>, S&lt;E1, EE1&gt;, S&lt;<span class="kw">_</span>, EE2&gt;&gt;::prove(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>recursive_snark).unwrap();
 
     <span class="comment">// verify the compressed SNARK
-    </span><span class="kw">let </span>res = compressed_snark.verify(<span class="kw-2">&amp;</span>vk, num_steps, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary);
-    <span class="macro">assert!</span>(res.is_ok());
+    </span>compressed_snark
+      .verify(<span class="kw-2">&amp;</span>vk, num_steps, <span class="kw-2">&amp;</span>z0_primary, <span class="kw-2">&amp;</span>z0_secondary)
+      .unwrap();
   }
 
   <span class="attr">#[test]
@@ -3326,20 +3329,19 @@
     .unwrap();
 
     <span class="comment">// produce a recursive SNARK
-    </span><span class="kw">let </span>res = recursive_snark.prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>test_circuit1, <span class="kw-2">&amp;</span>test_circuit2);
-
-    <span class="macro">assert!</span>(res.is_ok());
+    </span>recursive_snark
+      .prove_step(<span class="kw-2">&amp;</span>pp, <span class="kw-2">&amp;</span>test_circuit1, <span class="kw-2">&amp;</span>test_circuit2)
+      .unwrap();
 
     <span class="comment">// verify the recursive SNARK
-    </span><span class="kw">let </span>res = recursive_snark.verify(
-      <span class="kw-2">&amp;</span>pp,
-      num_steps,
-      <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
-      <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
-    );
-    <span class="macro">assert!</span>(res.is_ok());
-
-    <span class="kw">let </span>(zn_primary, zn_secondary) = res.unwrap();
+    </span><span class="kw">let </span>(zn_primary, zn_secondary) = recursive_snark
+      .verify(
+        <span class="kw-2">&amp;</span>pp,
+        num_steps,
+        <span class="kw-2">&amp;</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE],
+        <span class="kw-2">&amp;</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::ZERO],
+      )
+      .unwrap();
 
     <span class="macro">assert_eq!</span>(zn_primary, <span class="macro">vec!</span>[&lt;E1 <span class="kw">as </span>Engine&gt;::Scalar::ONE]);
     <span class="macro">assert_eq!</span>(zn_secondary, <span class="macro">vec!</span>[&lt;Dual&lt;E1&gt; <span class="kw">as </span>Engine&gt;::Scalar::from(<span class="number">5u64</span>)]);

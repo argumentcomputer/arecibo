@@ -1445,7 +1445,7 @@
     <span class="kw">let </span>coeffs = powers(<span class="kw-2">&amp;</span>s, claims.len());
 
     <span class="comment">// compute the joint claim
-    </span><span class="kw">let </span>claim = <span class="macro">zip_with!</span>((claims.iter(), coeffs.iter()), |c_1, c_2| <span class="kw-2">*</span>c_1 * c_2).sum();
+    </span><span class="kw">let </span>claim = <span class="macro">zip_with!</span>(iter, (claims, coeffs), |c_1, c_2| <span class="kw-2">*</span>c_1 * c_2).sum();
 
     <span class="kw">let </span><span class="kw-2">mut </span>e = claim;
     <span class="kw">let </span><span class="kw-2">mut </span>r: Vec&lt;E::Scalar&gt; = Vec::new();

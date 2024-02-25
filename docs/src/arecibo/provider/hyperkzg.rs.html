@@ -602,13 +602,6 @@
 <a href="#601" id="601">601</a>
 <a href="#602" id="602">602</a>
 <a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
 //! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
 //! However, there are some key differences:
@@ -1065,23 +1058,23 @@
     // The prover does not recompute so it may produce a proof, but it should not verify
     </span><span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">0</span>), Fr::from(<span class="number">0</span>)];
     <span class="kw">let </span>eval = Fr::ONE;
-    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">0</span>), Fr::from(<span class="number">1</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">2</span>);
-    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">1</span>), Fr::from(<span class="number">1</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">4</span>);
-    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">0</span>), Fr::from(<span class="number">2</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">3</span>);
-    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     <span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">2</span>), Fr::from(<span class="number">2</span>)];
     <span class="kw">let </span>eval = Fr::from(<span class="number">9</span>);
-    <span class="macro">assert!</span>(test_inner(point, eval).is_ok());
+    test_inner(point, eval).unwrap();
 
     <span class="comment">// Try a couple incorrect evaluations and expect failure
     </span><span class="kw">let </span>point = <span class="macro">vec!</span>[Fr::from(<span class="number">2</span>), Fr::from(<span class="number">2</span>)];
@@ -1136,7 +1129,7 @@
     <span class="comment">// eval = 57
     </span><span class="kw">let </span>eval = Fr::from(<span class="number">57</span>);
 
-    <span class="macro">assert!</span>(test_inner(n, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, eval).is_ok());
+    test_inner(n, <span class="kw-2">&amp;</span>poly, <span class="kw-2">&amp;</span>point, eval).unwrap();
 
     <span class="comment">// wrong eval
     </span><span class="kw">let </span>eval = Fr::from(<span class="number">56</span>);
@@ -1174,15 +1167,8 @@
 
     <span class="comment">// verify the evaluation
     </span><span class="kw">let </span><span class="kw-2">mut </span>verifier_transcript = Keccak256Transcript::&lt;NE&gt;::new(<span class="string">b"TestEval"</span>);
-    <span class="macro">assert!</span>(EvaluationEngine::&lt;E, NE&gt;::verify(
-      <span class="kw-2">&amp;</span>vk,
-      <span class="kw-2">&amp;mut </span>verifier_transcript,
-      <span class="kw-2">&amp;</span>C,
-      <span class="kw-2">&amp;</span>point,
-      <span class="kw-2">&amp;</span>eval,
-      <span class="kw-2">&amp;</span>proof
-    )
-    .is_ok());
+    EvaluationEngine::&lt;E, NE&gt;::verify(<span class="kw-2">&amp;</span>vk, <span class="kw-2">&amp;mut </span>verifier_transcript, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval, <span class="kw-2">&amp;</span>proof)
+      .unwrap();
     <span class="kw">let </span>post_c_v = verifier_transcript.squeeze(<span class="string">b"c"</span>).unwrap();
 
     <span class="comment">// check if the prover transcript and verifier transcript are kept in the

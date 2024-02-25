@@ -2242,7 +2242,7 @@
     <span class="kw">let </span>e_new = a_p.scalar_mul(<span class="kw-2">&amp;</span>s);
     <span class="macro">assert!</span>(e_p.x == e_new.x &amp;&amp; e_p.y == e_new.y);
     <span class="comment">// Make sure that this is satisfiable
-    </span><span class="macro">assert!</span>(shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).is_ok());
+    </span>shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).unwrap();
   }
 
   <span class="kw">fn </span>synthesize_add_equal&lt;G, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; (AllocatedPoint&lt;G&gt;, AllocatedPoint&lt;G&gt;)
@@ -2297,7 +2297,7 @@
     <span class="kw">let </span>e_new = a_p.add(<span class="kw-2">&amp;</span>a_p);
     <span class="macro">assert!</span>(e_p.x == e_new.x &amp;&amp; e_p.y == e_new.y);
     <span class="comment">// Make sure that it is satisfiable
-    </span><span class="macro">assert!</span>(shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).is_ok());
+    </span>shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).unwrap();
   }
 
   <span class="kw">fn </span>synthesize_add_negation&lt;G, CS&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; AllocatedPoint&lt;G&gt;
@@ -2366,7 +2366,7 @@
     );
     <span class="macro">assert!</span>(e_p.is_infinity);
     <span class="comment">// Make sure that it is satisfiable
-    </span><span class="macro">assert!</span>(shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).is_ok());
+    </span>shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>inst, <span class="kw-2">&amp;</span>witness).unwrap();
   }
 }
 </code></pre></div></section></main></body></html>

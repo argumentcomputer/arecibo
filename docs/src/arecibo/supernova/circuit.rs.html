@@ -1688,7 +1688,7 @@
     <span class="kw">let _ </span>= circuit1.synthesize(<span class="kw-2">&amp;mut </span>cs1);
     <span class="kw">let </span>(inst1, witness1) = cs1.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape1, <span class="kw-2">&amp;</span>ck1).unwrap();
     <span class="comment">// Make sure that this is satisfiable
-    </span><span class="macro">assert!</span>(shape1.is_sat(<span class="kw-2">&amp;</span>ck1, <span class="kw-2">&amp;</span>inst1, <span class="kw-2">&amp;</span>witness1).is_ok());
+    </span>shape1.is_sat(<span class="kw-2">&amp;</span>ck1, <span class="kw-2">&amp;</span>inst1, <span class="kw-2">&amp;</span>witness1).unwrap();
 
     <span class="comment">// Execute the base case for the secondary
     </span><span class="kw">let </span>zero2 = &lt;&lt;E1 <span class="kw">as </span>Engine&gt;::Base <span class="kw">as </span>Field&gt;::ZERO;
@@ -1716,7 +1716,7 @@
     <span class="kw">let _ </span>= circuit2.synthesize(<span class="kw-2">&amp;mut </span>cs2);
     <span class="kw">let </span>(inst2, witness2) = cs2.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape2, <span class="kw-2">&amp;</span>ck2).unwrap();
     <span class="comment">// Make sure that it is satisfiable
-    </span><span class="macro">assert!</span>(shape2.is_sat(<span class="kw-2">&amp;</span>ck2, <span class="kw-2">&amp;</span>inst2, <span class="kw-2">&amp;</span>witness2).is_ok());
+    </span>shape2.is_sat(<span class="kw-2">&amp;</span>ck2, <span class="kw-2">&amp;</span>inst2, <span class="kw-2">&amp;</span>witness2).unwrap();
   }
 
   <span class="attr">#[test]

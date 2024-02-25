@@ -617,7 +617,7 @@
     <span class="kw">let </span>(U1, W1) = cs.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape, <span class="kw-2">&amp;</span>ck).unwrap();
 
     <span class="comment">// Make sure that the first instance is satisfiable
-    </span><span class="macro">assert!</span>(shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>U1, <span class="kw-2">&amp;</span>W1).is_ok());
+    </span>shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>U1, <span class="kw-2">&amp;</span>W1).unwrap();
 
     <span class="comment">// Now get the instance and assignment for second instance
     </span><span class="kw">let </span><span class="kw-2">mut </span>cs = SatisfyingAssignment::&lt;E&gt;::new();
@@ -625,7 +625,7 @@
     <span class="kw">let </span>(U2, W2) = cs.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>shape, <span class="kw-2">&amp;</span>ck).unwrap();
 
     <span class="comment">// Make sure that the second instance is satisfiable
-    </span><span class="macro">assert!</span>(shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>U2, <span class="kw-2">&amp;</span>W2).is_ok());
+    </span>shape.is_sat(<span class="kw-2">&amp;</span>ck, <span class="kw-2">&amp;</span>U2, <span class="kw-2">&amp;</span>W2).unwrap();
 
     <span class="comment">// execute a sequence of folds
     </span>execute_sequence(
@@ -694,7 +694,7 @@
     r_U = U;
 
     <span class="comment">// check if the running instance is satisfiable
-    </span><span class="macro">assert!</span>(shape.is_sat_relaxed(ck, <span class="kw-2">&amp;</span>r_U, <span class="kw-2">&amp;</span>r_W).is_ok());
+    </span>shape.is_sat_relaxed(ck, <span class="kw-2">&amp;</span>r_U, <span class="kw-2">&amp;</span>r_W).unwrap();
   }
 
   <span class="kw">fn </span>test_tiny_r1cs_with&lt;E: Engine&gt;() {
@@ -737,7 +737,7 @@
         };
 
         <span class="comment">// check that generated instance is satisfiable
-        </span><span class="macro">assert!</span>(S.is_sat(ck, <span class="kw-2">&amp;</span>U, <span class="kw-2">&amp;</span>W).is_ok());
+        </span>S.is_sat(ck, <span class="kw-2">&amp;</span>U, <span class="kw-2">&amp;</span>W).unwrap();
 
         (O, U, W)
       };

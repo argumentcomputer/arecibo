@@ -708,16 +708,6 @@
 <a href="#707" id="707">707</a>
 <a href="#708" id="708">708</a>
 <a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Shplonk PCS
 </span><span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::KZGCommitmentEngine;
 <span class="kw">use </span><span class="kw">crate</span>::provider::kzg_commitment::{KZGProverKey, KZGVerifierKey, UniversalKZGParam};
@@ -1050,8 +1040,8 @@
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use </span><span class="kw">crate</span>::provider::util::iterators::DoubleEndedIteratorExt <span class="kw">as _</span>;
   <span class="kw">use </span><span class="kw">crate</span>::traits::TranscriptEngineTrait;
-  <span class="kw">use </span><span class="kw">crate</span>::zip_with;
   <span class="kw">use crate</span>::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
+  <span class="kw">use crate</span>::{zip_with, zip_with_for_each};
   <span class="kw">use </span>halo2curves::bn256::G1;
   <span class="kw">use </span>itertools::Itertools;
 
@@ -1091,7 +1081,7 @@
     <span class="kw">let </span>K_x = EvaluationEngine::&lt;E, NE&gt;::compute_k_polynomial(<span class="kw-2">&amp;</span>batched_Pi, <span class="kw-2">&amp;</span>Q_x, <span class="kw-2">&amp;</span>D, <span class="kw-2">&amp;</span>R_x, a);
 
     <span class="kw">let </span><span class="kw-2">mut </span>C_P = G1::identity();
-    q_powers.iter().zip_eq(comms.iter()).for_each(|(q_i, C_i)| {
+    <span class="macro">zip_with_for_each!</span>(iter, (q_powers, comms), |q_i, C_i| {
       C_P += <span class="kw-2">*</span>C_i * q_i;
     });
 
@@ -1200,10 +1190,7 @@
         .map(|poly| UniPoly::new(poly).evaluate(evaluation_scalar))
         .collect::&lt;Vec&lt;Fr&gt;&gt;();
 
-      <span class="kw">let </span>expected = <span class="macro">zip_with!</span>((evals.iter(), q_powers.iter()), |eval, q| eval * q)
-        .collect::&lt;Vec&lt;Fr&gt;&gt;()
-        .into_iter()
-        .sum::&lt;Fr&gt;();
+      <span class="kw">let </span>expected = <span class="macro">zip_with!</span>(iter, (evals, q_powers), |eval, q| eval * q).sum::&lt;Fr&gt;();
 
       <span class="kw">let </span>actual = batched_Pi.evaluate(evaluation_scalar);
       <span class="macro">assert_eq!</span>(expected, actual);
@@ -1279,15 +1266,8 @@
         .unwrap();
 
     <span class="kw">let </span><span class="kw-2">mut </span>verifier_transcript = Keccak256Transcript::&lt;NE&gt;::new(<span class="string">b"TestEval"</span>);
-    <span class="macro">assert!</span>(EvaluationEngine::&lt;E, NE&gt;::verify(
-      <span class="kw-2">&amp;</span>vk,
-      <span class="kw-2">&amp;mut </span>verifier_transcript,
-      <span class="kw-2">&amp;</span>C,
-      <span class="kw-2">&amp;</span>point,
-      <span class="kw-2">&amp;</span>eval,
-      <span class="kw-2">&amp;</span>proof
-    )
-    .is_ok());
+    EvaluationEngine::&lt;E, NE&gt;::verify(<span class="kw-2">&amp;</span>vk, <span class="kw-2">&amp;mut </span>verifier_transcript, <span class="kw-2">&amp;</span>C, <span class="kw-2">&amp;</span>point, <span class="kw-2">&amp;</span>eval, <span class="kw-2">&amp;</span>proof)
+      .unwrap();
   }
 
   <span class="attr">#[test]
