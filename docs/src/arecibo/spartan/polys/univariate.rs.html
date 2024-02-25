@@ -299,6 +299,56 @@
 <a href="#298" id="298">298</a>
 <a href="#299" id="299">299</a>
 <a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Main components:
 //! - `UniPoly`: an univariate dense polynomial in coefficient form (big endian),
 //! - `CompressedUniPoly`: a univariate dense polynomial, compressed (omitted linear term), in coefficient form (little endian),
@@ -308,6 +358,7 @@
 };
 
 <span class="kw">use </span>ff::PrimeField;
+<span class="kw">use </span>rand::{CryptoRng, RngCore};
 <span class="kw">use </span>rayon::prelude::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 <span class="kw">use </span>ref_cast::RefCast;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -445,6 +496,15 @@
       coeffs_except_linear_term,
     }
   }
+
+  <span class="doccomment">/// Returns a random polynomial
+  </span><span class="kw">pub fn </span>random&lt;R: RngCore + CryptoRng&gt;(num_vars: usize, <span class="kw-2">mut </span>rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+    <span class="self">Self</span>::new(
+      std::iter::from_fn(|| <span class="prelude-val">Some</span>(Scalar::random(<span class="kw-2">&amp;mut </span>rng)))
+        .take(num_vars)
+        .collect(),
+    )
+  }
 }
 
 <span class="kw">impl</span>&lt;Scalar: PrimeField&gt; CompressedUniPoly&lt;Scalar&gt; {
@@ -530,6 +590,8 @@
 </span><span class="kw">mod </span>tests {
   <span class="kw">use super</span>::<span class="kw-2">*</span>;
   <span class="kw">use </span><span class="kw">crate</span>::provider::{bn256_grumpkin, secp_secq::secp256k1};
+  <span class="kw">use </span>rand::SeedableRng;
+  <span class="kw">use </span>rand_chacha::ChaCha20Rng;
 
   <span class="kw">fn </span>test_from_evals_quad_with&lt;F: PrimeField&gt;() {
     <span class="comment">// polynomial is 2x^2 + 3x + 1
@@ -597,6 +659,44 @@
     test_from_evals_cubic_with::&lt;pasta_curves::pallas::Scalar&gt;();
     test_from_evals_cubic_with::&lt;bn256_grumpkin::bn256::Scalar&gt;();
     test_from_evals_cubic_with::&lt;secp256k1::Scalar&gt;()
+  }
+
+  <span class="doccomment">/// Perform a naive n^2 multiplication of `self` by `other`.
+  </span><span class="kw">pub fn </span>naive_mul&lt;F: PrimeField&gt;(ours: <span class="kw-2">&amp;</span>UniPoly&lt;F&gt;, other: <span class="kw-2">&amp;</span>UniPoly&lt;F&gt;) -&gt; UniPoly&lt;F&gt; {
+    <span class="kw">if </span>ours.is_zero() || other.is_zero() {
+      UniPoly::zero()
+    } <span class="kw">else </span>{
+      <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="macro">vec!</span>[F::ZERO; ours.degree() + other.degree() + <span class="number">1</span>];
+      <span class="kw">for </span>(i, self_coeff) <span class="kw">in </span>ours.coeffs.iter().enumerate() {
+        <span class="kw">for </span>(j, other_coeff) <span class="kw">in </span>other.coeffs.iter().enumerate() {
+          result[i + j] += <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>self_coeff * other_coeff);
+        }
+      }
+      UniPoly::new(result)
+    }
+  }
+
+  <span class="kw">fn </span>divide_polynomials_random&lt;Fr: PrimeField&gt;() {
+    <span class="kw">let </span>rng = <span class="kw-2">&amp;mut </span>ChaCha20Rng::from_seed([<span class="number">0u8</span>; <span class="number">32</span>]);
+
+    <span class="kw">for </span>a_degree <span class="kw">in </span><span class="number">0</span>..<span class="number">50 </span>{
+      <span class="kw">for </span>b_degree <span class="kw">in </span><span class="number">0</span>..<span class="number">50 </span>{
+        <span class="kw">let </span>dividend = UniPoly::&lt;Fr&gt;::random(a_degree, rng);
+        <span class="kw">let </span>divisor = UniPoly::&lt;Fr&gt;::random(b_degree, rng);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((quotient, remainder)) = UniPoly::divide_with_q_and_r(<span class="kw-2">&amp;</span>dividend, <span class="kw-2">&amp;</span>divisor) {
+          <span class="kw">let </span><span class="kw-2">mut </span>prod = naive_mul(<span class="kw-2">&amp;</span>divisor, <span class="kw-2">&amp;</span>quotient);
+          prod += <span class="kw-2">&amp;</span>remainder;
+          <span class="macro">assert_eq!</span>(dividend, prod)
+        }
+      }
+    }
+  }
+
+  <span class="attr">#[test]
+  </span><span class="kw">fn </span>test_divide_polynomials_random() {
+    divide_polynomials_random::&lt;pasta_curves::pallas::Scalar&gt;();
+    divide_polynomials_random::&lt;bn256_grumpkin::bn256::Scalar&gt;();
+    divide_polynomials_random::&lt;secp256k1::Scalar&gt;()
   }
 }
 </code></pre></div></section></main></body></html>
