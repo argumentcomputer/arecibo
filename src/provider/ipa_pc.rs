@@ -2,7 +2,7 @@
 use crate::{
   digest::SimpleDigestible,
   errors::{NovaError, PCSError},
-  provider::{pedersen::CommitmentKeyExtTrait, traits::DlogGroup},
+  provider::{pedersen::CommitmentKeyExtTrait, traits::DlogGroup, util::field::batch_invert},
   spartan::polys::eq::EqPolynomial,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -304,29 +304,6 @@ where
 
     let P = U.comm_a_vec + CE::<E>::commit(&ck_c, &[U.c]);
 
-    let batch_invert = |v: &[E::Scalar]| -> Result<Vec<E::Scalar>, NovaError> {
-      let mut products = vec![E::Scalar::ZERO; v.len()];
-      let mut acc = E::Scalar::ONE;
-
-      for i in 0..v.len() {
-        products[i] = acc;
-        acc *= v[i];
-      }
-
-      // return error if acc is zero
-      acc = Option::from(acc.invert()).ok_or(NovaError::InternalError)?;
-
-      // compute the inverse once for all entries
-      let mut inv = vec![E::Scalar::ZERO; v.len()];
-      for i in (0..v.len()).rev() {
-        let tmp = acc * v[i];
-        inv[i] = products[i] * acc;
-        acc = tmp;
-      }
-
-      Ok(inv)
-    };
-
     // compute a vector of public coins using self.L_vec and self.R_vec
     let r = (0..self.L_vec.len())
       .map(|i| {
@@ -341,7 +318,7 @@ where
       .into_par_iter()
       .map(|i| r[i] * r[i])
       .collect();
-    let r_inverse = batch_invert(&r)?;
+    let r_inverse = batch_invert(r.clone())?;
     let r_inverse_square: Vec<E::Scalar> = (0..self.L_vec.len())
       .into_par_iter()
       .map(|i| r_inverse[i] * r_inverse[i])

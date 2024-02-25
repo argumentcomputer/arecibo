@@ -11,6 +11,28 @@ pub mod msm {
   }
 }
 
+pub mod field {
+  use crate::errors::NovaError;
+  use ff::{BatchInverter, Field};
+
+  #[inline]
+  pub fn batch_invert<F: Field>(mut v: Vec<F>) -> Result<Vec<F>, NovaError> {
+    // we only allocate the scratch space if every element of v is nonzero
+    let mut scratch_space = v
+      .iter()
+      .map(|x| {
+        if x.is_zero_vartime() {
+          Ok(*x)
+        } else {
+          Err(NovaError::InternalError)
+        }
+      })
+      .collect::<Result<Vec<_>, _>>()?;
+    let _ = BatchInverter::invert_with_external_scratch(&mut v, &mut scratch_space[..]);
+    Ok(v)
+  }
+}
+
 pub mod iterators {
   use ff::Field;
   use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};

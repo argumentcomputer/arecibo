@@ -1,6 +1,7 @@
 use ff::Field;
 use rayon::prelude::*;
 
+use crate::provider::util::field::batch_invert;
 use crate::spartan::math::Math;
 use crate::spartan::polys::{
   eq::EqPolynomial, masked_eq::MaskedEqPolynomial, multilinear::MultilinearPolynomial,
@@ -191,33 +192,6 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       || hash_func_vec(mem_col, addr_col, L_col),
     );
 
-    let batch_invert = |v: &[E::Scalar]| -> Result<Vec<E::Scalar>, NovaError> {
-      let mut products = vec![E::Scalar::ZERO; v.len()];
-      let mut acc = E::Scalar::ONE;
-
-      for i in 0..v.len() {
-        products[i] = acc;
-        acc *= v[i];
-      }
-
-      // we can compute an inversion only if acc is non-zero
-      if acc == E::Scalar::ZERO {
-        return Err(NovaError::InternalError);
-      }
-
-      // compute the inverse once for all entries
-      acc = acc.invert().unwrap();
-
-      let mut inv = vec![E::Scalar::ZERO; v.len()];
-      for i in 0..v.len() {
-        let tmp = acc * v[v.len() - 1 - i];
-        inv[v.len() - 1 - i] = products[v.len() - 1 - i] * acc;
-        acc = tmp;
-      }
-
-      Ok(inv)
-    };
-
     // compute vectors TS[i]/(T[i] + r) and 1/(W[i] + r)
     let helper = |T: &[E::Scalar],
                   W: &[E::Scalar],
@@ -234,7 +208,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
         || {
           rayon::join(
             || {
-              let inv = batch_invert(&T.par_iter().map(|e| *e + *r).collect::<Vec<_>>())?;
+              let inv = batch_invert(T.par_iter().map(|e| *e + *r).collect::<Vec<_>>())?;
 
               // compute inv[i] * TS[i] in parallel
               Ok(
@@ -242,7 +216,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
                   .collect::<Vec<_>>(),
               )
             },
-            || batch_invert(&W.par_iter().map(|e| *e + *r).collect::<Vec<_>>()),
+            || batch_invert(W.par_iter().map(|e| *e + *r).collect::<Vec<_>>()),
           )
         },
         || {
