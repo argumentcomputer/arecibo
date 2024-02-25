@@ -1056,7 +1056,7 @@ mod tests {
     let e_new = a_p.scalar_mul(&s);
     assert!(e_p.x == e_new.x && e_p.y == e_new.y);
     // Make sure that this is satisfiable
-    assert!(shape.is_sat(&ck, &inst, &witness).is_ok());
+    shape.is_sat(&ck, &inst, &witness).unwrap();
   }
 
   fn synthesize_add_equal<G, CS>(mut cs: CS) -> (AllocatedPoint<G>, AllocatedPoint<G>)
@@ -1111,7 +1111,7 @@ mod tests {
     let e_new = a_p.add(&a_p);
     assert!(e_p.x == e_new.x && e_p.y == e_new.y);
     // Make sure that it is satisfiable
-    assert!(shape.is_sat(&ck, &inst, &witness).is_ok());
+    shape.is_sat(&ck, &inst, &witness).unwrap();
   }
 
   fn synthesize_add_negation<G, CS>(mut cs: CS) -> AllocatedPoint<G>
@@ -1180,6 +1180,6 @@ mod tests {
     );
     assert!(e_p.is_infinity);
     // Make sure that it is satisfiable
-    assert!(shape.is_sat(&ck, &inst, &witness).is_ok());
+    shape.is_sat(&ck, &inst, &witness).unwrap();
   }
 }

@@ -330,8 +330,8 @@ mod tests {
   use super::*;
   use crate::provider::util::iterators::DoubleEndedIteratorExt as _;
   use crate::traits::TranscriptEngineTrait;
-  use crate::zip_with;
   use crate::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
+  use crate::{zip_with, zip_with_for_each};
   use halo2curves::bn256::G1;
   use itertools::Itertools;
 
@@ -371,7 +371,7 @@ mod tests {
     let K_x = EvaluationEngine::<E, NE>::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
 
     let mut C_P = G1::identity();
-    q_powers.iter().zip_eq(comms.iter()).for_each(|(q_i, C_i)| {
+    zip_with_for_each!(iter, (q_powers, comms), |q_i, C_i| {
       C_P += *C_i * q_i;
     });
 
@@ -480,10 +480,7 @@ mod tests {
         .map(|poly| UniPoly::new(poly).evaluate(evaluation_scalar))
         .collect::<Vec<Fr>>();
 
-      let expected = zip_with!((evals.iter(), q_powers.iter()), |eval, q| eval * q)
-        .collect::<Vec<Fr>>()
-        .into_iter()
-        .sum::<Fr>();
+      let expected = zip_with!(iter, (evals, q_powers), |eval, q| eval * q).sum::<Fr>();
 
       let actual = batched_Pi.evaluate(evaluation_scalar);
       assert_eq!(expected, actual);
@@ -559,15 +556,8 @@ mod tests {
         .unwrap();
 
     let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
-    assert!(EvaluationEngine::<E, NE>::verify(
-      &vk,
-      &mut verifier_transcript,
-      &C,
-      &point,
-      &eval,
-      &proof
-    )
-    .is_ok());
+    EvaluationEngine::<E, NE>::verify(&vk, &mut verifier_transcript, &C, &point, &eval, &proof)
+      .unwrap();
   }
 
   #[test]

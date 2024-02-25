@@ -370,7 +370,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARK<E, EE> {
     let coeffs = powers(&s, claims.len());
 
     // compute the joint claim
-    let claim = zip_with!((claims.iter(), coeffs.iter()), |c_1, c_2| *c_1 * c_2).sum();
+    let claim = zip_with!(iter, (claims, coeffs), |c_1, c_2| *c_1 * c_2).sum();
 
     let mut e = claim;
     let mut r: Vec<E::Scalar> = Vec::new();

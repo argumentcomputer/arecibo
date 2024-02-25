@@ -1180,18 +1180,19 @@ mod tests {
     )
     .unwrap();
 
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2);
-
-    assert!(res.is_ok());
+    recursive_snark
+      .prove_step(&pp, &test_circuit1, &test_circuit2)
+      .unwrap();
 
     // verify the recursive SNARK
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ZERO],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
+    recursive_snark
+      .verify(
+        &pp,
+        num_steps,
+        &[<E1 as Engine>::Scalar::ZERO],
+        &[<Dual<E1> as Engine>::Scalar::ZERO],
+      )
+      .unwrap();
   }
 
   #[test]
@@ -1230,29 +1231,30 @@ mod tests {
     .unwrap();
 
     for i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
-      assert!(res.is_ok());
+      recursive_snark
+        .prove_step(&pp, &circuit_primary, &circuit_secondary)
+        .unwrap();
 
       // verify the recursive snark at each step of recursion
-      let res = recursive_snark.verify(
-        &pp,
-        i + 1,
-        &[<E1 as Engine>::Scalar::ONE],
-        &[<Dual<E1> as Engine>::Scalar::ZERO],
-      );
-      assert!(res.is_ok());
+      recursive_snark
+        .verify(
+          &pp,
+          i + 1,
+          &[<E1 as Engine>::Scalar::ONE],
+          &[<Dual<E1> as Engine>::Scalar::ZERO],
+        )
+        .unwrap();
     }
 
     // verify the recursive SNARK
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
-
-    let (zn_primary, zn_secondary) = res.unwrap();
+    let (zn_primary, zn_secondary) = recursive_snark
+      .verify(
+        &pp,
+        num_steps,
+        &[<E1 as Engine>::Scalar::ONE],
+        &[<Dual<E1> as Engine>::Scalar::ZERO],
+      )
+      .unwrap();
 
     // sanity: check the claimed output with a direct computation of the same
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
@@ -1308,20 +1310,20 @@ mod tests {
     .unwrap();
 
     for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
-      assert!(res.is_ok());
+      recursive_snark
+        .prove_step(&pp, &circuit_primary, &circuit_secondary)
+        .unwrap();
     }
 
     // verify the recursive SNARK
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
-
-    let (zn_primary, zn_secondary) = res.unwrap();
+    let (zn_primary, zn_secondary) = recursive_snark
+      .verify(
+        &pp,
+        num_steps,
+        &[<E1 as Engine>::Scalar::ONE],
+        &[<Dual<E1> as Engine>::Scalar::ZERO],
+      )
+      .unwrap();
 
     // sanity: check the claimed output with a direct computation of the same
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
@@ -1340,9 +1342,7 @@ mod tests {
     let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark);
-    assert!(res.is_ok());
-    let compressed_snark = res.unwrap();
+    let compressed_snark = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark).unwrap();
 
     // verify the compressed SNARK
     compressed_snark
@@ -1560,25 +1560,27 @@ mod tests {
     .unwrap();
 
     for circuit_primary in roots.iter().take(num_steps) {
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
-      assert!(res.is_ok());
+      recursive_snark
+        .prove_step(&pp, circuit_primary, &circuit_secondary)
+        .unwrap();
     }
 
     // verify the recursive SNARK
-    let res = recursive_snark.verify(&pp, num_steps, &z0_primary, &z0_secondary);
-    assert!(res.is_ok());
+    recursive_snark
+      .verify(&pp, num_steps, &z0_primary, &z0_secondary)
+      .unwrap();
 
     // produce the prover and verifier keys for compressed snark
     let (pk, vk) = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::prove(&pp, &pk, &recursive_snark);
-    assert!(res.is_ok());
-    let compressed_snark = res.unwrap();
+    let compressed_snark =
+      CompressedSNARK::<_, S<E1, EE1>, S<_, EE2>>::prove(&pp, &pk, &recursive_snark).unwrap();
 
     // verify the compressed SNARK
-    let res = compressed_snark.verify(&vk, num_steps, &z0_primary, &z0_secondary);
-    assert!(res.is_ok());
+    compressed_snark
+      .verify(&vk, num_steps, &z0_primary, &z0_secondary)
+      .unwrap();
   }
 
   #[test]
@@ -1618,20 +1620,19 @@ mod tests {
     .unwrap();
 
     // produce a recursive SNARK
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2);
-
-    assert!(res.is_ok());
+    recursive_snark
+      .prove_step(&pp, &test_circuit1, &test_circuit2)
+      .unwrap();
 
     // verify the recursive SNARK
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<Dual<E1> as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
-
-    let (zn_primary, zn_secondary) = res.unwrap();
+    let (zn_primary, zn_secondary) = recursive_snark
+      .verify(
+        &pp,
+        num_steps,
+        &[<E1 as Engine>::Scalar::ONE],
+        &[<Dual<E1> as Engine>::Scalar::ZERO],
+      )
+      .unwrap();
 
     assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
     assert_eq!(zn_secondary, vec![<Dual<E1> as Engine>::Scalar::from(5u64)]);

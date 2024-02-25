@@ -487,26 +487,22 @@ mod test {
     .unwrap();
 
     for circuit in test_circuits.iter().take(NUM_STEPS) {
-      let prove_res = recursive_snark.prove_step(&pp, circuit, &secondary_circuit);
+      recursive_snark
+        .prove_step(&pp, circuit, &secondary_circuit)
+        .unwrap();
 
-      let verify_res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-
-      assert!(prove_res.is_ok());
-      assert!(verify_res.is_ok());
+      recursive_snark
+        .verify(&pp, &z0_primary, &z0_secondary)
+        .unwrap();
     }
 
     let (prover_key, verifier_key) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
-    let compressed_prove_res = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark);
+    let compressed_snark = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark).unwrap();
 
-    assert!(compressed_prove_res.is_ok());
-
-    let compressed_snark = compressed_prove_res.unwrap();
-
-    let compressed_verify_res =
-      compressed_snark.verify(&pp, &verifier_key, &z0_primary, &z0_secondary);
-
-    assert!(compressed_verify_res.is_ok());
+    compressed_snark
+      .verify(&pp, &verifier_key, &z0_primary, &z0_secondary)
+      .unwrap();
   }
 
   #[test]
@@ -670,26 +666,22 @@ mod test {
     .unwrap();
 
     for circuit in test_circuits.iter().take(NUM_STEPS) {
-      let prove_res = recursive_snark.prove_step(&pp, circuit, &secondary_circuit);
+      recursive_snark
+        .prove_step(&pp, circuit, &secondary_circuit)
+        .unwrap();
 
-      let verify_res = recursive_snark.verify(&pp, &z0_primary, &z0_secondary);
-
-      assert!(prove_res.is_ok());
-      assert!(verify_res.is_ok());
+      recursive_snark
+        .verify(&pp, &z0_primary, &z0_secondary)
+        .unwrap();
     }
 
     let (prover_key, verifier_key) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
 
-    let compressed_prove_res = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark);
+    let compressed_snark = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark).unwrap();
 
-    assert!(compressed_prove_res.is_ok());
-
-    let compressed_snark = compressed_prove_res.unwrap();
-
-    let compressed_verify_res =
-      compressed_snark.verify(&pp, &verifier_key, &z0_primary, &z0_secondary);
-
-    assert!(compressed_verify_res.is_ok());
+    compressed_snark
+      .verify(&pp, &verifier_key, &z0_primary, &z0_secondary)
+      .unwrap();
   }
 
   #[test]

@@ -86,17 +86,19 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
   .unwrap();
 
   for i in 0..num_steps {
-    let res = recursive_snark.prove_step(&pp, &c_primary, &c_secondary);
-    assert!(res.is_ok());
+    recursive_snark
+      .prove_step(&pp, &c_primary, &c_secondary)
+      .unwrap();
 
     // verify the recursive snark at each step of recursion
-    let res = recursive_snark.verify(
-      &pp,
-      i + 1,
-      &[<E1 as Engine>::Scalar::from(2u64)],
-      &[<E2 as Engine>::Scalar::from(2u64)],
-    );
-    assert!(res.is_ok());
+    recursive_snark
+      .verify(
+        &pp,
+        i + 1,
+        &[<E1 as Engine>::Scalar::from(2u64)],
+        &[<E2 as Engine>::Scalar::from(2u64)],
+      )
+      .unwrap();
   }
 
   let bench_params = BenchParams {
@@ -108,29 +110,27 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
   // Bench time to produce a compressed SNARK
   group.bench_function(bench_params.bench_id("Prove"), |b| {
     b.iter(|| {
-      assert!(CompressedSNARK::<_, S1, S2>::prove(
+      CompressedSNARK::<_, S1, S2>::prove(
         black_box(&pp),
         black_box(&pk),
-        black_box(&recursive_snark)
+        black_box(&recursive_snark),
       )
-      .is_ok());
+      .unwrap();
     })
   });
-  let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark);
-  assert!(res.is_ok());
-  let compressed_snark = res.unwrap();
+  let compressed_snark = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark).unwrap();
 
   // Benchmark the verification time
   group.bench_function(bench_params.bench_id("Verify"), |b| {
     b.iter(|| {
-      assert!(black_box(&compressed_snark)
+      black_box(&compressed_snark)
         .verify(
           black_box(&vk),
           black_box(num_steps),
           black_box(&[<E1 as Engine>::Scalar::from(2u64)]),
           black_box(&[<E2 as Engine>::Scalar::from(2u64)]),
         )
-        .is_ok());
+        .unwrap();
     })
   });
 }

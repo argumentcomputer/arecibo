@@ -99,29 +99,28 @@ pub fn bench_snark_internal_with_arity<
       // Benchmark the prove time
       group.bench_function(bench_params.bench_id("Prove"), |b| {
         b.iter(|| {
-          assert!(CompressedSNARK::<_, S1, S2>::prove(
+          CompressedSNARK::<_, S1, S2>::prove(
             black_box(&pp),
             black_box(&prover_key),
-            black_box(&recursive_snark)
+            black_box(&recursive_snark),
           )
-          .is_ok());
+          .unwrap();
         })
       });
 
-      let res = CompressedSNARK::<_, S1, S2>::prove(&pp, &prover_key, &recursive_snark);
-      assert!(res.is_ok());
-      let compressed_snark = res.unwrap();
+      let compressed_snark =
+        CompressedSNARK::<_, S1, S2>::prove(&pp, &prover_key, &recursive_snark).unwrap();
       // Benchmark the verification time
       group.bench_function(bench_params.bench_id("Verify"), |b| {
         b.iter(|| {
-          assert!(black_box(&compressed_snark)
+          black_box(&compressed_snark)
             .verify(
               black_box(&pp),
               black_box(&verifier_key),
               black_box(&z0_primary),
               black_box(&z0_secondary),
             )
-            .is_ok());
+            .unwrap();
         })
       });
     }
@@ -129,26 +128,26 @@ pub fn bench_snark_internal_with_arity<
       // Benchmark the prove time
       group.bench_function(bench_params.bench_id("Prove"), |b| {
         b.iter(|| {
-          assert!(black_box(&mut recursive_snark.clone())
+          black_box(&mut recursive_snark.clone())
             .prove_step(
               black_box(&pp),
               &bench.primary_circuit(0),
-              &bench.secondary_circuit()
+              &bench.secondary_circuit(),
             )
-            .is_ok());
+            .unwrap();
         })
       });
 
       // Benchmark the verification time
       group.bench_function(bench_params.bench_id("Verify"), |b| {
         b.iter(|| {
-          assert!(black_box(&mut recursive_snark.clone())
+          black_box(&mut recursive_snark.clone())
             .verify(
               black_box(&pp),
               black_box(&[<Bn256EngineKZG as Engine>::Scalar::from(2u64)]),
               black_box(&[<GrumpkinEngine as Engine>::Scalar::from(2u64)]),
             )
-            .is_ok());
+            .unwrap();
         })
       });
     }
