@@ -100,13 +100,13 @@ impl<T: FieldWritable> FieldWritableExt for T {}
 /// general std::io::Write (e.g. a serializer) rather than a digest.
 ///
 /// So we punt to the user in this case by defining a struct pairing some Writer with a field.
-pub struct FieldEquippedWriter<W, F> {
-  writer: W,
+pub struct FieldEquippedWriter<'a, W, F> {
+  writer: &'a mut W,
   _phantom: PhantomData<F>,
 }
 
-impl<W: std::io::Write, F> From<W> for FieldEquippedWriter<W, F> {
-  fn from(writer: W) -> Self {
+impl<'a, W: std::io::Write, F> From<&'a mut W> for FieldEquippedWriter<'a, W, F> {
+  fn from(writer: &'a mut W) -> Self {
     Self {
       writer,
       _phantom: PhantomData,
@@ -114,7 +114,7 @@ impl<W: std::io::Write, F> From<W> for FieldEquippedWriter<W, F> {
   }
 }
 
-impl<F: PrimeField, W: std::io::Write> FieldWriter for FieldEquippedWriter<W, F> {
+impl<'a, F: PrimeField, W: std::io::Write> FieldWriter for FieldEquippedWriter<'a, W, F> {
   type NativeField = F;
 
   fn write(&mut self, field_elts: &[Self::NativeField]) -> Result<(), io::Error> {
@@ -130,6 +130,40 @@ impl<F: PrimeField, W: std::io::Write> FieldWriter for FieldEquippedWriter<W, F>
   }
 }
 
+/// Sometimes we don't want to be field-specific
+pub trait FieldAgnosticWriter {
+  fn write<F: PrimeField>(&mut self, field_elts: &[F]) -> Result<(), io::Error>;
+  fn flush(&mut self) -> Result<(), io::Error>;
+}
+
+/// There's a sensible implementation of this for any std::io::Write
+impl<W: std::io::Write> FieldAgnosticWriter for W {
+  fn write<F: PrimeField>(&mut self, field_elts: &[F]) -> Result<(), io::Error> {
+    for f in field_elts {
+      self.write_all(f.to_repr().as_ref())?
+    }
+    Ok(())
+  }
+
+  fn flush(&mut self) -> Result<(), io::Error> {
+    self.flush()
+  }
+}
+
+pub trait FieldAgnosticWritableExt: FieldWritable {
+  /// this indicates how to write `Self` as a sequence of `TargetField` field elements,
+  /// as long as the NativeField of `Self`'s `FieldWritable` is Limbable into `TargetField`.
+  fn write<W>(&self, field_sink: &mut W) -> Result<(), io::Error>
+  where
+    W: std::io::Write + FieldAgnosticWriter,
+  {
+    self.write_natively(&mut FieldEquippedWriter::from(field_sink))
+  }
+}
+
+// blanket instance
+impl<T: FieldWritable> FieldAgnosticWritableExt for T {}
+
 #[cfg(test)]
 mod tests {
 
@@ -140,7 +174,7 @@ mod tests {
 
   pub use halo2curves::bn256::{Fq as Base, Fr as Scalar};
 
-  use super::{FieldEquippedWriter, FieldWritable, FieldWritableExt, FieldWriter, Limbable};
+  use super::{FieldEquippedWriter, FieldWritable, FieldWriter, Limbable};
   use crate::{
     provider::{Bn256EngineKZG, GrumpkinEngine},
     traits::{commitment::CommitmentTrait, Dual},
@@ -230,6 +264,8 @@ mod tests {
 
   #[test]
   fn test_limbing_works() {
+    use super::FieldWritableExt as _;
+
     let commitment_native_base = Commitment::<Bn256EngineKZG>::default(); // identity element with coordinates in bn256::Base,
     let commitment_dual_base = Commitment::<Dual<Bn256EngineKZG>>::default(); // identity element with coordinates in GrumpkinEngine::Base,
     let mut writer = MockWriter {
@@ -242,8 +278,10 @@ mod tests {
   }
 
   #[test]
-  fn test_keccak_works() {
-    let mut keccak_for_scalar = FieldEquippedWriter::<Keccak256, Scalar>::from(Keccak256::new());
+  fn test_field_specific_works() {
+    use super::FieldWritableExt as _;
+    let mut keccak = Keccak256::new();
+    let mut keccak_for_scalar = FieldEquippedWriter::<Keccak256, Scalar>::from(&mut keccak);
 
     let commitment_native_base = Commitment::<Bn256EngineKZG>::default();
     let commitment_dual_base = Commitment::<Dual<Bn256EngineKZG>>::default();
@@ -252,7 +290,7 @@ mod tests {
       .unwrap();
     commitment_dual_base.write(&mut keccak_for_scalar).unwrap();
 
-    let result = keccak_for_scalar.writer.finalize();
+    let result = keccak.finalize();
 
     // Now do it manually and compare
     let (x_base, y_base, _) = Commitment::<Bn256EngineKZG>::default().to_coordinates();
@@ -264,6 +302,72 @@ mod tests {
     for y_limb in <Base as Limbable<Scalar>>::limb(y_base).iter() {
       hasher.update(y_limb.to_repr().as_ref());
     }
+    hasher.update(x_scalar.to_repr().as_ref());
+    hasher.update(y_scalar.to_repr().as_ref());
+    assert_eq!(hasher.finalize(), result);
+  }
+
+  #[test]
+  fn test_field_agnostic_works() {
+    use super::FieldAgnosticWritableExt as _;
+    let mut keccak = Keccak256::new(); // this is field-agnostic, by definition
+    let commitment_native_base = Commitment::<Bn256EngineKZG>::default();
+    let commitment_dual_base = Commitment::<Dual<Bn256EngineKZG>>::default();
+    commitment_native_base.write(&mut keccak).unwrap();
+    commitment_dual_base.write(&mut keccak).unwrap();
+
+    let result = keccak.finalize();
+    // Now do it manually and compare
+    let (x_base, y_base, _) = Commitment::<Bn256EngineKZG>::default().to_coordinates();
+    let (x_scalar, y_scalar, _) = Commitment::<Dual<Bn256EngineKZG>>::default().to_coordinates();
+    let mut hasher = Keccak256::new();
+    hasher.update(x_base.to_repr().as_ref());
+    hasher.update(y_base.to_repr().as_ref());
+    hasher.update(x_scalar.to_repr().as_ref());
+    hasher.update(y_scalar.to_repr().as_ref());
+    assert_eq!(hasher.finalize(), result);
+  }
+
+  #[test]
+  fn test_mode_switching_works() {
+    let mut keccak = Keccak256::new(); // this is field-agnostic
+                                       // this is field-specific
+    let mut keccak_for_scalar = FieldEquippedWriter::<Keccak256, Scalar>::from(&mut keccak);
+
+    let commitment_native_base = Commitment::<Bn256EngineKZG>::default();
+    let commitment_dual_base = Commitment::<Dual<Bn256EngineKZG>>::default();
+    {
+      // start writing in field-specific mode. What's important here is we're using `keccak_for_scalar`, not `keccak``
+      // the difference between imports is just a technical detail
+      use super::FieldWritableExt as _;
+      commitment_native_base
+        .write(&mut keccak_for_scalar)
+        .unwrap();
+      commitment_dual_base.write(&mut keccak_for_scalar).unwrap();
+    }
+    {
+      // now we use keccak in field-agnostic mode
+      use super::FieldAgnosticWritableExt as _;
+      commitment_native_base.write(&mut keccak).unwrap();
+      commitment_dual_base.write(&mut keccak).unwrap();
+    }
+    let result = keccak.finalize();
+
+    // Now do it manually and compare
+    let (x_base, y_base, _) = Commitment::<Bn256EngineKZG>::default().to_coordinates();
+    let (x_scalar, y_scalar, _) = Commitment::<Dual<Bn256EngineKZG>>::default().to_coordinates();
+    let mut hasher = Keccak256::new();
+    for x_limb in <Base as Limbable<Scalar>>::limb(x_base).iter() {
+      hasher.update(x_limb.to_repr().as_ref());
+    }
+    for y_limb in <Base as Limbable<Scalar>>::limb(y_base).iter() {
+      hasher.update(y_limb.to_repr().as_ref());
+    }
+    hasher.update(x_scalar.to_repr().as_ref());
+    hasher.update(y_scalar.to_repr().as_ref());
+    // for the field-agnostic part
+    hasher.update(x_base.to_repr().as_ref());
+    hasher.update(y_base.to_repr().as_ref());
     hasher.update(x_scalar.to_repr().as_ref());
     hasher.update(y_scalar.to_repr().as_ref());
     assert_eq!(hasher.finalize(), result);
