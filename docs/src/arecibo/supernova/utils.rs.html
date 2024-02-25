@@ -179,6 +179,7 @@
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,
@@ -218,6 +219,7 @@
   <span class="comment">// Since `selector_vec` is correct, only one entry is 1.
   // If selector_vec[0] is 1, then all `conditionally_select` will return `first`.
   // Otherwise, the correct instance will be selected.
+  // TODO: reformulate when iterator_try_reduce stabilizes
   </span><span class="kw">let </span>selected = a
     .iter()
     .zip_eq(selector_vec.iter())

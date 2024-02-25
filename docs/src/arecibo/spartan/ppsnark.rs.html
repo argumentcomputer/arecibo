@@ -1072,6 +1072,7 @@
 <a href="#1071" id="1071">1071</a>
 <a href="#1072" id="1072">1072</a>
 <a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARK` traits using a spark-based approach to prove evaluations of
 //! sparse multilinear polynomials involved in Spartan's sum-check protocol, thereby providing a preprocessing SNARK
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
@@ -1627,10 +1628,11 @@
 
       (Az, Bz, Cz, W, E)
     };
+    <span class="kw">let </span>chis_taus = EqPolynomial::evals_from_points(<span class="kw-2">&amp;</span>tau_coords);
     <span class="kw">let </span>(eval_Az_at_tau, eval_Bz_at_tau, eval_Cz_at_tau) = {
       <span class="kw">let </span>evals_at_tau = [<span class="kw-2">&amp;</span>Az, <span class="kw-2">&amp;</span>Bz, <span class="kw-2">&amp;</span>Cz]
         .into_par_iter()
-        .map(|p| MultilinearPolynomial::evaluate_with(p, <span class="kw-2">&amp;</span>tau_coords))
+        .map(|p| MultilinearPolynomial::evaluate_with_chis(p, <span class="kw-2">&amp;</span>chis_taus))
         .collect::&lt;Vec&lt;E::Scalar&gt;&gt;();
       (evals_at_tau[<span class="number">0</span>], evals_at_tau[<span class="number">1</span>], evals_at_tau[<span class="number">2</span>])
     };

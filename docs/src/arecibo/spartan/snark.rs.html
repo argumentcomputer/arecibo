@@ -552,6 +552,8 @@
 <a href="#551" id="551">551</a>
 <a href="#552" id="552">552</a>
 <a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! This version of Spartan does not use preprocessing so the verifier keeps the entire
@@ -735,8 +737,10 @@
 
     <span class="comment">// claims from the end of sum-check
     </span><span class="kw">let </span>(claim_Az, claim_Bz): (E::Scalar, E::Scalar) = (claims_outer[<span class="number">1</span>], claims_outer[<span class="number">2</span>]);
-    <span class="kw">let </span>claim_Cz = poly_Cz.evaluate(<span class="kw-2">&amp;</span>r_x);
-    <span class="kw">let </span>eval_E = MultilinearPolynomial::evaluate_with(<span class="kw-2">&amp;</span>W.E, <span class="kw-2">&amp;</span>r_x);
+    <span class="kw">let </span>chis_r_x = EqPolynomial::evals_from_points(<span class="kw-2">&amp;</span>r_x);
+
+    <span class="kw">let </span>claim_Cz = MultilinearPolynomial::evaluate_with_chis(poly_Cz.evaluations(), <span class="kw-2">&amp;</span>chis_r_x);
+    <span class="kw">let </span>eval_E = MultilinearPolynomial::evaluate_with_chis(<span class="kw-2">&amp;</span>W.E, <span class="kw-2">&amp;</span>chis_r_x);
     transcript.absorb(
       <span class="string">b"claims_outer"</span>,
       <span class="kw-2">&amp;</span>[claim_Az, claim_Bz, claim_Cz, eval_E].as_slice(),

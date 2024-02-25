@@ -625,6 +625,10 @@
 <a href="#624" id="624">624</a>
 <a href="#625" id="625">625</a>
 <a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `BatchedRelaxedR1CSSNARKTrait` using Spartan that is generic over the polynomial commitment
 //! and evaluation argument (i.e., a PCS) This version of Spartan does not use preprocessing so the verifier keeps the
 //! entire description of R1CS matrices. This is essentially optimal for the verifier when using an IPA-based polynomial
@@ -1061,9 +1065,15 @@
       )
     }
 
+    <span class="kw">let </span>chis_r_x = r_x
+      .par_iter()
+      .map(|r_x| EqPolynomial::evals_from_points(r_x))
+      .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
     <span class="comment">// Evaluate τ(rₓ) for each instance
-    </span><span class="kw">let </span>evals_tau = <span class="macro">zip_with!</span>(iter, (polys_tau, r_x), |poly_tau, r_x| poly_tau
-      .evaluate(r_x));
+    </span><span class="kw">let </span>evals_tau = <span class="macro">zip_with!</span>(iter, (polys_tau, chis_r_x), |poly_tau, er_x| {
+      MultilinearPolynomial::evaluate_with_chis(poly_tau.evaluations(), er_x)
+    });
 
     <span class="comment">// Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     </span><span class="kw">let </span>claim_outer_final_expected = <span class="macro">zip_with!</span>(
@@ -1130,7 +1140,7 @@
 
     <span class="comment">// compute evaluations of R1CS matrices M(r_x, r_y) = eq(r_y)ᵀ⋅M⋅eq(r_x)
     </span><span class="kw">let </span>multi_evaluate = |M_vec: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>SparseMatrix&lt;E::Scalar&gt;],
-                          r_x: <span class="kw-2">&amp;</span>[E::Scalar],
+                          chi_r_x: <span class="kw-2">&amp;</span>[E::Scalar],
                           r_y: <span class="kw-2">&amp;</span>[E::Scalar]|
      -&gt; Vec&lt;E::Scalar&gt; {
       <span class="kw">let </span>evaluate_with_table =
@@ -1147,21 +1157,19 @@
             .sum()
         };
 
-      <span class="kw">let </span>(T_x, T_y) = rayon::join(
-        || EqPolynomial::evals_from_points(r_x),
-        || EqPolynomial::evals_from_points(r_y),
-      );
+      <span class="kw">let </span>T_x = chi_r_x;
+      <span class="kw">let </span>T_y = EqPolynomial::evals_from_points(r_y);
 
       M_vec
         .par_iter()
-        .map(|<span class="kw-2">&amp;</span>M_vec| evaluate_with_table(M_vec, <span class="kw-2">&amp;</span>T_x, <span class="kw-2">&amp;</span>T_y))
+        .map(|<span class="kw-2">&amp;</span>M_vec| evaluate_with_table(M_vec, T_x, <span class="kw-2">&amp;</span>T_y))
         .collect()
     };
 
     <span class="comment">// Compute inner claim ∑ᵢ r³ⁱ⋅(Aᵢ(r_x, r_y) + r⋅Bᵢ(r_x, r_y) + r²⋅Cᵢ(r_x, r_y))⋅Zᵢ(r_y)
     </span><span class="kw">let </span>claim_inner_final_expected = <span class="macro">zip_with!</span>(
       iter,
-      (vk.S, r_x, r_y, evals_Z, inner_r_powers),
+      (vk.S, chis_r_x, r_y, evals_Z, inner_r_powers),
       |S, r_x, r_y, eval_Z, r_i| {
         <span class="kw">let </span>evals = multi_evaluate(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>S.A, <span class="kw-2">&amp;</span>S.B, <span class="kw-2">&amp;</span>S.C], r_x, r_y);
         <span class="kw">let </span>eval = evals[<span class="number">0</span>] + inner_r * evals[<span class="number">1</span>] + inner_r_square * evals[<span class="number">2</span>];

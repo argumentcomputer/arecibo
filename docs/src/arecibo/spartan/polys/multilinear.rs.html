@@ -351,13 +351,6 @@
 <a href="#350" id="350">350</a>
 <a href="#351" id="351">351</a>
 <a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Main components:
 //! - `MultilinearPolynomial`: Dense representation of multilinear polynomials, represented by evaluations over all possible binary inputs.
 //! - `SparsePolynomial`: Efficient representation of sparse multilinear polynomials, storing only non-zero evaluations.
@@ -465,25 +458,18 @@
   </span><span class="kw">pub fn </span>evaluate(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>[Scalar]) -&gt; Scalar {
     <span class="comment">// r must have a value for each variable
     </span><span class="macro">assert_eq!</span>(r.len(), <span class="self">self</span>.get_num_vars());
-    <span class="kw">let </span>chis = EqPolynomial::evals_from_points(r);
-
-    <span class="macro">zip_with!</span>(
-      (chis.into_par_iter(), <span class="self">self</span>.Z.par_iter()),
-      |chi_i, Z_i| chi_i * Z_i
-    )
-    .sum()
+    <span class="self">Self</span>::evaluate_with(<span class="kw-2">&amp;</span><span class="self">self</span>.Z, r)
   }
 
   <span class="doccomment">/// Evaluates the polynomial with the given evaluations and point.
   </span><span class="kw">pub fn </span>evaluate_with(Z: <span class="kw-2">&amp;</span>[Scalar], r: <span class="kw-2">&amp;</span>[Scalar]) -&gt; Scalar {
-    <span class="macro">zip_with!</span>(
-      (
-        EqPolynomial::evals_from_points(r).into_par_iter(),
-        Z.par_iter()
-      ),
-      |a, b| a * b
-    )
-    .sum()
+    <span class="kw">let </span>chis = EqPolynomial::evals_from_points(r);
+    <span class="self">Self</span>::evaluate_with_chis(Z, <span class="kw-2">&amp;</span>chis)
+  }
+
+  <span class="doccomment">/// Evaluates the polynomial with the given evaluations and chi coefficients
+  </span><span class="kw">pub fn </span>evaluate_with_chis(Z: <span class="kw-2">&amp;</span>[Scalar], chis: <span class="kw-2">&amp;</span>[Scalar]) -&gt; Scalar {
+    <span class="macro">zip_with!</span>(par_iter, (chis, Z), |a, b| <span class="kw-2">*</span>a * b).sum()
   }
 }
 
