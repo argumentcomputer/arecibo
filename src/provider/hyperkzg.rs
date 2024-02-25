@@ -24,7 +24,7 @@ use crate::{
 };
 use core::marker::PhantomData;
 use ff::{Field, PrimeFieldBits};
-use group::{Curve, Group as _};
+use group::{prime::PrimeCurveAffine as _, Curve, Group as _};
 use itertools::Itertools as _;
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 use rayon::prelude::*;
@@ -241,14 +241,15 @@ where
 
     // We do not need to commit to the first polynomial as it is already committed.
     // Compute commitments in parallel
-    let comms: Vec<E::G1Affine> = (1..polys.len())
-      .into_par_iter()
-      .map(|i| {
-        <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i])
-          .comm
-          .to_affine()
-      })
-      .collect();
+    let comms = {
+      let mut comms = vec![E::G1Affine::identity(); polys.len() - 1];
+      let comms_proj: Vec<E::G1> = (1..polys.len())
+        .into_par_iter()
+        .map(|i| <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i]).comm)
+        .collect();
+      Curve::batch_normalize(&comms_proj, &mut comms);
+      comms
+    };
 
     // Phase 2
     // We do not need to add x to the transcript, because in our context x was obtained from the transcript.

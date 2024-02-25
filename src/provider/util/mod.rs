@@ -21,7 +21,7 @@ pub mod field {
     let mut scratch_space = v
       .iter()
       .map(|x| {
-        if x.is_zero_vartime() {
+        if !x.is_zero_vartime() {
           Ok(*x)
         } else {
           Err(NovaError::InternalError)
