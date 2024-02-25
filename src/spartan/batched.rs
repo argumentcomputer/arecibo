@@ -434,9 +434,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
       )
     }
 
+    let chis_r_x = r_x
+      .par_iter()
+      .map(|r_x| EqPolynomial::evals_from_points(r_x))
+      .collect::<Vec<_>>();
+
     // Evaluate τ(rₓ) for each instance
-    let evals_tau = zip_with!(iter, (polys_tau, r_x), |poly_tau, r_x| poly_tau
-      .evaluate(r_x));
+    let evals_tau = zip_with!(iter, (polys_tau, chis_r_x), |poly_tau, er_x| {
+      MultilinearPolynomial::evaluate_with_chis(poly_tau.evaluations(), er_x)
+    });
 
     // Compute expected claim for all instances ∑ᵢ rⁱ⋅τ(rₓ)⋅(Azᵢ⋅Bzᵢ − uᵢ⋅Czᵢ − Eᵢ)
     let claim_outer_final_expected = zip_with!(
@@ -503,7 +509,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
 
     // compute evaluations of R1CS matrices M(r_x, r_y) = eq(r_y)ᵀ⋅M⋅eq(r_x)
     let multi_evaluate = |M_vec: &[&SparseMatrix<E::Scalar>],
-                          r_x: &[E::Scalar],
+                          chi_r_x: &[E::Scalar],
                           r_y: &[E::Scalar]|
      -> Vec<E::Scalar> {
       let evaluate_with_table =
@@ -520,21 +526,19 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
             .sum()
         };
 
-      let (T_x, T_y) = rayon::join(
-        || EqPolynomial::evals_from_points(r_x),
-        || EqPolynomial::evals_from_points(r_y),
-      );
+      let T_x = chi_r_x;
+      let T_y = EqPolynomial::evals_from_points(r_y);
 
       M_vec
         .par_iter()
-        .map(|&M_vec| evaluate_with_table(M_vec, &T_x, &T_y))
+        .map(|&M_vec| evaluate_with_table(M_vec, T_x, &T_y))
         .collect()
     };
 
     // Compute inner claim ∑ᵢ r³ⁱ⋅(Aᵢ(r_x, r_y) + r⋅Bᵢ(r_x, r_y) + r²⋅Cᵢ(r_x, r_y))⋅Zᵢ(r_y)
     let claim_inner_final_expected = zip_with!(
       iter,
-      (vk.S, r_x, r_y, evals_Z, inner_r_powers),
+      (vk.S, chis_r_x, r_y, evals_Z, inner_r_powers),
       |S, r_x, r_y, eval_Z, r_i| {
         let evals = multi_evaluate(&[&S.A, &S.B, &S.C], r_x, r_y);
         let eval = evals[0] + inner_r * evals[1] + inner_r_square * evals[2];

@@ -1,6 +1,6 @@
 //! Supernova implementation support arbitrary argumented circuits and running instances.
 //! There are two Verification Circuits for each argumented circuit: The primary and the secondary.
-//! Each of them is over a Pasta curve but
+//! Each of them is over a cycle curve but
 //! only the primary executes the next step of the computation.
 //! Each circuit takes as input 2 hashes.
 //! Each circuit folds the last invocation of the other into the respective running instance, specified by `augmented_circuit_index`
@@ -10,7 +10,7 @@
 //!    1. Ui[] are contained in X[0] hash pre-image.
 //!    2. R1CS Instance u is folded into Ui[augmented_circuit_index] correctly; just like Nova IVC.
 //!    3. (optional by F logic) F circuit might check `program_counter_{i}` invoked current F circuit is legal or not.
-//!    3. F circuit produce `program_counter_{i+1}` and sent to next round for optionally constraint the next F' argumented circuit.
+//!    3. F circuit produce `program_counter_{i+1}` and sent to next round to optionally constraint the next F' argumented circuit.
 use crate::{
   constants::{NIO_NOVA_FOLD, NUM_HASH_BITS},
   gadgets::{

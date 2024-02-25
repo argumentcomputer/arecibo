@@ -105,25 +105,18 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   pub fn evaluate(&self, r: &[Scalar]) -> Scalar {
     // r must have a value for each variable
     assert_eq!(r.len(), self.get_num_vars());
-    let chis = EqPolynomial::evals_from_points(r);
-
-    zip_with!(
-      (chis.into_par_iter(), self.Z.par_iter()),
-      |chi_i, Z_i| chi_i * Z_i
-    )
-    .sum()
+    Self::evaluate_with(&self.Z, r)
   }
 
   /// Evaluates the polynomial with the given evaluations and point.
   pub fn evaluate_with(Z: &[Scalar], r: &[Scalar]) -> Scalar {
-    zip_with!(
-      (
-        EqPolynomial::evals_from_points(r).into_par_iter(),
-        Z.par_iter()
-      ),
-      |a, b| a * b
-    )
-    .sum()
+    let chis = EqPolynomial::evals_from_points(r);
+    Self::evaluate_with_chis(Z, &chis)
+  }
+
+  /// Evaluates the polynomial with the given evaluations and chi coefficients
+  pub fn evaluate_with_chis(Z: &[Scalar], chis: &[Scalar]) -> Scalar {
+    zip_with!(par_iter, (chis, Z), |a, b| *a * b).sum()
   }
 }
 

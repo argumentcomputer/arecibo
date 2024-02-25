@@ -553,10 +553,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
       (Az, Bz, Cz, W, E)
     };
+    let chis_taus = EqPolynomial::evals_from_points(&tau_coords);
     let (eval_Az_at_tau, eval_Bz_at_tau, eval_Cz_at_tau) = {
       let evals_at_tau = [&Az, &Bz, &Cz]
         .into_par_iter()
-        .map(|p| MultilinearPolynomial::evaluate_with(p, &tau_coords))
+        .map(|p| MultilinearPolynomial::evaluate_with_chis(p, &chis_taus))
         .collect::<Vec<E::Scalar>>();
       (evals_at_tau[0], evals_at_tau[1], evals_at_tau[2])
     };

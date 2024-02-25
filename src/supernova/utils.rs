@@ -37,6 +37,7 @@ pub fn get_from_vec_alloc_relaxed_r1cs<E: Engine, CS: ConstraintSystem<<E as Eng
   // Since `selector_vec` is correct, only one entry is 1.
   // If selector_vec[0] is 1, then all `conditionally_select` will return `first`.
   // Otherwise, the correct instance will be selected.
+  // TODO: reformulate when iterator_try_reduce stabilizes
   let selected = a
     .iter()
     .zip_eq(selector_vec.iter())
