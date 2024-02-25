@@ -608,6 +608,7 @@
 <a href="#607" id="607">607</a>
 <a href="#608" id="608">608</a>
 <a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements Nova's evaluation engine using `HyperKZG`, a KZG-based polynomial commitment for multilinear polynomials
 //! HyperKZG is based on the transformation from univariate PCS to multilinear PCS in the Gemini paper (section 2.4.2 in `&lt;https://eprint.iacr.org/2022/420.pdf&gt;`).
 //! However, there are some key differences:
@@ -634,7 +635,7 @@
 };
 <span class="kw">use </span>core::marker::PhantomData;
 <span class="kw">use </span>ff::{Field, PrimeFieldBits};
-<span class="kw">use </span>group::{Curve, Group <span class="kw">as _</span>};
+<span class="kw">use </span>group::{prime::PrimeCurveAffine <span class="kw">as _</span>, Curve, Group <span class="kw">as _</span>};
 <span class="kw">use </span>itertools::Itertools <span class="kw">as _</span>;
 <span class="kw">use </span>pairing::{Engine, MillerLoopResult, MultiMillerLoop};
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
@@ -851,14 +852,15 @@
 
     <span class="comment">// We do not need to commit to the first polynomial as it is already committed.
     // Compute commitments in parallel
-    </span><span class="kw">let </span>comms: Vec&lt;E::G1Affine&gt; = (<span class="number">1</span>..polys.len())
-      .into_par_iter()
-      .map(|i| {
-        &lt;NE::CE <span class="kw">as </span>CommitmentEngineTrait&lt;NE&gt;&gt;::commit(ck, <span class="kw-2">&amp;</span>polys[i])
-          .comm
-          .to_affine()
-      })
-      .collect();
+    </span><span class="kw">let </span>comms = {
+      <span class="kw">let </span><span class="kw-2">mut </span>comms = <span class="macro">vec!</span>[E::G1Affine::identity(); polys.len() - <span class="number">1</span>];
+      <span class="kw">let </span>comms_proj: Vec&lt;E::G1&gt; = (<span class="number">1</span>..polys.len())
+        .into_par_iter()
+        .map(|i| &lt;NE::CE <span class="kw">as </span>CommitmentEngineTrait&lt;NE&gt;&gt;::commit(ck, <span class="kw-2">&amp;</span>polys[i]).comm)
+        .collect();
+      Curve::batch_normalize(<span class="kw-2">&amp;</span>comms_proj, <span class="kw-2">&amp;mut </span>comms);
+      comms
+    };
 
     <span class="comment">// Phase 2
     // We do not need to add x to the transcript, because in our context x was obtained from the transcript.
