@@ -7,6 +7,7 @@ use std::{
 };
 
 use ff::PrimeField;
+use rand::{CryptoRng, RngCore};
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
@@ -144,6 +145,15 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
       coeffs_except_linear_term,
     }
   }
+
+  /// Returns a random polynomial
+  pub fn random<R: RngCore + CryptoRng>(num_vars: usize, mut rng: &mut R) -> Self {
+    Self::new(
+      std::iter::from_fn(|| Some(Scalar::random(&mut rng)))
+        .take(num_vars)
+        .collect(),
+    )
+  }
 }
 
 impl<Scalar: PrimeField> CompressedUniPoly<Scalar> {
@@ -229,6 +239,8 @@ impl<Scalar: PrimeField> AsRef<Vec<Scalar>> for UniPoly<Scalar> {
 mod tests {
   use super::*;
   use crate::provider::{bn256_grumpkin, secp_secq::secp256k1};
+  use rand::SeedableRng;
+  use rand_chacha::ChaCha20Rng;
 
   fn test_from_evals_quad_with<F: PrimeField>() {
     // polynomial is 2x^2 + 3x + 1
@@ -296,5 +308,43 @@ mod tests {
     test_from_evals_cubic_with::<pasta_curves::pallas::Scalar>();
     test_from_evals_cubic_with::<bn256_grumpkin::bn256::Scalar>();
     test_from_evals_cubic_with::<secp256k1::Scalar>()
+  }
+
+  /// Perform a naive n^2 multiplication of `self` by `other`.
+  pub fn naive_mul<F: PrimeField>(ours: &UniPoly<F>, other: &UniPoly<F>) -> UniPoly<F> {
+    if ours.is_zero() || other.is_zero() {
+      UniPoly::zero()
+    } else {
+      let mut result = vec![F::ZERO; ours.degree() + other.degree() + 1];
+      for (i, self_coeff) in ours.coeffs.iter().enumerate() {
+        for (j, other_coeff) in other.coeffs.iter().enumerate() {
+          result[i + j] += &(*self_coeff * other_coeff);
+        }
+      }
+      UniPoly::new(result)
+    }
+  }
+
+  fn divide_polynomials_random<Fr: PrimeField>() {
+    let rng = &mut ChaCha20Rng::from_seed([0u8; 32]);
+
+    for a_degree in 0..50 {
+      for b_degree in 0..50 {
+        let dividend = UniPoly::<Fr>::random(a_degree, rng);
+        let divisor = UniPoly::<Fr>::random(b_degree, rng);
+        if let Some((quotient, remainder)) = UniPoly::divide_with_q_and_r(&dividend, &divisor) {
+          let mut prod = naive_mul(&divisor, &quotient);
+          prod += &remainder;
+          assert_eq!(dividend, prod)
+        }
+      }
+    }
+  }
+
+  #[test]
+  fn test_divide_polynomials_random() {
+    divide_polynomials_random::<pasta_curves::pallas::Scalar>();
+    divide_polynomials_random::<bn256_grumpkin::bn256::Scalar>();
+    divide_polynomials_random::<secp256k1::Scalar>()
   }
 }
