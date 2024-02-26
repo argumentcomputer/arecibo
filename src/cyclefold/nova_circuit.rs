@@ -274,8 +274,8 @@ where
     data_p: &emulated::AllocatedFoldingData<E1>,
     data_c_1: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
     data_c_2: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
-    E_new: &emulated::AllocatedEmulPoint<E1::GE>,
-    W_new: &emulated::AllocatedEmulPoint<E1::GE>,
+    E_new: emulated::AllocatedEmulPoint<E1::GE>,
+    W_new: emulated::AllocatedEmulPoint<E1::GE>,
     arity: usize,
   ) -> Result<
     (
@@ -335,7 +335,7 @@ where
       cs.namespace(|| "cyclefold invocation check E"),
       &E_1,
       &data_p.T,
-      E_new,
+      &E_new,
       u_E,
     )?;
 
@@ -346,7 +346,7 @@ where
       cs.namespace(|| "cyclefold invocation check W"),
       &W_1,
       &W_2,
-      W_new,
+      &W_new,
       u_W,
     )?;
 
@@ -405,8 +405,8 @@ where
     let U_p = data_p.U.fold_with_r1cs(
       cs.namespace(|| "fold u_p into U_p"),
       pp_digest,
-      W_new.clone(),
-      E_new.clone(),
+      W_new,
+      E_new,
       &data_p.u_W,
       &data_p.u_x0,
       &data_p.u_x1,
@@ -441,8 +441,8 @@ where
       &data_p,
       &data_c_1,
       &data_c_2,
-      &E_new,
-      &W_new,
+      E_new,
+      W_new,
       arity,
     )?;
 
