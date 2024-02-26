@@ -58,11 +58,7 @@ macro_rules! impl_traits {
       type AffineExt = $name::Affine;
       type Compressed = $name_compressed;
 
-      #[tracing::instrument(
-        skip_all,
-        level = "trace",
-        name = "<_ as Group>::vartime_multiscalar_mul"
-      )]
+      #[tracing::instrument(skip_all, name = "msm")]
       fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::Affine]) -> Self {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         if scalars.len() >= 128 {

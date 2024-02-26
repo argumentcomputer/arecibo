@@ -89,6 +89,7 @@ macro_rules! impl_traits {
       // so the blanket impl<T> From<T> for T and impl<T> Into<T> apply.
       type Compressed = $name::Compressed;
 
+      #[tracing::instrument(skip_all, name = "msm")]
       fn vartime_multiscalar_mul(scalars: &[Self::ScalarExt], bases: &[Self::AffineExt]) -> Self {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         if scalars.len() >= 128 {
