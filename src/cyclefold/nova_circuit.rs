@@ -312,7 +312,10 @@ where
       &hash_p,
     )?;
 
-    let mut ro_c = E1::ROCircuit::new(self.ro_consts.clone(), 73); // TODO: Be more dilligent about this
+    let mut ro_c = E1::ROCircuit::new(
+      self.ro_consts.clone(),
+      1 + 1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS, // pp + i + W + E + u + X
+    );
 
     ro_c.absorb(pp_digest);
     ro_c.absorb(i);
@@ -330,7 +333,6 @@ where
 
     let u_E = &data_c_1.u;
     let E_1 = &data_p.U.comm_E;
-    // TODO: Add `cyclefold_invocation_check`s here after I change the circuit IO
     cyclefold_invocation_check(
       cs.namespace(|| "cyclefold invocation check E"),
       &E_1,
@@ -368,7 +370,10 @@ where
     )?;
 
     // Calculate h_int = H(pp, U_c_int)
-    let mut ro_c_int = E1::ROCircuit::new(self.ro_consts.clone(), 72); // TODO: Fix this
+    let mut ro_c_int = E1::ROCircuit::new(
+      self.ro_consts.clone(),
+      1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS, // pp + W + E + u + X
+    );
     ro_c_int.absorb(pp_digest);
     U_int.absorb_in_ro(cs.namespace(|| "absorb U_c_int"), &mut ro_c_int)?;
     let h_c_int_bits =
@@ -376,7 +381,11 @@ where
     let h_c_int = le_bits_to_num(cs.namespace(|| "intermediate hash"), &h_c_int_bits)?;
 
     // Calculate h_1 = H(pp, U_c_1)
-    let mut ro_c_1 = E1::ROCircuit::new(self.ro_consts.clone(), 72); // TODO: Fix this
+    let mut ro_c_1 = E1::ROCircuit::new(
+      self.ro_consts.clone(),
+      1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS, // pp + W + E + u + X
+    );
+
     ro_c_1.absorb(pp_digest);
     data_c_2
       .U
@@ -515,7 +524,10 @@ where
     let hash_p_bits = ro_p.squeeze(cs.namespace(|| "hash_p_bits"), NUM_HASH_BITS)?;
     let hash_p = le_bits_to_num(cs.namespace(|| "hash_p"), &hash_p_bits)?;
 
-    let mut ro_c = E1::ROCircuit::new(self.ro_consts, 72); // TODO: Fix this
+    let mut ro_c = E1::ROCircuit::new(
+      self.ro_consts,
+      1 + 1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS,
+    ); // pp + i + W + E + u + X
     ro_c.absorb(&pp_digest);
     ro_c.absorb(&i_new);
     Unew_c.absorb_in_ro(cs.namespace(|| "absorb Unew_c"), &mut ro_c)?;
