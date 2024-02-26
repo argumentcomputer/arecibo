@@ -15,7 +15,7 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>NUM_CHALLENGE_BITS: usize = <span class="number">128</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>BN_LIMB_WIDTH: usize = <span class="number">64</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>BN_N_LIMBS: usize = <span class="number">4</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>NUM_FE_WITHOUT_IO_FOR_CRHF: usize = <span class="number">17</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>NUM_FE_WITHOUT_IO_FOR_CRHF: usize = <span class="number">9 </span>+ NIO_NOVA_FOLD * BN_N_LIMBS;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>NUM_FE_FOR_RO: usize = <span class="number">9</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>NIO_NOVA_FOLD: usize = <span class="number">2</span>;
 

@@ -890,6 +890,10 @@
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
 <a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
   util::{
     Bitvector, Num, {f_to_nat, nat_to_f},
@@ -1328,7 +1332,11 @@
     <span class="kw">let </span>carry_bits = (((max_word.to_f64().unwrap() * <span class="number">2.0</span>).log2() - <span class="self">self</span>.params.limb_width <span class="kw">as </span>f64)
       .ceil()
       + <span class="number">0.1</span>) <span class="kw">as </span>usize;
-    <span class="kw">let </span>limbs_per_group = (Scalar::CAPACITY <span class="kw">as </span>usize - carry_bits) / <span class="self">self</span>.params.limb_width;
+    <span class="kw">let </span>limbs_per_group = max(
+      (Scalar::CAPACITY <span class="kw">as </span>usize - carry_bits) / <span class="self">self</span>.params.limb_width,
+      <span class="number">1</span>,
+    );
+
     <span class="kw">let </span>self_grouped = <span class="self">self</span>.group_limbs(limbs_per_group);
     <span class="kw">let </span>other_grouped = other.group_limbs(limbs_per_group);
     self_grouped.equal_when_carried(cs.namespace(|| <span class="string">"grouped"</span>), <span class="kw-2">&amp;</span>other_grouped)
