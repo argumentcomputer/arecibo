@@ -160,7 +160,7 @@ pub mod emulated {
         cs.namespace(|| "x"),
         || {
           Ok(f_to_nat(
-            &coords.ok_or(SynthesisError::AssignmentMissing)?.0,
+            &coords.map_or(<G::Scalar as Field>::ZERO, |val| val.0),
           ))
         },
         limb_width,
@@ -171,7 +171,7 @@ pub mod emulated {
         cs.namespace(|| "y"),
         || {
           Ok(f_to_nat(
-            &coords.ok_or(SynthesisError::AssignmentMissing)?.1,
+            &coords.map_or(<G::Scalar as Field>::ZERO, |val| val.1),
           ))
         },
         limb_width,
@@ -180,7 +180,7 @@ pub mod emulated {
 
       let is_infinity = AllocatedBit::alloc(
         cs.namespace(|| "alloc is_infinity"),
-        coords.map(|(_, _, is_infinity)| is_infinity),
+        coords.map_or(Some(true), |(_, _, is_infinity)| Some(is_infinity)),
       )?;
 
       Ok(Self { x, y, is_infinity })

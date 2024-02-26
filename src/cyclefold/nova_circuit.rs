@@ -162,15 +162,7 @@ where
       self.inputs.as_ref().map(|inputs| inputs.pp_digest),
     )?;
 
-    let i = AllocatedNum::alloc(cs.namespace(|| "i"), || {
-      Ok(
-        self
-          .inputs
-          .as_ref()
-          .ok_or(SynthesisError::AssignmentMissing)?
-          .i,
-      )
-    })?;
+    let i = AllocatedNum::alloc(cs.namespace(|| "i"), || Ok(self.inputs.get()?.i))?;
 
     let z_0 = (0..arity)
       .map(|i| {
@@ -466,18 +458,16 @@ where
       |lc| lc,
     );
 
-    let is_base_case_bool = Boolean::from(is_base_case.clone());
-
     let Unew_p = Unew_p_base.conditionally_select(
       cs.namespace(|| "compute Unew_p"),
       &Unew_p_non_base,
-      &is_base_case_bool,
+      &Boolean::from(is_base_case.clone()),
     )?;
 
     let Unew_c = Unew_c_base.conditionally_select(
       cs.namespace(|| "compute Unew_c"),
       &Unew_c_non_base,
-      &is_base_case_bool,
+      &Boolean::from(is_base_case.clone()),
     )?;
 
     // Compute i + 1
