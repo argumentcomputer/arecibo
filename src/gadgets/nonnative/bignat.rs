@@ -436,7 +436,11 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     let carry_bits = (((max_word.to_f64().unwrap() * 2.0).log2() - self.params.limb_width as f64)
       .ceil()
       + 0.1) as usize;
-    let limbs_per_group = (Scalar::CAPACITY as usize - carry_bits) / self.params.limb_width;
+    let limbs_per_group = max(
+      (Scalar::CAPACITY as usize - carry_bits) / self.params.limb_width,
+      1,
+    );
+
     let self_grouped = self.group_limbs(limbs_per_group);
     let other_grouped = other.group_limbs(limbs_per_group);
     self_grouped.equal_when_carried(cs.namespace(|| "grouped"), &other_grouped)
