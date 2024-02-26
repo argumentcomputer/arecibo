@@ -5,6 +5,9 @@
 //! This means that Spartan's polynomial IOP can use commit to its polynomials as-is without incurring any interpolations or FFTs.
 //! (2) HyperKZG is specialized to use KZG as the univariate commitment scheme, so it includes several optimizations (both during the transformation of multilinear-to-univariate claims
 //! and within the KZG commitment scheme implementation itself).
+//! (3) HyperKZG also includes optimisation based on so called Shplonk/HaloInfinite technique (https://hackmd.io/@adrian-aztec/BJxoyeCqj#Phase-2-Gemini).
+//! Compared to pure HyperKZG, this optimisation in theory improves prover (at cost of using 1 fixed KZG opening) and verifier (at cost of eliminating MSM)
+//!
 #![allow(non_snake_case)]
 use crate::{
   errors::NovaError,
@@ -14,19 +17,21 @@ use crate::{
     traits::DlogGroup,
     util::iterators::IndexedParallelIteratorExt as _,
   },
-  spartan::{polys::univariate::UniPoly, powers},
+  spartan::{math::Math, polys::univariate::UniPoly},
   traits::{
     commitment::{CommitmentEngineTrait, Len},
     evaluation::EvaluationEngineTrait,
     Engine as NovaEngine, Group, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  zip_with,
 };
 use core::marker::PhantomData;
 use ff::{Field, PrimeFieldBits};
 use group::{prime::PrimeCurveAffine as _, Curve, Group as _};
 use itertools::Itertools as _;
 use pairing::{Engine, MillerLoopResult, MultiMillerLoop};
+use rayon::iter::{
+  IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use rayon::prelude::*;
 use ref_cast::RefCast as _;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -40,12 +45,14 @@ use std::sync::Arc;
 ))]
 pub struct EvaluationArgument<E: Engine> {
   comms: Vec<E::G1Affine>,
-  w: Vec<E::G1Affine>,
   evals: Vec<Vec<E::Fr>>,
+  R_x: Vec<E::Fr>,
+  C_Q: E::G1Affine,
+  C_H: E::G1Affine,
 }
 
 /// Provides an implementation of a polynomial evaluation engine using KZG
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvaluationEngine<E, NE> {
   _p: PhantomData<(E, NE)>,
 }
@@ -55,13 +62,17 @@ pub struct EvaluationEngine<E, NE> {
 impl<E, NE> EvaluationEngine<E, NE>
 where
   E: Engine,
-  NE: NovaEngine<GE = E::G1, Scalar = E::Fr>,
-  E::G1: DlogGroup,
+  NE: NovaEngine<GE = E::G1, Scalar = E::Fr, CE = KZGCommitmentEngine<E>>,
+  E::Fr: Serialize + DeserializeOwned,
+  E::G1Affine: Serialize + DeserializeOwned,
+  E::G2Affine: Serialize + DeserializeOwned,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  E::Fr: PrimeFieldBits,
+  <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
   E::Fr: TranscriptReprTrait<E::G1>,
   E::G1Affine: TranscriptReprTrait<E::G1>, // TODO: this bound on DlogGroup is really unusable!
 {
-  /// TODO: write doc
-  pub fn compute_challenge(
+  fn compute_challenge(
     com: &[E::G1Affine],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
@@ -69,11 +80,10 @@ where
     transcript.squeeze(b"c").unwrap()
   }
 
-  /// TODO: write doc
   // Compute challenge q = Hash(vk, C0, ..., C_{k-1}, u0, ...., u_{t-1},
   // (f_i(u_j))_{i=0..k-1,j=0..t-1})
   // It is assumed that both 'C' and 'u' are already absorbed by the transcript
-  pub fn get_batch_challenge(
+  fn get_batch_challenge(
     v: &[Vec<E::Fr>],
     transcript: &mut impl TranscriptEngineTrait<NE>,
   ) -> E::Fr {
@@ -89,19 +99,109 @@ where
     transcript.squeeze(b"r").unwrap()
   }
 
-  /// Compute powers of q : (1, q, q^2, ..., q^(k-1))
-  pub fn batch_challenge_powers(q: E::Fr, k: usize) -> Vec<E::Fr> {
-    powers(&q, k)
+  fn compute_a(c_q: &E::G1Affine, transcript: &mut impl TranscriptEngineTrait<NE>) -> E::Fr {
+    transcript.absorb(b"C_Q", c_q);
+    transcript.squeeze(b"a").unwrap()
   }
 
-  /// TODO: write doc
-  pub fn verifier_second_challenge(
-    W: &[E::G1Affine],
-    transcript: &mut impl TranscriptEngineTrait<NE>,
-  ) -> E::Fr {
-    transcript.absorb(b"W", &W.to_vec().as_slice());
+  fn compute_pi_polynomials(hat_P: &[E::Fr], point: &[E::Fr]) -> Vec<Vec<E::Fr>> {
+    let mut polys: Vec<Vec<E::Fr>> = Vec::new();
+    polys.push(hat_P.to_vec());
 
-    transcript.squeeze(b"d").unwrap()
+    for i in 0..point.len() - 1 {
+      let Pi_len = polys[i].len() / 2;
+      let mut Pi = vec![E::Fr::ZERO; Pi_len];
+
+      (0..Pi_len)
+        .into_par_iter()
+        .map(|j| {
+          point[point.len() - i - 1] * (polys[i][2 * j + 1] - polys[i][2 * j]) + polys[i][2 * j]
+        })
+        .collect_into_vec(&mut Pi);
+
+      polys.push(Pi);
+    }
+
+    assert_eq!(polys.len(), hat_P.len().log_2());
+
+    polys
+  }
+
+  fn compute_commitments(
+    ck: &UniversalKZGParam<E>,
+    _C: &Commitment<NE>,
+    polys: &[Vec<E::Fr>],
+  ) -> Vec<E::G1Affine> {
+    let comms: Vec<NE::GE> = (1..polys.len())
+      .into_par_iter()
+      .map(|i| <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i]).comm)
+      .collect();
+
+    let mut comms_affine: Vec<E::G1Affine> = vec![E::G1Affine::identity(); comms.len()];
+    NE::GE::batch_normalize(&comms, &mut comms_affine);
+    comms_affine
+  }
+
+  fn compute_evals(polys: &[Vec<E::Fr>], u: &[E::Fr]) -> Vec<Vec<E::Fr>> {
+    let mut v = vec![vec!(E::Fr::ZERO; polys.len()); u.len()];
+    v.par_iter_mut().enumerate().for_each(|(i, v_i)| {
+      // for each point u
+      v_i.par_iter_mut().zip_eq(polys).for_each(|(v_ij, f)| {
+        // for each poly f (except the last one - since it is constant)
+        *v_ij = UniPoly::ref_cast(f).evaluate(&u[i]);
+      });
+    });
+    v
+  }
+
+  fn compute_k_polynomial(
+    batched_Pi: &UniPoly<E::Fr>,
+    Q_x: &UniPoly<E::Fr>,
+    D: &UniPoly<E::Fr>,
+    R_x: &UniPoly<E::Fr>,
+    a: E::Fr,
+  ) -> UniPoly<E::Fr> {
+    let mut tmp = Q_x.clone();
+    tmp *= &D.evaluate(&a);
+    tmp[0] += &R_x.evaluate(&a);
+    tmp = UniPoly::new(
+      tmp
+        .coeffs
+        .into_iter()
+        .map(|coeff| -coeff)
+        .collect::<Vec<E::Fr>>(),
+    );
+    let mut K_x = batched_Pi.clone();
+    K_x += &tmp;
+    K_x
+  }
+
+  fn kzg10_open(ck: &UniversalKZGParam<E>, f_x: &UniPoly<E::Fr>, u: E::Fr) -> E::G1Affine {
+    // On input f(x) and u compute the witness polynomial used to prove
+    // that f(u) = v. The main part of this is to compute the
+    // division (f(x) - f(u)) / (x - u), but we don't use a general
+    // division algorithm, we make use of the fact that the division
+    // never has a remainder, and that the denominator is always a linear
+    // polynomial. The cost is (d-1) mults + (d-1) adds in E::Scalar, where
+    // d is the degree of f.
+    //
+    // We use the fact that if we compute the quotient of f(x)/(x-u),
+    // there will be a remainder, but it'll be v = f(u).  Put another way
+    // the quotient of f(x)/(x-u) and (f(x) - f(v))/(x-u) is the
+    // same.  One advantage is that computing f(u) could be decoupled
+    // from kzg_open, it could be done later or separate from computing W.
+
+    let d = f_x.coeffs.len();
+
+    // Compute h(x) = f(x)/(x - u)
+    let mut h = vec![E::Fr::ZERO; d];
+    for i in (1..d).rev() {
+      h[i - 1] = f_x[i] + h[i] * u;
+    }
+
+    <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &h)
+      .comm
+      .to_affine()
   }
 }
 
@@ -137,130 +237,49 @@ where
     _eval: &E::Fr,
   ) -> Result<Self::EvaluationArgument, NovaError> {
     let x: Vec<E::Fr> = point.to_vec();
-
-    //////////////// begin helper closures //////////
-    let kzg_open = |f: &[E::Fr], u: E::Fr| -> E::G1Affine {
-      // On input f(x) and u compute the witness polynomial used to prove
-      // that f(u) = v. The main part of this is to compute the
-      // division (f(x) - f(u)) / (x - u), but we don't use a general
-      // division algorithm, we make use of the fact that the division
-      // never has a remainder, and that the denominator is always a linear
-      // polynomial. The cost is (d-1) mults + (d-1) adds in E::Scalar, where
-      // d is the degree of f.
-      //
-      // We use the fact that if we compute the quotient of f(x)/(x-u),
-      // there will be a remainder, but it'll be v = f(u).  Put another way
-      // the quotient of f(x)/(x-u) and (f(x) - f(v))/(x-u) is the
-      // same.  One advantage is that computing f(u) could be decoupled
-      // from kzg_open, it could be done later or separate from computing W.
-
-      let compute_witness_polynomial = |f: &[E::Fr], u: E::Fr| -> Vec<E::Fr> {
-        let d = f.len();
-
-        // Compute h(x) = f(x)/(x - u)
-        let mut h = vec![E::Fr::ZERO; d];
-        for i in (1..d).rev() {
-          h[i - 1] = f[i] + h[i] * u;
-        }
-
-        h
-      };
-
-      let h = compute_witness_polynomial(f, u);
-
-      <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &h)
-        .comm
-        .to_affine()
-    };
-
-    let kzg_open_batch = |f: Vec<Vec<E::Fr>>,
-                          u: &[E::Fr],
-                          transcript: &mut <NE as NovaEngine>::TE|
-     -> (Vec<E::G1Affine>, Vec<Vec<E::Fr>>) {
-      let kzg_compute_batch_polynomial = |f: Vec<Vec<E::Fr>>, q: E::Fr| -> Vec<E::Fr> {
-        // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
-        let B: UniPoly<E::Fr> = f.into_par_iter().map(UniPoly::new).rlc(&q);
-        B.coeffs
-      };
-      ///////// END kzg_open_batch closure helpers
-
-      let k = f.len();
-      let t = u.len();
-
-      // The verifier needs f_i(u_j), so we compute them here
-      // (V will compute B(u_j) itself)
-      let mut v = vec![vec!(E::Fr::ZERO; k); t];
-      v.par_iter_mut().enumerate().for_each(|(i, v_i)| {
-        // for each point u
-        v_i.par_iter_mut().zip_eq(&f).for_each(|(v_ij, f)| {
-          // for each poly f (except the last one - since it is constant)
-          *v_ij = UniPoly::ref_cast(f).evaluate(&u[i]);
-        });
-      });
-
-      let q = Self::get_batch_challenge(&v, transcript);
-      let B = kzg_compute_batch_polynomial(f, q);
-
-      // Now open B at u0, ..., u_{t-1}
-      let w = u
-        .into_par_iter()
-        .map(|ui| kzg_open(&B, *ui))
-        .collect::<Vec<_>>();
-
-      // The prover computes the challenge to keep the transcript in the same
-      // state as that of the verifier
-      let _d_0 = Self::verifier_second_challenge(&w, transcript);
-      (w, v)
-    };
-
-    ///// END helper closures //////////
-
     let ell = x.len();
     let n = hat_P.len();
     assert_eq!(n, 1 << ell); // Below we assume that n is a power of two
 
     // Phase 1  -- create commitments com_1, ..., com_\ell
-    // We do not compute final Pi (and its commitment) as it is constant and equals to 'eval'
+    // We do not compute final Pi (and its commitment as well since it is already committed according to EvaluationEngineTrait API) as it is constant and equals to 'eval'
     // also known to verifier, so can be derived on its side as well
-    let mut polys: Vec<Vec<E::Fr>> = Vec::new();
-    polys.push(hat_P.to_vec());
-
-    // We don't compute final Pi (and its commitment) as it is constant and equals to 'eval'
-    // also known to verifier, so can be derived on its side as well
-    for i in 0..x.len() - 1 {
-      let Pi_len = polys[i].len() / 2;
-      let mut Pi = vec![E::Fr::ZERO; Pi_len];
-
-      #[allow(clippy::needless_range_loop)]
-      Pi.par_iter_mut().enumerate().for_each(|(j, Pi_j)| {
-        *Pi_j = x[ell - i - 1] * (polys[i][2 * j + 1] - polys[i][2 * j]) + polys[i][2 * j];
-      });
-
-      polys.push(Pi);
-    }
-
-    // We do not need to commit to the first polynomial as it is already committed.
-    // Compute commitments in parallel
-    let comms = {
-      let mut comms = vec![E::G1Affine::identity(); polys.len() - 1];
-      let comms_proj: Vec<E::G1> = (1..polys.len())
-        .into_par_iter()
-        .map(|i| <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &polys[i]).comm)
-        .collect();
-      Curve::batch_normalize(&comms_proj, &mut comms);
-      comms
-    };
+    let polys = Self::compute_pi_polynomials(hat_P, point);
+    let comms = Self::compute_commitments(ck, _C, &polys);
 
     // Phase 2
-    // We do not need to add x to the transcript, because in our context x was obtained from the transcript.
-    // We also do not need to absorb `C` and `eval` as they are already absorbed by the transcript by the caller
     let r = Self::compute_challenge(&comms, transcript);
     let u = vec![r, -r, r * r];
+    let evals = Self::compute_evals(&polys, &u);
 
-    // Phase 3 -- create response
-    let (w, evals) = kzg_open_batch(polys, &u, transcript);
+    // Phase 3
+    // Compute B(x) = f_0(x) + q * f_1(x) + ... + q^(k-1) * f_{k-1}(x)
+    let q = Self::get_batch_challenge(&evals, transcript);
+    let batched_Pi: UniPoly<E::Fr> = polys.into_par_iter().map(UniPoly::new).rlc(&q);
 
-    Ok(EvaluationArgument { comms, w, evals })
+    // Q(x), R(x) = P(x) / D(x), where D(x) = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
+    let D = UniPoly::new(vec![u[2] * u[2], -u[2], -u[2], E::Fr::from(1)]);
+    let (Q_x, R_x) = batched_Pi.divide_with_q_and_r(&D).unwrap();
+
+    let C_Q = <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &Q_x.coeffs)
+      .comm
+      .to_affine();
+
+    let a = Self::compute_a(&C_Q, transcript);
+
+    // K(x) = P(x) - Q(x) * D(a) - R(a), note that R(a) should be subtracted from a free term of polynomial
+    let K_x = Self::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
+
+    // TODO: since this is a usual KZG10 we should use it as utility instead
+    let C_H = Self::kzg10_open(ck, &K_x, a);
+
+    Ok(EvaluationArgument::<E> {
+      comms,
+      evals,
+      R_x: R_x.coeffs,
+      C_Q,
+      C_H,
+    })
   }
 
   /// A method to verify purported evaluations of a batch of polynomials
@@ -272,145 +291,98 @@ where
     P_of_x: &E::Fr,
     pi: &Self::EvaluationArgument,
   ) -> Result<(), NovaError> {
-    let x = point.to_vec();
-    let y = P_of_x;
+    let r = Self::compute_challenge(&pi.comms, transcript);
+    let u = [r, -r, r * r];
 
-    // vk is hashed in transcript already, so we do not add it here
-
-    let kzg_verify_batch = |vk: &KZGVerifierKey<E>,
-                            C: &Vec<E::G1Affine>,
-                            W: &Vec<E::G1Affine>,
-                            u: &Vec<E::Fr>,
-                            v: &Vec<Vec<E::Fr>>,
-                            transcript: &mut <NE as NovaEngine>::TE|
-     -> bool {
-      let k = C.len();
-      let t = u.len();
-
-      let q = Self::get_batch_challenge(v, transcript);
-      let q_powers = Self::batch_challenge_powers(q, k); // 1, q, q^2, ..., q^(k-1)
-
-      let d_0 = Self::verifier_second_challenge(W, transcript);
-      let d_1 = d_0 * d_0;
-
-      assert!(t == 3);
-      assert!(W.len() == 3);
-      // We write a special case for t=3, since this what is required for
-      // hyperkzg. Following the paper directly, we must compute:
-      // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
-      // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
-      // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
-      // let R0 = -W[0];
-      // let R1 = -W[1];
-      // let R2 = -W[2];
-      // let L = L0 + L1*d_0 + L2*d_1;
-      // let R = R0 + R1*d_0 + R2*d_1;
-      //
-      // We group terms to reduce the number of scalar mults (to seven):
-      // In Rust, we could use MSMs for these, and speed up verification.
-      //
-      // Note, that while computing L, the intermediate computation of C_B together with computing
-      // L0, L1, L2 can be replaced by single MSM of C with the powers of q multiplied by (1 + d_0 + d_1)
-      // with additionally concatenated inputs for scalars/bases.
-
-      let q_power_multiplier = E::Fr::ONE + d_0 + d_1;
-
-      let q_powers_multiplied: Vec<E::Fr> = q_powers
-        .par_iter()
-        .map(|q_power| *q_power * q_power_multiplier)
-        .collect();
-
-      // Compute the batched openings
-      // compute B(u_i) = v[i][0] + q*v[i][1] + ... + q^(t-1) * v[i][t-1]
-      let B_u = v
-        .into_par_iter()
-        .map(|v_i| zip_with!(iter, (q_powers, v_i), |a, b| *a * *b).sum())
-        .collect::<Vec<E::Fr>>();
-
-      let L = NE::GE::vartime_multiscalar_mul(
-        &[
-          &q_powers_multiplied[..k],
-          &[
-            u[0],
-            (u[1] * d_0),
-            (u[2] * d_1),
-            (B_u[0] + d_0 * B_u[1] + d_1 * B_u[2]),
-          ],
-        ]
-        .concat(),
-        &[
-          &C[..k],
-          &[
-            E::G1::from(W[0]).into(),
-            E::G1::from(W[1]).into(),
-            E::G1::from(W[2]).into(),
-            (-E::G1::from(vk.g)).into(),
-          ],
-        ]
-        .concat(),
-      );
-
-      let R0 = E::G1::from(W[0]);
-      let R1 = E::G1::from(W[1]);
-      let R2 = E::G1::from(W[2]);
-      let R = R0 + R1 * d_0 + R2 * d_1;
-
-      // Check that e(L, vk.H) == e(R, vk.tau_H)
-      let pairing_inputs = [
-        (&(-L).to_affine(), &E::G2Prepared::from(vk.h)),
-        (&R.to_affine(), &E::G2Prepared::from(vk.beta_h)),
-      ];
-
-      let pairing_result = E::multi_miller_loop(&pairing_inputs).final_exponentiation();
-      pairing_result.is_identity().into()
-    };
-    ////// END verify() closure helpers
-
-    let ell = x.len();
-
-    let mut com = pi.comms.clone();
-
-    // we do not need to add x to the transcript, because in our context x was
-    // obtained from the transcript
-    let r = Self::compute_challenge(&com, transcript);
-    if r == E::Fr::ZERO || C.comm == E::G1::identity() {
+    if pi.evals.len() != u.len() {
       return Err(NovaError::ProofVerifyError);
     }
-    com.insert(0, C.comm.to_affine()); // set com_0 = C, shifts other commitments to the right
-
-    let u = vec![r, -r, r * r];
-
-    // Setup vectors (Y, ypos, yneg) from pi.v
-    let v = &pi.evals;
-    if v.len() != 3 {
-      return Err(NovaError::ProofVerifyError);
-    }
-    if v[0].len() != ell || v[1].len() != ell || v[2].len() != ell {
-      return Err(NovaError::ProofVerifyError);
-    }
-    let ypos = &v[0];
-    let yneg = &v[1];
-    let mut Y = v[2].to_vec();
-    Y.push(*y);
-
-    // Check consistency of (Y, ypos, yneg)
-    let two = E::Fr::from(2u64);
-    for i in 0..ell {
-      if two * r * Y[i + 1]
-        != r * (E::Fr::ONE - x[ell - i - 1]) * (ypos[i] + yneg[i])
-          + x[ell - i - 1] * (ypos[i] - yneg[i])
-      {
-        return Err(NovaError::ProofVerifyError);
-      }
-      // Note that we don't make any checks about Y[0] here, but our batching
-      // check below requires it
-    }
-
-    // Check commitments to (Y, ypos, yneg) are valid
-    if !kzg_verify_batch(vk, &com, &pi.w, &u, &pi.evals, transcript) {
+    if pi.R_x.len() != u.len() {
       return Err(NovaError::ProofVerifyError);
     }
 
+    let mut comms = pi.comms.to_vec();
+    comms.insert(0, C.comm.to_affine());
+
+    let q = Self::get_batch_challenge(&pi.evals, transcript);
+    let R_x = UniPoly::new(pi.R_x.clone());
+
+    let verification_failed = pi.evals.iter().zip_eq(u.iter()).any(|(evals_i, u_i)| {
+      // here we check correlation between R polynomial and batched evals, e.g.:
+      // 1) R(r) == eval at r
+      // 2) R(-r) == eval at -r
+      // 3) R(r^2) == eval at r^2
+      let batched_eval = UniPoly::ref_cast(evals_i).evaluate(&q);
+      batched_eval != R_x.evaluate(u_i)
+    });
+    if verification_failed {
+      return Err(NovaError::ProofVerifyError);
+    }
+
+    // here we check that Pi polynomials were correctly constructed by the prover, using 'r' as a random point, e.g:
+    // P_i_even = P_i(r) + P_i(-r) * 1/2
+    // P_i_odd = P_i(r) - P_i(-r) * 1/2*r
+    // P_i+1(r^2) == (1 - point_i) * P_i_even + point_i * P_i_odd -> should hold, according to Gemini transformation
+    let mut point = point.to_vec();
+    point.reverse();
+
+    let r_mul_2 = E::Fr::from(2) * r;
+    #[allow(clippy::disallowed_methods)]
+    let verification_failed = pi.evals[0]
+      .par_iter()
+      .chain(&[*P_of_x])
+      .zip_eq(pi.evals[1].par_iter().chain(&[*P_of_x]))
+      .zip(pi.evals[2][1..].par_iter().chain(&[*P_of_x]))
+      .enumerate()
+      .any(|(index, ((eval_r, eval_minus_r), eval_r_squared))| {
+        // some optimisation to avoid using expensive inversions:
+        // P_i+1(r^2) == (1 - point_i) * (P_i(r) + P_i(-r)) * 1/2 + point_i * (P_i(r) - P_i(-r)) * 1/2 * r
+        // is equivalent to:
+        // 2 * r * P_i+1(r^2) == r * (1 - point_i) * (P_i(r) + P_i(-r)) + point_i * (P_i(r) - P_i(-r))
+
+        let even = *eval_r + eval_minus_r;
+        let odd = *eval_r - eval_minus_r;
+        let right = r * ((E::Fr::ONE - point[index]) * even) + (point[index] * odd);
+        let left = *eval_r_squared * r_mul_2;
+        left != right
+      });
+
+    if verification_failed {
+      return Err(NovaError::ProofVerifyError);
+    }
+
+    let C_P: E::G1 = comms.par_iter().map(|comm| comm.to_curve()).rlc(&q);
+    let C_Q = pi.C_Q;
+    let C_H = pi.C_H;
+    let r_squared = u[2];
+
+    // D = (x - r) * (x + r) * (x - r^2) = 1 * x^3 - r^2 * x^2 - r^2 * x + r^4
+    let D = UniPoly::new(vec![
+      r_squared * r_squared,
+      -r_squared,
+      -r_squared,
+      E::Fr::from(1),
+    ]);
+
+    let a = Self::compute_a(&C_Q, transcript);
+
+    let C_K = C_P - (C_Q * D.evaluate(&a) + vk.g * R_x.evaluate(&a));
+
+    let pairing_inputs: Vec<(E::G1Affine, E::G2Prepared)> = vec![
+      (C_H, vk.beta_h.into()),
+      ((C_H * (-a) - C_K).to_affine(), vk.h.into()),
+    ];
+
+    #[allow(clippy::map_identity)]
+    let pairing_input_refs = pairing_inputs
+      .iter()
+      .map(|(a, b)| (a, b))
+      .collect::<Vec<_>>();
+
+    let pairing_result = E::multi_miller_loop(pairing_input_refs.as_slice()).final_exponentiation();
+    if pairing_result.is_identity().unwrap_u8() == 0x00 {
+      return Err(NovaError::ProofVerifyError);
+    }
     Ok(())
   }
 }
@@ -418,17 +390,394 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::provider::util::iterators::DoubleEndedIteratorExt as _;
   use crate::provider::util::test_utils::prove_verify_from_num_vars;
-  use crate::{provider::keccak::Keccak256Transcript, CommitmentKey};
+  use crate::spartan::powers;
+  use crate::traits::TranscriptEngineTrait;
+  use crate::zip_with;
+  use crate::{provider::keccak::Keccak256Transcript, CommitmentEngineTrait, CommitmentKey};
   use bincode::Options;
   use expect_test::expect;
+  use halo2curves::bn256::G1;
+  use itertools::Itertools;
 
   type E = halo2curves::bn256::Bn256;
   type NE = crate::provider::Bn256EngineKZG;
   type Fr = <NE as NovaEngine>::Scalar;
 
+  fn test_commitment_to_k_polynomial_correctness(
+    ck: &CommitmentKey<NE>,
+    C: &Commitment<NE>,
+    poly: &[Fr],
+    point: &[Fr],
+    _eval: &Fr,
+  ) {
+    let polys = EvaluationEngine::<E, NE>::compute_pi_polynomials(poly, point);
+    let mut comms = EvaluationEngine::<E, NE>::compute_commitments(ck, C, &polys);
+    comms.insert(0, C.comm.to_affine());
+
+    let q = Fr::from(8165763);
+    let q_powers = batch_challenge_powers(q, polys.len());
+    let batched_Pi: UniPoly<Fr> = polys.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    let r = Fr::from(1354678);
+    let r_squared = r * r;
+
+    let divident = batched_Pi.clone();
+    let D = UniPoly::new(vec![
+      r_squared * r_squared,
+      -r_squared,
+      -r_squared,
+      Fr::from(1),
+    ]);
+    let (Q_x, R_x) = divident.divide_with_q_and_r(&D).unwrap();
+
+    let a = Fr::from(938576);
+
+    let K_x = EvaluationEngine::<E, NE>::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
+
+    let mut C_P = G1::identity();
+    q_powers.iter().zip_eq(comms.iter()).for_each(|(q_i, C_i)| {
+      C_P += *C_i * q_i;
+    });
+
+    let C_Q =
+      <<crate::provider::Bn256EngineKZG as NovaEngine>::CE as CommitmentEngineTrait<NE>>::commit(
+        ck,
+        &Q_x.coeffs,
+      )
+      .comm
+      .to_affine();
+
+    // Check that Cp - Cq * D(a) - g1 * R(a) == MSM(ck, K(x))
+    let C_K = C_P - C_Q * D.evaluate(&a) - ck.powers_of_g[0] * R_x.evaluate(&a);
+
+    let C_K_expected =
+      <<crate::provider::Bn256EngineKZG as NovaEngine>::CE as CommitmentEngineTrait<NE>>::commit(
+        ck,
+        &K_x.coeffs,
+      )
+      .comm
+      .to_affine();
+
+    assert_eq!(C_K_expected, C_K.to_affine());
+  }
+
+  fn test_k_polynomial_correctness(poly: &[Fr], point: &[Fr], _eval: &Fr) {
+    let polys = EvaluationEngine::<E, NE>::compute_pi_polynomials(poly, point);
+    let q = Fr::from(8165763);
+    let batched_Pi: UniPoly<Fr> = polys.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    let r = Fr::from(56263);
+    let r_squared = r * r;
+
+    let divident = batched_Pi.clone();
+    let D = UniPoly::new(vec![
+      r_squared * r_squared,
+      -r_squared,
+      -r_squared,
+      Fr::from(1),
+    ]);
+    let (Q_x, R_x) = divident.divide_with_q_and_r(&D).unwrap();
+
+    let a = Fr::from(190837645);
+
+    let K_x = EvaluationEngine::<E, NE>::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
+
+    assert_eq!(Fr::from(0), K_x.evaluate(&a));
+  }
+
+  fn test_d_polynomial_correctness(poly: &[Fr], point: &[Fr], _eval: &Fr) {
+    let polys = EvaluationEngine::<E, NE>::compute_pi_polynomials(poly, point);
+    let q = Fr::from(8165763);
+    let batched_Pi: UniPoly<Fr> = polys.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    let r = Fr::from(2895776832);
+    let r_squared = r * r;
+
+    let divident = batched_Pi.clone();
+    // D(x) = (x - r) * (x + r) * (x - r^2)
+    let D = UniPoly::new(vec![
+      r_squared * r_squared,
+      -r_squared,
+      -r_squared,
+      Fr::from(1),
+    ]);
+    let (Q_x, R_x) = divident.divide_with_q_and_r(&D).unwrap();
+
+    let evaluation_scalar = Fr::from(182746);
+    assert_eq!(
+      batched_Pi.evaluate(&evaluation_scalar),
+      D.evaluate(&evaluation_scalar) * Q_x.evaluate(&evaluation_scalar)
+        + R_x.evaluate(&evaluation_scalar)
+    );
+
+    // Check that Q(x) = (P(x) - R(x)) / D(x)
+    let mut P_x = batched_Pi.clone();
+    let minus_R_x = UniPoly::new(
+      R_x
+        .clone()
+        .coeffs
+        .into_iter()
+        .map(|coeff| -coeff)
+        .collect::<Vec<Fr>>(),
+    );
+    P_x += &minus_R_x;
+
+    let divident = P_x.clone();
+    let (Q_x_recomputed, _) = divident.divide_with_q_and_r(&D).unwrap();
+
+    assert_eq!(Q_x, Q_x_recomputed);
+  }
+
+  fn test_batching_property_on_evaluation(poly: &[Fr], point: &[Fr], _eval: &Fr) {
+    let polys = EvaluationEngine::<E, NE>::compute_pi_polynomials(poly, point);
+
+    let q = Fr::from(97652);
+    let u = [Fr::from(10), Fr::from(20), Fr::from(50)];
+
+    let batched_Pi: UniPoly<Fr> = polys.clone().into_iter().map(UniPoly::new).rlc(&q);
+
+    let q_powers = batch_challenge_powers(q, polys.len());
+    for evaluation_scalar in u.iter() {
+      let evals = polys
+        .clone()
+        .into_iter()
+        .map(|poly| UniPoly::new(poly).evaluate(evaluation_scalar))
+        .collect::<Vec<Fr>>();
+
+      let expected = zip_with!((evals.iter(), q_powers.iter()), |eval, q| eval * q)
+        .collect::<Vec<Fr>>()
+        .into_iter()
+        .sum::<Fr>();
+
+      let actual = batched_Pi.evaluate(evaluation_scalar);
+      assert_eq!(expected, actual);
+    }
+  }
+
   #[test]
-  fn test_hyperkzg_eval() {
+  fn test_hyperkzg_shplonk_unit_tests() {
+    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+
+    // point = [4,3,8]
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+
+    // eval = 57
+    let eval = Fr::from(57);
+
+    let ck: CommitmentKey<NE> =
+      <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", poly.len());
+
+    let ck = Arc::new(ck);
+    let C: Commitment<NE> = KZGCommitmentEngine::commit(&ck, &poly);
+
+    test_batching_property_on_evaluation(&poly, &point, &eval);
+    test_d_polynomial_correctness(&poly, &point, &eval);
+    test_k_polynomial_correctness(&poly, &point, &eval);
+    test_commitment_to_k_polynomial_correctness(&ck, &C, &poly, &point, &eval);
+  }
+
+  #[test]
+  fn test_hyperkzg_shplonk_pcs() {
+    let n = 8;
+
+    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+
+    // point = [4,3,8]
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+
+    // eval = 57
+    let eval = Fr::from(57);
+
+    let ck: CommitmentKey<NE> =
+      <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
+    let ck = Arc::new(ck);
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
+
+    // make a commitment
+    let C: Commitment<NE> = KZGCommitmentEngine::commit(&ck, &poly);
+
+    let mut prover_transcript = Keccak256Transcript::new(b"TestEval");
+    let proof =
+      EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut prover_transcript, &C, &poly, &point, &eval)
+        .unwrap();
+
+    let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
+    EvaluationEngine::<E, NE>::verify(&vk, &mut verifier_transcript, &C, &point, &eval, &proof)
+      .unwrap();
+  }
+
+  #[test]
+  fn test_hyperkzg_shplonk_pcs_negative() {
+    let n = 8;
+    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+    // point = [4,3,8]
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+    // eval = 57
+    let eval = Fr::from(57);
+
+    // eval = 57
+    let eval1 = Fr::from(56); // wrong eval
+    test_negative_inner(n, &poly, &point, &eval1);
+
+    // point = [4,3,8]
+    let point1 = vec![Fr::from(4), Fr::from(3), Fr::from(7)]; // wrong point
+    test_negative_inner(n, &poly, &point1, &eval);
+
+    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
+    let poly1 = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(200),
+      Fr::from(100),
+    ]; // wrong poly
+    test_negative_inner(n, &poly1, &point, &eval);
+  }
+
+  fn test_negative_inner(n: usize, poly: &[Fr], point: &[Fr], eval: &Fr) {
+    let ck: CommitmentKey<NE> =
+      <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
+    let ck = Arc::new(ck);
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
+
+    // make a commitment
+    let C: Commitment<NE> = KZGCommitmentEngine::commit(&ck, poly);
+
+    let mut prover_transcript = Keccak256Transcript::new(b"TestEval");
+    let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
+
+    let proof =
+      EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut prover_transcript, &C, poly, point, eval)
+        .unwrap();
+
+    assert!(EvaluationEngine::<E, NE>::verify(
+      &vk,
+      &mut verifier_transcript,
+      &C,
+      point,
+      eval,
+      &proof
+    )
+    .is_err());
+  }
+
+  #[test]
+  fn test_hyperkzg_shplonk_pcs_negative_wrong_commitment() {
+    let n = 8;
+    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
+    let poly = vec![
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+      Fr::ONE,
+      Fr::from(2),
+      Fr::from(1),
+      Fr::from(4),
+    ];
+    // point = [4,3,8]
+    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
+    // eval = 57
+    let eval = Fr::from(57);
+
+    // altered_poly = [85, 84, 83, 82, 81, 80, 79, 78]
+    let altered_poly = vec![
+      Fr::from(85),
+      Fr::from(84),
+      Fr::from(83),
+      Fr::from(82),
+      Fr::from(81),
+      Fr::from(80),
+      Fr::from(79),
+      Fr::from(78),
+    ];
+
+    let ck: CommitmentKey<NE> =
+      <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
+
+    let C1: Commitment<NE> = KZGCommitmentEngine::commit(&ck, &poly); // correct commitment
+    let C2: Commitment<NE> = KZGCommitmentEngine::commit(&ck, &altered_poly); // wrong commitment
+
+    test_negative_inner_commitment(&poly, &point, &eval, &ck, &C1, &C2); // here we check detection when proof and commitment do not correspond
+    test_negative_inner_commitment(&poly, &point, &eval, &ck, &C2, &C2); // here we check detection when proof was built with wrong commitment
+  }
+
+  fn test_negative_inner_commitment(
+    poly: &[Fr],
+    point: &[Fr],
+    eval: &Fr,
+    ck: &CommitmentKey<NE>,
+    C_prover: &Commitment<NE>,
+    C_verifier: &Commitment<NE>,
+  ) {
+    let ck = Arc::new(ck.clone());
+    let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
+      EvaluationEngine::<E, NE>::setup(ck.clone());
+
+    let mut prover_transcript = Keccak256Transcript::new(b"TestEval");
+    let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
+
+    let proof = EvaluationEngine::<E, NE>::prove(
+      &ck,
+      &pk,
+      &mut prover_transcript,
+      C_prover,
+      poly,
+      point,
+      eval,
+    )
+    .unwrap();
+
+    assert!(EvaluationEngine::<E, NE>::verify(
+      &vk,
+      &mut verifier_transcript,
+      C_verifier,
+      point,
+      eval,
+      &proof
+    )
+    .is_err());
+  }
+
+  #[test]
+  fn test_hyperkzg_shplonk_eval() {
     // Test with poly(X1, X2) = 1 + X1 + X2 + X1*X2
     let n = 4;
     let ck: CommitmentKey<NE> =
@@ -483,57 +832,7 @@ mod tests {
   }
 
   #[test]
-  fn test_hyperkzg_alternative() {
-    fn test_inner(n: usize, poly: &[Fr], point: &[Fr], eval: Fr) -> Result<(), NovaError> {
-      let ck: CommitmentKey<NE> =
-        <KZGCommitmentEngine<E> as CommitmentEngineTrait<NE>>::setup(b"test", n);
-      let ck = Arc::new(ck);
-      let (pk, vk): (KZGProverKey<E>, KZGVerifierKey<E>) =
-        EvaluationEngine::<E, NE>::setup(ck.clone());
-
-      // make a commitment
-      let C = KZGCommitmentEngine::commit(&ck, poly);
-
-      // prove an evaluation
-      let mut prover_transcript = Keccak256Transcript::new(b"TestEval");
-      let proof =
-        EvaluationEngine::<E, NE>::prove(&ck, &pk, &mut prover_transcript, &C, poly, point, &eval)
-          .unwrap();
-
-      // verify the evaluation
-      let mut verifier_transcript = Keccak256Transcript::<NE>::new(b"TestEval");
-      EvaluationEngine::<E, NE>::verify(&vk, &mut verifier_transcript, &C, point, &eval, &proof)
-    }
-
-    let n = 8;
-
-    // poly = [1, 2, 1, 4, 1, 2, 1, 4]
-    let poly = vec![
-      Fr::ONE,
-      Fr::from(2),
-      Fr::from(1),
-      Fr::from(4),
-      Fr::ONE,
-      Fr::from(2),
-      Fr::from(1),
-      Fr::from(4),
-    ];
-
-    // point = [4,3,8]
-    let point = vec![Fr::from(4), Fr::from(3), Fr::from(8)];
-
-    // eval = 57
-    let eval = Fr::from(57);
-
-    test_inner(n, &poly, &point, eval).unwrap();
-
-    // wrong eval
-    let eval = Fr::from(56);
-    assert!(test_inner(n, &poly, &point, eval).is_err());
-  }
-
-  #[test]
-  fn test_hyperkzg() {
+  fn test_hyperkzg_shplonk_transcript_correctness() {
     let n = 4;
 
     // poly = [1, 2, 1, 4]
@@ -576,7 +875,7 @@ mod tests {
       .with_fixint_encoding()
       .serialize(&proof)
       .unwrap();
-    expect!["368"].assert_eq(&proof_bytes.len().to_string());
+    expect!["432"].assert_eq(&proof_bytes.len().to_string());
 
     // Change the proof and expect verification to fail
     let mut bad_proof = proof.clone();
@@ -594,10 +893,15 @@ mod tests {
   }
 
   #[test]
-  fn test_hyperkzg_more() {
+  fn test_hyperkzg_shplonk_more() {
     // test the hyperkzg prover and verifier with random instances (derived from a seed)
     for num_vars in [4, 5, 6] {
       prove_verify_from_num_vars::<_, EvaluationEngine<E, NE>>(num_vars);
     }
+  }
+
+  /// Compute powers of q : (1, q, q^2, ..., q^(k-1))
+  fn batch_challenge_powers(q: Fr, k: usize) -> Vec<Fr> {
+    powers(&q, k)
   }
 }
