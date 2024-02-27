@@ -335,7 +335,7 @@ where
     let E_1 = &data_p.U.comm_E;
     cyclefold_invocation_check(
       cs.namespace(|| "cyclefold invocation check E"),
-      &E_1,
+      E_1,
       &data_p.T,
       &E_new,
       u_E,
@@ -346,8 +346,8 @@ where
     let W_2 = &data_p.u_W;
     cyclefold_invocation_check(
       cs.namespace(|| "cyclefold invocation check W"),
-      &W_1,
-      &W_2,
+      W_1,
+      W_2,
       &W_new,
       u_W,
     )?;

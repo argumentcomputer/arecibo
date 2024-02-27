@@ -210,7 +210,7 @@ mod tests {
 
     let rando_num = AllocatedNum::alloc(cs.namespace(|| "alloc num"), || Ok(rando)).unwrap();
 
-    assert!(split_field_element(&rando_num, cs.namespace(|| "split num")).is_ok());
+    split_field_element(&rando_num, cs.namespace(|| "split num")).unwrap();
   }
 
   #[test]
@@ -250,7 +250,7 @@ mod tests {
     let r_bits = r
       .to_le_bits()
       .into_iter()
-      .map(|b| Some(b))
+      .map(Some)
       .collect::<Option<Vec<_>>>()
       .map(|mut vec| {
         vec.resize_with(128, || false);
@@ -274,7 +274,7 @@ mod tests {
 
     let mut cs = SatisfyingAssignment::<E1>::new();
 
-    let _ = circuit
+    circuit
       .synthesize(cs.namespace(|| "synthesizing witness"))
       .unwrap();
 
@@ -283,7 +283,7 @@ mod tests {
     let X = &instance.X;
 
     let recombine_scalar = |lower: E1::Scalar, upper: E1::Scalar| -> E1::Scalar {
-      let mut upper = upper.clone();
+      let mut upper = upper;
       (0..128).for_each(|_| upper = upper.double());
       lower + upper
     };
@@ -305,7 +305,7 @@ mod tests {
       circuit_res_is_infinity == <Dual<E1> as Engine>::Base::ONE
     );
 
-    assert!(shape.is_sat(&ck, &instance, &witness).is_ok());
+    shape.is_sat(&ck, &instance, &witness).unwrap();
   }
 
   #[test]

@@ -311,7 +311,7 @@ where
     );
 
     let circuit_cyclefold_E: CyclefoldCircuit<E1> =
-      CyclefoldCircuit::new(Some(self.r_U_primary.comm_E), Some(comm_T), r_bools.clone());
+      CyclefoldCircuit::new(Some(self.r_U_primary.comm_E), Some(comm_T), r_bools);
 
     let _ = circuit_cyclefold_E.synthesize(&mut cs_cyclefold_E);
 
@@ -570,11 +570,11 @@ mod test {
 
     let res = recursive_snark.prove_step(&pp, &primary_circuit);
 
-    assert!(res.is_ok());
+    res.unwrap();
 
     let res = recursive_snark.verify(&pp, num_steps, &z0);
 
-    assert!(res.is_ok());
+    res.unwrap();
   }
 
   #[test]
