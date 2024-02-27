@@ -11,11 +11,6 @@ concurrency:
 jobs:
   benchmark:
     name: Comparative PR benchmark comment
-    if:
-      github.event.issue.pull_request
-      && github.event.issue.state == 'open'
-      && contains(github.event.comment.body, '!benchmark')
-      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
     uses: lurk-lab/ci-workflows/.github/workflows/bench-pr-comment.yml@main
     with:
       default-runner: "self-hosted,gpu-bench"
