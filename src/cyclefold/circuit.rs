@@ -5,7 +5,7 @@ use bellpepper_core::{boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem
 use ff::PrimeField;
 
 use crate::{
-  constants::{NUM_CHALLENGE_BITS, NUM_HASH_BITS},
+  constants::NUM_CHALLENGE_BITS,
   gadgets::{
     ecc::AllocatedPoint,
     utils::{alloc_constant, le_bits_to_num},
@@ -67,19 +67,15 @@ impl<E: Engine> CyclefoldCircuit<E> {
     )?;
     commit_2.check_on_curve(cs.namespace(|| "commit_2 on curve"))?;
 
-    let false_bit = AllocatedBit::alloc(cs.namespace(|| "allocated false bit"), Some(false))?;
-    let scalar: Vec<AllocatedBit> =
-      self
-        .scalar
-        .map_or(Ok(vec![false_bit; NUM_HASH_BITS]), |bits| {
-          bits
-            .into_iter()
-            .enumerate()
-            .map(|(idx, bit)| {
-              AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {idx}")), Some(bit))
-            })
-            .collect::<Result<Vec<_>, _>>()
-        })?;
+    let scalar: Vec<AllocatedBit> = self
+      .scalar
+      .unwrap_or([false; NUM_CHALLENGE_BITS])
+      .into_iter()
+      .enumerate()
+      .map(|(idx, bit)| {
+        AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {idx}")), Some(bit))
+      })
+      .collect::<Result<Vec<_>, _>>()?;
 
     Ok((commit_1, commit_2, scalar))
   }
