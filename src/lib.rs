@@ -510,6 +510,15 @@ where
       write_data: false,
     };
 
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    if config.write_data {
+      write_arecibo_data(
+        format!("r1cs_primary_{:?}", pp.digest()),
+        "",
+        &r1cs_primary,
+      );
+    }
+
     Ok(Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
