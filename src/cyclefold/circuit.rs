@@ -196,7 +196,7 @@ mod tests {
       solver::SatisfyingAssignment,
     },
     constants::NIO_CYCLE_FOLD,
-    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     traits::{commitment::CommitmentEngineTrait, snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
 
@@ -215,7 +215,7 @@ mod tests {
 
   #[test]
   fn test_split_field_elt() {
-    test_split_field_elt_with::<Bn256Engine>()
+    test_split_field_elt_with::<Bn256EngineKZG>()
   }
 
   // TODO: Split this test up into multiple tests
@@ -311,7 +311,7 @@ mod tests {
   #[test]
   fn test_cyclefold_circuit_size() {
     test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("1395"), &expect!("1383"));
-    test_cyclefold_circuit_size_with::<Bn256Engine>(&expect!("1395"), &expect!("1383"));
+    test_cyclefold_circuit_size_with::<Bn256EngineKZG>(&expect!("1395"), &expect!("1383"));
     test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("1395"), &expect!("1383"));
   }
 

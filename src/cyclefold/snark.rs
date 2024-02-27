@@ -532,7 +532,7 @@ mod test {
 
   use super::*;
   use crate::{
-    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     traits::snark::default_ck_hint,
   };
 
@@ -580,7 +580,7 @@ mod test {
   #[test]
   fn test_cyclefold_prove_verify() {
     test_trivial_cyclefold_prove_verify_with::<PallasEngine>();
-    test_trivial_cyclefold_prove_verify_with::<Bn256Engine>();
+    test_trivial_cyclefold_prove_verify_with::<Bn256EngineKZG>();
     test_trivial_cyclefold_prove_verify_with::<Secp256k1Engine>();
   }
 }

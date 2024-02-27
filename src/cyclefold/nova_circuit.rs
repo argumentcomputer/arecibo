@@ -622,7 +622,7 @@ mod test {
   use crate::{
     bellpepper::test_shape_cs::TestShapeCS,
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
-    provider::{Bn256Engine, PallasEngine, Secp256k1Engine},
+    provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     traits::{circuit::TrivialCircuit, CurveCycleEquipped, Dual},
   };
 
@@ -659,6 +659,6 @@ mod test {
   fn test_augmented_circuit_size() {
     test_augmented_circuit_size_with::<PallasEngine>();
     test_augmented_circuit_size_with::<Secp256k1Engine>();
-    test_augmented_circuit_size_with::<Bn256Engine>();
+    test_augmented_circuit_size_with::<Bn256EngineKZG>();
   }
 }
