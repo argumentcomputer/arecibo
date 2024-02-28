@@ -8,7 +8,7 @@ use itertools::Itertools as _;
 
 use crate::{
   constants::NIO_NOVA_FOLD,
-  gadgets::r1cs::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
+  gadgets::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
   traits::Engine,
 };
 
