@@ -491,7 +491,7 @@ impl<G: Group> AllocatedPoint<G> {
     // convert back to AllocatedPoint
     let res = {
       // we set acc.is_infinity = self.is_infinity
-      let acc = acc.to_allocated_point(&self.is_infinity)?;
+      let acc = acc.to_allocated_point(&self.is_infinity);
 
       // we remove the initial slack if bits[0] is as not as assumed (i.e., it is not 1)
       let acc_minus_initial = {
@@ -530,7 +530,7 @@ impl<G: Group> AllocatedPoint<G> {
       y,
       is_infinity: res.is_infinity,
     };
-    let mut p_complete = p.to_allocated_point(&self.is_infinity)?;
+    let mut p_complete = p.to_allocated_point(&self.is_infinity);
 
     for (i, bit) in complete_bits.iter().enumerate() {
       let temp = acc.add(cs.namespace(|| format!("add_complete {i}")), &p_complete)?;
@@ -627,15 +627,12 @@ impl<G: Group> AllocatedPointNonInfinity<G> {
   }
 
   /// Returns an `AllocatedPoint` from an `AllocatedPointNonInfinity`
-  pub fn to_allocated_point(
-    &self,
-    is_infinity: &AllocatedNum<G::Base>,
-  ) -> Result<AllocatedPoint<G>, SynthesisError> {
-    Ok(AllocatedPoint {
+  pub fn to_allocated_point(&self, is_infinity: &AllocatedNum<G::Base>) -> AllocatedPoint<G> {
+    AllocatedPoint {
       x: self.x.clone(),
       y: self.y.clone(),
       is_infinity: is_infinity.clone(),
-    })
+    }
   }
 
   /// Returns coordinates associated with the point.
