@@ -166,15 +166,8 @@ where
     let mut tmp = Q_x.clone();
     tmp *= &D.evaluate(&a);
     tmp[0] += &R_x.evaluate(&a);
-    tmp = UniPoly::new(
-      tmp
-        .coeffs
-        .into_iter()
-        .map(|coeff| -coeff)
-        .collect::<Vec<E::Fr>>(),
-    );
     let mut K_x = batched_Pi.clone();
-    K_x += &tmp;
+    K_x -= &tmp;
     K_x
   }
 }
@@ -245,7 +238,7 @@ where
     let K_x = Self::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
 
     // TODO: since this is a usual KZG10 we should use it as utility instead
-    let h = K_x.divide_minus_u(a).unwrap();
+    let h = K_x.divide_minus_u(a);
     let C_H = <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &h.coeffs)
       .comm
       .to_affine();

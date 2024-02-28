@@ -1,6 +1,7 @@
 //! Main components:
 //! - `UniPoly`: an univariate dense polynomial in coefficient form (big endian),
 //! - `CompressedUniPoly`: a univariate dense polynomial, compressed (omitted linear term), in coefficient form (little endian),
+use std::ops::SubAssign;
 use std::{
   cmp::Ordering,
   ops::{AddAssign, Index, IndexMut, MulAssign},
@@ -76,9 +77,9 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
 
   /// Divides f(x) by x-a and returns quotient polynomial with no reminder
   /// This is a common use case for polynomial divisions in KZG-based PCS.
-  pub fn divide_minus_u(&self, u: Scalar) -> Option<Self> {
+  pub fn divide_minus_u(&self, u: Scalar) -> Self {
     if self.is_zero() {
-      Some(Self::zero())
+      Self::zero()
     } else {
       // On input f(x) and u compute the witness polynomial used to prove
       // that f(u) = v. The main part of this is to compute the
@@ -101,7 +102,7 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
       for i in (1..d).rev() {
         h[i - 1] = self.coeffs[i] + h[i] * u;
       }
-      Some(Self::new(h))
+      Self::new(h)
     }
   }
 
@@ -260,6 +261,24 @@ impl<Scalar: PrimeField> AddAssign<&Self> for UniPoly<Scalar> {
   }
 }
 
+impl<Scalar: PrimeField> SubAssign<&Self> for UniPoly<Scalar> {
+  fn sub_assign(&mut self, rhs: &Self) {
+    let ordering = self.coeffs.len().cmp(&rhs.coeffs.len());
+    #[allow(clippy::disallowed_methods)]
+    for (lhs, rhs) in self.coeffs.iter_mut().zip(&rhs.coeffs) {
+      *lhs -= rhs;
+    }
+    if matches!(ordering, Ordering::Less) {
+      self
+        .coeffs
+        .extend(rhs.coeffs[self.coeffs.len()..].iter().cloned());
+    }
+    if matches!(ordering, Ordering::Equal) {
+      self.truncate_leading_zeros();
+    }
+  }
+}
+
 impl<Scalar: PrimeField> AsRef<Vec<Scalar>> for UniPoly<Scalar> {
   fn as_ref(&self) -> &Vec<Scalar> {
     &self.coeffs
@@ -382,7 +401,7 @@ mod tests {
       let divisor = UniPoly::new(vec![-u, Fr::ONE]);
 
       let (q1, _) = dividend.divide_with_q_and_r(&divisor).unwrap();
-      let q2 = dividend.divide_minus_u(u).unwrap();
+      let q2 = dividend.divide_minus_u(u);
 
       assert_eq!(q1, q2);
     }
