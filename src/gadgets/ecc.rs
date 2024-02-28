@@ -113,6 +113,7 @@ impl<G: Group> AllocatedPoint<G> {
   }
 
   /// Returns coordinates associated with the point.
+  #[allow(unused)]
   pub const fn get_coordinates(
     &self,
   ) -> (
@@ -596,11 +597,13 @@ pub struct AllocatedPointNonInfinity<G: Group> {
 
 impl<G: Group> AllocatedPointNonInfinity<G> {
   /// Creates a new `AllocatedPointNonInfinity` from the specified coordinates
+  #[allow(unused)]
   pub const fn new(x: AllocatedNum<G::Base>, y: AllocatedNum<G::Base>) -> Self {
     Self { x, y }
   }
 
   /// Allocates a new point on the curve using coordinates provided by `coords`.
+  #[allow(unused)]
   pub fn alloc<CS: ConstraintSystem<G::Base>>(
     mut cs: CS,
     coords: Option<(G::Base, G::Base)>,
@@ -636,6 +639,7 @@ impl<G: Group> AllocatedPointNonInfinity<G> {
   }
 
   /// Returns coordinates associated with the point.
+  #[allow(unused)]
   pub const fn get_coordinates(&self) -> (&AllocatedNum<G::Base>, &AllocatedNum<G::Base>) {
     (&self.x, &self.y)
   }

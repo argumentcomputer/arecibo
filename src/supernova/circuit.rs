@@ -14,7 +14,6 @@
 use crate::{
   constants::{NIO_NOVA_FOLD, NUM_HASH_BITS},
   gadgets::{
-    ecc::AllocatedPoint,
     r1cs::{
       conditionally_select_alloc_relaxed_r1cs,
       conditionally_select_vec_allocated_relaxed_r1cs_instance, AllocatedR1CSInstance,
@@ -23,6 +22,7 @@ use crate::{
     utils::{
       alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     },
+    AllocatedPoint,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait, ROConstantsCircuit},
