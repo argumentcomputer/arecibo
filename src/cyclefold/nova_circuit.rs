@@ -626,9 +626,11 @@ mod test {
     traits::{circuit::TrivialCircuit, CurveCycleEquipped, Dual},
   };
 
+  use expect_test::{expect, Expect};
+
   use super::*;
 
-  fn test_augmented_circuit_size_with<E>()
+  fn test_augmented_circuit_size_with<E>(expected_cons: &Expect, expected_var: &Expect)
   where
     E: CurveCycleEquipped,
   {
@@ -651,14 +653,14 @@ mod test {
     let num_constraints = cs.num_constraints();
     let num_variables = cs.num_aux();
 
-    assert_eq!(num_constraints, 0);
-    assert_eq!(num_variables, 0);
+    expected_cons.assert_eq(&num_constraints.to_string());
+    expected_var.assert_eq(&num_variables.to_string());
   }
 
   #[test]
   fn test_augmented_circuit_size() {
-    test_augmented_circuit_size_with::<PallasEngine>();
-    test_augmented_circuit_size_with::<Secp256k1Engine>();
-    test_augmented_circuit_size_with::<Bn256EngineKZG>();
+    test_augmented_circuit_size_with::<PallasEngine>(&expect!["86258"], &expect!["86079"]);
+    test_augmented_circuit_size_with::<Secp256k1Engine>(&expect!["88094"], &expect!["87915"]);
+    test_augmented_circuit_size_with::<Bn256EngineKZG>(&expect!["86825"], &expect!["86646"]);
   }
 }
