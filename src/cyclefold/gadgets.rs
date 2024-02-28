@@ -89,7 +89,7 @@ pub mod emulated {
     #[allow(unused)]
     pub fn alloc<CS>(
       mut cs: CS,
-      params: Option<&(G::Scalar, G::Scalar, G::Scalar)>,
+      params: &(G::Scalar, G::Scalar, G::Scalar),
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError>
@@ -98,33 +98,21 @@ pub mod emulated {
     {
       let A = BigNat::alloc_from_nat(
         cs.namespace(|| "allocate A"),
-        || {
-          Ok(f_to_nat(
-            &params.ok_or(SynthesisError::AssignmentMissing)?.0,
-          ))
-        },
+        || Ok(f_to_nat(&params.0)),
         limb_width,
         n_limbs,
       )?;
 
       let B = BigNat::alloc_from_nat(
         cs.namespace(|| "allocate B"),
-        || {
-          Ok(f_to_nat(
-            &params.ok_or(SynthesisError::AssignmentMissing)?.1,
-          ))
-        },
+        || Ok(f_to_nat(&params.1)),
         limb_width,
         n_limbs,
       )?;
 
       let m = BigNat::alloc_from_nat(
         cs.namespace(|| "allocate m"),
-        || {
-          Ok(f_to_nat(
-            &params.ok_or(SynthesisError::AssignmentMissing)?.2,
-          ))
-        },
+        || Ok(f_to_nat(&params.2)),
         limb_width,
         n_limbs,
       )?;
