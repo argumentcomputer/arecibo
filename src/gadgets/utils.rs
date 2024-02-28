@@ -80,15 +80,7 @@ where
   CS: ConstraintSystem<<E as Engine>::Base>,
 {
   AllocatedNum::alloc(cs.namespace(|| "allocate scalar as base"), || {
-    let input_bits = input.unwrap_or(E::Scalar::ZERO).clone().to_le_bits();
-    let mut mult = E::Base::ONE;
-    let mut val = E::Base::ZERO;
-    for bit in input_bits {
-      if bit {
-        val += mult;
-      }
-      mult = mult + mult;
-    }
+    let val = scalar_as_base::<E>(input.unwrap_or(E::Scalar::ZERO));
     Ok(val)
   })
 }
