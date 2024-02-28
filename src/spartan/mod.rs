@@ -174,8 +174,9 @@ fn compute_eval_table_sparse<E: Engine>(
   assert_eq!(rx.len(), S.num_cons);
 
   let inner = |M: &SparseMatrix<E::Scalar>, M_evals: &mut Vec<E::Scalar>| {
-    for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {
-      for (val, col_idx) in M.get_row_unchecked(ptrs.try_into().unwrap()) {
+    for (row_idx, row) in M.iter_rows().enumerate() {
+      for (val, col_idx) in M.get_row(row) {
+        // TODO(@winston-h-zhang): Parallelize? Will need more complicated locking
         M_evals[*col_idx] += rx[row_idx] * val;
       }
     }

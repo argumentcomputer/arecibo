@@ -351,11 +351,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
      -> Vec<E::Scalar> {
       let evaluate_with_table =
         |M: &SparseMatrix<E::Scalar>, T_x: &[E::Scalar], T_y: &[E::Scalar]| -> E::Scalar {
-          M.indptr
-            .par_windows(2)
+          M.par_iter_rows()
             .enumerate()
-            .map(|(row_idx, ptrs)| {
-              M.get_row_unchecked(ptrs.try_into().unwrap())
+            .map(|(row_idx, row)| {
+              M.get_row(row)
                 .map(|(val, col_idx)| T_x[row_idx] * T_y[*col_idx] * val)
                 .sum::<E::Scalar>()
             })
