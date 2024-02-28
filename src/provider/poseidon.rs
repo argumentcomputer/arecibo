@@ -208,7 +208,7 @@ mod tests {
   };
   use crate::{
     bellpepper::solver::SatisfyingAssignment, constants::NUM_CHALLENGE_BITS,
-    gadgets::utils::le_bits_to_num, traits::Engine,
+    gadgets::le_bits_to_num, traits::Engine,
   };
   use ff::Field;
   use rand::rngs::OsRng;

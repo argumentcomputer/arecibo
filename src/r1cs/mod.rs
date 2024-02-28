@@ -6,7 +6,7 @@ use crate::{
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
-  gadgets::{f_to_nat, nat_to_limbs, utils::scalar_as_base},
+  gadgets::{f_to_nat, nat_to_limbs, scalar_as_base},
   traits::{
     commitment::CommitmentEngineTrait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },

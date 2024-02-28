@@ -7,9 +7,7 @@
 use crate::{
   constants::{NIO_NOVA_FOLD, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
-    utils::{
-      alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
-    },
+    alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     AllocatedPoint, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
@@ -369,7 +367,7 @@ mod tests {
       test_shape_cs::TestShapeCS,
     },
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
-    gadgets::utils::scalar_as_base,
+    gadgets::scalar_as_base,
     provider::{
       poseidon::PoseidonConstantsCircuit, Bn256EngineKZG, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,

@@ -11,4 +11,10 @@ pub(crate) use r1cs::{
 };
 pub(crate) use r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance};
 
-pub(crate) mod utils;
+mod utils;
+#[cfg(test)]
+pub(crate) use utils::alloc_one;
+pub(crate) use utils::{
+  alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
+  scalar_as_base,
+};
