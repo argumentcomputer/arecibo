@@ -214,9 +214,8 @@ where
     let (l_u_primary, l_w_primary) =
       cs_primary.r1cs_instance_and_witness(r1cs_primary, &pp.ck_primary)?;
 
-    let r_U_primary =
-      RelaxedR1CSInstance::from_r1cs_instance(&pp.ck_primary, r1cs_primary, l_u_primary.clone());
-    let r_W_primary = RelaxedR1CSWitness::from_r1cs_witness(r1cs_primary, l_w_primary.clone());
+    let r_U_primary = RelaxedR1CSInstance::default(&pp.ck_primary, &r1cs_primary);
+    let r_W_primary = RelaxedR1CSWitness::default(&r1cs_primary);
 
     let zi_primary = zi_primary
       .iter()
