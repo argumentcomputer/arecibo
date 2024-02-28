@@ -124,7 +124,7 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
     limb_width: usize,
     n_limbs: usize,
   ) -> Result<Self, SynthesisError> {
-    let W = AllocatedPoint::default(cs.namespace(|| "allocate W"))?;
+    let W = AllocatedPoint::default(cs.namespace(|| "allocate W"));
     let E = W.clone();
 
     let u = W.x.clone(); // In the default case, W.x = u = 0
@@ -159,7 +159,7 @@ impl<E: Engine, const N: usize> AllocatedRelaxedR1CSInstance<E, N> {
     limb_width: usize,
     n_limbs: usize,
   ) -> Result<Self, SynthesisError> {
-    let E = AllocatedPoint::default(cs.namespace(|| "allocate default E"))?;
+    let E = AllocatedPoint::default(cs.namespace(|| "allocate default E"));
 
     let u = alloc_one(cs.namespace(|| "one"));
 

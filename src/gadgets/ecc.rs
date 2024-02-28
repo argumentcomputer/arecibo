@@ -101,15 +101,15 @@ impl<G: Group> AllocatedPoint<G> {
   }
 
   /// Allocates a default point on the curve, set to the identity point.
-  pub fn default<CS: ConstraintSystem<G::Base>>(mut cs: CS) -> Result<Self, SynthesisError> {
+  pub fn default<CS: ConstraintSystem<G::Base>>(mut cs: CS) -> Self {
     let zero = alloc_zero(cs.namespace(|| "zero"));
     let one = alloc_one(cs.namespace(|| "one"));
 
-    Ok(Self {
+    Self {
       x: zero.clone(),
       y: zero,
       is_infinity: one,
-    })
+    }
   }
 
   /// Returns coordinates associated with the point.
@@ -509,7 +509,7 @@ impl<G: Group> AllocatedPoint<G> {
 
     // when self.is_infinity = 1, return the default point, else return res
     // we already set res.is_infinity to be self.is_infinity, so we do not need to set it here
-    let default = Self::default(cs.namespace(|| "default"))?;
+    let default = Self::default(cs.namespace(|| "default"));
     let x = conditionally_select2(
       cs.namespace(|| "check if self.is_infinity is zero (x)"),
       &default.x,
