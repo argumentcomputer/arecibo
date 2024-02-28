@@ -564,8 +564,8 @@ fn test_recursive_circuit() {
     &params2,
     ro_consts1,
     ro_consts2,
-    &expect!["9840"],
-    &expect!["12021"],
+    &expect!["9844"],
+    &expect!["12025"],
   );
 }
 
@@ -606,7 +606,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<PallasEngine, _>(
     &test_rom,
-    &expect!["698b3592bf271c0cc53245aee71ec3f8e0d16486b3efc73be290a0af27605b01"],
+    &expect!["ca24639b674ad70ed5ae5f2d2048e01990bc1974bf9ddf6240e3f885d55a8c03"],
   );
 
   let rom = vec![
@@ -617,7 +617,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Bn256EngineIPA, _>(
     &test_rom_grumpkin,
-    &expect!["30418e576c11dd698054a6cc69d1b1e43ddf0f562abfb50b777147afad741a01"],
+    &expect!["6ca2ed5fd9b755e97559024eadfa5c2e48d8cb231c35bfaf9c377af6bebac203"],
   );
 
   let rom = vec![
@@ -628,7 +628,7 @@ fn test_supernova_pp_digest() {
 
   test_pp_digest_with::<Secp256k1Engine, _>(
     &test_rom_secp,
-    &expect!["c94ee4e2870e34d6d057aa66157f8315879ecf2692ab9d1e2567c5830bed1103"],
+    &expect!["5e86ba0fd6f343752ebb56bfaa4fe3d52dc5bd7e6fffb2fd130ec43ce4ab1301"],
   );
 }
 

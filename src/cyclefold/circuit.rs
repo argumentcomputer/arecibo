@@ -310,9 +310,9 @@ mod tests {
 
   #[test]
   fn test_cyclefold_circuit_size() {
-    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("1395"), &expect!("1383"));
-    test_cyclefold_circuit_size_with::<Bn256EngineKZG>(&expect!("1395"), &expect!("1383"));
-    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("1395"), &expect!("1383"));
+    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("1394"), &expect!("1382"));
+    test_cyclefold_circuit_size_with::<Bn256EngineKZG>(&expect!("1394"), &expect!("1382"));
+    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("1394"), &expect!("1382"));
   }
 
   // TODO: add test for circuit satisfiability
