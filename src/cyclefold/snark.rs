@@ -432,12 +432,12 @@ where
     let is_inputs_not_match = self.z0_primary != z0_primary;
 
     // check if the (relaxed) R1CS instances have two public outputs
-    let is_instance_has_two_outpus = self.r_U_primary.X.len() != 2;
+    let is_instance_has_two_outputs = self.r_U_primary.X.len() != 2;
 
     if is_num_steps_zero
       || is_num_steps_not_match
       || is_inputs_not_match
-      || is_instance_has_two_outpus
+      || is_instance_has_two_outputs
     {
       return Err(NovaError::ProofVerifyError);
     }
