@@ -248,7 +248,7 @@ where
       r_U_cyclefold,
       buffer_primary,
       buffer_cyclefold,
-      i: 1,
+      i: 0,
       zi_primary,
     })
   }
