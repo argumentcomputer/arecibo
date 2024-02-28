@@ -158,9 +158,9 @@ impl<Scalar: PrimeField> Num<Scalar> {
   /// Computes the natural number represented by an array of bits.
   /// Checks if the natural number equals `self`
   pub fn is_equal<CS: ConstraintSystem<Scalar>>(&self, mut cs: CS, other: &Bitvector<Scalar>) {
-    let allocations = other.allocations.clone();
     let mut f = Scalar::ONE;
-    let sum = allocations
+    let sum = other
+      .allocations
       .iter()
       .fold(LinearCombination::zero(), |lc, bit| {
         let l = lc + (f, &bit.bit);
@@ -202,8 +202,7 @@ impl<Scalar: PrimeField> Num<Scalar> {
     let sum_lc = LinearCombination::zero() + &self.num - &sum;
     cs.enforce(|| "sum", |lc| lc + &sum_lc, |lc| lc + CS::one(), |lc| lc);
     let bits: Vec<LinearCombination<Scalar>> = allocations
-      .clone()
-      .into_iter()
+      .iter()
       .map(|a| LinearCombination::zero() + &a.bit)
       .collect();
     Ok(Bitvector {
