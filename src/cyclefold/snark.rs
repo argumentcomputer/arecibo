@@ -8,7 +8,8 @@ use crate::{
     solver::SatisfyingAssignment,
   },
   constants::{
-    BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS,
+    BN_LIMB_WIDTH, BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT,
+    NUM_HASH_BITS,
   },
   cyclefold::circuit::CyclefoldCircuit,
   errors::NovaError,
@@ -445,7 +446,7 @@ where
     let (hash_primary, hash_cyclefold) = {
       let mut hasher = <Dual<E1> as Engine>::RO::new(
         pp.ro_consts_primary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
+        2 + 2 * pp.F_arity_primary + 2 * NUM_FE_IN_EMULATED_POINT + 3,
       );
       hasher.absorb(pp.digest());
       hasher.absorb(E1::Scalar::from(num_steps as u64));
@@ -458,9 +459,12 @@ where
       absorb_relaxed_r1cs::<E1, Dual<E1>>(&self.r_U_primary, &mut hasher);
       let hash_primary = hasher.squeeze(NUM_HASH_BITS);
 
-      let mut hasher =
-        <Dual<E1> as Engine>::RO::new(pp.ro_consts_cyclefold.clone(), NUM_FE_WITHOUT_IO_FOR_CRHF);
+      let mut hasher = <Dual<E1> as Engine>::RO::new(
+        pp.ro_consts_cyclefold.clone(),
+        1 + 1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS,
+      );
       hasher.absorb(pp.digest());
+      hasher.absorb(E1::Scalar::from(num_steps as u64));
       self.r_U_cyclefold.absorb_in_ro(&mut hasher);
       let hash_cyclefold = hasher.squeeze(NUM_HASH_BITS);
 
