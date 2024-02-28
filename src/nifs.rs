@@ -53,8 +53,14 @@ impl<E: Engine> NIFS<E> {
     ),
     NovaError,
   > {
+    // Check `U1` and `U2` have the same arity
+    let io_arity = U1.X.len();
+    if io_arity != U2.X.len() {
+      return Err(NovaError::InvalidInputLength);
+    }
+
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let mut ro = E::RO::new(ro_consts.clone(), 7 + io_arity);
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
