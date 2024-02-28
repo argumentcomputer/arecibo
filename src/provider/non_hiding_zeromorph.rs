@@ -110,13 +110,7 @@ where
     point: &E::Fr,
   ) -> Result<(UVKZGProof<E>, UVKZGEvaluation<E>), NovaError> {
     let prover_param = prover_param.borrow();
-    let divisor = UVKZGPoly {
-      coeffs: vec![-*point, E::Fr::ONE],
-    };
-    let witness_polynomial = polynomial
-      .divide_with_q_and_r(&divisor)
-      .map(|(q, _r)| q)
-      .ok_or(NovaError::PCSError(PCSError::ZMError))?;
+    let witness_polynomial = polynomial.divide_minus_u(*point).unwrap();
     let proof = <E::G1 as DlogGroup>::vartime_multiscalar_mul(
       witness_polynomial.coeffs.as_slice(),
       &prover_param.powers_of_g()[..witness_polynomial.coeffs.len()],

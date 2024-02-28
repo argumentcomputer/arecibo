@@ -74,6 +74,37 @@ impl<Scalar: PrimeField> UniPoly<Scalar> {
     }
   }
 
+  /// Divides f(x) by x-a and returns quotient polynomial with no reminder
+  /// This is a common use case for polynomial divisions in KZG-based PCS.
+  pub fn divide_minus_u(&self, u: Scalar) -> Option<Self> {
+    if self.is_zero() {
+      Some(Self::zero())
+    } else {
+      // On input f(x) and u compute the witness polynomial used to prove
+      // that f(u) = v. The main part of this is to compute the
+      // division (f(x) - f(u)) / (x - u), but we don't use a general
+      // division algorithm, we make use of the fact that the division
+      // never has a remainder, and that the denominator is always a linear
+      // polynomial. The cost is (d-1) mults + (d-1) adds in E::Scalar, where
+      // d is the degree of f.
+      //
+      // We use the fact that if we compute the quotient of f(x)/(x-u),
+      // there will be a remainder, but it'll be v = f(u).  Put another way
+      // the quotient of f(x)/(x-u) and (f(x) - f(v))/(x-u) is the
+      // same.  One advantage is that computing f(u) could be decoupled
+      // from kzg_open, it could be done later or separate from computing W.
+
+      let d = self.coeffs.len();
+
+      // Compute h(x) = f(x)/(x - u)
+      let mut h = vec![Scalar::ZERO; d];
+      for i in (1..d).rev() {
+        h[i - 1] = self.coeffs[i] + h[i] * u;
+      }
+      Some(Self::new(h))
+    }
+  }
+
   fn is_zero(&self) -> bool {
     self.coeffs.is_empty() || self.coeffs.iter().all(|c| c == &Scalar::ZERO)
   }
@@ -332,6 +363,7 @@ mod tests {
       for b_degree in 0..50 {
         let dividend = UniPoly::<Fr>::random(a_degree, rng);
         let divisor = UniPoly::<Fr>::random(b_degree, rng);
+
         if let Some((quotient, remainder)) = UniPoly::divide_with_q_and_r(&dividend, &divisor) {
           let mut prod = naive_mul(&divisor, &quotient);
           prod += &remainder;
@@ -339,6 +371,25 @@ mod tests {
         }
       }
     }
+  }
+
+  #[test]
+  fn test_divide_minus_u() {
+    fn test_inner<Fr: PrimeField>() {
+      let rng = &mut ChaCha20Rng::from_seed([0u8; 32]);
+      let dividend = UniPoly::<Fr>::random(50, rng);
+      let u = Fr::random(rng);
+      let divisor = UniPoly::new(vec![-u, Fr::ONE]);
+
+      let (q1, _) = dividend.divide_with_q_and_r(&divisor).unwrap();
+      let q2 = dividend.divide_minus_u(u).unwrap();
+
+      assert_eq!(q1, q2);
+    }
+
+    test_inner::<pasta_curves::pallas::Scalar>();
+    test_inner::<bn256_grumpkin::bn256::Scalar>();
+    test_inner::<secp256k1::Scalar>();
   }
 
   #[test]

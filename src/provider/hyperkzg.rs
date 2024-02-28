@@ -63,14 +63,16 @@ impl<E, NE> EvaluationEngine<E, NE>
 where
   E: Engine,
   NE: NovaEngine<GE = E::G1, Scalar = E::Fr, CE = KZGCommitmentEngine<E>>,
+  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
+  // the following bounds repeat existing, satisfied bounds on associated types of the above
+  // but are required since the equality constraints we use in the above do not transitively carry bounds
+  // we should be able to remove most of those constraints when rust supports associated_type_bounds
   E::Fr: Serialize + DeserializeOwned,
   E::G1Affine: Serialize + DeserializeOwned,
-  E::G2Affine: Serialize + DeserializeOwned,
-  E::G1: DlogGroup<ScalarExt = E::Fr, AffineExt = E::G1Affine>,
-  E::Fr: PrimeFieldBits,
-  <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
-  E::Fr: TranscriptReprTrait<E::G1>,
   E::G1Affine: TranscriptReprTrait<E::G1>, // TODO: this bound on DlogGroup is really unusable!
+  E::G2Affine: Serialize + DeserializeOwned,
+  E::Fr: PrimeFieldBits + TranscriptReprTrait<E::G1>,
+  <E::G1 as Group>::Base: TranscriptReprTrait<E::G1>,
 {
   fn compute_challenge(
     com: &[E::G1Affine],
@@ -175,34 +177,6 @@ where
     K_x += &tmp;
     K_x
   }
-
-  fn kzg10_open(ck: &UniversalKZGParam<E>, f_x: &UniPoly<E::Fr>, u: E::Fr) -> E::G1Affine {
-    // On input f(x) and u compute the witness polynomial used to prove
-    // that f(u) = v. The main part of this is to compute the
-    // division (f(x) - f(u)) / (x - u), but we don't use a general
-    // division algorithm, we make use of the fact that the division
-    // never has a remainder, and that the denominator is always a linear
-    // polynomial. The cost is (d-1) mults + (d-1) adds in E::Scalar, where
-    // d is the degree of f.
-    //
-    // We use the fact that if we compute the quotient of f(x)/(x-u),
-    // there will be a remainder, but it'll be v = f(u).  Put another way
-    // the quotient of f(x)/(x-u) and (f(x) - f(v))/(x-u) is the
-    // same.  One advantage is that computing f(u) could be decoupled
-    // from kzg_open, it could be done later or separate from computing W.
-
-    let d = f_x.coeffs.len();
-
-    // Compute h(x) = f(x)/(x - u)
-    let mut h = vec![E::Fr::ZERO; d];
-    for i in (1..d).rev() {
-      h[i - 1] = f_x[i] + h[i] * u;
-    }
-
-    <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &h)
-      .comm
-      .to_affine()
-  }
 }
 
 impl<E, NE> EvaluationEngineTrait<NE> for EvaluationEngine<E, NE>
@@ -271,7 +245,10 @@ where
     let K_x = Self::compute_k_polynomial(&batched_Pi, &Q_x, &D, &R_x, a);
 
     // TODO: since this is a usual KZG10 we should use it as utility instead
-    let C_H = Self::kzg10_open(ck, &K_x, a);
+    let h = K_x.divide_minus_u(a).unwrap();
+    let C_H = <NE::CE as CommitmentEngineTrait<NE>>::commit(ck, &h.coeffs)
+      .comm
+      .to_affine();
 
     Ok(EvaluationArgument::<E> {
       comms,
@@ -380,7 +357,8 @@ where
       .collect::<Vec<_>>();
 
     let pairing_result = E::multi_miller_loop(pairing_input_refs.as_slice()).final_exponentiation();
-    if pairing_result.is_identity().unwrap_u8() == 0x00 {
+    let successful: bool = pairing_result.is_identity().into();
+    if !successful {
       return Err(NovaError::ProofVerifyError);
     }
     Ok(())
