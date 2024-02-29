@@ -1,9 +1,13 @@
-use crate::parafold::nivc::prover::NIVCState;
+use crate::bellpepper::solver::SatisfyingAssignment;
+use crate::parafold::circuit::synthesize_step;
+use crate::parafold::nivc::prover::{NIVCState, NIVCUpdateWitness};
 use crate::parafold::nivc::NIVCUpdateProof;
 use crate::parafold::transcript::TranscriptConstants;
 use crate::r1cs::R1CSShape;
+use crate::supernova::StepCircuit;
 use crate::traits::CurveCycleEquipped;
 use crate::CommitmentKey;
+use bellpepper_core::ConstraintSystem;
 
 pub struct ProvingKey<E: CurveCycleEquipped> {
   // public params
@@ -27,38 +31,35 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
     assert!(pc_init < num_circuits);
     // Check arity z_init.len();
 
-    let (state, proof) = NIVCState::init(&pk.shapes, &pk.shape_cf, &pk.ro_consts, pc_init, z_init);
+    let (state, proof) = NIVCState::new(&pk.shapes, &pk.shape_cf, pc_init, z_init, &pk.ro_consts);
 
     Self { state, proof }
   }
 
-  // pub fn prove_step<C: StepCircuit<E1::Scalar>>(
-  //   &mut self,
-  //   pk: &ProvingKey<E1, E2>,
-  //   step_circuit: &C,
-  // ) -> Self {
-  //   let Self { state, proof } = self;
-  //   let circuit_index = step_circuit.circuit_index();
-  //   let mut cs = SatisfyingAssignment::<E1>::new();
-  //   let io = synthesize_step(&mut cs, &pk.ro_consts, proof, step_circuit).unwrap();
-  //   let W = cs.aux_assignment();
-  //   // assert state_instance == state.instance
-  //   let witness = NIVCUpdateWitness {
-  //     index: circuit_index,
-  //     W: W.to_vec(),
-  //   };
-  //
-  //
-  //   let proof = state.update(
-  //     &pk.ck,
-  //     &pk.shapes,
-  //     &pk.nivc_hasher,
-  //     &witness,
-  //     &mut transcript,
-  //   );
-  //
-  //   Self { state, proof }
-  // }
+  pub fn prove_step<C: StepCircuit<E::Scalar>>(self, pk: &ProvingKey<E>, step_circuit: &C) -> Self {
+    let Self { state, proof } = self;
+    let circuit_index = step_circuit.circuit_index();
+    let mut cs = SatisfyingAssignment::<E>::new();
+    let io = synthesize_step(&mut cs, &pk.ro_consts, proof, step_circuit).unwrap();
+    let W = cs.aux_assignment();
+
+    let witness = NIVCUpdateWitness {
+      index: circuit_index,
+      W: W.to_vec(),
+      io,
+    };
+
+    let (state, proof) = state.update(
+      &pk.ck,
+      &pk.ck_cf,
+      &pk.ro_consts,
+      &pk.shapes,
+      &pk.shape_cf,
+      &witness,
+    );
+
+    Self { state, proof }
+  }
 
   //   pub fn merge<C: StepCircuit<E1::Scalar>>(
   //     pk: &ProvingKey<E1>,
@@ -110,5 +111,3 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
   //     Self { state, proof }
   //   }
 }
-
-// pub struct CompressedSNARK<E1: Engine, E2: Engine> {}

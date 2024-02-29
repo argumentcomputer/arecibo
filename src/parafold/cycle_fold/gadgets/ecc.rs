@@ -3,16 +3,14 @@ use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
+use neptune::circuit2::Elt;
 
 use crate::gadgets::utils::{
   alloc_num_equals, alloc_one, alloc_zero, conditionally_select, conditionally_select2,
   select_num_or_one, select_num_or_zero, select_num_or_zero2, select_one_or_diff2,
   select_one_or_num2, select_zero_or_num2,
 };
-use crate::parafold::transcript::circuit::AllocatedTranscript;
-use crate::traits::commitment::CommitmentTrait;
-use crate::traits::{CurveCycleEquipped, Engine, Group};
-use crate::Commitment;
+use crate::traits::Group;
 
 /// `AllocatedPoint` provides an elliptic curve abstraction inside a circuit.
 #[derive(Debug, Clone)]
@@ -57,44 +55,46 @@ impl<G: Group> AllocatedPoint<G> {
     );
   }
 
-  pub fn alloc_transcript<CS, E, E2>(
-    mut cs: CS,
-    c: Commitment<E::Secondary>,
-    transcript: &mut AllocatedTranscript<E::Scalar>,
-  ) -> Self
+  pub fn alloc<CS>(mut cs: CS, coords: (G::Base, G::Base, bool)) -> Self
   where
     CS: ConstraintSystem<G::Base>,
-    E: CurveCycleEquipped<Secondary = E2, Scalar = G::Base>,
-    E2: Engine<Base = G::Base>,
   {
-    let c = Self::alloc(&mut cs, Some(c.to_coordinates())).unwrap();
-    c.check_on_curve(cs.namespace(|| "check on curve")).unwrap();
-    transcript.absorb([c.x.clone(), c.y.clone()]);
-    c
+    let commitment = Self::alloc_unchecked(cs.namespace(|| "alloc unchecked"), coords);
+    cs.enforce(
+      || "is_infinity => x = 0",
+      |lc| lc + commitment.is_infinity.get_variable(),
+      |lc| lc + commitment.x.get_variable(),
+      |lc| lc,
+    );
+    cs.enforce(
+      || "is_infinity => y = 0",
+      |lc| lc + commitment.is_infinity.get_variable(),
+      |lc| lc + commitment.y.get_variable(),
+      |lc| lc,
+    );
+    commitment
+      .check_on_curve(cs.namespace(|| "curve check"))
+      .unwrap();
+    commitment
   }
 
   /// Allocates a new point on the curve using coordinates provided by `coords`.
   /// If coords = None, it allocates the default infinity point
-  pub fn alloc<CS>(
-    mut cs: CS,
-    coords: Option<(G::Base, G::Base, bool)>,
-  ) -> Result<Self, SynthesisError>
+  pub fn alloc_unchecked<CS>(mut cs: CS, coords: (G::Base, G::Base, bool)) -> Self
   where
     CS: ConstraintSystem<G::Base>,
   {
-    let x = AllocatedNum::alloc(cs.namespace(|| "x"), || {
-      Ok(coords.map_or(G::Base::ZERO, |c| c.0))
-    })?;
-    let y = AllocatedNum::alloc(cs.namespace(|| "y"), || {
-      Ok(coords.map_or(G::Base::ZERO, |c| c.1))
-    })?;
-    let is_infinity = AllocatedNum::alloc(cs.namespace(|| "is_infinity"), || {
-      Ok(if coords.map_or(true, |c| c.2) {
+    let (x, y, is_infinity) = coords;
+    let x = AllocatedNum::alloc_infallible(cs.namespace(|| "x"), || x);
+    let y = AllocatedNum::alloc_infallible(cs.namespace(|| "y"), || y);
+
+    let is_infinity = AllocatedNum::alloc_infallible(cs.namespace(|| "is_infinity"), || {
+      if is_infinity {
         G::Base::ONE
       } else {
         G::Base::ZERO
-      })
-    })?;
+      }
+    });
     cs.enforce(
       || "is_infinity is bit",
       |lc| lc + is_infinity.get_variable(),
@@ -102,7 +102,7 @@ impl<G: Group> AllocatedPoint<G> {
       |lc| lc,
     );
 
-    Ok(Self { x, y, is_infinity })
+    Self { x, y, is_infinity }
   }
 
   /// checks if `self` is on the curve or if it is infinity
@@ -520,11 +520,7 @@ impl<G: Group> AllocatedPoint<G> {
   /// A gadget for scalar multiplication, optimized to use incomplete addition law.
   /// The optimization here is analogous to <https://github.com/arkworks-rs/r1cs-std/blob/6d64f379a27011b3629cf4c9cb38b7b7b695d5a0/src/groups/curves/short_weierstrass/mod.rs#L295>,
   /// except we use complete addition law over affine coordinates instead of projective coordinates for the tail bits
-  pub fn scalar_mul<CS>(
-    &self,
-    mut cs: CS,
-    scalar_bits: &[AllocatedBit],
-  ) -> Result<Self, SynthesisError>
+  pub fn scalar_mul<CS>(&self, mut cs: CS, scalar_bits: &[Boolean]) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<G::Base>,
   {
@@ -657,8 +653,11 @@ impl<G: Group> AllocatedPoint<G> {
     Ok(Self { x, y, is_infinity })
   }
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<G::Base>> {
-    [self.x.clone(), self.y.clone(), self.is_infinity.clone()]
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<G::Base>> {
+    [
+      Elt::Allocated(self.x.clone()),
+      Elt::Allocated(self.y.clone()),
+    ]
   }
 }
 

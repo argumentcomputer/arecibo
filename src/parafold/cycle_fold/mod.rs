@@ -1,18 +1,33 @@
-use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::ConstraintSystem;
-use ff::{Field, PrimeFieldBits};
-use neptune::generic_array::typenum::U2;
+use digest::consts::U2;
+use ff::Field;
+use neptune::circuit2::Elt;
 use neptune::poseidon::PoseidonConstants;
 use neptune::Poseidon;
 
-use crate::constants::{BN_LIMB_WIDTH, BN_N_LIMBS};
-use crate::parafold::transcript::circuit::AllocatedTranscript;
+use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
 use crate::traits::commitment::CommitmentTrait;
-use crate::traits::Engine;
+use crate::traits::CurveCycleEquipped;
 use crate::Commitment;
 
+const NUM_IO_SECONDARY: usize = 4;
+
 pub mod circuit;
+pub mod gadgets;
+pub mod nifs;
 pub mod prover;
+
+pub fn hash_commitment<E: CurveCycleEquipped>(commitment: Commitment<E>) -> E::Base {
+  // TODO: Find a way to cache this
+  let constants = PoseidonConstants::<E::Base, U2>::new();
+
+  let (x, y, infinity) = commitment.to_coordinates();
+  if infinity {
+    E::Base::ZERO
+  } else {
+    Poseidon::new_with_preimage(&[x, y], &constants).hash()
+  }
+}
 
 /// Compressed representation of a [Commitment] for a proof over the [Engine]'s scalar field.
 ///
@@ -44,57 +59,6 @@ pub mod prover;
 /// When folding a proof for the above IO on the primary curve, each IO elements leads to a non-native "multiply-add",
 /// so this additional hashing that occurs in the secondary circuit ensure we only need to perform this expensive
 /// operation 4 times. Moreover, the fact that r<q ensures that the scalar x \in F_r can be trivially embedded into F_q.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HashedCommitment<E: Engine> {
-  point: Commitment<E>,
-  // Poseidon hash of (x,y) = point. We set hash = 0 when `point` = infinity
-  hash: E::Base,
-  // E1 representation of `hash` with `BN_N_LIMBS` limbs of BN_LIMB_WIDTH bits.
-  hash_limbs: [E::Scalar; BN_N_LIMBS],
-}
-
-impl<E: Engine> HashedCommitment<E> {
-  /// Convert a [Commitment] to it's compressed representation.
-  pub fn new(point: Commitment<E>) -> Self {
-    let constants = PoseidonConstants::<E::Base, U2>::new();
-    let (x, y, infinity) = point.to_coordinates();
-    if infinity {
-      Self {
-        point,
-        hash: E::Base::ZERO,
-        hash_limbs: [E::Scalar::ZERO; BN_N_LIMBS],
-      }
-    } else {
-      let hash = Poseidon::new_with_preimage(&[x, y], &constants).hash();
-      let hash_limbs = hash
-        .to_le_bits()
-        .chunks_exact(BN_LIMB_WIDTH)
-        .map(|limb_bits| {
-          // TODO: Find more efficient trick
-          let mut limb = E::Scalar::ZERO;
-          for bit in limb_bits.iter().rev() {
-            // double limb
-            limb += limb;
-            if *bit {
-              limb += E::Scalar::ONE;
-            }
-          }
-          limb
-        })
-        .collect::<Vec<E::Scalar>>();
-
-      Self {
-        point,
-        hash,
-        hash_limbs: hash_limbs.try_into().unwrap(),
-      }
-    }
-  }
-
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = E::Scalar> {
-    self.hash_limbs
-  }
-}
 
 /// Allocated [HashedCommitment]
 ///
@@ -106,42 +70,22 @@ impl<E: Engine> HashedCommitment<E> {
 /// - Investigate whether a `is_infinity` flag is needed. It could be used to avoid synthesizing secondary circuits
 ///   when the scalar multiplication is trivial.
 #[derive(Debug, Clone)]
-pub struct AllocatedHashedCommitment<E: Engine> {
-  value: Commitment<E>,
+pub struct AllocatedPrimaryCommitment<E: CurveCycleEquipped> {
   // hash = if let Some(point) = value { H_secondary(point) } else { 0 }
-  hash_limbs: [AllocatedNum<E::Scalar>; BN_N_LIMBS],
+  // TODO: Should this be a BigNat?
+  pub(crate) hash: AllocatedBase<E>,
 }
 
-impl<E: Engine> AllocatedHashedCommitment<E> {
-  pub fn alloc<CS>(mut cs: CS, c: Commitment<E>) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    let hashed = HashedCommitment::<E>::new(c);
-    let hash_limbs = hashed
-      .hash_limbs
-      .map(|limb| AllocatedNum::alloc_infallible(cs.namespace(|| "alloc limb"), || limb));
-
-    Self {
-      value: c,
-      hash_limbs,
-    }
+impl<E: CurveCycleEquipped> AllocatedPrimaryCommitment<E> {
+  pub fn alloc<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, commitment: Commitment<E>) -> Self {
+    let hash = AllocatedBase::alloc(
+      cs.namespace(|| "alloc hash"),
+      hash_commitment::<E>(commitment),
+    );
+    Self { hash }
   }
 
-  pub fn alloc_transcript<CS>(
-    mut cs: CS,
-    c: Commitment<E>,
-    transcript: &mut AllocatedTranscript<E::Scalar>,
-  ) -> Self
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    let c = AllocatedHashedCommitment::alloc(&mut cs, c);
-    transcript.absorb(c.as_preimage());
-    c
-  }
-
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = AllocatedNum<E::Scalar>> {
-    self.hash_limbs.clone()
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<E::Scalar>> {
+    self.hash.as_preimage()
   }
 }
