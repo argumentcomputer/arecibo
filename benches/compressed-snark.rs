@@ -27,7 +27,7 @@ type S1 = arecibo::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
 type S2 = arecibo::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
 // SNARKs with computation commitmnets
 type SS1 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>;
-type SS2 = arecibo::spartan::ppsnark::RelaxedR1CSSNARK<E2, EE2>;
+type SS2 = arecibo::spartan::snark::RelaxedR1CSSNARK<E2, EE2>; // the computation commitment is not used for the trivial circuit
 
 // To run these benchmarks, first download `criterion` with `cargo install cargo-criterion`.
 // Then `cargo criterion --bench compressed-snark`. The results are located in `target/criterion/data/<name-of-benchmark>`.
