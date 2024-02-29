@@ -7,8 +7,8 @@
 use crate::{
   constants::{NIO_NOVA_FOLD, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
-    alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
-    AllocatedPoint, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
+    alloc_num_equals, alloc_scalar_as_base, alloc_zero, le_bits_to_num, AllocatedPoint,
+    AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{
@@ -17,7 +17,7 @@ use crate::{
   Commitment,
 };
 use abomonation_derive::Abomonation;
-use bellpepper::gadgets::Assignment;
+use bellpepper::gadgets::{boolean_utils::conditionally_select_slice, Assignment};
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,
@@ -318,7 +318,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     );
 
     // Compute z_{i+1}
-    let z_input = conditionally_select_vec(
+    let z_input = conditionally_select_slice(
       cs.namespace(|| "select input to F"),
       &z_0,
       &z_i,

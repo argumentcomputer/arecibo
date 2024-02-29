@@ -15,8 +15,8 @@ use crate::{
   constants::{NIO_NOVA_FOLD, NUM_HASH_BITS},
   gadgets::{
     alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_alloc_relaxed_r1cs,
-    conditionally_select_vec, conditionally_select_vec_allocated_relaxed_r1cs_instance,
-    le_bits_to_num, AllocatedPoint, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
+    conditionally_select_vec_allocated_relaxed_r1cs_instance, le_bits_to_num, AllocatedPoint,
+    AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait, ROConstantsCircuit},
@@ -28,7 +28,7 @@ use bellpepper_core::{
   ConstraintSystem, SynthesisError,
 };
 
-use bellpepper::gadgets::Assignment;
+use bellpepper::gadgets::{boolean_utils::conditionally_select_slice, Assignment};
 
 use abomonation_derive::Abomonation;
 use ff::{Field, PrimeField};
@@ -619,7 +619,7 @@ impl<'a, E: Engine, SC: EnforcingStepCircuit<E::Base>> SuperNovaAugmentedCircuit
     );
 
     // Compute z_{i+1}
-    let z_input = conditionally_select_vec(
+    let z_input = conditionally_select_slice(
       cs.namespace(|| "select input to F"),
       &z_0,
       &z_i,

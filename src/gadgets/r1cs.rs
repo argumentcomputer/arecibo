@@ -8,14 +8,16 @@ use crate::{
   gadgets::{
     ecc::AllocatedPoint,
     utils::{
-      alloc_bignat_constant, alloc_one, alloc_scalar_as_base, conditionally_select,
-      conditionally_select_bignat, le_bits_to_num,
+      alloc_bignat_constant, alloc_one, alloc_scalar_as_base, conditionally_select_bignat,
+      le_bits_to_num,
     },
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, Group, ROCircuitTrait, ROConstantsCircuit},
 };
-use bellpepper::gadgets::{boolean::Boolean, num::AllocatedNum, Assignment};
+use bellpepper::gadgets::{
+  boolean::Boolean, boolean_utils::conditionally_select, num::AllocatedNum, Assignment,
+};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
 use itertools::Itertools as _;
