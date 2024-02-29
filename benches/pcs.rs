@@ -1,9 +1,8 @@
-use arecibo::provider::Bn256EngineIPA;
 use arecibo::provider::{
   hyperkzg::EvaluationEngine as MLEvaluationEngine,
   ipa_pc::EvaluationEngine as IPAEvaluationEngine, non_hiding_zeromorph::ZMPCS,
-  shplonk::EvaluationEngine as Shplonk, Bn256EngineKZG, Bn256EngineZM,
 };
+use arecibo::provider::{Bn256EngineIPA, Bn256EngineKZG, Bn256EngineZM};
 use arecibo::spartan::polys::multilinear::MultilinearPolynomial;
 use arecibo::traits::{
   commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
@@ -26,13 +25,13 @@ cfg_if::cfg_if! {
   if #[cfg(feature = "flamegraph")] {
     criterion_group! {
           name = pcs;
-          config = Criterion::default().warm_up_time(Duration::from_millis(3000)).with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)));
+          config = Criterion::default().warm_up_time(Duration::from_millis(3000)).with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None))).measurement_time(Duration::from_secs(100));
           targets = bench_pcs
     }
   } else {
     criterion_group! {
           name = pcs;
-          config = Criterion::default().warm_up_time(Duration::from_millis(3000));
+          config = Criterion::default().warm_up_time(Duration::from_millis(3000)).measurement_time(Duration::from_secs(100));
           targets = bench_pcs
     }
   }
@@ -160,8 +159,7 @@ fn bench_pcs(c: &mut Criterion) {
     bench_pcs_verifying_internal,
     (ipa_assets, IPAEvaluationEngine<Bn256EngineIPA>),
     (hyperkzg_assets, MLEvaluationEngine<Bn256, Bn256EngineKZG>),
-    (zm_assets, ZMPCS<Bn256, Bn256EngineZM>),
-    (shplonk_assets, Shplonk<Bn256, Bn256EngineKZG>)
+    (zm_assets, ZMPCS<Bn256, Bn256EngineZM>)
   );
 }
 
