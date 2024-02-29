@@ -1,4 +1,4 @@
-use crate::gadgets::utils::alloc_zero;
+use crate::gadgets::alloc_zero;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
 use crate::provider::Bn256EngineIPA;
 use crate::provider::PallasEngine;
@@ -6,7 +6,7 @@ use crate::provider::Secp256k1Engine;
 use crate::provider::VestaEngine;
 use crate::supernova::circuit::{StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit};
 use crate::traits::snark::default_ck_hint;
-use crate::{bellpepper::test_shape_cs::TestShapeCS, gadgets::utils::alloc_one};
+use crate::{bellpepper::test_shape_cs::TestShapeCS, gadgets::alloc_one};
 use abomonation::Abomonation;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};

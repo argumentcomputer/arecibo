@@ -46,7 +46,7 @@ use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCir
 use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
 use errors::NovaError;
 use ff::{Field, PrimeField};
-use gadgets::utils::scalar_as_base;
+use gadgets::scalar_as_base;
 use nifs::NIFS;
 use r1cs::{
   CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,

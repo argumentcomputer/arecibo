@@ -14,15 +14,9 @@
 use crate::{
   constants::{NIO_NOVA_FOLD, NUM_HASH_BITS},
   gadgets::{
-    ecc::AllocatedPoint,
-    r1cs::{
-      conditionally_select_alloc_relaxed_r1cs,
-      conditionally_select_vec_allocated_relaxed_r1cs_instance, AllocatedR1CSInstance,
-      AllocatedRelaxedR1CSInstance,
-    },
-    utils::{
-      alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
-    },
+    alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_alloc_relaxed_r1cs,
+    conditionally_select_vec, conditionally_select_vec_allocated_relaxed_r1cs_instance,
+    le_bits_to_num, AllocatedPoint, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait, ROConstantsCircuit},
@@ -711,7 +705,7 @@ mod tests {
       test_shape_cs::TestShapeCS,
     },
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
-    gadgets::utils::scalar_as_base,
+    gadgets::scalar_as_base,
     provider::{
       poseidon::PoseidonConstantsCircuit, Bn256EngineIPA, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,

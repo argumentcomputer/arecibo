@@ -158,9 +158,9 @@ impl<Scalar: PrimeField> Num<Scalar> {
   /// Computes the natural number represented by an array of bits.
   /// Checks if the natural number equals `self`
   pub fn is_equal<CS: ConstraintSystem<Scalar>>(&self, mut cs: CS, other: &Bitvector<Scalar>) {
-    let allocations = other.allocations.clone();
     let mut f = Scalar::ONE;
-    let sum = allocations
+    let sum = other
+      .allocations
       .iter()
       .fold(LinearCombination::zero(), |lc, bit| {
         let l = lc + (f, &bit.bit);
@@ -202,8 +202,7 @@ impl<Scalar: PrimeField> Num<Scalar> {
     let sum_lc = LinearCombination::zero() + &self.num - &sum;
     cs.enforce(|| "sum", |lc| lc + &sum_lc, |lc| lc + CS::one(), |lc| lc);
     let bits: Vec<LinearCombination<Scalar>> = allocations
-      .clone()
-      .into_iter()
+      .iter()
       .map(|a| LinearCombination::zero() + &a.bit)
       .collect();
     Ok(Bitvector {
@@ -245,7 +244,7 @@ fn write_be<F: PrimeField, W: Write>(f: &F, mut writer: W) -> io::Result<()> {
 /// Convert a field element to a natural number
 pub fn f_to_nat<Scalar: PrimeField>(f: &Scalar) -> BigInt {
   let mut s = Vec::new();
-  write_be(f, &mut s).unwrap(); // f.to_repr().write_be(&mut s).unwrap();
+  write_be(f, &mut s).unwrap();
   BigInt::from_bytes_le(Sign::Plus, f.to_repr().as_ref())
 }
 
@@ -253,4 +252,42 @@ pub fn f_to_nat<Scalar: PrimeField>(f: &Scalar) -> BigInt {
 /// Returns `None` if the number is too big for the field.
 pub fn nat_to_f<Scalar: PrimeField>(n: &BigInt) -> Option<Scalar> {
   Scalar::from_str_vartime(&format!("{n}"))
+}
+
+#[cfg(test)]
+mod tests {
+  use bitvec::field::BitField as _;
+  use ff::PrimeFieldBits;
+  use rand::SeedableRng;
+  use rand_chacha::ChaCha20Rng;
+
+  // the write_be function above assumes Field::to_repr() outputs a representation that's an instance
+  // of `AsRef<[u8]>` in lower endian. We test that here, as this is not what the I2OSP standard recommends
+  // and may change in some implementations.
+  fn test_repr_is_le_with<F: PrimeFieldBits>() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+    for _i in 0..50 {
+      let f = F::random(&mut rng);
+      // This is guaranteed to be in LE
+      let le_bits = f.to_le_bits();
+      let leftmost_u64 = le_bits[..64].load_le::<u64>();
+
+      // This is not
+      let f_repr = f.to_repr();
+      let bytes: [u8; 8] = f_repr.as_ref()[..8].try_into().unwrap();
+      let u64_from_repr = u64::from_le_bytes(bytes);
+
+      assert_eq!(leftmost_u64, u64_from_repr);
+    }
+  }
+
+  #[test]
+  fn test_repr_is_le() {
+    test_repr_is_le_with::<pasta_curves::pallas::Scalar>();
+    test_repr_is_le_with::<pasta_curves::pallas::Base>();
+    test_repr_is_le_with::<crate::provider::bn256_grumpkin::bn256::Scalar>();
+    test_repr_is_le_with::<crate::provider::bn256_grumpkin::bn256::Base>();
+    test_repr_is_le_with::<crate::provider::secp_secq::secp256k1::Scalar>();
+    test_repr_is_le_with::<crate::provider::secp_secq::secp256k1::Base>();
+  }
 }

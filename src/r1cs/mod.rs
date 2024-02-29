@@ -6,10 +6,7 @@ use crate::{
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
-  gadgets::{
-    nonnative::{bignat::nat_to_limbs, util::f_to_nat},
-    utils::scalar_as_base,
-  },
+  gadgets::{f_to_nat, nat_to_limbs, scalar_as_base},
   traits::{
     commitment::CommitmentEngineTrait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },

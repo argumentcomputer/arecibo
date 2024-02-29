@@ -101,18 +101,19 @@ impl<G: Group> AllocatedPoint<G> {
   }
 
   /// Allocates a default point on the curve, set to the identity point.
-  pub fn default<CS: ConstraintSystem<G::Base>>(mut cs: CS) -> Result<Self, SynthesisError> {
+  pub fn default<CS: ConstraintSystem<G::Base>>(mut cs: CS) -> Self {
     let zero = alloc_zero(cs.namespace(|| "zero"));
     let one = alloc_one(cs.namespace(|| "one"));
 
-    Ok(Self {
+    Self {
       x: zero.clone(),
       y: zero,
       is_infinity: one,
-    })
+    }
   }
 
   /// Returns coordinates associated with the point.
+  #[allow(unused)]
   pub const fn get_coordinates(
     &self,
   ) -> (
@@ -490,7 +491,7 @@ impl<G: Group> AllocatedPoint<G> {
     // convert back to AllocatedPoint
     let res = {
       // we set acc.is_infinity = self.is_infinity
-      let acc = acc.to_allocated_point(&self.is_infinity)?;
+      let acc = acc.to_allocated_point(&self.is_infinity);
 
       // we remove the initial slack if bits[0] is as not as assumed (i.e., it is not 1)
       let acc_minus_initial = {
@@ -508,7 +509,7 @@ impl<G: Group> AllocatedPoint<G> {
 
     // when self.is_infinity = 1, return the default point, else return res
     // we already set res.is_infinity to be self.is_infinity, so we do not need to set it here
-    let default = Self::default(cs.namespace(|| "default"))?;
+    let default = Self::default(cs.namespace(|| "default"));
     let x = conditionally_select2(
       cs.namespace(|| "check if self.is_infinity is zero (x)"),
       &default.x,
@@ -529,7 +530,7 @@ impl<G: Group> AllocatedPoint<G> {
       y,
       is_infinity: res.is_infinity,
     };
-    let mut p_complete = p.to_allocated_point(&self.is_infinity)?;
+    let mut p_complete = p.to_allocated_point(&self.is_infinity);
 
     for (i, bit) in complete_bits.iter().enumerate() {
       let temp = acc.add(cs.namespace(|| format!("add_complete {i}")), &p_complete)?;
@@ -596,11 +597,13 @@ pub struct AllocatedPointNonInfinity<G: Group> {
 
 impl<G: Group> AllocatedPointNonInfinity<G> {
   /// Creates a new `AllocatedPointNonInfinity` from the specified coordinates
+  #[allow(unused)]
   pub const fn new(x: AllocatedNum<G::Base>, y: AllocatedNum<G::Base>) -> Self {
     Self { x, y }
   }
 
   /// Allocates a new point on the curve using coordinates provided by `coords`.
+  #[allow(unused)]
   pub fn alloc<CS: ConstraintSystem<G::Base>>(
     mut cs: CS,
     coords: Option<(G::Base, G::Base)>,
@@ -624,18 +627,16 @@ impl<G: Group> AllocatedPointNonInfinity<G> {
   }
 
   /// Returns an `AllocatedPoint` from an `AllocatedPointNonInfinity`
-  pub fn to_allocated_point(
-    &self,
-    is_infinity: &AllocatedNum<G::Base>,
-  ) -> Result<AllocatedPoint<G>, SynthesisError> {
-    Ok(AllocatedPoint {
+  pub fn to_allocated_point(&self, is_infinity: &AllocatedNum<G::Base>) -> AllocatedPoint<G> {
+    AllocatedPoint {
       x: self.x.clone(),
       y: self.y.clone(),
       is_infinity: is_infinity.clone(),
-    })
+    }
   }
 
   /// Returns coordinates associated with the point.
+  #[allow(unused)]
   pub const fn get_coordinates(&self) -> (&AllocatedNum<G::Base>, &AllocatedNum<G::Base>) {
     (&self.x, &self.y)
   }
