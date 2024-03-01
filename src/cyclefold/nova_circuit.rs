@@ -277,6 +277,7 @@ where
     E_new: emulated::AllocatedEmulPoint<E1::GE>,
     W_new: emulated::AllocatedEmulPoint<E1::GE>,
     arity: usize,
+    is_base_case: &AllocatedBit,
   ) -> Result<
     (
       AllocatedRelaxedR1CSInstance<E1, NIO_CYCLE_FOLD>,
@@ -339,6 +340,7 @@ where
       &data_p.T,
       &E_new,
       u_E,
+      is_base_case,
     )?;
 
     let u_W = &data_c_2.u;
@@ -350,6 +352,7 @@ where
       W_2,
       &W_new,
       u_W,
+      is_base_case,
     )?;
 
     let check_io = AllocatedBit::and(
@@ -453,6 +456,7 @@ where
       E_new,
       W_new,
       arity,
+      &is_base_case,
     )?;
 
     let should_be_false = AllocatedBit::nor(
@@ -546,6 +550,7 @@ pub fn emulated_point_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine>::Bas
   mut cs: CS,
   point: &emulated::AllocatedEmulPoint<E1::GE>,
   io_limbs: &[AllocatedNum<<E1 as Engine>::Base>],
+  always_equal: &AllocatedBit,
 ) -> Result<(), SynthesisError> {
   let x_limbs = point
     .x
@@ -589,9 +594,9 @@ pub fn emulated_point_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine>::Bas
     .try_for_each(|(idx, (var, limb))| -> Result<(), SynthesisError> {
       cs.enforce(
         || format!("enforcing equality {idx}"),
-        |lc| lc,
-        |lc| lc,
+        |lc| lc + CS::one() - always_equal.get_variable(),
         |lc| lc + var.get_variable() - limb.get_variable(),
+        |lc| lc,
       );
 
       Ok(())
@@ -607,13 +612,29 @@ pub fn cyclefold_invocation_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine
   C_2: &emulated::AllocatedEmulPoint<E1::GE>,
   C_res: &emulated::AllocatedEmulPoint<E1::GE>,
   instance: &AllocatedR1CSInstance<E1, NIO_CYCLE_FOLD>,
+  is_base_case: &AllocatedBit,
 ) -> Result<(), SynthesisError> {
   let (point_1_io, point_23_io) = instance.X.split_at(5);
   let (point_2_io, point_3_io_plus_scalar) = point_23_io.split_at(5);
   let point_3_io = point_3_io_plus_scalar.split_at(5).0;
-  emulated_point_check::<E1, _>(cs.namespace(|| "check point C_1"), C_1, point_1_io)?;
-  emulated_point_check::<E1, _>(cs.namespace(|| "check point C_2"), C_2, point_2_io)?;
-  emulated_point_check::<E1, _>(cs.namespace(|| "check point C_res"), C_res, point_3_io)?;
+  emulated_point_check::<E1, _>(
+    cs.namespace(|| "check point C_1"),
+    C_1,
+    point_1_io,
+    is_base_case,
+  )?;
+  emulated_point_check::<E1, _>(
+    cs.namespace(|| "check point C_2"),
+    C_2,
+    point_2_io,
+    is_base_case,
+  )?;
+  emulated_point_check::<E1, _>(
+    cs.namespace(|| "check point C_res"),
+    C_res,
+    point_3_io,
+    is_base_case,
+  )?;
 
   Ok(())
 }
