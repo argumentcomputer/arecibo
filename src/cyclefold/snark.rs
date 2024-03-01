@@ -562,7 +562,6 @@ mod test {
   }
 
   fn test_trivial_cyclefold_prove_verify_with<E: CurveCycleEquipped>() {
-    let num_steps = 1;
     let primary_circuit = SquareCircuit::<E::Scalar> { _p: PhantomData };
 
     let pp = PublicParams::<E>::setup(&primary_circuit, &*default_ck_hint(), &*default_ck_hint());
@@ -575,7 +574,15 @@ mod test {
 
     res.unwrap();
 
-    let res = recursive_snark.verify(&pp, num_steps, &z0);
+    let res = recursive_snark.verify(&pp, 1, &z0);
+
+    res.unwrap();
+
+    let res = recursive_snark.prove_step(&pp, &primary_circuit);
+
+    res.unwrap();
+
+    let res = recursive_snark.verify(&pp, 2, &z0);
 
     res.unwrap();
   }
