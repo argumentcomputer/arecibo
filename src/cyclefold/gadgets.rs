@@ -23,13 +23,13 @@ impl<E: Engine, const N: usize> AllocatedFoldingData<E, N> {
     n_limbs: usize,
   ) -> Result<Self, SynthesisError> {
     let U = AllocatedRelaxedR1CSInstance::alloc(
-      cs.namespace(|| "u"),
+      cs.namespace(|| "U"),
       inst.map(|x| &x.U),
       limb_width,
       n_limbs,
     )?;
 
-    let u = AllocatedR1CSInstance::alloc(cs.namespace(|| "U"), inst.map(|x| &x.u))?;
+    let u = AllocatedR1CSInstance::alloc(cs.namespace(|| "u"), inst.map(|x| &x.u))?;
 
     let T = AllocatedPoint::alloc(cs.namespace(|| "T"), inst.map(|x| x.T.to_coordinates()))?;
     T.check_on_curve(cs.namespace(|| "T on curve"))?;
