@@ -35,7 +35,7 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
     // Get challenge `r` but truncate the bits for more efficient scalar multiplication
     let r_bits = transcript.squeeze_bits(cs.namespace(|| "r bits"), NUM_CHALLENGE_BITS)?;
 
-    let r = AllocatedBase::from_bits(CS::one(), &r_bits);
+    let r = AllocatedBase::from_bits_le(CS::one(), &r_bits);
 
     let Self {
       u: u_curr,

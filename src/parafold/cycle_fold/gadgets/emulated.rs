@@ -7,7 +7,7 @@ use bellpepper_emulated::field_element::{
   EmulatedFieldElement, EmulatedFieldParams, EmulatedLimbs, PseudoMersennePrime,
 };
 use ff::{Field, PrimeField};
-use itertools::{zip_eq, Itertools};
+use itertools::zip_eq;
 use neptune::circuit2::Elt;
 use num_bigint::{BigInt, Sign};
 use num_traits::{Num as num_Num, One};
@@ -51,22 +51,27 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
     Self(EmulatedFieldElement::zero())
   }
 
-  pub fn from_bits(one: Variable, bits: &[Boolean]) -> Self {
-    let bases = std::iter::successors(Some(E::Scalar::ONE), |base| Some(base.double()))
-      .take(BaseParams::<E>::bits_per_limb())
-      .collect::<Vec<_>>();
+  pub fn from_bits_le(one: Variable, bits: &[Boolean]) -> Self {
+    let num_bits = BaseParams::<E>::bits_per_limb() * BaseParams::<E>::num_limbs();
+    let limb_bases =
+      std::iter::successors(Some(E::Scalar::ONE), |base: &E::Scalar| Some(base.double()))
+        .take(BaseParams::<E>::bits_per_limb())
+        .collect::<Vec<_>>();
+
+    assert!(bits.len() <= num_bits);
 
     let limbs = bits
       .chunks(BaseParams::<E>::bits_per_limb())
-      .map(|bits| {
-        zip_eq(&bases, bits).fold(Num::<E::Scalar>::zero(), |num, (base, bit)| {
+      .map(|limb_bits| {
+        let limb_bases = limb_bases.iter().take(limb_bits.len());
+
+        zip_eq(limb_bases, limb_bits).fold(Num::<E::Scalar>::zero(), |num, (base, bit)| {
           num.add_bool_with_coeff(one, &bit, base.clone())
         })
       })
-      .pad_using(BaseParams::<E>::num_limbs(), |_| Num::zero())
       .collect::<Vec<_>>();
 
-    assert_eq!(limbs.len(), BaseParams::<E>::num_limbs());
+    assert!(limbs.len() <= BaseParams::<E>::num_limbs());
 
     Self(EmulatedFieldElement::new_internal_element(
       EmulatedLimbs::Allocated(limbs),
@@ -84,7 +89,7 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
   }
 
   pub fn alloc_unchecked<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, base: E::Base) -> Self {
-    let base = BigInt::from_bytes_le(Sign::Plus, base.to_repr().as_ref());
+    let base = field_to_big_int(base);
     let base = EmulatedFieldElement::from(&base)
       .allocate_field_element_unchecked(&mut cs.namespace(|| "alloc unchecked"))
       .unwrap();
@@ -141,10 +146,20 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
   }
 }
 
+fn field_to_big_int<F: PrimeField>(f: F) -> BigInt {
+  BigInt::from_bytes_le(Sign::Plus, f.to_repr().as_ref())
+}
+
 #[cfg(test)]
 mod tests {
+  use bellpepper_core::boolean::AllocatedBit;
+  use bellpepper_core::num::AllocatedNum;
   use bellpepper_core::test_cs::TestConstraintSystem;
+  use num_traits::Zero;
+  use rand_chacha::ChaCha20Rng;
+  use rand_core::SeedableRng;
 
+  use crate::constants::NUM_CHALLENGE_BITS;
   use crate::provider::Bn256EngineKZG as E;
   use crate::traits::Engine;
 
@@ -152,18 +167,119 @@ mod tests {
 
   type Scalar = <E as Engine>::Scalar;
   type Base = <E as Engine>::Base;
+  type CS = TestConstraintSystem<Scalar>;
+
+  fn check_eq<F: PrimeField>(expected: F, actual: AllocatedBase<E>) {
+    let value = actual.to_big_int();
+    let expected = field_to_big_int(expected);
+    assert_eq!(value, expected);
+  }
 
   #[test]
   fn test_alloc() {
     let cases = [Base::ZERO, Base::ONE, Base::ZERO - Base::ONE];
-    let mut cs = TestConstraintSystem::<Scalar>::new();
+    let mut cs = CS::new();
     for (i, base) in cases.into_iter().enumerate() {
-      let _base_allocated = AllocatedBase::<E>::alloc(cs.namespace(|| format!("alloc {i}")), base);
+      let base_allocated = AllocatedBase::<E>::alloc(cs.namespace(|| format!("alloc {i}")), base);
+      check_eq(base, base_allocated);
     }
 
     if !cs.is_satisfied() {
       println!("{:?}", cs.which_is_unsatisfied());
     }
+    assert!(cs.is_satisfied());
+  }
+
+  #[test]
+  fn test_from_bits() {
+    let cases = [Scalar::ZERO, Scalar::ONE, Scalar::ZERO - Scalar::ONE];
+    let mut cs = CS::new();
+    for (i, scalar) in cases.into_iter().enumerate() {
+      let scalar_allocated =
+        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc scalar {i}")), || scalar);
+      let scalar_bits = scalar_allocated
+        .to_bits_le_strict(cs.namespace(|| format!("to_bits {i}")))
+        .unwrap();
+      let scalar_base = AllocatedBase::<E>::from_bits_le(CS::one(), &scalar_bits);
+      check_eq(scalar, scalar_base);
+    }
+
+    let cases_bits = [
+      std::iter::repeat(Boolean::constant(true))
+        .take(NUM_CHALLENGE_BITS)
+        .collect::<Vec<_>>(),
+      std::iter::repeat(Boolean::constant(true))
+        .take(NUM_CHALLENGE_BITS - 1)
+        .collect::<Vec<_>>(),
+      std::iter::repeat(Boolean::constant(true))
+        .take(NUM_CHALLENGE_BITS + 1)
+        .collect::<Vec<_>>(),
+      (0..NUM_CHALLENGE_BITS)
+        .map(|i| {
+          Boolean::from(
+            AllocatedBit::alloc(cs.namespace(|| format!("alloc bit {i}")), Some(true)).unwrap(),
+          )
+        })
+        .collect::<Vec<_>>(),
+    ];
+
+    for bits in cases_bits {
+      let allocated = AllocatedBase::<E>::from_bits_le(CS::one(), &bits);
+      let expected = bits
+        .iter()
+        .enumerate()
+        .fold(BigInt::zero(), |mut acc, (i, bit)| {
+          let bit = bit.get_value().unwrap();
+          if bit {
+            acc |= BigInt::one() << i;
+          }
+          acc
+        });
+      assert_eq!(allocated.to_big_int(), expected);
+    }
+
+    if !cs.is_satisfied() {
+      println!("{:?}", cs.which_is_unsatisfied());
+    }
+    assert!(cs.is_satisfied());
+  }
+
+  #[test]
+  fn test_add() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let a = Base::random(&mut rng);
+    let b = Base::random(&mut rng);
+
+    let mut cs = CS::new();
+
+    let result_expected = AllocatedBase::<E>::alloc(cs.namespace(|| "result_expected"), a + b);
+
+    let a = AllocatedBase::<E>::alloc(cs.namespace(|| "a"), a);
+    let b = AllocatedBase::<E>::alloc(cs.namespace(|| "b"), b);
+    let result = a.add(cs.namespace(|| "result"), &b).unwrap();
+
+    assert_eq!(result.to_big_int(), result_expected.to_big_int());
+    assert!(cs.is_satisfied());
+  }
+
+  #[test]
+  fn test_lc() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let a = Base::random(&mut rng);
+    let b = Base::random(&mut rng);
+    let result = a + b;
+
+    let mut cs = CS::new();
+
+    let a = AllocatedBase::<E>::alloc(cs.namespace(|| "a"), a);
+    let b = AllocatedBase::<E>::alloc(cs.namespace(|| "b"), b);
+    let c = a.add(cs.namespace(|| "c"), &b).unwrap();
+
+    let c_expected = AllocatedBase::<E>::alloc(cs.namespace(|| "result"), result);
+
+    assert_eq!(c.to_big_int(), c_expected.to_big_int());
     assert!(cs.is_satisfied());
   }
 }

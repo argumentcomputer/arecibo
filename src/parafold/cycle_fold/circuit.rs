@@ -86,7 +86,7 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulInstance<E> {
     // Convert the elements in the instance to a bignum modulo E1::Base.
     // Since |E1::Scalar| < |E1::Base|, we can create the limbs without an initial bound-check
     // We should check here that the limbs are of the right size, but not-necessarily bound check them.
-    let x = AllocatedBase::from_bits(one, &x_bits);
+    let x = AllocatedBase::from_bits_le(one, &x_bits);
     [A.hash, B.hash, x, C.hash]
   }
 }
