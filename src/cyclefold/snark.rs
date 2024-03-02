@@ -521,10 +521,10 @@ where
 {
   absorb_commitment::<E1, E2>(&U.comm_W, ro);
   absorb_commitment::<E1, E2>(&U.comm_E, ro);
+  ro.absorb(U.u);
   for e in &U.X {
     ro.absorb(*e);
   }
-  ro.absorb(U.u);
 }
 
 #[cfg(test)]

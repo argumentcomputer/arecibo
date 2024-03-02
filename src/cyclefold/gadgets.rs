@@ -459,11 +459,11 @@ pub mod emulated {
       CS: ConstraintSystem<<E as Engine>::Base>,
     {
       self
-        .comm_E
-        .absorb_in_ro(cs.namespace(|| "absorb comm_E"), ro)?;
-      self
         .comm_W
         .absorb_in_ro(cs.namespace(|| "absorb comm_W"), ro)?;
+      self
+        .comm_E
+        .absorb_in_ro(cs.namespace(|| "absorb comm_E"), ro)?;
 
       ro.absorb(&self.u);
       ro.absorb(&self.x0);
