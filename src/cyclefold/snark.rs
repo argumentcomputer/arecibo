@@ -13,7 +13,7 @@ use crate::{
   },
   cyclefold::circuit::CyclefoldCircuit,
   errors::NovaError,
-  gadgets::utils::scalar_as_base,
+  gadgets::scalar_as_base,
   nifs::NIFS,
   r1cs::{
     self, CommitmentKeyHint, R1CSInstance, R1CSResult, R1CSWitness, RelaxedR1CSInstance,

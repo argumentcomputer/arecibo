@@ -6,10 +6,7 @@ use ff::PrimeField;
 
 use crate::{
   constants::NUM_CHALLENGE_BITS,
-  gadgets::{
-    ecc::AllocatedPoint,
-    utils::{alloc_constant, le_bits_to_num},
-  },
+  gadgets::{alloc_constant, le_bits_to_num, AllocatedPoint},
   traits::{commitment::CommitmentTrait, Engine},
   Commitment,
 };

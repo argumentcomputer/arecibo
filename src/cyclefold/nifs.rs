@@ -7,10 +7,7 @@ use ff::Field;
 use crate::{
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
   errors::NovaError,
-  gadgets::{
-    nonnative::{bignat::nat_to_limbs, util::f_to_nat},
-    utils::scalar_as_base,
-  },
+  gadgets::{f_to_nat, nat_to_limbs, scalar_as_base},
   r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
   traits::{commitment::CommitmentTrait, /*AbsorbInROTrait,*/ Engine, ROConstants, ROTrait},
   CommitmentKey, CompressedCommitment,

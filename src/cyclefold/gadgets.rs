@@ -1,10 +1,7 @@
 use super::nova_circuit::FoldingData;
 
 use crate::{
-  gadgets::{
-    ecc::AllocatedPoint,
-    r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
-  },
+  gadgets::{AllocatedPoint, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait},
 };
 
@@ -64,11 +61,8 @@ pub mod emulated {
   use crate::{
     constants::{NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
     gadgets::{
-      nonnative::{bignat::BigNat, util::f_to_nat},
-      utils::{
-        alloc_zero, conditionally_select, conditionally_select_allocated_bit,
-        conditionally_select_bignat, le_bits_to_num,
-      },
+      alloc_zero, conditionally_select, conditionally_select_allocated_bit,
+      conditionally_select_bignat, f_to_nat, le_bits_to_num, BigNat,
     },
     traits::{Group, ROConstantsCircuit},
     RelaxedR1CSInstance,
