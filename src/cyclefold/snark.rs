@@ -569,21 +569,13 @@ mod test {
 
     let mut recursive_snark = RecursiveSNARK::new(&pp, &primary_circuit, &z0).unwrap();
 
-    let res = recursive_snark.prove_step(&pp, &primary_circuit);
+    (1..5).for_each(|iter| {
+      let res_proof = recursive_snark.prove_step(&pp, &primary_circuit);
+      res_proof.unwrap();
 
-    res.unwrap();
-
-    let res = recursive_snark.verify(&pp, 1, &z0);
-
-    res.unwrap();
-
-    let res = recursive_snark.prove_step(&pp, &primary_circuit);
-
-    res.unwrap();
-
-    let res = recursive_snark.verify(&pp, 2, &z0);
-
-    res.unwrap();
+      let res_verify = recursive_snark.verify(&pp, iter, &z0);
+      res_verify.unwrap();
+    });
   }
 
   #[test]
