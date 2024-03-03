@@ -669,7 +669,9 @@ mod test {
     );
     let mut cs: TestShapeCS<Dual<E>> = TestShapeCS::default();
 
-    let _ = circuit.synthesize(&mut cs);
+    let res = circuit.synthesize(&mut cs);
+
+    res.unwrap();
 
     let num_constraints = cs.num_constraints();
     let num_variables = cs.num_aux();
