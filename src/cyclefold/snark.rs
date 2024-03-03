@@ -291,14 +291,13 @@ where
     //   &mut self.buffer_primary.ABC_Z_2,
     // )?;
 
-    let r_bools: Option<[bool; NUM_CHALLENGE_BITS]> = r
+    let r_bools = r
       .to_le_bits()
       .iter()
       .map(|b| Some(*b))
+      .take(NUM_CHALLENGE_BITS)
       .collect::<Option<Vec<_>>>()
-      .unwrap()
-      .try_into()
-      .ok();
+      .map(|v| v.try_into().unwrap());
 
     let comm_T = Commitment::<E1>::decompress(&nifs_primary.comm_T)?;
     let E_new = self.r_U_primary.comm_E + comm_T * r;
