@@ -18,6 +18,7 @@ pub(crate) mod util;
 
 // crate-private modules
 mod keccak;
+mod tests;
 
 use crate::{
   provider::{
@@ -166,7 +167,7 @@ impl CurveCycleEquipped for PallasEngine {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
   use crate::provider::{
     bn256_grumpkin::{bn256, grumpkin},
     secp_secq::{secp256k1, secq256k1},

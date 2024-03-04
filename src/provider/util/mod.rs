@@ -116,7 +116,7 @@ pub mod test_utils {
   use std::sync::Arc;
 
   /// Returns a random polynomial, a point and calculate its evaluation.
-  fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
+  pub(crate) fn random_poly_with_eval<E: Engine, R: RngCore + CryptoRng>(
     num_vars: usize,
     mut rng: &mut R,
   ) -> (

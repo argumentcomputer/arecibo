@@ -72,6 +72,8 @@ anyhow = "1.0.72"
 tap = "1.0.1"
 tracing-texray = "0.2.0"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+handlebars = "5.1.0"
+serde_json = "1.0.1"
 
 [build-dependencies]
 vergen = { version = "8", features = ["build", "git", "gitcl"] }

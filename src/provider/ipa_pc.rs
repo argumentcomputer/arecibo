@@ -28,8 +28,8 @@ pub struct ProverKey<E: Engine> {
 #[derive(Debug, Serialize)]
 #[serde(bound = "")]
 pub struct VerifierKey<E: Engine> {
-  ck_v: Arc<CommitmentKey<E>>,
-  ck_s: CommitmentKey<E>,
+  pub(in crate::provider) ck_v: Arc<CommitmentKey<E>>,
+  pub(in crate::provider) ck_s: CommitmentKey<E>,
 }
 
 impl<E: Engine> SimpleDigestible for VerifierKey<E> {}
@@ -149,9 +149,9 @@ impl<E: Engine> InnerProductWitness<E> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct InnerProductArgument<E: Engine> {
-  L_vec: Vec<CompressedCommitment<E>>,
-  R_vec: Vec<CompressedCommitment<E>>,
-  a_hat: E::Scalar,
+  pub(in crate::provider) L_vec: Vec<CompressedCommitment<E>>,
+  pub(in crate::provider) R_vec: Vec<CompressedCommitment<E>>,
+  pub(in crate::provider) a_hat: E::Scalar,
 }
 
 impl<E> InnerProductArgument<E>
