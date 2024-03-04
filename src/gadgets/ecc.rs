@@ -2,13 +2,13 @@
 #![allow(non_snake_case)]
 use crate::{
   gadgets::utils::{
-    alloc_num_equals, alloc_one, alloc_zero, conditionally_select, conditionally_select2,
-    select_num_or_one, select_num_or_zero, select_num_or_zero2, select_one_or_diff2,
-    select_one_or_num2, select_zero_or_num2,
+    alloc_num_equals, alloc_one, alloc_zero, conditionally_select2, select_num_or_one,
+    select_num_or_zero, select_num_or_zero2, select_one_or_diff2, select_one_or_num2,
+    select_zero_or_num2,
   },
   traits::Group,
 };
-use bellpepper::gadgets::Assignment;
+use bellpepper::gadgets::{boolean_utils::conditionally_select, Assignment};
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,

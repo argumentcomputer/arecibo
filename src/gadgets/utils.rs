@@ -8,7 +8,6 @@ use bellpepper_core::{
   ConstraintSystem, LinearCombination, SynthesisError,
 };
 use ff::{Field, PrimeField, PrimeFieldBits};
-use itertools::Itertools as _;
 use num_bigint::BigInt;
 
 /// Gets as input the little indian representation of a number and spits out the number
@@ -168,49 +167,6 @@ pub fn alloc_num_equals<F: PrimeField, CS: ConstraintSystem<F>>(
   );
 
   Ok(r)
-}
-
-/// If condition return a otherwise b
-pub fn conditionally_select<F: PrimeField, CS: ConstraintSystem<F>>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: &AllocatedNum<F>,
-  condition: &Boolean,
-) -> Result<AllocatedNum<F>, SynthesisError> {
-  let c = AllocatedNum::alloc(cs.namespace(|| "conditional select result"), || {
-    if *condition.get_value().get()? {
-      Ok(*a.get_value().get()?)
-    } else {
-      Ok(*b.get_value().get()?)
-    }
-  })?;
-
-  // a * condition + b*(1-condition) = c ->
-  // a * condition - b*condition = c - b
-  cs.enforce(
-    || "conditional select constraint",
-    |lc| lc + a.get_variable() - b.get_variable(),
-    |_| condition.lc(CS::one(), F::ONE),
-    |lc| lc + c.get_variable() - b.get_variable(),
-  );
-
-  Ok(c)
-}
-
-/// If condition return a otherwise b
-pub fn conditionally_select_vec<F: PrimeField, CS: ConstraintSystem<F>>(
-  mut cs: CS,
-  a: &[AllocatedNum<F>],
-  b: &[AllocatedNum<F>],
-  condition: &Boolean,
-) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-  a.iter()
-    .zip_eq(b.iter())
-    .enumerate()
-    .map(|(i, (a, b))| {
-      conditionally_select(cs.namespace(|| format!("select_{i}")), a, b, condition)
-    })
-    .collect::<Result<Vec<AllocatedNum<F>>, SynthesisError>>()
 }
 
 /// If condition return a otherwise b where a and b are `BigNats`

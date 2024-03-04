@@ -15,6 +15,5 @@ mod utils;
 #[cfg(test)]
 pub(crate) use utils::alloc_one;
 pub(crate) use utils::{
-  alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
-  scalar_as_base,
+  alloc_num_equals, alloc_scalar_as_base, alloc_zero, le_bits_to_num, scalar_as_base,
 };
