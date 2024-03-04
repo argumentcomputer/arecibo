@@ -74,92 +74,92 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     })
   }
 
-  /// Optimized merge over the primary curve, where the same `r` is used across many accumulators.
-  pub fn merge_many<CS>(
-    mut cs: CS,
-    accs_L: Vec<Self>,
-    accs_R: Vec<Self>,
-    acc_sm: &mut AllocatedScalarMulAccumulator<E>,
-    transcript: &mut AllocatedTranscript<E>,
-  ) -> Result<Vec<Self>, SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    assert_eq!(accs_L.len(), accs_R.len());
-
-    // Add all cross-term commitments to the transcript.
-    let Ts = (0..accs_L.len())
-      .map(|i| transcript.read_commitment_primary(cs.namespace(|| format!("transcript T[{i}]"))))
-      .collect::<Result<Vec<_>, _>>()?;
-
-    // Get common challenge
-    let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
-    let r_bits = r.to_bits_le(cs.namespace(|| "r_bits"))?;
-
-    // Merge all accumulators
-    let accs_next = zip_eq(accs_L, accs_R)
-      .zip_eq(Ts)
-      .map(|((acc_L, acc_R), T)| {
-        let Self {
-          pp: pp_L,
-          u: u_L,
-          X: X_L,
-          W: W_L,
-          E: E_L,
-          ..
-        } = acc_L;
-        let Self {
-          pp: pp_R,
-          u: u_R,
-          X: X_R,
-          W: W_R,
-          E: E_R,
-          ..
-        } = acc_R;
-
-        cs.enforce(
-          || "pp_L = pp_R",
-          |lc| lc,
-          |lc| lc,
-          |lc| lc + pp_L.get_variable() - pp_R.get_variable(),
-        );
-
-        let u_next = mul_add(cs.namespace(|| "u_new"), &u_L, &u_R, &r)?;
-        let X_next = mul_add(cs.namespace(|| "X_new[{i}]"), &X_L, &X_R, &r)?;
-        let W_next = acc_sm.scalar_mul(
-          cs.namespace(|| "W_next"),
-          W_L.clone(),
-          W_R.clone(),
-          r_bits.clone(),
-          transcript,
-        )?;
-        let E1_next = acc_sm.scalar_mul(
-          cs.namespace(|| "E1_next"),
-          T.clone(),
-          E_R.clone(),
-          r_bits.clone(),
-          transcript,
-        )?;
-        let E_next = acc_sm.scalar_mul(
-          cs.namespace(|| "E_next"),
-          E_L.clone(),
-          E1_next.clone(),
-          r_bits.clone(),
-          transcript,
-        )?;
-
-        Ok::<Self, SynthesisError>(Self {
-          pp: pp_L,
-          u: u_next,
-          X: X_next,
-          W: W_next,
-          E: E_next,
-        })
-      })
-      .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(accs_next)
-  }
+  // /// Optimized merge over the primary curve, where the same `r` is used across many accumulators.
+  // pub fn merge_many<CS>(
+  //   mut cs: CS,
+  //   accs_L: Vec<Self>,
+  //   accs_R: Vec<Self>,
+  //   acc_sm: &mut AllocatedScalarMulAccumulator<E>,
+  //   transcript: &mut AllocatedTranscript<E>,
+  // ) -> Result<Vec<Self>, SynthesisError>
+  // where
+  //   CS: ConstraintSystem<E::Scalar>,
+  // {
+  //   assert_eq!(accs_L.len(), accs_R.len());
+  //
+  //   // Add all cross-term commitments to the transcript.
+  //   let Ts = (0..accs_L.len())
+  //     .map(|i| transcript.read_commitment_primary(cs.namespace(|| format!("transcript T[{i}]"))))
+  //     .collect::<Result<Vec<_>, _>>()?;
+  //
+  //   // Get common challenge
+  //   let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
+  //   let r_bits = r.to_bits_le(cs.namespace(|| "r_bits"))?;
+  //
+  //   // Merge all accumulators
+  //   let accs_next = zip_eq(accs_L, accs_R)
+  //     .zip_eq(Ts)
+  //     .map(|((acc_L, acc_R), T)| {
+  //       let Self {
+  //         pp: pp_L,
+  //         u: u_L,
+  //         X: X_L,
+  //         W: W_L,
+  //         E: E_L,
+  //         ..
+  //       } = acc_L;
+  //       let Self {
+  //         pp: pp_R,
+  //         u: u_R,
+  //         X: X_R,
+  //         W: W_R,
+  //         E: E_R,
+  //         ..
+  //       } = acc_R;
+  //
+  //       cs.enforce(
+  //         || "pp_L = pp_R",
+  //         |lc| lc,
+  //         |lc| lc,
+  //         |lc| lc + pp_L.get_variable() - pp_R.get_variable(),
+  //       );
+  //
+  //       let u_next = mul_add(cs.namespace(|| "u_new"), &u_L, &u_R, &r)?;
+  //       let X_next = mul_add(cs.namespace(|| "X_new[{i}]"), &X_L, &X_R, &r)?;
+  //       let W_next = acc_sm.scalar_mul(
+  //         cs.namespace(|| "W_next"),
+  //         W_L.clone(),
+  //         W_R.clone(),
+  //         r_bits.clone(),
+  //         transcript,
+  //       )?;
+  //       let E1_next = acc_sm.scalar_mul(
+  //         cs.namespace(|| "E1_next"),
+  //         T.clone(),
+  //         E_R.clone(),
+  //         r_bits.clone(),
+  //         transcript,
+  //       )?;
+  //       let E_next = acc_sm.scalar_mul(
+  //         cs.namespace(|| "E_next"),
+  //         E_L.clone(),
+  //         E1_next.clone(),
+  //         r_bits.clone(),
+  //         transcript,
+  //       )?;
+  //
+  //       Ok::<Self, SynthesisError>(Self {
+  //         pp: pp_L,
+  //         u: u_next,
+  //         X: X_next,
+  //         W: W_next,
+  //         E: E_next,
+  //       })
+  //     })
+  //     .collect::<Result<Vec<_>, _>>()?;
+  //
+  //   Ok(accs_next)
+  // }
 
   /// Compute the hash of the accumulator over the primary curve.  
   pub fn hash<CS>(&self, mut cs: CS) -> Result<AllocatedNum<E::Scalar>, SynthesisError>
@@ -183,8 +183,8 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     let pp = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pp"), || instance.pp);
     let u = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc u"), || instance.u);
     let X = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc X"), || instance.X);
-    let W = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc W"), instance.W);
-    let E = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc E"), instance.E);
+    let W = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc W"), &instance.W);
+    let E = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc E"), &instance.E);
 
     Self { pp, u, X, W, E }
   }
@@ -205,7 +205,7 @@ where
     let b_val = b.get_value().ok_or(SynthesisError::AssignmentMissing)?;
     let r_val = r.get_value().ok_or(SynthesisError::AssignmentMissing)?;
 
-    Ok(a_val + r_val + b_val)
+    Ok(a_val + r_val * b_val)
   })?;
 
   cs.enforce(

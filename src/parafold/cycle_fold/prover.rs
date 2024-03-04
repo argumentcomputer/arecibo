@@ -1,10 +1,14 @@
-use bellpepper_core::ConstraintSystem;
+use bellpepper_core::num::AllocatedNum;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 
 use crate::bellpepper::solver::SatisfyingAssignment;
+use crate::gadgets::utils::scalar_as_base;
+use crate::parafold::cycle_fold::gadgets::ecc::AllocatedPoint;
 use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CS;
 use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptElement;
 use crate::r1cs::R1CSShape;
+use crate::traits::commitment::CommitmentTrait;
 use crate::traits::CurveCycleEquipped;
 use crate::{Commitment, CommitmentKey};
 
@@ -17,7 +21,7 @@ use crate::{Commitment, CommitmentKey};
 /// added to the Fiat-Shamir transcript as it represents a value "provided by the prover".
 ///
 /// All operations are proved in a batch at the end of the circuit in order to minimize latency for the prover.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ScalarMulAccumulator<E: CurveCycleEquipped> {
   deferred: Vec<ScalarMulInstance<E>>,
   acc: RelaxedSecondaryR1CS<E>,
@@ -28,6 +32,14 @@ impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
     Self {
       deferred: vec![],
       acc,
+    }
+  }
+
+  /// Create a dummy accumulator for simulation purposes
+  pub fn dummy() -> Self {
+    Self {
+      deferred: vec![],
+      acc: RelaxedSecondaryR1CS::dummy(),
     }
   }
 
@@ -51,20 +63,6 @@ impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
 
     C
   }
-
-  // pub fn merge(
-  //   ck: &CommitmentKey<E::Secondary>,
-  //   shape: &R1CSShape<E::Secondary>,
-  //   mut self_L: Self,
-  //   self_R: &Self,
-  //   transcript: &mut Transcript<E>,
-  // ) -> Self {
-  //   let mut deferred = self_L.deferred;
-  //   deferred.extend(self_R.deferred.clone());
-  //   let acc = RelaxedSecondaryR1CS::merge(ck, shape, self_L.acc, &self_R.acc, transcript);
-  //   Self { deferred, acc }
-  // }
-  //
 
   /// Consume all deferred scalar multiplication instances and create a folding proof for each result.
   /// The proofs are folded into a mutable RelaxedR1CS for the corresponding circuit over the secondary curve.
@@ -90,10 +88,6 @@ impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
       .for_each(|_| RelaxedSecondaryR1CS::simulate_fold(transcript));
     self.acc
   }
-
-  pub fn is_finalized(&self) -> bool {
-    self.deferred.is_empty()
-  }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -102,4 +96,32 @@ pub struct ScalarMulInstance<E: CurveCycleEquipped> {
   B: Commitment<E>,
   x: E::Scalar,
   C: Commitment<E>,
+}
+
+impl<E: CurveCycleEquipped> ScalarMulInstance<E> {
+  #[allow(unused)]
+  pub fn synthesize<CS>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  where
+    CS: ConstraintSystem<E::Base>,
+  {
+    let a = AllocatedPoint::<E::GE>::alloc_hashed_input(
+      cs.namespace(|| "alloc a"),
+      self.A.to_coordinates(),
+    )?;
+    let b = AllocatedPoint::<E::GE>::alloc_hashed_input(
+      cs.namespace(|| "alloc b"),
+      self.B.to_coordinates(),
+    )?;
+
+    let x = AllocatedNum::alloc_input(cs.namespace(|| "alloc x"), || {
+      Ok(scalar_as_base::<E>(self.x))
+    })?;
+
+    let x_bits = x.to_bits_le(cs.namespace(|| "x_bits"))?;
+
+    let xb = b.scalar_mul(cs.namespace(|| "x*b"), &x_bits)?;
+    let c = a.add(cs.namespace(|| "a + xb"), &xb)?;
+
+    c.inputize_hashed(cs.namespace(|| "inputize c"))
+  }
 }

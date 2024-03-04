@@ -40,37 +40,17 @@ impl<E: CurveCycleEquipped> Transcript<E> {
     self.buffer.push(element);
   }
 
-  /// Adds a sequence of elements to the transcript, storing them for future deserialization by
-  /// the corresponding verifier transcript.
-  pub fn absorb_many(&mut self, elements: impl IntoIterator<Item = TranscriptElement<E>>) {
-    for element in elements {
-      self.absorb(element);
-    }
-  }
-
-  // pub fn absorb_commitment_primary<E: Engine<Scalar = F>>(&mut self, c: Commitment<E>) {
-  //   let limbs = commitment_to_hash_limbs::<E>(c);
-  //   self.absorb_many(limbs);
-  // }
-  //
-  // pub fn absorb_commitment_secondary<E: Engine<Base = F>>(&mut self, c: Commitment<E>) {
-  //   let (x, y, _) = c.to_coordinates();
-  //   self.absorb_many([x, y]);
-  // }
-
   pub fn squeeze(&mut self) -> E::Scalar {
-    let mut sponge = Sponge::new_with_constants(&self.constants, Simplex);
-
     let elements = chain!(self.prev.clone(), self.round_state.drain(..)).collect::<Vec<_>>();
     let num_absorbs = elements.len() as u32;
 
     let hash = {
       let acc = &mut ();
+      let mut sponge = Sponge::new_with_constants(&self.constants, Simplex);
       let parameter = IOPattern(vec![SpongeOp::Absorb(num_absorbs), SpongeOp::Squeeze(1u32)]);
       sponge.start(parameter, None, acc);
       SpongeAPI::absorb(&mut sponge, num_absorbs, &elements, acc);
       let hash = SpongeAPI::squeeze(&mut sponge, 1, acc);
-      sponge.finish(acc).unwrap();
       hash[0]
     };
 

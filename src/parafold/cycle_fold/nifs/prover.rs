@@ -3,7 +3,8 @@ use itertools::{chain, Itertools};
 use rayon::prelude::*;
 
 use crate::constants::NUM_CHALLENGE_BITS;
-use crate::parafold::cycle_fold::NUM_IO_SECONDARY;
+
+use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
 use crate::parafold::nifs::compute_fold_proof;
 use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptElement;
@@ -22,11 +23,7 @@ pub struct RelaxedSecondaryR1CSInstance<E: CurveCycleEquipped> {
 }
 
 /// A full Relaxed-R1CS accumulator for a circuit
-/// # TODO:
-/// It would make sense to store the [R1CSShape] here since
-/// - There is only one accumulator per shape
-/// - We can probably use an Arc to avoid copying
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RelaxedSecondaryR1CS<E: CurveCycleEquipped> {
   instance: RelaxedSecondaryR1CSInstance<E>,
   W: Vec<E::Base>,
@@ -48,6 +45,19 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
     }
   }
 
+  pub fn dummy() -> Self {
+    Self {
+      instance: RelaxedSecondaryR1CSInstance {
+        u: E::Base::ZERO,
+        X: vec![E::Base::ZERO; NUM_IO_SECONDARY],
+        W: Commitment::<E::Secondary>::default(),
+        E: Commitment::<E::Secondary>::default(),
+      },
+      W: vec![],
+      E: vec![],
+    }
+  }
+
   pub fn instance(&self) -> &RelaxedSecondaryR1CSInstance<E> {
     &self.instance
   }
@@ -58,7 +68,7 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
     transcript.absorb(TranscriptElement::CommitmentSecondary(W));
     transcript.absorb(TranscriptElement::CommitmentSecondary(T));
 
-    let _r = transcript.squeeze();
+    let _r = transcript.squeeze_bits(NUM_CHALLENGE_BITS);
   }
 
   pub fn fold(
@@ -173,6 +183,15 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
 }
 
 impl<E: CurveCycleEquipped> RelaxedSecondaryR1CSInstance<E> {
+  pub fn dummy() -> Self {
+    Self {
+      u: Default::default(),
+      X: vec![Default::default(); NUM_IO_SECONDARY],
+      W: Default::default(),
+      E: Default::default(),
+    }
+  }
+
   pub fn as_preimage(&self) -> impl IntoIterator<Item = TranscriptElement<E>> + '_ {
     let u = TranscriptElement::Base(self.u);
     let X = self.X.iter().cloned().map(TranscriptElement::Base);
@@ -181,11 +200,3 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CSInstance<E> {
     chain![[u], X, [W, E]]
   }
 }
-
-// /// Convert a commitment over the secondary curve to its coordinates to it can be added to a transcript defined
-// /// over the primary curve.
-// /// The `is_infinity` flag is not added since it is computed in the circuit and the coordinates are checked.
-// fn comm_to_base<E: CurveCycleEquipped>(comm: &Commitment<E::Secondary>) -> [E::Scalar; 2] {
-//   let (x, y, _) = comm.to_coordinates();
-//   [x, y]
-// }

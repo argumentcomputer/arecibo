@@ -10,14 +10,12 @@ use crate::traits::commitment::CommitmentTrait;
 use crate::traits::CurveCycleEquipped;
 use crate::Commitment;
 
-const NUM_IO_SECONDARY: usize = 4;
-
 pub mod circuit;
 pub mod gadgets;
 pub mod nifs;
 pub mod prover;
 
-pub fn hash_commitment<E: CurveCycleEquipped>(commitment: Commitment<E>) -> E::Base {
+pub fn hash_commitment<E: CurveCycleEquipped>(commitment: &Commitment<E>) -> E::Base {
   // TODO: Find a way to cache this
   let constants = PoseidonConstants::<E::Base, U2>::new();
 
@@ -71,17 +69,13 @@ pub fn hash_commitment<E: CurveCycleEquipped>(commitment: Commitment<E>) -> E::B
 ///   when the scalar multiplication is trivial.
 #[derive(Debug, Clone)]
 pub struct AllocatedPrimaryCommitment<E: CurveCycleEquipped> {
-  // hash = if let Some(point) = value { H_secondary(point) } else { 0 }
-  // TODO: Should this be a BigNat?
   pub(crate) hash: AllocatedBase<E>,
 }
 
 impl<E: CurveCycleEquipped> AllocatedPrimaryCommitment<E> {
-  pub fn alloc<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, commitment: Commitment<E>) -> Self {
-    let hash = AllocatedBase::alloc(
-      cs.namespace(|| "alloc hash"),
-      hash_commitment::<E>(commitment),
-    );
+  pub fn alloc<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, commitment: &Commitment<E>) -> Self {
+    let hash = hash_commitment::<E>(commitment);
+    let hash = AllocatedBase::alloc(cs.namespace(|| "alloc hash"), hash);
     Self { hash }
   }
 

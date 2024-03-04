@@ -1,9 +1,13 @@
 use bellpepper::gadgets::Assignment;
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::AllocatedNum;
+
+use bellpepper_core::SynthesisError::AssignmentMissing;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
-use neptune::circuit2::Elt;
+use neptune::circuit2::{Elt, PoseidonCircuit2};
+use neptune::generic_array::typenum::U2;
+use neptune::poseidon::PoseidonConstants;
 
 use crate::gadgets::utils::{
   alloc_num_equals, alloc_one, alloc_zero, conditionally_select, conditionally_select2,
@@ -76,6 +80,53 @@ impl<G: Group> AllocatedPoint<G> {
       .check_on_curve(cs.namespace(|| "curve check"))
       .unwrap();
     commitment
+  }
+
+  pub fn alloc_hashed_input<CS>(
+    mut cs: CS,
+    coords: (G::Base, G::Base, bool),
+  ) -> Result<Self, SynthesisError>
+  where
+    CS: ConstraintSystem<G::Base>,
+  {
+    let point = Self::alloc_unchecked(cs.namespace(|| "alloc"), coords);
+    point.check_on_curve(cs.namespace(|| "check on curve"))?;
+    point.inputize_hashed(cs.namespace(|| "inputize"))?;
+    Ok(point)
+  }
+
+  /// Inputize a point by computing H(x,y), or 0 if `is_infinity = true`.
+  pub fn inputize_hashed<CS>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  where
+    CS: ConstraintSystem<G::Base>,
+  {
+    let constants = PoseidonConstants::<G::Base, U2>::new();
+    let hash = PoseidonCircuit2::new(
+      vec![
+        Elt::Allocated(self.x.clone()),
+        Elt::Allocated(self.y.clone()),
+      ],
+      &constants,
+    )
+    .hash_to_allocated(cs.namespace(|| "hash"))?;
+
+    let hash_final = AllocatedNum::alloc(cs.namespace(|| "alloc hash"), || {
+      let is_infinity = self.is_infinity.get_value().ok_or(AssignmentMissing)?;
+      if is_infinity == G::Base::ONE {
+        Ok(G::Base::ZERO)
+      } else {
+        hash.get_value().ok_or(AssignmentMissing)
+      }
+    })?;
+
+    // hash_final = (1-is_infinity)hash
+    cs.enforce(
+      || "select hash",
+      |lc| lc + CS::one() - self.is_infinity.get_variable(),
+      |lc| lc + hash.get_variable(),
+      |lc| lc + hash_final.get_variable(),
+    );
+    hash_final.inputize(cs.namespace(|| "inputize"))
   }
 
   /// Allocates a new point on the curve using coordinates provided by `coords`.
@@ -164,17 +215,6 @@ impl<G: Group> AllocatedPoint<G> {
       y: zero,
       is_infinity: one,
     }
-  }
-
-  /// Returns coordinates associated with the point.
-  pub const fn get_coordinates(
-    &self,
-  ) -> (
-    &AllocatedNum<G::Base>,
-    &AllocatedNum<G::Base>,
-    &AllocatedNum<G::Base>,
-  ) {
-    (&self.x, &self.y, &self.is_infinity)
   }
 
   /// Negates the provided point
@@ -669,26 +709,6 @@ pub struct AllocatedPointNonInfinity<G: Group> {
 }
 
 impl<G: Group> AllocatedPointNonInfinity<G> {
-  /// Creates a new `AllocatedPointNonInfinity` from the specified coordinates
-  pub fn new(x: AllocatedNum<G::Base>, y: AllocatedNum<G::Base>) -> Self {
-    Self { x, y }
-  }
-
-  /// Allocates a new point on the curve using coordinates provided by `coords`.
-  pub fn alloc<CS: ConstraintSystem<G::Base>>(
-    mut cs: CS,
-    coords: Option<(G::Base, G::Base)>,
-  ) -> Result<Self, SynthesisError> {
-    let x = AllocatedNum::alloc(cs.namespace(|| "x"), || {
-      coords.map_or(Err(SynthesisError::AssignmentMissing), |c| Ok(c.0))
-    })?;
-    let y = AllocatedNum::alloc(cs.namespace(|| "y"), || {
-      coords.map_or(Err(SynthesisError::AssignmentMissing), |c| Ok(c.1))
-    })?;
-
-    Ok(Self { x, y })
-  }
-
   /// Turns an `AllocatedPoint` into an `AllocatedPointNonInfinity` (assumes it is not infinity)
   pub fn from_allocated_point(p: &AllocatedPoint<G>) -> Self {
     Self {
@@ -704,11 +724,6 @@ impl<G: Group> AllocatedPointNonInfinity<G> {
       y: self.y.clone(),
       is_infinity: is_infinity.clone(),
     }
-  }
-
-  /// Returns coordinates associated with the point.
-  pub const fn get_coordinates(&self) -> (&AllocatedNum<G::Base>, &AllocatedNum<G::Base>) {
-    (&self.x, &self.y)
   }
 
   /// Add two points assuming self != +/- other

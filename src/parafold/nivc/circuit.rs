@@ -3,7 +3,11 @@ use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use ff::Field;
 use itertools::{chain, zip_eq};
-use neptune::circuit2::{Elt, PoseidonCircuit2};
+use neptune::circuit2::Elt;
+use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
+use neptune::sponge::circuit::SpongeCircuit;
+use neptune::sponge::vanilla::Mode::Simplex;
+use neptune::sponge::vanilla::SpongeTrait;
 
 use crate::gadgets::utils::{alloc_num_equals, alloc_zero, conditionally_select};
 use crate::parafold::cycle_fold::circuit::AllocatedScalarMulAccumulator;
@@ -249,8 +253,9 @@ impl<E: CurveCycleEquipped> AllocatedNIVCState<E> {
     let accs_hash = state
       .accs_hash
       .into_iter()
-      .map(|acc_hash| {
-        AllocatedNum::alloc_infallible(cs.namespace(|| "alloc acc_hash"), || acc_hash)
+      .enumerate()
+      .map(|(i, acc_hash)| {
+        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc acc_hash {i}")), || acc_hash)
       })
       .collect::<Vec<_>>();
 
@@ -272,8 +277,16 @@ impl<E: CurveCycleEquipped> AllocatedNIVCState<E> {
     CS: ConstraintSystem<E::Scalar>,
   {
     let elements = self.as_preimage().into_iter().collect::<Vec<_>>();
-    let constants = NIVCPoseidonConstants::<E>::new_constant_length(elements.len());
-    PoseidonCircuit2::new(elements, &constants).hash_to_allocated(cs.namespace(|| "state hash"))
+    let num_absorbs = elements.len() as u32;
+    let constants = NIVCPoseidonConstants::<E>::new();
+
+    let pattern = IOPattern(vec![SpongeOp::Absorb(num_absorbs), SpongeOp::Squeeze(1u32)]);
+    let acc = &mut cs.namespace(|| "squeeze");
+    let mut sponge = SpongeCircuit::new_with_constants(&constants, Simplex);
+    sponge.start(pattern, None, acc);
+    SpongeAPI::absorb(&mut sponge, num_absorbs, &elements, acc);
+    let state_out = SpongeAPI::squeeze(&mut sponge, 1, acc);
+    state_out[0].ensure_allocated(acc, true)
   }
 
   fn update_accs<CS>(
@@ -347,9 +360,10 @@ impl<E: CurveCycleEquipped> AllocatedNIVCState<E> {
 
     // Update hashes of accumulators in state
     zip_eq(accs_hash.into_iter(), accs_hash_selector.iter())
-      .map(|(acc_hash, bit)| {
+      .enumerate()
+      .map(|(i, (acc_hash, bit))| {
         conditionally_select(
-          cs.namespace(|| "accs_hash_curr"),
+          cs.namespace(|| format!("accs_hash_curr {i}")),
           &acc_curr_hash,
           &acc_hash,
           bit,

@@ -1,9 +1,11 @@
 use bellpepper_core::boolean::Boolean;
 use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
+use ff::PrimeField;
 
 use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
 use crate::parafold::cycle_fold::nifs::circuit::AllocatedSecondaryRelaxedR1CSInstance;
-use crate::parafold::cycle_fold::{AllocatedPrimaryCommitment, NUM_IO_SECONDARY};
+use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
+use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -33,6 +35,9 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
+    // Ensure the number of bits in the scalar matches fits.
+    assert!(x_bits.len() <= E::Scalar::NUM_BITS as usize);
+
     let C = transcript.read_commitment_primary(cs.namespace(|| "transcript C"))?;
 
     self.deferred.push(AllocatedScalarMulInstance {
@@ -45,6 +50,8 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
     Ok(C)
   }
 
+  /// Consume a set of accumulated scalar multiplications, proving each instance by folding a proof
+  /// into the internal secondary curve accumulator.
   pub fn finalize<CS>(
     mut self,
     mut cs: CS,
@@ -53,21 +60,19 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    for instance in self.deferred.drain(..) {
+    for (i, instance) in self.deferred.drain(..).enumerate() {
       let X = instance.to_io(CS::one());
 
       // TODO: In order to avoid computing unnecessary proofs, we can check
       // - x = 0 => C = A
-      self
-        .acc
-        .fold(cs.namespace(|| "fold cf instance"), X, transcript)?;
+      self.acc.fold(
+        cs.namespace(|| format!("fold cf instance {i}")),
+        X,
+        transcript,
+      )?;
     }
 
     Ok(self.acc)
-  }
-
-  pub fn is_finalized(&self) -> bool {
-    self.deferred.is_empty()
   }
 }
 

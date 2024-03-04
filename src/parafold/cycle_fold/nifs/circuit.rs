@@ -7,7 +7,7 @@ use crate::constants::NUM_CHALLENGE_BITS;
 use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
 use crate::parafold::cycle_fold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
 use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CSInstance;
-use crate::parafold::cycle_fold::NUM_IO_SECONDARY;
+use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 

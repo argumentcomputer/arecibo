@@ -1,8 +1,12 @@
 use ff::Field;
 use itertools::chain;
-use neptune::Poseidon;
+use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
+use neptune::sponge::vanilla::Mode::Simplex;
+use neptune::sponge::vanilla::{Sponge, SpongeTrait};
 
-use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CS;
+use crate::parafold::cycle_fold::nifs::prover::{
+  RelaxedSecondaryR1CS, RelaxedSecondaryR1CSInstance,
+};
 use crate::parafold::cycle_fold::prover::ScalarMulAccumulator;
 use crate::parafold::nifs::prover::RelaxedR1CS;
 use crate::parafold::nifs::RelaxedR1CSInstance;
@@ -62,9 +66,9 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
 
     let mut transcript = Transcript::new(ro_consts.clone(), [state_hash]);
 
-    let mut acc_sm = ScalarMulAccumulator::new(acc_cf);
+    let mut acc_sm = ScalarMulAccumulator::dummy();
     RelaxedR1CS::simulate_fold(&mut acc_sm, &mut transcript);
-    let acc_cf = acc_sm.simulate_finalize(&mut transcript);
+    let _ = acc_sm.simulate_finalize(&mut transcript);
 
     let (transcript_state, transcript_buffer) = transcript.seal();
 
@@ -225,6 +229,15 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
 }
 
 impl<E: CurveCycleEquipped> NIVCStateInstance<E> {
+  pub fn dummy(arity: usize, num_circuit: usize) -> Self {
+    Self {
+      transcript_state: Default::default(),
+      io: NIVCIO::dummy(arity),
+      accs_hash: vec![Default::default(); num_circuit],
+      acc_cf: RelaxedSecondaryR1CSInstance::dummy(),
+    }
+  }
+
   pub fn hash(&self) -> E::Scalar {
     let elements = self
       .as_preimage()
@@ -232,8 +245,16 @@ impl<E: CurveCycleEquipped> NIVCStateInstance<E> {
       .map(|x| x.to_field())
       .flatten()
       .collect::<Vec<_>>();
+    let num_absorbs = elements.len() as u32;
     let constants = NIVCPoseidonConstants::<E>::new_constant_length(elements.len());
-    Poseidon::new_with_preimage(&elements, &constants).hash()
+
+    let acc = &mut ();
+    let mut sponge = Sponge::new_with_constants(&constants, Simplex);
+    let parameter = IOPattern(vec![SpongeOp::Absorb(num_absorbs), SpongeOp::Squeeze(1u32)]);
+    sponge.start(parameter, None, acc);
+    SpongeAPI::absorb(&mut sponge, num_absorbs, &elements, acc);
+    let hash = SpongeAPI::squeeze(&mut sponge, 1, acc);
+    hash[0]
   }
 
   pub fn as_preimage(&self) -> impl IntoIterator<Item = TranscriptElement<E>> + '_ {
@@ -257,6 +278,15 @@ impl<E: CurveCycleEquipped> NIVCIO<E> {
       z_in: z_init.clone(),
       pc_out: E::Scalar::from(pc_init as u64),
       z_out: z_init,
+    }
+  }
+
+  pub fn dummy(arity: usize) -> Self {
+    Self {
+      pc_in: Default::default(),
+      z_in: vec![Default::default(); arity],
+      pc_out: Default::default(),
+      z_out: vec![Default::default(); arity],
     }
   }
 

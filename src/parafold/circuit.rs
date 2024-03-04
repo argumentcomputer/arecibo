@@ -6,6 +6,7 @@ use crate::parafold::transcript::TranscriptConstants;
 use crate::supernova::StepCircuit;
 use crate::traits::CurveCycleEquipped;
 
+#[allow(unused)]
 pub fn synthesize_step<E, CS, SF>(
   mut cs: CS,
   ro_consts: &TranscriptConstants<E::Scalar>,

@@ -8,7 +8,6 @@ use neptune::sponge::circuit::SpongeCircuit;
 use neptune::sponge::vanilla::Mode::Simplex;
 use neptune::sponge::vanilla::SpongeTrait;
 
-use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
 use crate::parafold::cycle_fold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
 use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
 use crate::parafold::transcript::{TranscriptConstants, TranscriptElement};
@@ -42,6 +41,7 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
   }
 
   /// Reads a single field element from the transcript
+  #[allow(unused)]
   pub fn read_scalar<CS>(&mut self, mut cs: CS) -> Result<AllocatedNum<E::Scalar>, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
@@ -61,39 +61,6 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
     Ok(val)
   }
 
-  pub fn read_scalar_vec<CS>(
-    &mut self,
-    mut cs: CS,
-    len: usize,
-  ) -> Result<Vec<AllocatedNum<E::Scalar>>, SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    (0..len)
-      .map(|i| self.read_scalar(cs.namespace(|| i.to_string())))
-      .collect()
-  }
-
-  /// Reads a single field element from the transcript
-  pub fn read_base<CS>(&mut self, mut cs: CS) -> Result<AllocatedBase<E>, SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    let element = self
-      .buffer
-      .next()
-      .ok_or(SynthesisError::AssignmentMissing)?;
-
-    let allocated_base = match element {
-      TranscriptElement::Base(base) => AllocatedBase::alloc(cs.namespace(|| "alloc base"), base),
-      _ => return Err(SynthesisError::AssignmentMissing),
-    };
-
-    self.state.extend(allocated_base.as_preimage());
-
-    Ok(allocated_base)
-  }
-
   pub fn read_commitment_primary<CS>(
     &mut self,
     mut cs: CS,
@@ -108,7 +75,7 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
 
     let allocated_hashed_commitment = match element {
       TranscriptElement::CommitmentPrimary(commitment) => {
-        AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc commitment primary"), commitment)
+        AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc commitment primary"), &commitment)
       }
       _ => return Err(SynthesisError::AssignmentMissing),
     };
@@ -164,9 +131,8 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
       SpongeAPI::absorb(&mut sponge, num_absorbs, &elements, acc);
 
       let state_out = SpongeAPI::squeeze(&mut sponge, 1, acc);
-      sponge.finish(acc).unwrap();
 
-      state_out[0].ensure_allocated(acc, false)?
+      state_out[0].ensure_allocated(acc, true)?
     };
 
     self.prev = Some(hash.clone());

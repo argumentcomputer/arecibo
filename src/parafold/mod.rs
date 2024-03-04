@@ -1,13 +1,14 @@
 mod circuit;
-#[allow(dead_code)]
+
 mod cycle_fold;
-#[allow(dead_code)]
+
 mod nifs;
-#[allow(dead_code)]
+
 mod nivc;
+
 #[allow(dead_code)]
 mod prover;
-#[allow(dead_code)]
+
 mod transcript;
 
 // pub struct ProvingKey<E: Engine> {
