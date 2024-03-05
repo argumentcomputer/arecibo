@@ -355,7 +355,7 @@ where
   // Here demo a simple RAM machine
   // - with 2 argumented circuit
   // - each argumented circuit contains primary and secondary circuit
-  // - a memory commmitment via a public IO `rom` (like a program) to constraint the sequence execution
+  // - a memory commitment via a public IO `rom` (like a program) to constraint the sequence execution
 
   // This test also ready to add more argumented circuit and ROM can be arbitrary length
 
