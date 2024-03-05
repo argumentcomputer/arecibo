@@ -85,7 +85,7 @@ where
   }
 
   /// Generate a commitment for a polynomial
-  /// Note that the scheme is not hidding
+  /// Note that the scheme is not hiding
   pub fn commit(
     prover_param: impl Borrow<KZGProverKey<E>>,
     poly: &UVKZGPoly<E::Fr>,
