@@ -1,13 +1,13 @@
-use bellpepper_core::boolean::Boolean;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::boolean::Boolean;
 use itertools::{chain, zip_eq};
 use neptune::circuit2::Elt;
 
 use crate::constants::NUM_CHALLENGE_BITS;
 use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
 use crate::parafold::cycle_fold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
-use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CSInstance;
 use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
+use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CSInstance;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -141,9 +141,12 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    // TODO: If is_trivial
-    // u = 0
-    // X = [0, ..., 0]
+    self
+      .u
+      .enforce_zero(cs.namespace(|| "enforce u = 0"), is_trivial);
+    for (i, x) in self.X.iter().enumerate() {
+      x.enforce_zero(cs.namespace(|| format!("enforce X[{i}] = 0")), is_trivial);
+    }
     self
       .W
       .enforce_trivial(cs.namespace(|| "enforce trivial W"), is_trivial);
@@ -180,7 +183,7 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
       &mut cs.namespace(|| "select u"),
       &self.u,
       &zero,
-      is_default.into(),
+      is_default,
     )?;
     let X = self
       .X
@@ -191,7 +194,7 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
           &mut cs.namespace(|| format!("select X[{i}]")),
           &x,
           &zero,
-          is_default.into(),
+          is_default,
         )
       })
       .collect::<Result<Vec<_>, _>>()?;
@@ -211,5 +214,27 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
       self.W.as_preimage(),
       self.E.as_preimage()
     ]
+  }
+
+  #[allow(unused)]
+  pub fn eq_native(&self, other: &RelaxedSecondaryR1CSInstance<E>) -> Option<bool> {
+    if !self.u.eq_native(&other.u) {
+      return Some(false);
+    };
+
+    for (x, x_expected) in zip_eq(&self.X, &other.X) {
+      if !x.eq_native(x_expected) {
+        return Some(false);
+      }
+    }
+
+    if !self.W.eq_native(&other.W)? {
+      return Some(false);
+    };
+    if !self.E.eq_native(&other.E)? {
+      return Some(false);
+    };
+
+    return Some(true);
   }
 }

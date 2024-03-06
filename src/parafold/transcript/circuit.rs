@@ -1,6 +1,6 @@
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::boolean::Boolean;
 use bellpepper_core::num::AllocatedNum;
-use bellpepper_core::{ConstraintSystem, SynthesisError};
 use itertools::chain;
 use neptune::circuit2::Elt;
 use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
@@ -8,8 +8,8 @@ use neptune::sponge::circuit::SpongeCircuit;
 use neptune::sponge::vanilla::Mode::Simplex;
 use neptune::sponge::vanilla::SpongeTrait;
 
-use crate::parafold::cycle_fold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
 use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
+use crate::parafold::cycle_fold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
 use crate::parafold::transcript::{TranscriptConstants, TranscriptElement};
 use crate::traits::CurveCycleEquipped;
 
@@ -119,6 +119,7 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
       self.state.drain(..)
     )
     .collect::<Vec<_>>();
+
     let num_absorbs = elements.len() as u32;
 
     let hash = {
@@ -134,7 +135,6 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
 
       state_out[0].ensure_allocated(acc, true)?
     };
-
     self.prev = Some(hash.clone());
 
     Ok(hash)
@@ -172,5 +172,9 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
       let _ = self.squeeze(&mut cs)?;
     }
     Ok(self.prev.unwrap())
+  }
+
+  pub(in crate::parafold::transcript) fn state(&self) -> Vec<Elt<E::Scalar>> {
+    self.state.clone()
   }
 }

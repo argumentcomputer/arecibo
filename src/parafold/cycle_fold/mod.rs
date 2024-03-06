@@ -2,10 +2,11 @@ use bellpepper_core::ConstraintSystem;
 use digest::consts::U2;
 use ff::Field;
 use neptune::circuit2::Elt;
+use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
-use neptune::Poseidon;
+use neptune::{Poseidon, Strength};
 
-use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
+use crate::parafold::cycle_fold::gadgets::emulated::{field_to_big_int, AllocatedBase};
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::CurveCycleEquipped;
 use crate::Commitment;
@@ -17,7 +18,10 @@ pub mod prover;
 
 pub fn hash_commitment<E: CurveCycleEquipped>(commitment: &Commitment<E>) -> E::Base {
   // TODO: Find a way to cache this
-  let constants = PoseidonConstants::<E::Base, U2>::new();
+  let constants = PoseidonConstants::<E::Base, U2>::new_with_strength_and_type(
+    Strength::Standard,
+    HashType::ConstantLength(2),
+  );
 
   let (x, y, infinity) = commitment.to_coordinates();
   if infinity {
@@ -81,5 +85,11 @@ impl<E: CurveCycleEquipped> AllocatedPrimaryCommitment<E> {
 
   pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<E::Scalar>> {
     self.hash.as_preimage()
+  }
+
+  pub fn eq_native(&self, other: &Commitment<E>) -> bool {
+    let self_hash = self.hash.to_big_int();
+    let other_hash = field_to_big_int(&hash_commitment::<E>(other));
+    self_hash == other_hash
   }
 }

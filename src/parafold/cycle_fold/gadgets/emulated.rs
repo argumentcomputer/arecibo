@@ -1,18 +1,18 @@
 use std::marker::PhantomData;
-use std::ops::{BitAnd, Shr};
+use std::ops::BitAnd;
 
+use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::{AllocatedNum, Num};
-use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use bellpepper_emulated::field_element::{
   EmulatedFieldElement, EmulatedFieldParams, EmulatedLimbs,
 };
 use bellpepper_emulated::util::bigint_to_scalar;
 use ff::{Field, PrimeField, PrimeFieldBits};
-use itertools::zip_eq;
+use itertools::{Itertools, zip_eq};
 use neptune::circuit2::Elt;
 use num_bigint::{BigInt, Sign};
-use num_traits::{Num as num_Num, One};
+use num_traits::{Num as num_Num, One, Zero};
 
 use crate::constants::{BN_LIMB_WIDTH, BN_N_LIMBS};
 use crate::traits::CurveCycleEquipped;
@@ -40,21 +40,28 @@ impl<E: CurveCycleEquipped> EmulatedFieldParams for BaseParams<E> {
 }
 
 impl<E: CurveCycleEquipped> BaseParams<E> {
-  pub fn base_to_limb(base: E::Base) -> Vec<E::Scalar> {
+  pub fn base_to_limbs(base: &E::Base) -> Vec<E::Scalar> {
     Self::big_int_to_limbs(field_to_big_int(base))
   }
-  pub fn big_int_to_limbs(base: BigInt) -> Vec<E::Scalar> {
+
+  pub fn big_int_to_limbs(mut base: BigInt) -> Vec<E::Scalar> {
     let num_bits = BaseParams::<E>::bits_per_limb() as u32;
     let num_limbs = BaseParams::<E>::num_limbs() as u32;
     let mask = BigInt::from(2).pow(num_bits) - BigInt::one();
 
-    (0..num_limbs)
-      .map(|limb_index| {
-        let shift = (limb_index * num_bits) as u8;
-        let limb = base.clone().shr(shift).bitand(&mask);
+    let limbs = (0..num_limbs)
+      .map(|_| {
+        let limb = base.clone().bitand(&mask);
+        base >>= num_bits;
         bigint_to_scalar::<E::Scalar>(&limb)
       })
-      .collect()
+      .collect();
+    assert!(
+      base.is_zero(),
+      "input must be at most {} bits",
+      num_bits * num_limbs
+    );
+    limbs
   }
 }
 
@@ -65,6 +72,24 @@ pub struct AllocatedBase<E: CurveCycleEquipped>(EmulatedFieldElement<E::Scalar, 
 impl<E: CurveCycleEquipped> AllocatedBase<E> {
   pub fn zero() -> Self {
     Self(EmulatedFieldElement::zero())
+  }
+
+  pub fn enforce_zero<CS: ConstraintSystem<E::Scalar>>(&self, mut cs: CS, is_zero: &Boolean) {
+    for (i, limb) in self.as_preimage().into_iter().enumerate() {
+      cs.enforce(
+        || format!("limb {i} is zero"),
+        |_| is_zero.lc(CS::one(), E::Scalar::ONE),
+        |_| limb.lc(),
+        |lc| lc,
+      )
+    }
+  }
+
+  pub fn alloc_limbs<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, limbs: Vec<E::Scalar>) -> Self {
+    let element = EmulatedFieldElement::new_internal_element(EmulatedLimbs::Constant(limbs), 0)
+      .allocate_field_element_unchecked(&mut cs.namespace(|| "alloc unchecked"))
+      .unwrap();
+    Self(element)
   }
 
   pub fn from_bits_le(one: Variable, bits: &[Boolean]) -> Self {
@@ -109,12 +134,9 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
     Self::from_bits_le(CS::one(), &base_bits)
   }
 
-  pub fn alloc_unchecked<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, base: E::Base) -> Self {
-    let base = field_to_big_int(base);
-    let base = EmulatedFieldElement::from(&base)
-      .allocate_field_element_unchecked(&mut cs.namespace(|| "alloc unchecked"))
-      .unwrap();
-    Self(base)
+  pub fn alloc_unchecked<CS: ConstraintSystem<E::Scalar>>(cs: CS, base: E::Base) -> Self {
+    let limbs = BaseParams::<E>::base_to_limbs(&base);
+    Self::alloc_limbs(cs, limbs)
   }
 
   pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<E::Scalar>> {
@@ -126,9 +148,12 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
       )
       .unwrap();
     let EmulatedLimbs::Allocated(limbs) = limbs else {
-      unreachable!()
+      panic!()
     };
-    limbs.into_iter().map(Elt::Num)
+    limbs
+      .into_iter()
+      .map(Elt::Num)
+      .pad_using(BaseParams::<E>::num_limbs(), |_| Elt::Num(Num::zero()))
   }
 
   pub fn add<CS: ConstraintSystem<E::Scalar>>(
@@ -167,7 +192,7 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
     )?))
   }
 
-  fn to_big_int(self) -> BigInt {
+  pub fn to_big_int(&self) -> BigInt {
     (&self.0).into()
   }
 
@@ -188,9 +213,15 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
       0,
     ))
   }
+
+  pub fn eq_native(&self, other: &E::Base) -> bool {
+    let lhs = self.to_big_int();
+    let rhs = field_to_big_int(other);
+    lhs == rhs
+  }
 }
 
-fn field_to_big_int<F: PrimeField>(f: F) -> BigInt {
+pub fn field_to_big_int<F: PrimeField>(f: &F) -> BigInt {
   let repr = f.to_repr();
   BigInt::from_bytes_le(Sign::Plus, repr.as_ref())
 }
@@ -215,9 +246,10 @@ mod tests {
 
   type Scalar = <E as Engine>::Scalar;
   type Base = <E as Engine>::Base;
+  type P = BaseParams<E>;
   type CS = TestConstraintSystem<Scalar>;
 
-  fn check_eq<F: PrimeField>(expected: F, actual: AllocatedBase<E>) {
+  fn check_eq<F: PrimeField>(expected: &F, actual: AllocatedBase<E>) {
     let value = actual.to_big_int();
     let expected = field_to_big_int(expected);
     assert_eq!(value, expected);
@@ -227,8 +259,8 @@ mod tests {
   fn test_alloc() {
     let cases = [Base::ZERO, Base::ONE, Base::ZERO - Base::ONE];
     let mut cs = CS::new();
-    for (i, base) in cases.into_iter().enumerate() {
-      let base_allocated = AllocatedBase::<E>::alloc(cs.namespace(|| format!("alloc {i}")), base);
+    for (i, base) in cases.iter().enumerate() {
+      let base_allocated = AllocatedBase::<E>::alloc(cs.namespace(|| format!("alloc {i}")), *base);
       check_eq(base, base_allocated);
     }
 
@@ -242,9 +274,9 @@ mod tests {
   fn test_from_bits() {
     let cases = [Scalar::ZERO, Scalar::ONE, Scalar::ZERO - Scalar::ONE];
     let mut cs = CS::new();
-    for (i, scalar) in cases.into_iter().enumerate() {
+    for (i, scalar) in cases.iter().enumerate() {
       let scalar_allocated =
-        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc scalar {i}")), || scalar);
+        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc scalar {i}")), || *scalar);
       let scalar_bits = scalar_allocated
         .to_bits_le_strict(cs.namespace(|| format!("to_bits {i}")))
         .unwrap();
@@ -348,7 +380,7 @@ mod tests {
     let result = a + r * b;
 
     // Add a multiple of the modulus while staying in the limb bounds
-    let b_bi = field_to_big_int(b) + BaseParams::<E>::modulus() * BigInt::from(4);
+    let b_bi = field_to_big_int(&b) + P::modulus() * BigInt::from(4);
 
     let mut cs = CS::new();
 
@@ -369,11 +401,31 @@ mod tests {
   fn test_alloc_big_int() {
     // let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-    let a = BaseParams::<E>::modulus().sub(BigInt::one());
+    let a = P::modulus().sub(BigInt::one());
 
     let mut cs = CS::new();
 
     let a_alloc = AllocatedBase::<E>::alloc_big_int(cs.namespace(|| "a"), a.clone());
     assert_eq!(a, a_alloc.to_big_int());
+  }
+
+  #[test]
+  fn test_conversions() {
+    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+    let mut cs = CS::new();
+
+    let base = Base::random(&mut rng);
+    let base_big_int = field_to_big_int(&base);
+    let base_limbs = P::base_to_limbs(&base);
+
+    let alloc_base_big_int =
+      AllocatedBase::<E>::alloc_big_int(cs.namespace(|| "big int"), base_big_int.clone());
+    let alloc_base_limbs = AllocatedBase::<E>::alloc_limbs(cs.namespace(|| "limbs"), base_limbs);
+
+    assert_eq!(alloc_base_big_int.to_big_int(), base_big_int);
+    assert_eq!(alloc_base_limbs.to_big_int(), base_big_int);
+
+    assert!(cs.is_satisfied());
   }
 }

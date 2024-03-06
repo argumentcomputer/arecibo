@@ -1,4 +1,4 @@
-use digest::consts::U11;
+use digest::consts::U12;
 use ff::Field;
 use neptune::poseidon::PoseidonConstants;
 use rayon::prelude::*;
@@ -11,19 +11,17 @@ use crate::{Commitment, CommitmentKey, CE};
 pub mod circuit;
 pub mod prover;
 
+const PRIMARY_R1CS_INSTANCE_SIZE: usize = 12;
 /// Exact-sized Poseidon constants for hashing a RelaxedR1CSInstance.
 /// Assumes that Commitments are serialized as 4=BN_NUM_LIMBS limbs.
-type R1CSPoseidonConstants<E> = PoseidonConstants<<E as Engine>::Scalar, U11>;
+type R1CSPoseidonConstants<E> = PoseidonConstants<<E as Engine>::Scalar, U12>;
 
 /// Instance of a Relaxed-R1CS accumulator for a circuit.
-///
-/// # Details
-/// We assume the IO always has size 1.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelaxedR1CSInstance<E: CurveCycleEquipped> {
   pp: E::Scalar,
   u: E::Scalar,
-  X: E::Scalar,
+  X: [E::Scalar; 2],
   W: Commitment<E>,
   E: Commitment<E>,
 }

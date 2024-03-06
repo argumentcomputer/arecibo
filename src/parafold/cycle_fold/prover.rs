@@ -1,16 +1,17 @@
-use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::num::AllocatedNum;
 
+use crate::{Commitment, CommitmentKey};
 use crate::bellpepper::solver::SatisfyingAssignment;
 use crate::gadgets::utils::scalar_as_base;
 use crate::parafold::cycle_fold::gadgets::ecc::AllocatedPoint;
+use crate::parafold::cycle_fold::hash_commitment;
 use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CS;
 use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptElement;
 use crate::r1cs::R1CSShape;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::CurveCycleEquipped;
-use crate::{Commitment, CommitmentKey};
 
 /// A [ScalarMulAccumulator] represents a coprocessor for efficiently computing non-native ECC scalar multiplications
 /// inside a circuit.
@@ -71,14 +72,24 @@ impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
     ck: &CommitmentKey<E::Secondary>,
     shape: &R1CSShape<E::Secondary>,
     transcript: &mut Transcript<E>,
-  ) -> RelaxedSecondaryR1CS<E> {
-    self.deferred.drain(..).for_each(|_instance| {
-      let cs = SatisfyingAssignment::<E::Secondary>::new();
-      // TODO: synthesize the circuit that proves `instance`
+  ) -> Result<RelaxedSecondaryR1CS<E>, SynthesisError> {
+    for instance in self.deferred.drain(..) {
+      let mut cs = SatisfyingAssignment::<E::Secondary>::new();
+
+      let X_expected = [
+        hash_commitment::<E>(&instance.A),
+        hash_commitment::<E>(&instance.B),
+        scalar_as_base::<E>(instance.x.clone()),
+        hash_commitment::<E>(&instance.C),
+      ];
+      instance.synthesize(&mut cs)?;
       let (X, W) = cs.to_assignments();
-      self.acc.fold(ck, shape, X, &W, transcript)
-    });
-    self.acc
+
+      assert_eq!(&X_expected, &X[1..]);
+
+      self.acc.fold(ck, shape, &X[1..], &W, transcript);
+    }
+    Ok(self.acc)
   }
 
   pub fn simulate_finalize(mut self, transcript: &mut Transcript<E>) -> RelaxedSecondaryR1CS<E> {
@@ -90,7 +101,7 @@ impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
   }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarMulInstance<E: CurveCycleEquipped> {
   A: Commitment<E>,
   B: Commitment<E>,
@@ -99,6 +110,15 @@ pub struct ScalarMulInstance<E: CurveCycleEquipped> {
 }
 
 impl<E: CurveCycleEquipped> ScalarMulInstance<E> {
+  pub fn dummy() -> Self {
+    Self {
+      A: Default::default(),
+      B: Default::default(),
+      x: Default::default(),
+      C: Default::default(),
+    }
+  }
+
   #[allow(unused)]
   pub fn synthesize<CS>(&self, mut cs: CS) -> Result<(), SynthesisError>
   where

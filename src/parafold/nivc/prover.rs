@@ -1,26 +1,29 @@
 use ff::Field;
-use itertools::chain;
+use itertools::{chain, zip_eq};
+use neptune::hash_type::HashType;
 use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
-use neptune::sponge::vanilla::Mode::Simplex;
 use neptune::sponge::vanilla::{Sponge, SpongeTrait};
+use neptune::sponge::vanilla::Mode::Simplex;
+use neptune::Strength;
 
+use crate::CommitmentKey;
 use crate::parafold::cycle_fold::nifs::prover::{
   RelaxedSecondaryR1CS, RelaxedSecondaryR1CSInstance,
 };
 use crate::parafold::cycle_fold::prover::ScalarMulAccumulator;
 use crate::parafold::nifs::prover::RelaxedR1CS;
 use crate::parafold::nifs::RelaxedR1CSInstance;
-use crate::parafold::nivc::{NIVCPoseidonConstants, NIVCStateInstance, NIVCUpdateProof, NIVCIO};
-use crate::parafold::transcript::prover::Transcript;
+use crate::parafold::nivc::{NIVCIO, NIVCPoseidonConstants, NIVCStateInstance, NIVCUpdateProof};
 use crate::parafold::transcript::{TranscriptConstants, TranscriptElement};
+use crate::parafold::transcript::prover::Transcript;
 use crate::r1cs::R1CSShape;
+use crate::supernova::error::SuperNovaError;
 use crate::traits::CurveCycleEquipped;
-use crate::CommitmentKey;
 
 #[derive(Debug)]
 pub struct NIVCState<E: CurveCycleEquipped> {
-  transcript_state: E::Scalar,
-  io: NIVCIO<E>,
+  pub(crate) transcript_state: E::Scalar,
+  pub(crate) io: NIVCIO<E>,
   accs: Vec<RelaxedR1CS<E>>,
   acc_cf: RelaxedSecondaryR1CS<E>,
 }
@@ -29,7 +32,6 @@ pub struct NIVCState<E: CurveCycleEquipped> {
 pub struct NIVCUpdateWitness<E: CurveCycleEquipped> {
   pub(crate) index: usize,
   pub(crate) W: Vec<E::Scalar>,
-  pub(crate) io: NIVCIO<E>,
 }
 
 impl<E: CurveCycleEquipped> NIVCState<E> {
@@ -47,7 +49,7 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
     z_init: Vec<E::Scalar>,
     ro_consts: &TranscriptConstants<E::Scalar>,
   ) -> (Self, NIVCUpdateProof<E>) {
-    let transcript_state = E::Scalar::ZERO;
+    let transcript_init: E::Scalar = E::Scalar::ZERO;
     let io = NIVCIO::new(pc_init, z_init);
     let accs = shapes
       .iter()
@@ -55,16 +57,15 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
       .collect::<Vec<_>>();
     let acc_cf = RelaxedSecondaryR1CS::new(shape_cf);
 
-    let state_instance = NIVCStateInstance {
-      transcript_state,
-      io: io.clone(),
-      accs_hash: accs.iter().map(|acc| acc.instance().hash()).collect(),
-      acc_cf: acc_cf.instance().clone(),
-    };
+    let state_instance = NIVCStateInstance::new(
+      io.clone(),
+      accs.iter().map(|acc| acc.instance().clone()).collect(),
+      acc_cf.instance().clone(),
+    );
 
     let state_hash = state_instance.hash();
 
-    let mut transcript = Transcript::new(ro_consts.clone(), [state_hash]);
+    let mut transcript = Transcript::new(ro_consts.clone(), [state_hash, transcript_init]);
 
     let mut acc_sm = ScalarMulAccumulator::dummy();
     RelaxedR1CS::simulate_fold(&mut acc_sm, &mut transcript);
@@ -72,18 +73,18 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
 
     let (transcript_state, transcript_buffer) = transcript.seal();
 
-    let proof = NIVCUpdateProof {
-      transcript_buffer,
-      state: state_instance,
-      acc_prev: RelaxedR1CSInstance::<E>::default(),
-      index_prev: None,
-    };
-
     let state = Self {
       transcript_state,
       io,
       accs,
       acc_cf,
+    };
+    let proof = NIVCUpdateProof {
+      transcript_prev: transcript_init,
+      transcript_buffer,
+      state: state_instance,
+      acc_prev: RelaxedR1CSInstance::<E>::dummy(),
+      index_prev: None,
     };
 
     (state, proof)
@@ -98,28 +99,26 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
     shape_cf: &R1CSShape<E::Secondary>,
     witness_prev: &NIVCUpdateWitness<E>,
   ) -> (Self, NIVCUpdateProof<E>) {
-    let state_instance = self.instance();
-    let state_hash = state_instance.hash();
-    let mut transcript = Transcript::new(ro_consts.clone(), [state_hash]);
+    let state_instance_prev = self.instance();
 
     let Self {
-      transcript_state,
-      mut io,
+      transcript_state: transcript_prev,
+      io,
       mut accs,
       acc_cf,
     } = self;
 
-    let mut acc_sm = ScalarMulAccumulator::new(acc_cf);
+    let state_hash_prev = state_instance_prev.hash();
+    let X_prev = [state_hash_prev, transcript_prev];
 
-    let X_prev = transcript_state;
+    let mut transcript = Transcript::new(ro_consts.clone(), X_prev.clone());
+
+    let mut acc_sm = ScalarMulAccumulator::new(acc_cf);
 
     let NIVCUpdateWitness {
       index: index_prev,
       W: W_prev,
-      io: io_next,
     } = witness_prev;
-
-    io.update(io_next.clone());
 
     let index_prev = *index_prev;
 
@@ -129,13 +128,14 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
 
     // Fold the proof for the previous iteration into the correct accumulator
     accs[index_prev].fold(ck, shape_prev, X_prev, W_prev, &mut acc_sm, &mut transcript);
-    let acc_cf = acc_sm.finalize(ck_cf, shape_cf, &mut transcript);
+    let acc_cf = acc_sm.finalize(ck_cf, shape_cf, &mut transcript).unwrap();
 
     let (transcript_state, transcript_buffer) = transcript.seal();
 
     let proof = NIVCUpdateProof {
+      transcript_prev,
       transcript_buffer,
-      state: state_instance,
+      state: state_instance_prev,
       acc_prev,
       index_prev: Some(index_prev),
     };
@@ -217,23 +217,41 @@ impl<E: CurveCycleEquipped> NIVCState<E> {
   // }
 
   pub fn instance(&self) -> NIVCStateInstance<E> {
-    let accs_hash = self.accs.iter().map(|acc| acc.instance().hash()).collect();
-
     NIVCStateInstance {
-      transcript_state: self.transcript_state,
       io: self.io.clone(),
-      accs_hash,
+      accs: self.accs.iter().map(|acc| acc.instance().clone()).collect(),
       acc_cf: self.acc_cf.instance().clone(),
     }
+  }
+
+  pub fn verify(
+    &self,
+    ck: &CommitmentKey<E>,
+    ck_cf: &CommitmentKey<E::Secondary>,
+    shapes: &[R1CSShape<E>],
+    shape_cf: &R1CSShape<E::Secondary>,
+  ) -> Result<(), SuperNovaError> {
+    for (acc, shape) in zip_eq(&self.accs, shapes) {
+      acc.verify(ck, shape)?;
+    }
+    self.acc_cf.verify(ck_cf, shape_cf)?;
+    Ok(())
   }
 }
 
 impl<E: CurveCycleEquipped> NIVCStateInstance<E> {
+  pub fn new(
+    io: NIVCIO<E>,
+    accs: Vec<RelaxedR1CSInstance<E>>,
+    acc_cf: RelaxedSecondaryR1CSInstance<E>,
+  ) -> Self {
+    Self { io, accs, acc_cf }
+  }
+
   pub fn dummy(arity: usize, num_circuit: usize) -> Self {
     Self {
-      transcript_state: Default::default(),
       io: NIVCIO::dummy(arity),
-      accs_hash: vec![Default::default(); num_circuit],
+      accs: vec![RelaxedR1CSInstance::dummy(); num_circuit],
       acc_cf: RelaxedSecondaryR1CSInstance::dummy(),
     }
   }
@@ -245,8 +263,10 @@ impl<E: CurveCycleEquipped> NIVCStateInstance<E> {
       .map(|x| x.to_field())
       .flatten()
       .collect::<Vec<_>>();
+
     let num_absorbs = elements.len() as u32;
-    let constants = NIVCPoseidonConstants::<E>::new_constant_length(elements.len());
+    let constants =
+      NIVCPoseidonConstants::<E>::new_with_strength_and_type(Strength::Standard, HashType::Sponge);
 
     let acc = &mut ();
     let mut sponge = Sponge::new_with_constants(&constants, Simplex);
@@ -254,20 +274,16 @@ impl<E: CurveCycleEquipped> NIVCStateInstance<E> {
     sponge.start(parameter, None, acc);
     SpongeAPI::absorb(&mut sponge, num_absorbs, &elements, acc);
     let hash = SpongeAPI::squeeze(&mut sponge, 1, acc);
+    SpongeAPI::finish(&mut sponge, acc).expect("no error");
     hash[0]
   }
 
   pub fn as_preimage(&self) -> impl IntoIterator<Item = TranscriptElement<E>> + '_ {
-    chain![
-      [TranscriptElement::Scalar(self.transcript_state)],
-      self.io.as_preimage(),
-      self
-        .accs_hash
-        .iter()
-        .cloned()
-        .map(TranscriptElement::Scalar),
-      self.acc_cf.as_preimage()
-    ]
+    let accs_hash = self
+      .accs
+      .iter()
+      .map(|acc| TranscriptElement::Scalar(acc.hash()));
+    chain![self.io.as_preimage(), accs_hash, self.acc_cf.as_preimage()]
   }
 }
 

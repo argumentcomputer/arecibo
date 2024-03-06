@@ -1,8 +1,8 @@
 use ff::PrimeFieldBits;
 use itertools::chain;
 use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
-use neptune::sponge::vanilla::Mode::Simplex;
 use neptune::sponge::vanilla::{Sponge, SpongeTrait};
+use neptune::sponge::vanilla::Mode::Simplex;
 
 use crate::parafold::transcript::{TranscriptConstants, TranscriptElement};
 use crate::traits::CurveCycleEquipped;

@@ -2,11 +2,13 @@ use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use itertools::*;
-use neptune::circuit2::{Elt, PoseidonCircuit2};
+use neptune::circuit2::{poseidon_hash_allocated, Elt};
 
 use crate::parafold::cycle_fold::circuit::AllocatedScalarMulAccumulator;
 use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
-use crate::parafold::nifs::{R1CSPoseidonConstants, RelaxedR1CSInstance};
+use crate::parafold::nifs::{
+  R1CSPoseidonConstants, RelaxedR1CSInstance, PRIMARY_R1CS_INSTANCE_SIZE,
+};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -15,7 +17,7 @@ use crate::traits::CurveCycleEquipped;
 pub struct AllocatedRelaxedR1CSInstance<E: CurveCycleEquipped> {
   pp: AllocatedNum<E::Scalar>,
   u: AllocatedNum<E::Scalar>,
-  X: AllocatedNum<E::Scalar>,
+  X: [AllocatedNum<E::Scalar>;2],
   W: AllocatedPrimaryCommitment<E>,
   E: AllocatedPrimaryCommitment<E>,
 }
@@ -25,7 +27,7 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
   pub fn fold<CS>(
     self,
     mut cs: CS,
-    X_new: AllocatedNum<E::Scalar>,
+    X_new: [AllocatedNum<E::Scalar>;2],
     acc_sm: &mut AllocatedScalarMulAccumulator<E>,
     transcript: &mut AllocatedTranscript<E>,
   ) -> Result<Self, SynthesisError>
@@ -40,15 +42,16 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
 
     let Self {
       pp,
+      X: X_curr,
       W: W_curr,
       E: E_curr,
       u: u_curr,
-      X: X_curr,
     } = self;
 
     // Linear combination of acc with new
     let u_next = u_curr.add(cs.namespace(|| "u_next"), &r)?;
-    let X_next = mul_add(cs.namespace(|| "X_next"), &X_curr, &X_new, &r)?;
+    let X0_next = mul_add(cs.namespace(|| "X0_next"), &X_curr[0], &X_new[0], &r)?;
+    let X1_next = mul_add(cs.namespace(|| "X1_next"), &X_curr[1], &X_new[1], &r)?;
     // W_next = W_curr + r * W_new
     let W_next = acc_sm.scalar_mul(
       cs.namespace(|| "W_next"),
@@ -68,7 +71,7 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     Ok(Self {
       pp,
       u: u_next,
-      X: X_next,
+      X: [X0_next,X1_next],
       W: W_next,
       E: E_next,
     })
@@ -166,14 +169,14 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let constants = R1CSPoseidonConstants::<E>::new();
-    let elements = chain!(
-      [self.pp.clone(), self.u.clone(), self.X.clone()].map(Elt::Allocated),
-      self.W.as_preimage(),
-      self.E.as_preimage()
-    )
-    .collect::<Vec<_>>();
-    PoseidonCircuit2::new(elements, &constants).hash_to_allocated(cs.namespace(|| "hash"))
+    let elements = self
+      .as_preimage()
+      .into_iter()
+      .enumerate()
+      .map(|(i, x)| x.ensure_allocated(&mut cs.namespace(|| format!("alloc {i}")), true))
+      .collect::<Result<Vec<_>, _>>()?;
+    let constants = R1CSPoseidonConstants::<E>::new_constant_length(PRIMARY_R1CS_INSTANCE_SIZE);
+    poseidon_hash_allocated(cs.namespace(|| "hash"), elements, &constants)
   }
 
   pub fn alloc<CS>(mut cs: CS, instance: RelaxedR1CSInstance<E>) -> Self
@@ -182,11 +185,32 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
   {
     let pp = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pp"), || instance.pp);
     let u = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc u"), || instance.u);
-    let X = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc X"), || instance.X);
+    let X0 = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc X0"), || instance.X[0]);
+    let X1 = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc X1"), || instance.X[1]);
     let W = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc W"), &instance.W);
     let E = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc E"), &instance.E);
 
-    Self { pp, u, X, W, E }
+    Self {
+      pp,
+      u,
+      X: [X0, X1],
+      W,
+      E,
+    }
+  }
+
+  pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<E::Scalar>> {
+    chain!(
+      [
+        self.pp.clone(),
+        self.u.clone(),
+        self.X[0].clone(),
+        self.X[1].clone()
+      ]
+      .map(Elt::Allocated),
+      self.W.as_preimage(),
+      self.E.as_preimage()
+    )
   }
 }
 

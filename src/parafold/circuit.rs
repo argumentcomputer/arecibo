@@ -6,26 +6,27 @@ use crate::parafold::transcript::TranscriptConstants;
 use crate::supernova::StepCircuit;
 use crate::traits::CurveCycleEquipped;
 
-#[allow(unused)]
 pub fn synthesize_step<E, CS, SF>(
   mut cs: CS,
   ro_consts: &TranscriptConstants<E::Scalar>,
   proof: NIVCUpdateProof<E>,
   step_circuit: &SF,
-) -> Result<NIVCIO<E>, SynthesisError>
+) -> Result<(Option<NIVCIO<E>>, AllocatedNIVCState<E>), SynthesisError>
 where
   E: CurveCycleEquipped,
   CS: ConstraintSystem<E::Scalar>,
   SF: StepCircuit<E::Scalar>,
 {
   // Fold proof for previous state
-  let mut state = AllocatedNIVCState::from_proof(cs.namespace(|| "verify self"), ro_consts, proof)?;
+  let (mut state, transcript_state) =
+    AllocatedNIVCState::from_proof(cs.namespace(|| "verify self"), ro_consts, proof)?;
 
-  let io_native = state.update_io(cs.namespace(|| "step"), step_circuit);
+  let io = state.update_io(cs.namespace(|| "step"), step_circuit)?;
 
   state.inputize(cs.namespace(|| "inputize state"))?;
+  transcript_state.inputize(cs.namespace(|| "inputize transcript"))?;
 
-  io_native
+  Ok((io, state))
 }
 
 // /// Circuit

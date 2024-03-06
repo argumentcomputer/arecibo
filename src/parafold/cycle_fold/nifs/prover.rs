@@ -3,12 +3,13 @@ use itertools::{chain, Itertools};
 use rayon::prelude::*;
 
 use crate::constants::NUM_CHALLENGE_BITS;
-
+use crate::errors::NovaError::{ProofVerifyError, UnSatIndex};
 use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
 use crate::parafold::nifs::compute_fold_proof;
 use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptElement;
 use crate::r1cs::R1CSShape;
+use crate::supernova::error::SuperNovaError;
 use crate::traits::commitment::CommitmentEngineTrait;
 use crate::traits::{CurveCycleEquipped, Engine};
 use crate::{Commitment, CommitmentKey};
@@ -75,7 +76,7 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
     &mut self,
     ck: &CommitmentKey<E::Secondary>,
     shape: &R1CSShape<E::Secondary>,
-    X_new: Vec<E::Base>,
+    X_new: &[E::Base],
     W_new: &[E::Base],
     transcript: &mut Transcript<E>,
   ) {
@@ -100,13 +101,16 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
     // TODO: Squeeze
     let r_bits = transcript.squeeze_bits(NUM_CHALLENGE_BITS);
     let r = {
-      r_bits.into_iter().fold(E::Base::ZERO, |acc: E::Base, bit| {
-        let mut acc = acc.double();
-        if bit {
-          acc += E::Base::ONE;
-        }
-        acc
-      })
+      r_bits
+        .into_iter()
+        .rev()
+        .fold(E::Base::ZERO, |mut acc: E::Base, bit| {
+          acc = acc.double();
+          if bit {
+            acc += E::Base::ONE;
+          }
+          acc
+        })
     };
 
     self
@@ -180,6 +184,38 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
   //
   //   Self { instance, W, E }
   // }
+  pub fn verify(
+    &self,
+    ck: &CommitmentKey<E::Secondary>,
+    shape: &R1CSShape<E::Secondary>,
+  ) -> Result<(), SuperNovaError> {
+    let E_expected = shape.compute_E(&self.W, &self.instance.u, &self.instance.X)?;
+
+    self
+      .E
+      .iter()
+      .zip_eq(E_expected.iter())
+      .enumerate()
+      .try_for_each(|(i, (e, e_expected))| {
+        if e != e_expected {
+          Err(UnSatIndex(i))
+        } else {
+          Ok(())
+        }
+      })?;
+
+    let W_comm = <E::Secondary as Engine>::CE::commit(ck, &self.W);
+    if W_comm != self.instance.W {
+      return Err(SuperNovaError::NovaError(ProofVerifyError));
+    }
+
+    let E_comm = <E::Secondary as Engine>::CE::commit(ck, &self.E);
+
+    if E_comm != self.instance.E {
+      return Err(SuperNovaError::NovaError(ProofVerifyError));
+    }
+    Ok(())
+  }
 }
 
 impl<E: CurveCycleEquipped> RelaxedSecondaryR1CSInstance<E> {
@@ -192,6 +228,7 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CSInstance<E> {
     }
   }
 
+  #[allow(unused)]
   pub fn as_preimage(&self) -> impl IntoIterator<Item = TranscriptElement<E>> + '_ {
     let u = TranscriptElement::Base(self.u);
     let X = self.X.iter().cloned().map(TranscriptElement::Base);

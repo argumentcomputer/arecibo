@@ -1,13 +1,14 @@
 use bellpepper::gadgets::Assignment;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::AllocatedNum;
-
 use bellpepper_core::SynthesisError::AssignmentMissing;
-use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
-use neptune::circuit2::{Elt, PoseidonCircuit2};
+use neptune::circuit2::{Elt, poseidon_hash_allocated};
 use neptune::generic_array::typenum::U2;
+use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
+use neptune::Strength;
 
 use crate::gadgets::utils::{
   alloc_num_equals, alloc_one, alloc_zero, conditionally_select, conditionally_select2,
@@ -52,10 +53,10 @@ impl<G: Group> AllocatedPoint<G> {
     // is_trivial => (is_identity == 1)
     // is_trivial == is_identity
     cs.enforce(
-      || "is_trivial - E.is_infinity = 0",
+      || "(is_trivial) * (1-is_infinity) = 0",
+      |_| is_trivial.lc(CS::one(), G::Base::ONE),
+      |lc| lc + CS::one() - self.is_infinity.get_variable(),
       |lc| lc,
-      |lc| lc,
-      |_| is_trivial.lc(CS::one(), G::Base::ONE) - self.is_infinity.get_variable(),
     );
   }
 
@@ -100,17 +101,17 @@ impl<G: Group> AllocatedPoint<G> {
   where
     CS: ConstraintSystem<G::Base>,
   {
-    let constants = PoseidonConstants::<G::Base, U2>::new();
-    let hash = PoseidonCircuit2::new(
-      vec![
-        Elt::Allocated(self.x.clone()),
-        Elt::Allocated(self.y.clone()),
-      ],
+    let constants = PoseidonConstants::<G::Base, U2>::new_with_strength_and_type(
+      Strength::Standard,
+      HashType::ConstantLength(2),
+    );
+    let hash = poseidon_hash_allocated(
+      cs.namespace(|| "hash"),
+      vec![self.x.clone(), self.y.clone()],
       &constants,
-    )
-    .hash_to_allocated(cs.namespace(|| "hash"))?;
+    )?;
 
-    let hash_final = AllocatedNum::alloc(cs.namespace(|| "alloc hash"), || {
+    let hash_final = AllocatedNum::alloc_input(cs.namespace(|| "alloc hash"), || {
       let is_infinity = self.is_infinity.get_value().ok_or(AssignmentMissing)?;
       if is_infinity == G::Base::ONE {
         Ok(G::Base::ZERO)
@@ -126,7 +127,7 @@ impl<G: Group> AllocatedPoint<G> {
       |lc| lc + hash.get_variable(),
       |lc| lc + hash_final.get_variable(),
     );
-    hash_final.inputize(cs.namespace(|| "inputize"))
+    Ok(())
   }
 
   /// Allocates a new point on the curve using coordinates provided by `coords`.
@@ -701,8 +702,8 @@ impl<G: Group> AllocatedPoint<G> {
   }
 }
 
-#[derive(Clone)]
 /// `AllocatedPoint` but one that is guaranteed to be not infinity
+#[derive(Clone)]
 pub struct AllocatedPointNonInfinity<G: Group> {
   x: AllocatedNum<G::Base>,
   y: AllocatedNum<G::Base>,

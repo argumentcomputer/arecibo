@@ -1,11 +1,12 @@
-use bellpepper_core::boolean::Boolean;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::boolean::Boolean;
+use bitvec::macros::internal::funty::Fundamental;
 use neptune::circuit2::Elt;
 
-use crate::parafold::cycle_fold::gadgets::ecc::AllocatedPoint;
-use crate::traits::commitment::CommitmentTrait;
-use crate::traits::{CurveCycleEquipped, Engine};
 use crate::Commitment;
+use crate::parafold::cycle_fold::gadgets::ecc::AllocatedPoint;
+use crate::traits::{CurveCycleEquipped, Engine};
+use crate::traits::commitment::CommitmentTrait;
 
 #[derive(Debug, Clone)]
 pub struct AllocatedSecondaryCommitment<E: CurveCycleEquipped> {
@@ -76,5 +77,15 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryCommitment<E> {
     self
       .commitment
       .enforce_trivial(cs.namespace(|| "enforce trivial"), is_trivial)
+  }
+
+  pub fn eq_native(&self, other: &Commitment<E::Secondary>) -> Option<bool> {
+    let (x, y, is_infinity) = other.to_coordinates();
+    let x_eq = self.commitment.x.get_value()? == x;
+    let y_eq = self.commitment.y.get_value()? == y;
+    let is_infinity_eq =
+      self.commitment.is_infinity.get_value()? == E::Scalar::from(is_infinity.as_u64());
+
+    Some(x_eq && y_eq && is_infinity_eq)
   }
 }
