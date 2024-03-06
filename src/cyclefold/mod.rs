@@ -1,4 +1,4 @@
-//! This module defines Cyclefold stuff
+//! This module defines Cyclefold folding scheme and its related functions.
 
 mod circuit;
 mod gadgets;

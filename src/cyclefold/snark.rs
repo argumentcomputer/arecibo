@@ -39,7 +39,7 @@ use ff::{PrimeField, PrimeFieldBits};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
-/// TODO: docs
+/// The public parameters used in the CycleFold recursive SNARK proof and verification
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
 #[abomonation_bounds(
@@ -71,10 +71,13 @@ impl<E1> PublicParams<E1>
 where
   E1: CurveCycleEquipped,
 {
-  /// TODO: docs
+  /// Builds the public parameters for the circuit `C1`.
+  /// The same note for public parameter hints apply as in the case for Nova's public parameters:
+  /// For some final compressing SNARKs the size of the commitment key must be larger, so we include
+  /// `ck_hint_primary` and `ck_hint_cyclefold` parameters to accommodate this.
   pub fn setup<C1: StepCircuit<E1::Scalar>>(
     c_primary: &C1,
-    ck_hint1: &CommitmentKeyHint<E1>,
+    ck_hint_primary: &CommitmentKeyHint<E1>,
     ck_hint_cyclefold: &CommitmentKeyHint<Dual<E1>>,
   ) -> Self {
     let F_arity_primary = c_primary.arity();
@@ -90,7 +93,7 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint_primary);
     let circuit_shape_primary = R1CSWithArity::new(r1cs_shape_primary, F_arity_primary);
 
     let ro_consts_cyclefold = ROConstants::<Dual<E1>>::default();
@@ -114,7 +117,7 @@ where
     }
   }
 
-  /// TODO: docs
+  /// Calculate the digest of the public parameters.
   pub fn digest(&self) -> E1::Scalar {
     self
       .digest
@@ -123,7 +126,7 @@ where
       .expect("Failure in retrieving digest")
   }
 
-  /// TODO: docs
+  /// Returns the number of constraints in the primary and cyclefold circuits
   pub const fn num_constraints(&self) -> (usize, usize) {
     (
       self.circuit_shape_primary.r1cs_shape.num_cons,
@@ -131,7 +134,7 @@ where
     )
   }
 
-  /// TODO: docs
+  /// Returns the number of variables in the primary and cyclefold circuits
   pub const fn num_variables(&self) -> (usize, usize) {
     (
       self.circuit_shape_primary.r1cs_shape.num_vars,
@@ -142,7 +145,8 @@ where
 
 impl<E1> SimpleDigestible for PublicParams<E1> where E1: CurveCycleEquipped {}
 
-/// TODO: docs
+/// A SNARK that proves the correct execution of an incremental computation in the CycleFold folding
+/// scheme.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct RecursiveSNARK<E1>
@@ -174,7 +178,7 @@ impl<E1> RecursiveSNARK<E1>
 where
   E1: CurveCycleEquipped,
 {
-  /// TODO: docs
+  /// Create a new instance of a recursive SNARK
   pub fn new<C1: StepCircuit<E1::Scalar>>(
     pp: &PublicParams<E1>,
     c_primary: &C1,
@@ -253,7 +257,7 @@ where
     })
   }
 
-  /// TODO: docs
+  /// Update the `RecursiveSNARK` by proving a step of the incremental computation.
   pub fn prove_step<C1: StepCircuit<E1::Scalar>>(
     &mut self,
     pp: &PublicParams<E1>,
@@ -274,22 +278,6 @@ where
       &self.l_u_primary,
       &self.l_w_primary,
     )?;
-
-    // TODO: Delete this
-    // NOTE: This replaces the following code:
-    // let (nifs_primary, r) = NIFS::prove_mut(
-    //   &pp.ck_primary,
-    //   &pp.ro_consts_primary,
-    //   &pp.digest(),
-    //   &pp.circuit_shape_primary.r1cs_shape,
-    //   &mut self.r_U_primary,
-    //   &mut self.r_W_primary,
-    //   &self.l_u_primary,
-    //   &self.l_w_primary,
-    //   &mut self.buffer_primary.T,
-    //   &mut self.buffer_primary.ABC_Z_1,
-    //   &mut self.buffer_primary.ABC_Z_2,
-    // )?;
 
     let r_bools = r
       .to_le_bits()
@@ -414,7 +402,7 @@ where
     Ok(())
   }
 
-  /// TODO: docs
+  /// Verify the correctness of the `RecursiveSNARK`
   pub fn verify(
     &self,
     pp: &PublicParams<E1>,
@@ -469,8 +457,6 @@ where
       (hash_primary, hash_cyclefold)
     };
 
-    // TODO: This seems like it might be a bad sign, I don't know if I should need to use
-    // `scalar_as_base` here
     if scalar_as_base::<Dual<E1>>(hash_primary) != self.l_u_primary.X[0]
       || scalar_as_base::<Dual<E1>>(hash_cyclefold) != self.l_u_primary.X[1]
     {

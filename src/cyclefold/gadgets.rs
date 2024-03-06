@@ -33,20 +33,6 @@ impl<E: Engine, const N: usize> AllocatedFoldingData<E, N> {
 
     Ok(Self { U, u, T })
   }
-
-  // TODO: Delete if not needed, or uncomment if this saves time
-  // pub fn absorb_in_ro<CS: ConstraintSystem<<E as Engine>::Base>>(
-  //   &self,
-  //   mut cs: CS,
-  //   ro: &mut E::ROCircuit,
-  // ) -> Result<(), SynthesisError> {
-  //   self.U.absorb_in_ro(cs.namespace(|| "absorb U"), ro)?;
-  //   self.u.absorb_in_ro(ro);
-  //   ro.absorb(&self.T.x);
-  //   ro.absorb(&self.T.y);
-  //   ro.absorb(&self.T.is_infinity);
-  //   Ok(())
-  // }
 }
 
 pub mod emulated {
@@ -592,18 +578,5 @@ pub mod emulated {
         T,
       })
     }
-
-    // TODO: Delete if not needed
-    // pub fn absorb_in_ro<CS>(&self, mut cs: CS, ro: &mut E1::ROCircuit) -> Result<(), SynthesisError>
-    // where
-    //   CS: ConstraintSystem<<E1 as Engine>::Base>,
-    // {
-    //   self.U.absorb_in_ro(cs.namespace(|| "absorb U"), ro)?;
-    //   self.u_W.absorb_in_ro(cs.namespace(|| "absorb u_W"), ro)?;
-    //   ro.absorb(&self.u_x0);
-    //   ro.absorb(&self.u_x1);
-    //   self.T.absorb_in_ro(cs.namespace(|| "absorb T"), ro)?;
-    //   Ok(())
-    // }
   }
 }

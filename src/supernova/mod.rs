@@ -1112,7 +1112,6 @@ where
   }
 }
 
-/// TODO: docs
 /// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
 /// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
 /// `self.num_circuits()`.

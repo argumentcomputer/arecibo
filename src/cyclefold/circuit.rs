@@ -11,7 +11,7 @@ use crate::{
   Commitment,
 };
 
-/// TODO: docs
+/// A structure containing the CycleFold circuit inputs and implementing the synthesize function
 pub struct CyclefoldCircuit<E: Engine> {
   commit_1: Option<Commitment<E>>,
   commit_2: Option<Commitment<E>>,
@@ -28,7 +28,7 @@ impl<E: Engine> Default for CyclefoldCircuit<E> {
   }
 }
 impl<E: Engine> CyclefoldCircuit<E> {
-  /// TODO: docs
+  /// Create a new CycleFold circuit with the given inputs
   pub fn new(
     commit_1: Option<Commitment<E>>,
     commit_2: Option<Commitment<E>>,
@@ -77,7 +77,7 @@ impl<E: Engine> CyclefoldCircuit<E> {
     Ok((commit_1, commit_2, scalar))
   }
 
-  /// TODO: docs
+  /// Synthesize the CycleFold circuit
   pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
@@ -199,51 +199,55 @@ mod tests {
 
   use super::*;
 
-  fn test_split_field_elt_with<E: CurveCycleEquipped>() {
-    let rng = OsRng;
-    let rando = <E::Scalar as Field>::random(rng);
-
-    let mut cs: SatisfyingAssignment<E> = SatisfyingAssignment::<E>::new();
-
-    let rando_num = AllocatedNum::alloc(cs.namespace(|| "alloc num"), || Ok(rando)).unwrap();
-
-    split_field_element(&rando_num, cs.namespace(|| "split num")).unwrap();
-  }
-
-  #[test]
-  fn test_split_field_elt() {
-    test_split_field_elt_with::<Bn256EngineKZG>()
-  }
-
-  // TODO: Split this test up into multiple tests
   fn test_cyclefold_circuit_size_with<E1>(expected_constraints: &Expect, expected_vars: &Expect)
   where
     E1: CurveCycleEquipped,
   {
+    // Instantiate the circuit with trivial inputs
+    let circuit: CyclefoldCircuit<Dual<E1>> = CyclefoldCircuit::new(None, None, None);
+
+    // Synthesize the R1CS shape
+    let mut cs: ShapeCS<E1> = ShapeCS::new();
+    let _ = circuit.synthesize(cs.namespace(|| "synthesizing shape"));
+
+    // Extract the number of constraints and variables
+    let num_constraints = cs.num_constraints();
+    let num_variables = cs.num_aux();
+    let num_io = cs.num_inputs();
+
+    // Check the number of constraints and variables match the expected values
+    expected_constraints.assert_eq(&num_constraints.to_string());
+    expected_vars.assert_eq(&num_variables.to_string());
+    assert_eq!(num_io, NIO_CYCLE_FOLD + 1); // includes 1
+  }
+
+  #[test]
+  fn test_cyclefold_circuit_size() {
+    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("1394"), &expect!("1382"));
+    test_cyclefold_circuit_size_with::<Bn256EngineKZG>(&expect!("1394"), &expect!("1382"));
+    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("1394"), &expect!("1382"));
+  }
+
+  fn test_cyclefold_circuit_sat_with<E: CurveCycleEquipped>() {
     let rng = OsRng;
 
-    let ck = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::setup(b"test", 5);
+    let ck = <<Dual<E> as Engine>::CE as CommitmentEngineTrait<Dual<E>>>::setup(b"test", 5);
 
+    // Generate random vectors to commit to
     let v1 = (0..5)
-      .map(|_| <<Dual<E1> as Engine>::Scalar as Field>::random(rng))
+      .map(|_| <<Dual<E> as Engine>::Scalar as Field>::random(rng))
       .collect::<Vec<_>>();
-
     let v2 = (0..5)
-      .map(|_| <<Dual<E1> as Engine>::Scalar as Field>::random(rng))
+      .map(|_| <<Dual<E> as Engine>::Scalar as Field>::random(rng))
       .collect::<Vec<_>>();
 
-    let C_1 = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::commit(&ck, &v1);
+    // Calculate the random commitments
+    let C_1 = <<Dual<E> as Engine>::CE as CommitmentEngineTrait<Dual<E>>>::commit(&ck, &v1);
+    let C_2 = <<Dual<E> as Engine>::CE as CommitmentEngineTrait<Dual<E>>>::commit(&ck, &v2);
 
-    let C_2 = <<Dual<E1> as Engine>::CE as CommitmentEngineTrait<Dual<E1>>>::commit(&ck, &v2);
-
+    // Generate a random scalar
     let val: u128 = rand::random();
-
-    let r = <<Dual<E1> as Engine>::Scalar as PrimeField>::from_u128(val);
-
-    let native_result = C_1 + C_2 * r;
-
-    let (res_X, res_Y, res_is_infinity) = native_result.to_coordinates();
-
+    let r = <<Dual<E> as Engine>::Scalar as PrimeField>::from_u128(val);
     let r_bits = r
       .to_le_bits()
       .into_iter()
@@ -254,23 +258,19 @@ mod tests {
         vec.try_into().unwrap()
       });
 
-    let circuit: CyclefoldCircuit<Dual<E1>> = CyclefoldCircuit::new(Some(C_1), Some(C_2), r_bits);
+    // Calculate the result out of circuit
+    let native_result = C_1 + C_2 * r;
+    let (res_X, res_Y, res_is_infinity) = native_result.to_coordinates();
 
-    let mut cs: ShapeCS<E1> = ShapeCS::new();
+    let circuit: CyclefoldCircuit<Dual<E>> = CyclefoldCircuit::new(Some(C_1), Some(C_2), r_bits);
+
+    // Generate the R1CS shape and commitment key
+    let mut cs: ShapeCS<E> = ShapeCS::new();
     let _ = circuit.synthesize(cs.namespace(|| "synthesizing shape"));
-
-    let num_constraints = cs.num_constraints();
-    let num_variables = cs.num_aux();
-    let num_io = cs.num_inputs();
-
-    expected_constraints.assert_eq(&num_constraints.to_string());
-    expected_vars.assert_eq(&num_variables.to_string());
-    assert_eq!(num_io, NIO_CYCLE_FOLD + 1); // includes 1
-
     let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
-    let mut cs = SatisfyingAssignment::<E1>::new();
-
+    // Synthesize the R1CS circuit on the random inputs
+    let mut cs = SatisfyingAssignment::<E>::new();
     circuit
       .synthesize(cs.namespace(|| "synthesizing witness"))
       .unwrap();
@@ -279,12 +279,14 @@ mod tests {
 
     let X = &instance.X;
 
-    let recombine_scalar = |lower: E1::Scalar, upper: E1::Scalar| -> E1::Scalar {
+    // Recombine the scalar from the two 128 bit limbs in the public IO of the cyclefold circuit
+    let recombine_scalar = |lower: E::Scalar, upper: E::Scalar| -> E::Scalar {
       let mut upper = upper;
       (0..128).for_each(|_| upper = upper.double());
       lower + upper
     };
 
+    // Parse the public IO as the circuit values
     let circuit_res_X_lower = X[10];
     let circuit_res_X_upper = X[11];
     let circuit_res_X = recombine_scalar(circuit_res_X_lower, circuit_res_X_upper);
@@ -295,22 +297,22 @@ mod tests {
 
     let circuit_res_is_infinity = X[14];
 
+    // Check the out of circuit result matches the circuit result
     assert_eq!(res_X, circuit_res_X);
     assert_eq!(res_Y, circuit_res_Y);
     assert_eq!(
       res_is_infinity,
-      circuit_res_is_infinity == <Dual<E1> as Engine>::Base::ONE
+      circuit_res_is_infinity == <Dual<E> as Engine>::Base::ONE
     );
 
+    // Check the R1CS equation is satisfied
     shape.is_sat(&ck, &instance, &witness).unwrap();
   }
 
   #[test]
-  fn test_cyclefold_circuit_size() {
-    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("1394"), &expect!("1382"));
-    test_cyclefold_circuit_size_with::<Bn256EngineKZG>(&expect!("1394"), &expect!("1382"));
-    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("1394"), &expect!("1382"));
+  fn test_cyclefold_circuit_sat() {
+    test_cyclefold_circuit_sat_with::<PallasEngine>();
+    test_cyclefold_circuit_sat_with::<Bn256EngineKZG>();
+    test_cyclefold_circuit_sat_with::<Secp256k1Engine>();
   }
-
-  // TODO: add test for circuit satisfiability
 }

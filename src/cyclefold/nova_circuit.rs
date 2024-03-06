@@ -1,10 +1,7 @@
 //! This module defines the Nova augmented circuit used for Cyclefold
 
 use crate::{
-  constants::{
-    BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT,
-    /*NUM_FE_WITHOUT_IO_FOR_CRHF,*/ NUM_HASH_BITS,
-  },
+  constants::{BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_HASH_BITS},
   gadgets::{
     alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
@@ -54,7 +51,6 @@ impl<E: Engine> FoldingData<E> {
   }
 }
 
-// TODO: This needs to take in the initial cyclefold relaxed R1CS instance as well
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct AugmentedCircuitInputs<E1, E2>
@@ -431,7 +427,7 @@ where
     self,
     cs: &mut CS,
   ) -> Result<Vec<AllocatedNum<E1::Base>>, SynthesisError> {
-    // TODO: It's written down here https://hackmd.io/SBvAur_2RQmaduDi7gYbhw
+    // Circuit is documented here: https://hackmd.io/SBvAur_2RQmaduDi7gYbhw
     let arity = self.step_circuit.arity();
 
     let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new) =

@@ -260,18 +260,6 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     limbs
   }
 
-  // TODO: This probably can be deleted
-  // // NOTE: This is quick and dirty and is bad
-  // /// Transforms a BigNat into an AllocatedNum (makes no check on whether it's bigger than the field)
-  // pub fn as_allocated_num<CS: ConstraintSystem<Scalar>>(
-  //   &self,
-  //   mut cs: CS,
-  // ) -> Result<AllocatedNum<Scalar>, SynthesisError> {
-  //   let bits = self.decompose(cs.namespace(|| "decompse as bits"))?;
-  //   let num = Num::from_bits(cs.namespace(|| "num from bits"), &bits)?;
-  //   num.as_allocated_num(cs.namespace(|| "as_allocated_num"))
-  // }
-
   pub fn assert_well_formed<CS: ConstraintSystem<Scalar>>(
     &self,
     mut cs: CS,

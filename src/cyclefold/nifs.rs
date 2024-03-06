@@ -9,11 +9,11 @@ use crate::{
   errors::NovaError,
   gadgets::{f_to_nat, nat_to_limbs, scalar_as_base},
   r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
-  traits::{commitment::CommitmentTrait, /*AbsorbInROTrait,*/ Engine, ROConstants, ROTrait},
+  traits::{commitment::CommitmentTrait, Engine, ROConstants, ROTrait},
   CommitmentKey, CompressedCommitment,
 };
 
-/// TODO: Docs
+/// Absorb a commitment over engine `E1` into an RO over engine `E2` by absorbing the limbs
 pub fn absorb_commitment<E1, E2>(
   comm: &impl CommitmentTrait<E1>,
   ro: &mut impl ROTrait<E2::Base, E2::Scalar>,
@@ -120,9 +120,4 @@ where
       r,
     ))
   }
-}
-
-#[cfg(test)]
-mod test {
-  // use super::*;
 }
