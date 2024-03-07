@@ -91,6 +91,7 @@ where
 /// The difference of this folding scheme from the Nova NIFS in `src/nifs.rs` is that this folding
 /// prover and verifier must fold in the `RelaxedR1CSInstance` accumulator because the optimization
 /// in the
+#[derive(Debug)]
 pub struct CycleFoldNIFS<E: Engine> {
   pub(crate) comm_T: CompressedCommitment<E>,
 }

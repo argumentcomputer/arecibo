@@ -98,9 +98,9 @@ impl<E: Engine> CyclefoldCircuit<E> {
 
     let C_final = C_1.add(cs.namespace(|| "C_1 + r * C_2"), &r_C_2)?;
 
-    self.inputize_point(C_1, cs.namespace(|| "inputize C_1"))?;
-    self.inputize_point(C_2, cs.namespace(|| "inputize C_2"))?;
-    self.inputize_point(C_final, cs.namespace(|| "inputize C_final"))?;
+    self.inputize_point(&C_1, cs.namespace(|| "inputize C_1"))?;
+    self.inputize_point(&C_2, cs.namespace(|| "inputize C_2"))?;
+    self.inputize_point(&C_final, cs.namespace(|| "inputize C_final"))?;
 
     let scalar = le_bits_to_num(cs.namespace(|| "get scalar"), &r)?;
 
@@ -112,7 +112,7 @@ impl<E: Engine> CyclefoldCircuit<E> {
   // Represent the point in the public IO as its 2-ary Poseidon hash
   fn inputize_point<CS>(
     &self,
-    point: AllocatedPoint<E::GE>,
+    point: &AllocatedPoint<E::GE>,
     mut cs: CS,
   ) -> Result<(), SynthesisError>
   where
@@ -131,13 +131,7 @@ impl<E: Engine> CyclefoldCircuit<E> {
 
     let is_infinity_bit = AllocatedBit::alloc(
       cs.namespace(|| "is_infinity"),
-      Some(
-        if is_infinity.get_value().unwrap_or(E::Base::ONE) == E::Base::ONE {
-          true
-        } else {
-          false
-        },
-      ),
+      Some(is_infinity.get_value().unwrap_or(E::Base::ONE) == E::Base::ONE),
     )?;
 
     cs.enforce(
@@ -267,7 +261,7 @@ mod tests {
         return E::Scalar::ZERO;
       }
 
-      let mut hasher = Poseidon::new_with_preimage(&vec![x, y], &circuit.poseidon_constants);
+      let mut hasher = Poseidon::new_with_preimage(&[x, y], &circuit.poseidon_constants);
 
       hasher.hash()
     };
