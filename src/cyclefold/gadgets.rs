@@ -1,19 +1,102 @@
 use super::nova_circuit::FoldingData;
 
 use crate::{
-  gadgets::{AllocatedPoint, AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
-  traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait},
+  constants::{NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS},
+  gadgets::{
+    alloc_bignat_constant, f_to_nat, le_bits_to_num, AllocatedPoint, AllocatedRelaxedR1CSInstance,
+    BigNat, Num,
+  },
+  r1cs::R1CSInstance,
+  traits::{commitment::CommitmentTrait, Engine, Group, ROCircuitTrait, ROConstantsCircuit},
 };
 
-use bellpepper_core::{ConstraintSystem, SynthesisError};
-pub struct AllocatedFoldingData<E: Engine, const N: usize> {
-  pub U: AllocatedRelaxedR1CSInstance<E, N>,
-  pub u: AllocatedR1CSInstance<E, N>,
+use bellpepper::gadgets::Assignment;
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use ff::Field;
+use itertools::Itertools;
+
+pub struct AllocatedCycleFoldInstance<E: Engine> {
+  W: AllocatedPoint<E::GE>,
+  X: [BigNat<E::Base>; NIO_CYCLE_FOLD],
+}
+
+impl<E: Engine> AllocatedCycleFoldInstance<E> {
+  pub fn alloc<CS: ConstraintSystem<E::Base>>(
+    mut cs: CS,
+    inst: Option<&R1CSInstance<E>>,
+    limb_width: usize,
+    n_limbs: usize,
+  ) -> Result<Self, SynthesisError> {
+    let W = AllocatedPoint::alloc(
+      cs.namespace(|| "allocate W"),
+      inst.map(|u| u.comm_W.to_coordinates()),
+    )?;
+    W.check_on_curve(cs.namespace(|| "check W on curve"))?;
+
+    if let Some(inst) = inst {
+      if inst.X.len() != NIO_CYCLE_FOLD {
+        return Err(SynthesisError::IncompatibleLengthVector(String::from(
+          "R1CS instance has wrong arity",
+        )));
+      }
+    }
+
+    let X: [BigNat<E::Base>; NIO_CYCLE_FOLD] = (0..NIO_CYCLE_FOLD)
+      .map(|idx| {
+        BigNat::alloc_from_nat(
+          cs.namespace(|| format!("allocating IO {idx}")),
+          || Ok(f_to_nat(inst.map_or(&E::Scalar::ZERO, |inst| &inst.X[idx]))),
+          limb_width,
+          n_limbs,
+        )
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .try_into()
+      .map_err(|err: Vec<_>| {
+        SynthesisError::IncompatibleLengthVector(format!("{} != {NIO_CYCLE_FOLD}", err.len()))
+      })?;
+
+    Ok(Self { W, X })
+  }
+
+  pub fn absorb_in_ro<CS>(
+    &self,
+    mut cs: CS,
+    ro: &mut impl ROCircuitTrait<E::Base>,
+  ) -> Result<(), SynthesisError>
+  where
+    CS: ConstraintSystem<E::Base>,
+  {
+    ro.absorb(&self.W.x);
+    ro.absorb(&self.W.y);
+    ro.absorb(&self.W.is_infinity);
+    self
+      .X
+      .iter()
+      .enumerate()
+      .try_for_each(|(io_idx, x)| -> Result<(), SynthesisError> {
+        x.as_limbs().iter().enumerate().try_for_each(
+          |(limb_idx, limb)| -> Result<(), SynthesisError> {
+            ro.absorb(&limb.as_allocated_num(
+              cs.namespace(|| format!("convert limb {limb_idx} of X[{io_idx}] to num")),
+            )?);
+            Ok(())
+          },
+        )
+      })?;
+
+    Ok(())
+  }
+}
+
+pub struct AllocatedCycleFoldData<E: Engine> {
+  pub U: AllocatedRelaxedR1CSInstance<E, NIO_CYCLE_FOLD>,
+  pub u: AllocatedCycleFoldInstance<E>,
   pub T: AllocatedPoint<E::GE>,
 }
 
-impl<E: Engine, const N: usize> AllocatedFoldingData<E, N> {
-  pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
+impl<E: Engine> AllocatedCycleFoldData<E> {
+  pub fn alloc<CS: ConstraintSystem<E::Base>>(
     mut cs: CS,
     inst: Option<&FoldingData<E>>,
     limb_width: usize,
@@ -26,12 +109,104 @@ impl<E: Engine, const N: usize> AllocatedFoldingData<E, N> {
       n_limbs,
     )?;
 
-    let u = AllocatedR1CSInstance::alloc(cs.namespace(|| "u"), inst.map(|x| &x.u))?;
+    let u = AllocatedCycleFoldInstance::alloc(
+      cs.namespace(|| "u"),
+      inst.map(|x| &x.u),
+      limb_width,
+      n_limbs,
+    )?;
 
     let T = AllocatedPoint::alloc(cs.namespace(|| "T"), inst.map(|x| x.T.to_coordinates()))?;
     T.check_on_curve(cs.namespace(|| "T on curve"))?;
 
     Ok(Self { U, u, T })
+  }
+
+  pub fn apply_fold<CS>(
+    &self,
+    mut cs: CS,
+    params: &AllocatedNum<E::Base>,
+    ro_consts: ROConstantsCircuit<E>,
+    limb_width: usize,
+    n_limbs: usize,
+  ) -> Result<AllocatedRelaxedR1CSInstance<E, NIO_CYCLE_FOLD>, SynthesisError>
+  where
+    CS: ConstraintSystem<E::Base>,
+  {
+    // Compute r:
+    let mut ro = E::ROCircuit::new(ro_consts, 7 + NIO_CYCLE_FOLD);
+    ro.absorb(params);
+
+    self.U.absorb_in_ro(
+      cs.namespace(|| "absorb cyclefold running instance"),
+      &mut ro,
+    )?;
+    // running instance `U` does not need to absorbed since u.X[0] = Hash(params, U, i, z0, zi)
+    self
+      .u
+      .absorb_in_ro(cs.namespace(|| "absorb cyclefold instance"), &mut ro)?;
+
+    ro.absorb(&self.T.x);
+    ro.absorb(&self.T.y);
+    ro.absorb(&self.T.is_infinity);
+    let r_bits = ro.squeeze(cs.namespace(|| "r bits"), NUM_CHALLENGE_BITS)?;
+    let r = le_bits_to_num(cs.namespace(|| "r"), &r_bits)?;
+
+    // W_fold = self.W + r * u.W
+    let rW = self.u.W.scalar_mul(cs.namespace(|| "r * u.W"), &r_bits)?;
+    let W_fold = self.U.W.add(cs.namespace(|| "self.W + r * u.W"), &rW)?;
+
+    // E_fold = self.E + r * T
+    let rT = self.T.scalar_mul(cs.namespace(|| "r * T"), &r_bits)?;
+    let E_fold = self.U.E.add(cs.namespace(|| "self.E + r * T"), &rT)?;
+
+    // u_fold = u_r + r
+    let u_fold = AllocatedNum::alloc(cs.namespace(|| "u_fold"), || {
+      Ok(*self.U.u.get_value().get()? + r.get_value().get()?)
+    })?;
+    cs.enforce(
+      || "Check u_fold",
+      |lc| lc,
+      |lc| lc,
+      |lc| lc + u_fold.get_variable() - self.U.u.get_variable() - r.get_variable(),
+    );
+
+    // Fold the IO:
+    // Analyze r into limbs
+    let r_bn = BigNat::from_num(
+      cs.namespace(|| "allocate r_bn"),
+      &Num::from(r),
+      limb_width,
+      n_limbs,
+    )?;
+
+    // Allocate the order of the non-native field as a constant
+    let m_bn = alloc_bignat_constant(
+      cs.namespace(|| "alloc m"),
+      &E::GE::group_params().2,
+      limb_width,
+      n_limbs,
+    )?;
+
+    let mut X_fold = vec![];
+
+    for (idx, (X, x)) in self.U.X.iter().zip_eq(self.u.X.iter()).enumerate() {
+      let (_, r) = x.mult_mod(cs.namespace(|| format!("r*u.X[{idx}]")), &r_bn, &m_bn)?;
+      let r_new = X.add(&r)?;
+      let X_i_fold = r_new.red_mod(cs.namespace(|| format!("reduce folded X[{idx}]")), &m_bn)?;
+      X_fold.push(X_i_fold);
+    }
+
+    let X_fold = X_fold.try_into().map_err(|err: Vec<_>| {
+      SynthesisError::IncompatibleLengthVector(format!("{} != {NIO_CYCLE_FOLD}", err.len()))
+    })?;
+
+    Ok(AllocatedRelaxedR1CSInstance {
+      W: W_fold,
+      E: E_fold,
+      u: u_fold,
+      X: X_fold,
+    })
   }
 }
 
@@ -40,9 +215,8 @@ pub mod emulated {
   use bellpepper_core::{
     boolean::{AllocatedBit, Boolean},
     num::AllocatedNum,
+    ConstraintSystem, SynthesisError,
   };
-
-  use super::*;
 
   use crate::{
     constants::{NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
@@ -50,9 +224,11 @@ pub mod emulated {
       alloc_zero, conditionally_select, conditionally_select_allocated_bit,
       conditionally_select_bignat, f_to_nat, le_bits_to_num, BigNat,
     },
-    traits::{Group, ROConstantsCircuit},
+    traits::{commitment::CommitmentTrait, Engine, Group, ROCircuitTrait, ROConstantsCircuit},
     RelaxedR1CSInstance,
   };
+
+  use super::FoldingData;
 
   use ff::Field;
 

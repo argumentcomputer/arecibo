@@ -4,7 +4,7 @@ use crate::{
   constants::{BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_HASH_BITS},
   gadgets::{
     alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
-    AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
+    AllocatedRelaxedR1CSInstance,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{
@@ -17,10 +17,9 @@ use abomonation_derive::Abomonation;
 use bellpepper::gadgets::{boolean::Boolean, num::AllocatedNum, Assignment};
 use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, SynthesisError};
 use ff::Field;
-use itertools::{chain, Itertools};
 use serde::{Deserialize, Serialize};
 
-use super::gadgets::{emulated, AllocatedFoldingData};
+use super::gadgets::{emulated, AllocatedCycleFoldData};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct AugmentedCircuitParams {
@@ -139,15 +138,15 @@ where
     arity: usize,
   ) -> Result<
     (
-      AllocatedNum<E1::Base>,                   // pp_digest
-      AllocatedNum<E1::Base>,                   // i
-      Vec<AllocatedNum<E1::Base>>,              // z0
-      Vec<AllocatedNum<E1::Base>>,              // zi
-      emulated::AllocatedFoldingData<E1>,       //data_p
-      AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_1
-      AllocatedFoldingData<E1, NIO_CYCLE_FOLD>, // data_c_2
-      emulated::AllocatedEmulPoint<E1::GE>,     // E_new
-      emulated::AllocatedEmulPoint<E1::GE>,     // W_new
+      AllocatedNum<E1::Base>,               // pp_digest
+      AllocatedNum<E1::Base>,               // i
+      Vec<AllocatedNum<E1::Base>>,          // z0
+      Vec<AllocatedNum<E1::Base>>,          // zi
+      emulated::AllocatedFoldingData<E1>,   //data_p
+      AllocatedCycleFoldData<E1>,           // data_c_1
+      AllocatedCycleFoldData<E1>,           // data_c_2
+      emulated::AllocatedEmulPoint<E1::GE>, // E_new
+      emulated::AllocatedEmulPoint<E1::GE>, // W_new
     ),
     SynthesisError,
   > {
@@ -186,7 +185,7 @@ where
       self.params.n_limbs,
     )?;
 
-    let data_c_1 = AllocatedFoldingData::alloc(
+    let data_c_1 = AllocatedCycleFoldData::alloc(
       cs.namespace(|| "data_c_1"),
       self
         .inputs
@@ -196,7 +195,7 @@ where
       self.params.n_limbs,
     )?;
 
-    let data_c_2 = AllocatedFoldingData::alloc(
+    let data_c_2 = AllocatedCycleFoldData::alloc(
       cs.namespace(|| "data_c_2"),
       self
         .inputs
@@ -266,12 +265,11 @@ where
     z_0: &[AllocatedNum<E1::Base>],
     z_i: &[AllocatedNum<E1::Base>],
     data_p: &emulated::AllocatedFoldingData<E1>,
-    data_c_1: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
-    data_c_2: &AllocatedFoldingData<E1, NIO_CYCLE_FOLD>,
+    data_c_1: &AllocatedCycleFoldData<E1>,
+    data_c_2: &AllocatedCycleFoldData<E1>,
     E_new: emulated::AllocatedEmulPoint<E1::GE>,
     W_new: emulated::AllocatedEmulPoint<E1::GE>,
     arity: usize,
-    is_base_case: &AllocatedBit,
   ) -> Result<
     (
       AllocatedRelaxedR1CSInstance<E1, NIO_CYCLE_FOLD>,
@@ -326,29 +324,6 @@ where
       &hash_c,
     )?;
 
-    let u_E = &data_c_1.u;
-    let E_1 = &data_p.U.comm_E;
-    cyclefold_invocation_check(
-      cs.namespace(|| "cyclefold invocation check E"),
-      E_1,
-      &data_p.T,
-      &E_new,
-      u_E,
-      is_base_case,
-    )?;
-
-    let u_W = &data_c_2.u;
-    let W_1 = &data_p.U.comm_W;
-    let W_2 = &data_p.u_W;
-    cyclefold_invocation_check(
-      cs.namespace(|| "cyclefold invocation check W"),
-      W_1,
-      W_2,
-      &W_new,
-      u_W,
-      is_base_case,
-    )?;
-
     let check_io = AllocatedBit::and(
       cs.namespace(|| "both IOs match"),
       &check_primary,
@@ -356,11 +331,9 @@ where
     )?;
 
     // Run NIVC.V on U_c, u_c_1, T_c_1
-    let U_int = data_c_1.U.fold_with_r1cs(
-      cs.namespace(|| "U_int = fold U_c with u_c_1"),
+    let U_int = data_c_1.apply_fold(
+      cs.namespace(|| "fold u_c_1 into U_c"),
       pp_digest,
-      &data_c_1.u,
-      &data_c_1.T,
       self.ro_consts.clone(),
       self.params.limb_width,
       self.params.n_limbs,
@@ -398,11 +371,9 @@ where
       &check_cyclefold_int,
     )?;
 
-    let U_c = data_c_2.U.fold_with_r1cs(
-      cs.namespace(|| "U_c = fold U_c_1 with u_c_2"),
+    let U_c = data_c_2.apply_fold(
+      cs.namespace(|| "fold u_c_2 into U_c_1"),
       pp_digest,
-      &data_c_2.u,
-      &data_c_2.T,
       self.ro_consts.clone(),
       self.params.limb_width,
       self.params.n_limbs,
@@ -450,7 +421,6 @@ where
       E_new,
       W_new,
       arity,
-      &is_base_case,
     )?;
 
     let should_be_false = AllocatedBit::nor(
@@ -539,99 +509,6 @@ where
   }
 }
 
-// TODO: Clean this up
-pub fn emulated_point_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine>::Base>>(
-  mut cs: CS,
-  point: &emulated::AllocatedEmulPoint<E1::GE>,
-  io_limbs: &[AllocatedNum<<E1 as Engine>::Base>],
-  always_equal: &AllocatedBit,
-) -> Result<(), SynthesisError> {
-  let x_limbs = point
-    .x
-    .group_limbs(BN_N_LIMBS / 2)
-    .as_limbs()
-    .iter()
-    .enumerate()
-    .map(|(idx, limb)| limb.as_allocated_num(cs.namespace(|| format!("alloc x_limb[{idx}]"))))
-    .collect::<Result<Vec<_>, _>>()?;
-
-  let y_limbs = point
-    .y
-    .group_limbs(BN_N_LIMBS / 2)
-    .as_limbs()
-    .iter()
-    .enumerate()
-    .map(|(idx, limb)| limb.as_allocated_num(cs.namespace(|| format!("alloc y_limb[{idx}]"))))
-    .collect::<Result<Vec<_>, _>>()?;
-
-  let is_infinity = AllocatedNum::alloc(cs.namespace(|| "allocate is_infinity"), || {
-    if *point.is_infinity.get_value().get()? {
-      Ok(<E1 as Engine>::Base::ONE)
-    } else {
-      Ok(<E1 as Engine>::Base::ZERO)
-    }
-  })?;
-
-  cs.enforce(
-    || "enforcing is_infinity",
-    |lc| lc,
-    |lc| lc,
-    |lc| lc + is_infinity.get_variable() - point.is_infinity.get_variable(),
-  );
-
-  let all_variables = chain!(x_limbs, y_limbs, vec![is_infinity]);
-
-  all_variables
-    .into_iter()
-    .zip_eq(io_limbs)
-    .enumerate()
-    .try_for_each(|(idx, (var, limb))| -> Result<(), SynthesisError> {
-      cs.enforce(
-        || format!("enforcing equality {idx}"),
-        |lc| lc + CS::one() - always_equal.get_variable(),
-        |lc| lc + var.get_variable() - limb.get_variable(),
-        |lc| lc,
-      );
-
-      Ok(())
-    })?;
-
-  Ok(())
-}
-
-// TODO: Clean this up
-pub fn cyclefold_invocation_check<E1: Engine, CS: ConstraintSystem<<E1 as Engine>::Base>>(
-  mut cs: CS,
-  C_1: &emulated::AllocatedEmulPoint<E1::GE>,
-  C_2: &emulated::AllocatedEmulPoint<E1::GE>,
-  C_res: &emulated::AllocatedEmulPoint<E1::GE>,
-  instance: &AllocatedR1CSInstance<E1, NIO_CYCLE_FOLD>,
-  is_base_case: &AllocatedBit,
-) -> Result<(), SynthesisError> {
-  let (point_1_io, point_23_io) = instance.X.split_at(5);
-  let (point_2_io, point_3_io_plus_scalar) = point_23_io.split_at(5);
-  let point_3_io = point_3_io_plus_scalar.split_at(5).0;
-  emulated_point_check::<E1, _>(
-    cs.namespace(|| "check point C_1"),
-    C_1,
-    point_1_io,
-    is_base_case,
-  )?;
-  emulated_point_check::<E1, _>(
-    cs.namespace(|| "check point C_2"),
-    C_2,
-    point_2_io,
-    is_base_case,
-  )?;
-  emulated_point_check::<E1, _>(
-    cs.namespace(|| "check point C_res"),
-    C_res,
-    point_3_io,
-    is_base_case,
-  )?;
-
-  Ok(())
-}
 #[cfg(test)]
 mod test {
   use crate::{

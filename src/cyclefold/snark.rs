@@ -14,7 +14,6 @@ use crate::{
   cyclefold::circuit::CyclefoldCircuit,
   errors::NovaError,
   gadgets::scalar_as_base,
-  nifs::NIFS,
   r1cs::{
     self, CommitmentKeyHint, R1CSInstance, R1CSResult, R1CSWitness, RelaxedR1CSInstance,
     RelaxedR1CSWitness,
@@ -28,7 +27,7 @@ use crate::{
 };
 
 use super::{
-  nifs::absorb_commitment,
+  nifs::{absorb_commitment, CycleFoldNIFS, PrimaryNIFS},
   nova_circuit::{AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams, FoldingData},
 };
 
@@ -268,7 +267,7 @@ where
       return Ok(());
     }
 
-    let (nifs_primary, (r_U_primary, r_W_primary), r) = super::nifs::NIFS::<E1, Dual<E1>>::prove(
+    let (nifs_primary, (r_U_primary, r_W_primary), r) = PrimaryNIFS::<E1, Dual<E1>>::prove(
       &pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
@@ -307,7 +306,7 @@ where
       .map_err(|_| NovaError::UnSat)?;
 
     // TODO: check if this is better or worse than `prove_mut` with a clone of `self.r_U_cyclefold`
-    let (nifs_cyclefold_E, (r_U_cyclefold_E, r_W_cyclefold_E), _) = NIFS::prove(
+    let (nifs_cyclefold_E, (r_U_cyclefold_E, r_W_cyclefold_E)) = CycleFoldNIFS::prove(
       &pp.ck_cyclefold,
       &pp.ro_consts_cyclefold,
       &scalar_as_base::<E1>(pp.digest()),
@@ -338,7 +337,7 @@ where
       .map_err(|_| NovaError::UnSat)?;
 
     // TODO: check if this is better or worse than `prove_mut` with a clone of r_U_cyclefold_E
-    let (nifs_cyclefold_W, (r_U_cyclefold_W, r_W_cyclefold_W), _) = NIFS::prove(
+    let (nifs_cyclefold_W, (r_U_cyclefold_W, r_W_cyclefold_W)) = CycleFoldNIFS::prove(
       &pp.ck_cyclefold,
       &pp.ro_consts_cyclefold,
       &scalar_as_base::<E1>(pp.digest()),
