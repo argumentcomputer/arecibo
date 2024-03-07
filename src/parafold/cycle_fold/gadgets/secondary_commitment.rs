@@ -1,12 +1,12 @@
-use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::boolean::Boolean;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bitvec::macros::internal::funty::Fundamental;
 use neptune::circuit2::Elt;
 
-use crate::Commitment;
 use crate::parafold::cycle_fold::gadgets::ecc::AllocatedPoint;
-use crate::traits::{CurveCycleEquipped, Engine};
 use crate::traits::commitment::CommitmentTrait;
+use crate::traits::{CurveCycleEquipped, Engine};
+use crate::Commitment;
 
 #[derive(Debug, Clone)]
 pub struct AllocatedSecondaryCommitment<E: CurveCycleEquipped> {
@@ -16,7 +16,7 @@ pub struct AllocatedSecondaryCommitment<E: CurveCycleEquipped> {
 impl<E: CurveCycleEquipped> AllocatedSecondaryCommitment<E> {
   /// Allocates a new point on the curve using coordinates provided by `coords`.
   /// If coords = None, it allocates the default infinity point
-  pub fn alloc_unchecked<CS>(mut cs: CS, commitment: Commitment<E::Secondary>) -> Self
+  pub fn alloc_unchecked<CS>(mut cs: CS, commitment: &Commitment<E::Secondary>) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
   {
@@ -60,16 +60,17 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryCommitment<E> {
     Ok(Self { commitment: res })
   }
 
-  pub fn select_default<CS>(self, mut cs: CS, is_default: &Boolean) -> Result<Self, SynthesisError>
+  pub fn select_default<CS>(&self, mut cs: CS, is_default: &Boolean) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let res = self
+    let commitment = self
       .commitment
       .select_default(cs.namespace(|| "select default"), is_default)?;
-    Ok(Self { commitment: res })
+    Ok(Self { commitment })
   }
 
+  #[allow(unused)]
   pub fn enforce_trivial<CS>(&self, mut cs: CS, is_trivial: &Boolean)
   where
     CS: ConstraintSystem<E::Scalar>,

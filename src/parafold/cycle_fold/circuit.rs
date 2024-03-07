@@ -1,26 +1,28 @@
-use bellpepper_core::boolean::Boolean;
 use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
+use bellpepper_core::boolean::Boolean;
 use ff::PrimeField;
 
+use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
 use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
 use crate::parafold::cycle_fold::nifs::circuit::AllocatedSecondaryRelaxedR1CSInstance;
 use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
-use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AllocatedScalarMulAccumulator<E: CurveCycleEquipped> {
   deferred: Vec<AllocatedScalarMulInstance<E>>,
-  acc: AllocatedSecondaryRelaxedR1CSInstance<E>,
+}
+
+impl<E: CurveCycleEquipped> Drop for AllocatedScalarMulAccumulator<E> {
+  fn drop(&mut self) {
+    assert!(self.deferred.is_empty(), "unproved scalar multiplications")
+  }
 }
 
 impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
-  pub fn new(acc: AllocatedSecondaryRelaxedR1CSInstance<E>) -> Self {
-    Self {
-      deferred: vec![],
-      acc,
-    }
+  pub fn new() -> Self {
+    Self { deferred: vec![] }
   }
 
   /// Compute the result `C <- A + x * B` by folding a proof over the secondary curve.
@@ -55,8 +57,9 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
   pub fn finalize<CS>(
     mut self,
     mut cs: CS,
+    acc_cf: &mut AllocatedSecondaryRelaxedR1CSInstance<E>,
     transcript: &mut AllocatedTranscript<E>,
-  ) -> Result<AllocatedSecondaryRelaxedR1CSInstance<E>, SynthesisError>
+  ) -> Result<(), SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
@@ -65,14 +68,13 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
 
       // TODO: In order to avoid computing unnecessary proofs, we can check
       // - x = 0 => C = A
-      self.acc.fold(
+      acc_cf.fold(
         cs.namespace(|| format!("fold cf instance {i}")),
         X,
         transcript,
       )?;
     }
-
-    Ok(self.acc)
+    Ok(())
   }
 }
 

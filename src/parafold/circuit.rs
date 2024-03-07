@@ -1,67 +1,68 @@
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 
 use crate::parafold::nivc::circuit::AllocatedNIVCState;
-use crate::parafold::nivc::{NIVCUpdateProof, NIVCIO};
+use crate::parafold::nivc::{NIVCCircuitInput, NIVCMergeProof, NIVCIO};
 use crate::parafold::transcript::TranscriptConstants;
 use crate::supernova::StepCircuit;
 use crate::traits::CurveCycleEquipped;
 
 pub fn synthesize_step<E, CS, SF>(
   mut cs: CS,
-  ro_consts: &TranscriptConstants<E::Scalar>,
-  proof: NIVCUpdateProof<E>,
+  input: &NIVCCircuitInput<E>,
+  ro_consts: TranscriptConstants<E::Scalar>,
   step_circuit: &SF,
-) -> Result<(Option<NIVCIO<E>>, AllocatedNIVCState<E>), SynthesisError>
+) -> Result<Option<NIVCIO<E>>, SynthesisError>
 where
   E: CurveCycleEquipped,
   CS: ConstraintSystem<E::Scalar>,
   SF: StepCircuit<E::Scalar>,
 {
-  // Fold proof for previous state
-  let (mut state, transcript_state) =
-    AllocatedNIVCState::from_proof(cs.namespace(|| "verify self"), ro_consts, proof)?;
+  let mut state = AllocatedNIVCState::init(cs.namespace(|| "alloc state"), ro_consts, input)?;
 
   let io = state.update_io(cs.namespace(|| "step"), step_circuit)?;
 
   state.inputize(cs.namespace(|| "inputize state"))?;
-  transcript_state.inputize(cs.namespace(|| "inputize transcript"))?;
 
-  Ok((io, state))
+  Ok(io)
 }
 
-// /// Circuit
-// pub fn synthesize_merge<E, CS>(
-//   mut cs: CS,
-//   ro_consts: &TranscriptConstants<E::Scalar>,
-//   proof_L: NIVCUpdateProof<E>,
-//   proof_R: NIVCUpdateProof<E>,
-//   proof_merge: NIVCMergeProof<E>,
-// ) -> Result<NIVCIO<E>, SynthesisError>
-// where
-//   E: CurveCycleEquipped,
-//   CS: ConstraintSystem<E::Scalar>,
-// {
-//   // Verify L
-//   let (self_L, transcript_L) =
-//     AllocatedNIVCState::from_proof(cs.namespace(|| "verify proof_L"), ro_consts, proof_L)?;
-//   // Verify R
-//   let (self_R, transcript_R) =
-//     AllocatedNIVCState::from_proof(cs.namespace(|| "verify proof_R"), ro_consts, proof_R)?;
-//   // Merge transcripts
-//   let mut transcript = AllocatedTranscript::merge(transcript_L, transcript_R);
-//
-//   // Merge states
-//   let (state, io_native) = AllocatedNIVCState::merge(
-//     cs.namespace(|| "merge"),
-//     self_L,
-//     self_R,
-//     ro_consts,
-//     proof_merge,
-//     &mut transcript,
-//   )?;
-//
-//   transcript.inputize(cs.namespace(|| "inputize transcript"))?;
-//   state.inputize(cs.namespace(|| "inputize state"))?;
-//
-//   Ok(io_native)
-// }
+///Circuit
+#[allow(unused)]
+pub fn synthesize_merge<E, CS>(
+  mut cs: CS,
+  input_L: &NIVCCircuitInput<E>,
+  input_R: &NIVCCircuitInput<E>,
+  merge_proof: NIVCMergeProof<E>,
+  ro_consts: TranscriptConstants<E::Scalar>,
+) -> Result<Option<NIVCIO<E>>, SynthesisError>
+where
+  E: CurveCycleEquipped,
+  CS: ConstraintSystem<E::Scalar>,
+{
+  // Verify L
+  let mut state_L = AllocatedNIVCState::init(
+    cs.namespace(|| "alloc state_L"),
+    ro_consts.clone(),
+    &input_L,
+  )?;
+
+  // Verify L
+  let mut state_R = AllocatedNIVCState::init(
+    cs.namespace(|| "alloc state_R"),
+    ro_consts.clone(),
+    &input_R,
+  )?;
+
+  // Merge states
+  let (state, io_native) = AllocatedNIVCState::merge(
+    cs.namespace(|| "merge"),
+    state_L,
+    state_R,
+    merge_proof,
+    ro_consts,
+  )?;
+
+  state.inputize(cs.namespace(|| "inputize state"))?;
+
+  Ok(io_native)
+}

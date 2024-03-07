@@ -1,15 +1,15 @@
 use std::marker::PhantomData;
 use std::ops::BitAnd;
 
-use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::{AllocatedNum, Num};
+use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use bellpepper_emulated::field_element::{
   EmulatedFieldElement, EmulatedFieldParams, EmulatedLimbs,
 };
 use bellpepper_emulated::util::bigint_to_scalar;
 use ff::{Field, PrimeField, PrimeFieldBits};
-use itertools::{Itertools, zip_eq};
+use itertools::{zip_eq, Itertools};
 use neptune::circuit2::Elt;
 use num_bigint::{BigInt, Sign};
 use num_traits::{Num as num_Num, One, Zero};
@@ -72,17 +72,6 @@ pub struct AllocatedBase<E: CurveCycleEquipped>(EmulatedFieldElement<E::Scalar, 
 impl<E: CurveCycleEquipped> AllocatedBase<E> {
   pub fn zero() -> Self {
     Self(EmulatedFieldElement::zero())
-  }
-
-  pub fn enforce_zero<CS: ConstraintSystem<E::Scalar>>(&self, mut cs: CS, is_zero: &Boolean) {
-    for (i, limb) in self.as_preimage().into_iter().enumerate() {
-      cs.enforce(
-        || format!("limb {i} is zero"),
-        |_| is_zero.lc(CS::one(), E::Scalar::ONE),
-        |_| limb.lc(),
-        |lc| lc,
-      )
-    }
   }
 
   pub fn alloc_limbs<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, limbs: Vec<E::Scalar>) -> Self {
@@ -212,12 +201,6 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
       EmulatedLimbs::Allocated(limbs),
       0,
     ))
-  }
-
-  pub fn eq_native(&self, other: &E::Base) -> bool {
-    let lhs = self.to_big_int();
-    let rhs = field_to_big_int(other);
-    lhs == rhs
   }
 }
 

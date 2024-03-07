@@ -1,7 +1,6 @@
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::boolean::Boolean;
 use bellpepper_core::num::AllocatedNum;
-use itertools::chain;
 use neptune::circuit2::Elt;
 use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
 use neptune::sponge::circuit::SpongeCircuit;
@@ -16,8 +15,6 @@ use crate::traits::CurveCycleEquipped;
 pub struct AllocatedTranscript<E: CurveCycleEquipped> {
   constants: TranscriptConstants<E::Scalar>,
 
-  // Output challenge of the previous round
-  prev: Option<AllocatedNum<E::Scalar>>,
   // Elements to be hashed in this round
   state: Vec<Elt<E::Scalar>>,
 
@@ -32,10 +29,10 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
     init: impl IntoIterator<Item = AllocatedNum<E::Scalar>>,
     buffer: Vec<TranscriptElement<E>>,
   ) -> Self {
+    let state = Vec::from_iter(init.into_iter().map(Elt::Allocated));
     Self {
       constants,
-      prev: None,
-      state: Vec::from_iter(init.into_iter().map(Elt::Allocated)),
+      state,
       buffer: buffer.into_iter(),
     }
   }
@@ -114,11 +111,7 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let elements = chain!(
-      self.prev.iter().cloned().map(Elt::Allocated),
-      self.state.drain(..)
-    )
-    .collect::<Vec<_>>();
+    let elements = self.state.drain(..).collect::<Vec<_>>();
 
     let num_absorbs = elements.len() as u32;
 
@@ -135,7 +128,8 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
 
       state_out[0].ensure_allocated(acc, true)?
     };
-    self.prev = Some(hash.clone());
+
+    self.state.push(Elt::Allocated(hash.clone()));
 
     Ok(hash)
   }
@@ -168,10 +162,14 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
     }
 
     // Absorb the remaining elements into the sponge
-    if !self.state.is_empty() {
-      let _ = self.squeeze(&mut cs)?;
+    if self.state.len() == 1 {
+      return self
+        .state
+        .first()
+        .expect("state can never be empty")
+        .ensure_allocated(&mut cs.namespace(|| "alloc challenge"), true);
     }
-    Ok(self.prev.unwrap())
+    self.squeeze(cs.namespace(|| "squeeze"))
   }
 
   pub(in crate::parafold::transcript) fn state(&self) -> Vec<Elt<E::Scalar>> {

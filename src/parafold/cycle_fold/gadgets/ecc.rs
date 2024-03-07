@@ -26,26 +26,25 @@ pub struct AllocatedPoint<G: Group> {
 }
 
 impl<G: Group> AllocatedPoint<G> {
-  pub fn select_default<CS>(self, mut cs: CS, is_default: &Boolean) -> Result<Self, SynthesisError>
+  pub fn select_default<CS>(&self, mut cs: CS, is_default: &Boolean) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<G::Base>,
   {
     let zero = alloc_zero(cs.namespace(|| "alloc 0"));
     let one = alloc_one(cs.namespace(|| "alloc 1"));
-    let Self {
-      x, y, is_infinity, ..
-    } = self;
-    let x = conditionally_select(cs.namespace(|| "select x"), &zero, &x, is_default)?;
-    let y = conditionally_select(cs.namespace(|| "select y"), &zero, &y, is_default)?;
+
+    let x = conditionally_select(cs.namespace(|| "select x"), &zero, &self.x, is_default)?;
+    let y = conditionally_select(cs.namespace(|| "select y"), &zero, &self.y, is_default)?;
     let is_infinity = conditionally_select(
       cs.namespace(|| "select is_infinity"),
       &one,
-      &is_infinity,
+      &self.is_infinity,
       is_default,
     )?;
     Ok(Self { x, y, is_infinity })
   }
 
+  #[allow(unused)]
   pub fn enforce_trivial<CS>(&self, mut cs: CS, is_trivial: &Boolean)
   where
     CS: ConstraintSystem<G::Base>,

@@ -1,7 +1,8 @@
-use ff::Field;
-use itertools::{chain, Itertools};
+use ff::{Field, PrimeField};
+use itertools::{chain, Itertools, zip_eq};
 use rayon::prelude::*;
 
+use crate::{Commitment, CommitmentKey, zip_with};
 use crate::constants::NUM_CHALLENGE_BITS;
 use crate::errors::NovaError::{ProofVerifyError, UnSatIndex};
 use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
@@ -10,9 +11,8 @@ use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::transcript::TranscriptElement;
 use crate::r1cs::R1CSShape;
 use crate::supernova::error::SuperNovaError;
-use crate::traits::commitment::CommitmentEngineTrait;
 use crate::traits::{CurveCycleEquipped, Engine};
-use crate::{Commitment, CommitmentKey};
+use crate::traits::commitment::CommitmentEngineTrait;
 
 /// Instance of a Relaxed-R1CS accumulator for a circuit.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,19 +46,6 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
     }
   }
 
-  pub fn dummy() -> Self {
-    Self {
-      instance: RelaxedSecondaryR1CSInstance {
-        u: E::Base::ZERO,
-        X: vec![E::Base::ZERO; NUM_IO_SECONDARY],
-        W: Commitment::<E::Secondary>::default(),
-        E: Commitment::<E::Secondary>::default(),
-      },
-      W: vec![],
-      E: vec![],
-    }
-  }
-
   pub fn instance(&self) -> &RelaxedSecondaryR1CSInstance<E> {
     &self.instance
   }
@@ -69,6 +56,12 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
     transcript.absorb(TranscriptElement::CommitmentSecondary(W));
     transcript.absorb(TranscriptElement::CommitmentSecondary(T));
 
+    let _r = transcript.squeeze_bits(NUM_CHALLENGE_BITS);
+  }
+
+  pub fn simulate_merge(transcript: &mut Transcript<E>) {
+    let T = Commitment::<E::Secondary>::default();
+    transcript.absorb(TranscriptElement::CommitmentSecondary(T));
     let _r = transcript.squeeze_bits(NUM_CHALLENGE_BITS);
   }
 
@@ -100,18 +93,7 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
 
     // TODO: Squeeze
     let r_bits = transcript.squeeze_bits(NUM_CHALLENGE_BITS);
-    let r = {
-      r_bits
-        .into_iter()
-        .rev()
-        .fold(E::Base::ZERO, |mut acc: E::Base, bit| {
-          acc = acc.double();
-          if bit {
-            acc += E::Base::ONE;
-          }
-          acc
-        })
-    };
+    let r = bits_le_to_scalar::<E::Base>(&r_bits);
 
     self
       .W
@@ -136,54 +118,55 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CS<E> {
     self.instance.E = self.instance.E + T_comm * r;
   }
 
-  // pub fn merge(
-  //   ck: &CommitmentKey<E::Secondary>,
-  //   shape: &R1CSShape<E::Secondary>,
-  //   acc_L: Self,
-  //   acc_R: &Self,
-  //   transcript: &mut Transcript<E>,
-  // ) -> Self {
-  //   let (T, T_comm) = compute_fold_proof(
-  //     ck,
-  //     shape,
-  //     &acc_L.instance.u,
-  //     &acc_L.instance.X,
-  //     &acc_L.W,
-  //     Some(acc_R.instance.u),
-  //     &acc_R.instance.X,
-  //     &acc_R.W,
-  //   );
-  //
-  //   transcript.absorb(comm_to_base::<E::Secondary>(&T_comm));
-  //   let r = transcript.squeeze_bits_secondary(NUM_CHALLENGE_BITS);
-  //
-  //   let W = zip_with!(
-  //     (acc_L.W.into_par_iter(), acc_R.W.par_iter()),
-  //     |w_L, w_R| w_L + r * w_R
-  //   )
-  //   .collect();
-  //
-  //   let E = zip_with!(
-  //     (acc_L.E.into_par_iter(), T.par_iter(), acc_R.E.par_iter()),
-  //     |e_L, t, e_R| e_L + r * (*t + r * e_R)
-  //   )
-  //   .collect();
-  //
-  //   let instance = {
-  //     let u = acc_L.instance.u + r * acc_R.instance.u;
-  //     let X = zip_eq(acc_L.instance.X, &acc_R.instance.X)
-  //       .map(|(x_L, x_R)| x_L + r * x_R)
-  //       .collect();
-  //
-  //     let W = acc_L.instance.W + acc_R.instance.W * r;
-  //     let E_tmp = T_comm + acc_R.instance.E * r;
-  //     let E = acc_L.instance.E + E_tmp * r;
-  //
-  //     RelaxedSecondaryR1CSInstance { u, X, W, E }
-  //   };
-  //
-  //   Self { instance, W, E }
-  // }
+  pub fn merge(
+    ck: &CommitmentKey<E::Secondary>,
+    shape: &R1CSShape<E::Secondary>,
+    acc_L: Self,
+    acc_R: Self,
+    transcript: &mut Transcript<E>,
+  ) -> Self {
+    let (T, T_comm) = compute_fold_proof(
+      ck,
+      shape,
+      acc_L.instance.u,
+      &acc_L.instance.X,
+      &acc_L.W,
+      Some(acc_R.instance.u),
+      &acc_R.instance.X,
+      &acc_R.W,
+    );
+
+    transcript.absorb(TranscriptElement::CommitmentSecondary(T_comm));
+    let r_bits = transcript.squeeze_bits(NUM_CHALLENGE_BITS);
+    let r = bits_le_to_scalar::<E::Base>(&r_bits);
+
+    let instance = {
+      let u = acc_L.instance.u + r * acc_R.instance.u;
+      let X = zip_eq(acc_L.instance.X, acc_R.instance.X)
+        .map(|(x_L, x_R)| x_L + r * x_R)
+        .collect();
+
+      let W = acc_L.instance.W + acc_R.instance.W * r;
+      let E_tmp = T_comm + acc_R.instance.E * r;
+      let E = acc_L.instance.E + E_tmp * r;
+
+      RelaxedSecondaryR1CSInstance { u, X, W, E }
+    };
+
+    let W = zip_with!(
+      (acc_L.W.into_par_iter(), acc_R.W.par_iter()),
+      |w_L, w_R| w_L + r * w_R
+    )
+    .collect();
+
+    let E = zip_with!(
+      (acc_L.E.into_par_iter(), T.par_iter(), acc_R.E.par_iter()),
+      |e_L, t, e_R| e_L + r * (*t + r * e_R)
+    )
+    .collect();
+
+    Self { instance, W, E }
+  }
   pub fn verify(
     &self,
     ck: &CommitmentKey<E::Secondary>,
@@ -236,4 +219,14 @@ impl<E: CurveCycleEquipped> RelaxedSecondaryR1CSInstance<E> {
     let E = TranscriptElement::CommitmentSecondary(self.E.clone());
     chain![[u], X, [W, E]]
   }
+}
+
+fn bits_le_to_scalar<F: PrimeField>(bits: &[bool]) -> F {
+  bits.into_iter().rev().fold(F::ZERO, |mut acc: F, bit| {
+    acc = acc.double();
+    if *bit {
+      acc += F::ONE;
+    }
+    acc
+  })
 }

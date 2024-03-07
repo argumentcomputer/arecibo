@@ -25,23 +25,19 @@ use crate::traits::CurveCycleEquipped;
 #[derive(Debug, PartialEq, Eq)]
 pub struct ScalarMulAccumulator<E: CurveCycleEquipped> {
   deferred: Vec<ScalarMulInstance<E>>,
-  acc: RelaxedSecondaryR1CS<E>,
+}
+
+impl<E: CurveCycleEquipped> Drop for ScalarMulAccumulator<E> {
+  fn drop(&mut self) {
+    if !self.deferred.is_empty() {
+      panic!("unproved scalar mul instances")
+    }
+  }
 }
 
 impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
-  pub fn new(acc: RelaxedSecondaryR1CS<E>) -> Self {
-    Self {
-      deferred: vec![],
-      acc,
-    }
-  }
-
-  /// Create a dummy accumulator for simulation purposes
-  pub fn dummy() -> Self {
-    Self {
-      deferred: vec![],
-      acc: RelaxedSecondaryR1CS::dummy(),
-    }
+  pub fn new() -> Self {
+    Self { deferred: vec![] }
   }
 
   /// Given two commitments `A`, `B` and a scalar `x`, compute `C <- A + x * B`
@@ -71,8 +67,9 @@ impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
     mut self,
     ck: &CommitmentKey<E::Secondary>,
     shape: &R1CSShape<E::Secondary>,
+    acc_cf: &mut RelaxedSecondaryR1CS<E>,
     transcript: &mut Transcript<E>,
-  ) -> Result<RelaxedSecondaryR1CS<E>, SynthesisError> {
+  ) -> Result<(), SynthesisError> {
     for instance in self.deferred.drain(..) {
       let mut cs = SatisfyingAssignment::<E::Secondary>::new();
 
@@ -87,17 +84,16 @@ impl<E: CurveCycleEquipped> ScalarMulAccumulator<E> {
 
       assert_eq!(&X_expected, &X[1..]);
 
-      self.acc.fold(ck, shape, &X[1..], &W, transcript);
+      acc_cf.fold(ck, shape, &X[1..], &W, transcript);
     }
-    Ok(self.acc)
+    Ok(())
   }
 
-  pub fn simulate_finalize(mut self, transcript: &mut Transcript<E>) -> RelaxedSecondaryR1CS<E> {
+  pub fn simulate_finalize(mut self, transcript: &mut Transcript<E>) {
     self
       .deferred
       .drain(..)
       .for_each(|_| RelaxedSecondaryR1CS::simulate_fold(transcript));
-    self.acc
   }
 }
 
