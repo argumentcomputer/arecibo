@@ -435,6 +435,13 @@ where
     )
   }
 
+  pub fn num_constraints_and_variables_secondary(&self) -> (usize, usize) {
+    (
+      self.circuit_shape_secondary.r1cs_shape.num_cons,
+      self.circuit_shape_secondary.r1cs_shape.num_vars,
+    )
+  }
+
   /// All of the primary circuit digests of this [`PublicParams`]
   pub fn circuit_param_digests(&self) -> CircuitDigests<E1> {
     let digests = self
