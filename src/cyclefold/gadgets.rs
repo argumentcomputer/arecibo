@@ -1,7 +1,7 @@
 use super::nova_circuit::FoldingData;
 
 use crate::{
-  constants::{NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS},
+  constants::{BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS},
   gadgets::{
     alloc_bignat_constant, f_to_nat, le_bits_to_num, AllocatedPoint, AllocatedRelaxedR1CSInstance,
     BigNat, Num,
@@ -134,7 +134,10 @@ impl<E: Engine> AllocatedCycleFoldData<E> {
     CS: ConstraintSystem<E::Base>,
   {
     // Compute r:
-    let mut ro = E::ROCircuit::new(ro_consts, 7 + NIO_CYCLE_FOLD);
+    let mut ro = E::ROCircuit::new(
+      ro_consts,
+      1 + (3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS) + (3 + NIO_CYCLE_FOLD * BN_N_LIMBS) + 3, // digest + (U) + (u) + T
+    );
     ro.absorb(params);
 
     self.U.absorb_in_ro(

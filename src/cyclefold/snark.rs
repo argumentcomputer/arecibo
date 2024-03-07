@@ -27,7 +27,7 @@ use crate::{
 };
 
 use super::{
-  nifs::{absorb_commitment, CycleFoldNIFS, PrimaryNIFS},
+  nifs::{absorb_primary_commitment, CycleFoldNIFS, PrimaryNIFS},
   nova_circuit::{AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams, FoldingData},
 };
 
@@ -441,7 +441,7 @@ where
       for e in &self.zi_primary {
         hasher.absorb(*e);
       }
-      absorb_relaxed_r1cs::<E1, Dual<E1>>(&self.r_U_primary, &mut hasher);
+      absorb_primary_relaxed_r1cs::<E1, Dual<E1>>(&self.r_U_primary, &mut hasher);
       let hash_primary = hasher.squeeze(NUM_HASH_BITS);
 
       let mut hasher = <Dual<E1> as Engine>::RO::new(
@@ -498,13 +498,13 @@ where
   }
 }
 
-fn absorb_relaxed_r1cs<E1, E2>(U: &RelaxedR1CSInstance<E1>, ro: &mut E2::RO)
+fn absorb_primary_relaxed_r1cs<E1, E2>(U: &RelaxedR1CSInstance<E1>, ro: &mut E2::RO)
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  absorb_commitment::<E1, E2>(&U.comm_W, ro);
-  absorb_commitment::<E1, E2>(&U.comm_E, ro);
+  absorb_primary_commitment::<E1, E2>(&U.comm_W, ro);
+  absorb_primary_commitment::<E1, E2>(&U.comm_E, ro);
   ro.absorb(U.u);
   for e in &U.X {
     ro.absorb(*e);

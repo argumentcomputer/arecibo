@@ -5,7 +5,9 @@ use std::marker::PhantomData;
 use ff::Field;
 
 use crate::{
-  constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
+  constants::{
+    BN_LIMB_WIDTH, BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT,
+  },
   errors::NovaError,
   gadgets::{f_to_nat, nat_to_limbs, scalar_as_base},
   r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
@@ -14,7 +16,7 @@ use crate::{
 };
 
 /// Absorb a commitment over engine `E1` into an RO over engine `E2` by absorbing the limbs
-pub fn absorb_commitment<E1, E2>(
+pub fn absorb_primary_commitment<E1, E2>(
   comm: &impl CommitmentTrait<E1>,
   ro: &mut impl ROTrait<E2::Base, E2::Scalar>,
 ) where
@@ -39,15 +41,25 @@ pub fn absorb_commitment<E1, E2>(
   }
 }
 
-fn absorb_r1cs<E1, E2>(u: &R1CSInstance<E1>, ro: &mut impl ROTrait<E2::Base, E2::Scalar>)
+fn absorb_primary_r1cs<E1, E2>(u: &R1CSInstance<E1>, ro: &mut impl ROTrait<E2::Base, E2::Scalar>)
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  absorb_commitment::<E1, E2>(&u.comm_W, ro);
+  absorb_primary_commitment::<E1, E2>(&u.comm_W, ro);
   for x in &u.X {
     ro.absorb(*x);
   }
+}
+
+fn absorb_cyclefold_r1cs<E: Engine>(u: &R1CSInstance<E>, ro: &mut E::RO) {
+  u.comm_W.absorb_in_ro(ro);
+  u.X.iter().for_each(|x| {
+    let limbs: Vec<E::Scalar> = nat_to_limbs(&f_to_nat(x), BN_LIMB_WIDTH, BN_N_LIMBS).unwrap();
+    limbs
+      .into_iter()
+      .for_each(|limb| ro.absorb(scalar_as_base::<E>(limb)));
+  });
 }
 
 /// A SNARK that holds the proof of a step of an incremental computation of the primary circuit
@@ -101,11 +113,11 @@ where
 
     ro.absorb(*pp_digest);
 
-    absorb_r1cs::<E1, E2>(U2, &mut ro);
+    absorb_primary_r1cs::<E1, E2>(U2, &mut ro);
 
     let (T, comm_T) = S.commit_T(ck, U1, W1, U2, W2)?;
 
-    absorb_commitment::<E1, E2>(&comm_T, &mut ro);
+    absorb_primary_commitment::<E1, E2>(&comm_T, &mut ro);
 
     let r = scalar_as_base::<E2>(ro.squeeze(NUM_CHALLENGE_BITS));
 
@@ -146,13 +158,15 @@ impl<E: Engine> CycleFoldNIFS<E> {
     W2: &R1CSWitness<E>,
   ) -> Result<(Self, (RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>)), NovaError> {
     // Check `U1` and `U2` have the same arity
-    let io_arity = U1.X.len();
-    if io_arity != U2.X.len() {
+    if U2.X.len() != NIO_CYCLE_FOLD || U1.X.len() != NIO_CYCLE_FOLD {
       return Err(NovaError::InvalidInputLength);
     }
 
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), 7 + io_arity);
+    let mut ro = E::RO::new(
+      ro_consts.clone(),
+      46, // 1 + (3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS) + (3 + NIO_CYCLE_FOLD * BN_N_LIMBS) + 3, // digest + (U) + (u) + T
+    );
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
@@ -162,7 +176,7 @@ impl<E: Engine> CycleFoldNIFS<E> {
     U1.absorb_in_ro(&mut ro);
 
     // append U2 to transcript
-    U2.absorb_in_ro(&mut ro);
+    absorb_cyclefold_r1cs(U2, &mut ro);
 
     // compute a commitment to the cross-term
     let (T, comm_T) = S.commit_T(ck, U1, W1, U2, W2)?;
