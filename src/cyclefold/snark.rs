@@ -1,5 +1,5 @@
-//! This module defines the Cyclefold `RecursiveSNARK` type
-//!
+//! This module defines the Cyclefold `RecursiveSNARK` type with its `new`, `prove_step`, and
+//! `verify` methods.
 
 use crate::{
   bellpepper::{
@@ -27,8 +27,9 @@ use crate::{
 };
 
 use super::{
-  nifs::{absorb_primary_commitment, CycleFoldNIFS, PrimaryNIFS},
-  nova_circuit::{AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams, FoldingData},
+  nifs::{CycleFoldNIFS, PrimaryNIFS},
+  nova_circuit::{AugmentedCircuit, AugmentedCircuitInputs, AugmentedCircuitParams},
+  util::{absorb_primary_relaxed_r1cs, FoldingData},
 };
 
 use abomonation::Abomonation;
@@ -428,6 +429,7 @@ where
       return Err(NovaError::ProofVerifyError);
     }
 
+    // Calculate the hashes of the primary running instance and cyclefold running instance
     let (hash_primary, hash_cyclefold) = {
       let mut hasher = <Dual<E1> as Engine>::RO::new(
         pp.ro_consts_primary.clone(),
@@ -456,12 +458,14 @@ where
       (hash_primary, hash_cyclefold)
     };
 
+    // Verify the hashes equal the public IO for the final primary instance
     if scalar_as_base::<Dual<E1>>(hash_primary) != self.l_u_primary.X[0]
       || scalar_as_base::<Dual<E1>>(hash_cyclefold) != self.l_u_primary.X[1]
     {
       return Err(NovaError::ProofVerifyError);
     }
 
+    // Verify the satisfiability of running relaxed instances, and the final primary instance.
     let (res_r_primary, (res_l_primary, res_r_cyclefold)) = rayon::join(
       || {
         pp.circuit_shape_primary.r1cs_shape.is_sat_relaxed(
@@ -495,19 +499,6 @@ where
     res_r_cyclefold?;
 
     Ok(self.zi_primary.clone())
-  }
-}
-
-fn absorb_primary_relaxed_r1cs<E1, E2>(U: &RelaxedR1CSInstance<E1>, ro: &mut E2::RO)
-where
-  E1: Engine<Base = <E2 as Engine>::Scalar>,
-  E2: Engine<Base = <E1 as Engine>::Scalar>,
-{
-  absorb_primary_commitment::<E1, E2>(&U.comm_W, ro);
-  absorb_primary_commitment::<E1, E2>(&U.comm_E, ro);
-  ro.absorb(U.u);
-  for e in &U.X {
-    ro.absorb(*e);
   }
 }
 

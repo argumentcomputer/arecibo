@@ -6,7 +6,6 @@ use crate::{
     alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     AllocatedRelaxedR1CSInstance,
   },
-  r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{
     circuit::StepCircuit, commitment::CommitmentTrait, Engine, ROCircuitTrait, ROConstantsCircuit,
   },
@@ -19,7 +18,10 @@ use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, SynthesisError};
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-use super::gadgets::{emulated, AllocatedCycleFoldData};
+use super::{
+  gadgets::{emulated, AllocatedCycleFoldData},
+  util::FoldingData,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct AugmentedCircuitParams {
@@ -33,20 +35,6 @@ impl AugmentedCircuitParams {
       limb_width,
       n_limbs,
     }
-  }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub(crate) struct FoldingData<E: Engine> {
-  pub U: RelaxedR1CSInstance<E>,
-  pub u: R1CSInstance<E>,
-  pub T: Commitment<E>,
-}
-
-impl<E: Engine> FoldingData<E> {
-  pub fn new(U: RelaxedR1CSInstance<E>, u: R1CSInstance<E>, T: Commitment<E>) -> Self {
-    Self { U, u, T }
   }
 }
 
@@ -254,6 +242,8 @@ where
       self.params.n_limbs,
     )?;
 
+    // In the first folding step return the default relaxed instances for both the CycleFold and
+    // primary running accumulators
     Ok((U_c_default, U_p_default))
   }
 
@@ -279,6 +269,8 @@ where
     SynthesisError,
   > {
     // Follows the outline written down here https://hackmd.io/@lurk-lab/HybHrnNFT
+
+    // Calculate the hash of the non-deterministic advice for the primary circuit
     let mut ro_p = E1::ROCircuit::new(
       self.ro_consts.clone(),
       2 + 2 * arity + 2 * NUM_FE_IN_EMULATED_POINT + 3,
@@ -299,12 +291,14 @@ where
     let hash_bits_p = ro_p.squeeze(cs.namespace(|| "primary hash bits"), NUM_HASH_BITS)?;
     let hash_p = le_bits_to_num(cs.namespace(|| "primary hash"), &hash_bits_p)?;
 
+    // check the hash matches the public IO from the last primary instance
     let check_primary = alloc_num_equals(
       cs.namespace(|| "u.X[0] = H(params, i, z0, zi, U_p)"),
       &data_p.u_x0,
       &hash_p,
     )?;
 
+    // Calculate the hash of the non-dterministic advice for the secondary circuit
     let mut ro_c = E1::ROCircuit::new(
       self.ro_consts.clone(),
       1 + 1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS, // pp + i + W + E + u + X
@@ -318,6 +312,7 @@ where
     let hash_c_bits = ro_c.squeeze(cs.namespace(|| "cyclefold hash bits"), NUM_HASH_BITS)?;
     let hash_c = le_bits_to_num(cs.namespace(|| "cyclefold hash"), &hash_c_bits)?;
 
+    // check the hash matches the public IO from the last primary instance
     let check_cyclefold = alloc_num_equals(
       cs.namespace(|| "u.X[1] = H(params, U_c)"),
       &data_p.u_x1,
@@ -363,6 +358,7 @@ where
     let h_c_1_bits = ro_c_1.squeeze(cs.namespace(|| "cyclefold_1 hash bits"), NUM_HASH_BITS)?;
     let h_c_1 = le_bits_to_num(cs.namespace(|| "cyclefold_1 hash"), &h_c_1_bits)?;
 
+    // Check the intermediate-calculated running instance matches the non-deterministic advice provided to the prover
     let check_cyclefold_int = alloc_num_equals(cs.namespace(|| "h_int = h_c_1"), &h_c_int, &h_c_1)?;
 
     let checks_pass = AllocatedBit::and(
@@ -371,6 +367,7 @@ where
       &check_cyclefold_int,
     )?;
 
+    // calculate the folded CycleFold accumulator
     let U_c = data_c_2.apply_fold(
       cs.namespace(|| "fold u_c_2 into U_c_1"),
       pp_digest,
@@ -379,6 +376,7 @@ where
       self.params.n_limbs,
     )?;
 
+    // calculate the folded primary circuit accumulator
     let U_p = data_p.U.fold_with_r1cs(
       cs.namespace(|| "fold u_p into U_p"),
       pp_digest,
@@ -401,6 +399,7 @@ where
     // Circuit is documented here: https://hackmd.io/SBvAur_2RQmaduDi7gYbhw
     let arity = self.step_circuit.arity();
 
+    // Allocate the witness
     let (pp_digest, i, z_0, z_i, data_p, data_c_1, data_c_2, E_new, W_new) =
       self.alloc_witness(cs.namespace(|| "alloc_witness"), arity)?;
 
@@ -435,12 +434,14 @@ where
       |lc| lc,
     );
 
+    // select the new running primary instance
     let Unew_p = Unew_p_base.conditionally_select(
       cs.namespace(|| "compute Unew_p"),
       &Unew_p_non_base,
       &Boolean::from(is_base_case.clone()),
     )?;
 
+    // select the new running CycleFold instance
     let Unew_c = Unew_c_base.conditionally_select(
       cs.namespace(|| "compute Unew_c"),
       &Unew_c_non_base,
@@ -476,9 +477,11 @@ where
       ));
     }
 
+    // Calculate the first component of the public IO as the hash of the calculated primary running
+    // instance
     let mut ro_p = E1::ROCircuit::new(
       self.ro_consts.clone(),
-      2 + 2 * arity + 2 * NUM_FE_IN_EMULATED_POINT + 3,
+      2 + 2 * arity + (2 * NUM_FE_IN_EMULATED_POINT + 3), // pp + i + z_0 + z_next + (U_p)
     );
     ro_p.absorb(&pp_digest);
     ro_p.absorb(&i_new);
@@ -492,10 +495,12 @@ where
     let hash_p_bits = ro_p.squeeze(cs.namespace(|| "hash_p_bits"), NUM_HASH_BITS)?;
     let hash_p = le_bits_to_num(cs.namespace(|| "hash_p"), &hash_p_bits)?;
 
+    // Calculate the second component of the public IO as the hash of the calculated CycleFold running
+    // instance
     let mut ro_c = E1::ROCircuit::new(
       self.ro_consts,
-      1 + 1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS,
-    ); // pp + i + W + E + u + X
+      1 + 1 + 3 + 3 + 1 + NIO_CYCLE_FOLD * BN_N_LIMBS, // pp + i + W + E + u + X
+    );
     ro_c.absorb(&pp_digest);
     ro_c.absorb(&i_new);
     Unew_c.absorb_in_ro(cs.namespace(|| "absorb Unew_c"), &mut ro_c)?;

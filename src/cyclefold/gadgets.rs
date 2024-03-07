@@ -1,4 +1,6 @@
-use super::nova_circuit::FoldingData;
+//! This module defines many of the gadgets needed in the primary folding circuit
+
+use super::util::FoldingData;
 
 use crate::{
   constants::{BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS},
@@ -15,6 +17,7 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use itertools::Itertools;
 
+// An allocated version of the R1CS instance obtained from a single cyclefold invocation
 pub struct AllocatedCycleFoldInstance<E: Engine> {
   W: AllocatedPoint<E::GE>,
   X: [BigNat<E::Base>; NIO_CYCLE_FOLD],
@@ -89,6 +92,7 @@ impl<E: Engine> AllocatedCycleFoldInstance<E> {
   }
 }
 
+/// An circuit allocated version of the `FoldingData` coming from a CycleFold invocation.
 pub struct AllocatedCycleFoldData<E: Engine> {
   pub U: AllocatedRelaxedR1CSInstance<E, NIO_CYCLE_FOLD>,
   pub u: AllocatedCycleFoldInstance<E>,
@@ -122,6 +126,7 @@ impl<E: Engine> AllocatedCycleFoldData<E> {
     Ok(Self { U, u, T })
   }
 
+  /// The NIFS verifier which folds the CycleFold instance into a running relaxed R1CS instance.
   pub fn apply_fold<CS>(
     &self,
     mut cs: CS,
@@ -193,6 +198,7 @@ impl<E: Engine> AllocatedCycleFoldData<E> {
 
     let mut X_fold = vec![];
 
+    // Calculate the
     for (idx, (X, x)) in self.U.X.iter().zip_eq(self.u.X.iter()).enumerate() {
       let (_, r) = x.mult_mod(cs.namespace(|| format!("r*u.X[{idx}]")), &r_bn, &m_bn)?;
       let r_new = X.add(&r)?;
@@ -235,51 +241,7 @@ pub mod emulated {
 
   use ff::Field;
 
-  pub struct EmulatedCurveParams<G>
-  where
-    G: Group,
-  {
-    pub A: BigNat<G::Base>,
-    pub B: BigNat<G::Base>,
-    pub m: BigNat<G::Base>,
-  }
-
-  impl<G: Group> EmulatedCurveParams<G> {
-    #[allow(unused)]
-    pub fn alloc<CS>(
-      mut cs: CS,
-      params: &(G::Scalar, G::Scalar, G::Scalar),
-      limb_width: usize,
-      n_limbs: usize,
-    ) -> Result<Self, SynthesisError>
-    where
-      CS: ConstraintSystem<G::Base>,
-    {
-      let A = BigNat::alloc_from_nat(
-        cs.namespace(|| "allocate A"),
-        || Ok(f_to_nat(&params.0)),
-        limb_width,
-        n_limbs,
-      )?;
-
-      let B = BigNat::alloc_from_nat(
-        cs.namespace(|| "allocate B"),
-        || Ok(f_to_nat(&params.1)),
-        limb_width,
-        n_limbs,
-      )?;
-
-      let m = BigNat::alloc_from_nat(
-        cs.namespace(|| "allocate m"),
-        || Ok(f_to_nat(&params.2)),
-        limb_width,
-        n_limbs,
-      )?;
-
-      Ok(Self { A, B, m })
-    }
-  }
-
+  /// An allocated version of a curve point from the non-native curve
   #[derive(Clone)]
   pub struct AllocatedEmulPoint<G>
   where
@@ -395,39 +357,6 @@ pub mod emulated {
       Ok(())
     }
 
-    #[allow(unused)]
-    pub fn check_on_curve<CS>(
-      &self,
-      mut cs: CS,
-      curve_params: &EmulatedCurveParams<G>,
-      _limb_width: usize,
-      _n_limbs: usize,
-    ) -> Result<(), SynthesisError>
-    where
-      CS: ConstraintSystem<G::Base>,
-    {
-      let (m_bn, A_bn, B_bn) = (
-        curve_params.m.clone(),
-        curve_params.A.clone(),
-        curve_params.B.clone(),
-      );
-
-      let (_, A_x) = A_bn.mult_mod(cs.namespace(|| "A_x"), &self.x, &m_bn)?;
-
-      let (_, x_sq) = self.x.mult_mod(cs.namespace(|| "x_sq"), &self.x, &m_bn)?;
-      let (_, x_cu) = self.x.mult_mod(cs.namespace(|| "x_cu"), &x_sq, &m_bn)?;
-
-      let rhs = x_cu.add(&A_x)?.add(&B_bn)?;
-
-      let (_, y_sq) = self.y.mult_mod(cs.namespace(|| "y_sq"), &self.y, &m_bn)?;
-
-      let always_equal = self.is_infinity.clone();
-
-      y_sq.equal_when_carried_regroup(cs.namespace(|| "y_sq = rhs"), &rhs, &always_equal)?;
-
-      Ok(())
-    }
-
     fn conditionally_select<CS: ConstraintSystem<G::Base>>(
       &self,
       mut cs: CS,
@@ -483,6 +412,8 @@ pub mod emulated {
     }
   }
 
+  /// A non-native circuit version of a `RelaxedR1CSInstance`. This is used for the in-circuit
+  /// representation of the primary running instance
   pub struct AllocatedEmulRelaxedR1CSInstance<E: Engine> {
     pub comm_W: AllocatedEmulPoint<E::GE>,
     pub comm_E: AllocatedEmulPoint<E::GE>,
@@ -539,6 +470,11 @@ pub mod emulated {
       })
     }
 
+    /// Performs a folding of a primary R1CS instance (`u_W`, `u_x0`, `u_x1`) into a running
+    /// `AllocatedEmulRelaxedR1CSInstance`
+    /// As the curve operations are performed in the CycleFold circuit and provided to the primary
+    /// circuit as non-deterministic advice, this folding simply sets those values as the new witness
+    /// and error vector commitments.
     pub fn fold_with_r1cs<CS: ConstraintSystem<<E as Engine>::Base>>(
       &self,
       mut cs: CS,
@@ -702,6 +638,8 @@ pub mod emulated {
       })
     }
   }
+
+  /// The in-circuit representation of the primary folding data.
   pub struct AllocatedFoldingData<E: Engine> {
     pub U: AllocatedEmulRelaxedR1CSInstance<E>,
     pub u_W: AllocatedEmulPoint<E::GE>,

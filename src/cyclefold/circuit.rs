@@ -1,4 +1,4 @@
-//! This module defines Cyclefold stuff
+//! This module defines Cyclefold circuit
 
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
