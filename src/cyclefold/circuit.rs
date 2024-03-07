@@ -9,10 +9,11 @@ use neptune::{circuit2::poseidon_hash_allocated, poseidon::PoseidonConstants};
 
 use crate::{
   constants::NUM_CHALLENGE_BITS,
-  gadgets::{alloc_zero, conditionally_select, le_bits_to_num, AllocatedPoint},
+  gadgets::{alloc_zero, le_bits_to_num, AllocatedPoint},
   traits::{commitment::CommitmentTrait, Engine},
   Commitment,
 };
+use bellpepper::gadgets::boolean_utils::conditionally_select;
 
 /// A structure containing the CycleFold circuit inputs and implementing the synthesize function
 pub struct CyclefoldCircuit<E: Engine> {

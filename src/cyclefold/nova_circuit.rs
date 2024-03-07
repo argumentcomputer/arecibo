@@ -3,7 +3,7 @@
 use crate::{
   constants::{BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_HASH_BITS},
   gadgets::{
-    alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
+    alloc_num_equals, alloc_scalar_as_base, alloc_zero, le_bits_to_num,
     AllocatedRelaxedR1CSInstance,
   },
   traits::{
@@ -13,7 +13,9 @@ use crate::{
 };
 
 use abomonation_derive::Abomonation;
-use bellpepper::gadgets::{boolean::Boolean, num::AllocatedNum, Assignment};
+use bellpepper::gadgets::{
+  boolean::Boolean, boolean_utils::conditionally_select_slice, num::AllocatedNum, Assignment,
+};
 use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, SynthesisError};
 use ff::Field;
 use serde::{Deserialize, Serialize};
@@ -460,7 +462,7 @@ where
     );
 
     // Compute z_{i+1}
-    let z_input = conditionally_select_vec(
+    let z_input = conditionally_select_slice(
       cs.namespace(|| "select input to F"),
       &z_0,
       &z_i,

@@ -220,7 +220,7 @@ impl<E: Engine> AllocatedCycleFoldData<E> {
 }
 
 pub mod emulated {
-  use bellpepper::gadgets::Assignment;
+  use bellpepper::gadgets::{boolean_utils::conditionally_select, Assignment};
   use bellpepper_core::{
     boolean::{AllocatedBit, Boolean},
     num::AllocatedNum,
@@ -230,8 +230,8 @@ pub mod emulated {
   use crate::{
     constants::{NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
     gadgets::{
-      alloc_zero, conditionally_select, conditionally_select_allocated_bit,
-      conditionally_select_bignat, f_to_nat, le_bits_to_num, BigNat,
+      alloc_zero, conditionally_select_allocated_bit, conditionally_select_bignat, f_to_nat,
+      le_bits_to_num, BigNat,
     },
     traits::{commitment::CommitmentTrait, Engine, Group, ROCircuitTrait, ROConstantsCircuit},
     RelaxedR1CSInstance,
