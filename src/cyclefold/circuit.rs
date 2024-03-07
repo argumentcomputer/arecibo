@@ -205,9 +205,9 @@ mod tests {
 
   #[test]
   fn test_cyclefold_circuit_size() {
-    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("1394"), &expect!("1382"));
-    test_cyclefold_circuit_size_with::<Bn256EngineKZG>(&expect!("1394"), &expect!("1382"));
-    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("1394"), &expect!("1382"));
+    test_cyclefold_circuit_size_with::<PallasEngine>(&expect!("2090"), &expect!("2081"));
+    test_cyclefold_circuit_size_with::<Bn256EngineKZG>(&expect!("2090"), &expect!("2081"));
+    test_cyclefold_circuit_size_with::<Secp256k1Engine>(&expect!("2090"), &expect!("2081"));
   }
 
   fn test_cyclefold_circuit_sat_with<E: CurveCycleEquipped>() {
