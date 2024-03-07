@@ -9,6 +9,7 @@ pub mod solidity_compatibility_utils {
   };
   use group::prime::PrimeCurve;
   use group::prime::PrimeCurveAffine;
+  use group::GroupEncoding;
   use rand::rngs::StdRng;
   use serde_json::{Map, Value};
   use std::sync::Arc;
@@ -116,6 +117,30 @@ pub mod solidity_compatibility_utils {
       value.insert(
         "y".to_string(),
         Value::String(format!("{:?}", coordinates_info.1)),
+      );
+      value_vector.push(Value::Object(value));
+    });
+    value_vector
+  }
+
+  pub(crate) fn compressed_commitment_to_json<E>(
+    ec_points: &[<E::GE as PrimeCurve>::Affine],
+  ) -> Vec<Value>
+  where
+    E: Engine,
+    E::GE: DlogGroup<ScalarExt = E::Scalar>,
+  {
+    let mut value_vector = vec![];
+    ec_points.iter().enumerate().for_each(|(i, ec_point)| {
+      let mut value = Map::new();
+      let compressed_commitment_info = ec_point.to_curve().to_bytes();
+      let mut data = compressed_commitment_info.as_ref().to_vec();
+      data.reverse();
+
+      value.insert("i".to_string(), Value::String(i.to_string()));
+      value.insert(
+        "compressed".to_string(),
+        Value::String(format!("0x{}", hex::encode(data))),
       );
       value_vector.push(Value::Object(value));
     });
