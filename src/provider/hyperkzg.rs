@@ -5,7 +5,7 @@
 //! This means that Spartan's polynomial IOP can use commit to its polynomials as-is without incurring any interpolations or FFTs.
 //! (2) HyperKZG is specialized to use KZG as the univariate commitment scheme, so it includes several optimizations (both during the transformation of multilinear-to-univariate claims
 //! and within the KZG commitment scheme implementation itself).
-//! (3) HyperKZG also includes optimisation based on so called Shplonk/HaloInfinite technique (https://hackmd.io/@adrian-aztec/BJxoyeCqj#Phase-2-Gemini).
+//! (3) HyperKZG also includes optimisation based on so called Shplonk/HaloInfinite technique (`<https://hackmd.io/@adrian-aztec/BJxoyeCqj#Phase-2-Gemini>`).
 //! Compared to pure HyperKZG, this optimisation in theory improves prover (at cost of using 1 fixed KZG opening) and verifier (at cost of eliminating MSM)
 //!
 #![allow(non_snake_case)]
