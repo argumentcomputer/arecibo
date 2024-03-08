@@ -347,7 +347,7 @@
   <span class="comment">// this is a hack; we just assume the size of the element.
   // Look for the static assertions in provider macros for a justification
   </span><span class="attr">#[abomonate_with(Vec&lt;[u64; <span class="number">8</span>]</span>&gt;)]
-  ck: Vec&lt;&lt;E::GE <span class="kw">as </span>PrimeCurve&gt;::Affine&gt;,
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) ck: Vec&lt;&lt;E::GE <span class="kw">as </span>PrimeCurve&gt;::Affine&gt;,
 }
 
 <span class="kw">impl</span>&lt;E&gt; Len <span class="kw">for </span>CommitmentKey&lt;E&gt;
@@ -379,7 +379,7 @@
   </span>E: Engine,
   E::GE: DlogGroup&lt;ScalarExt = E::Scalar&gt;,
 {
-  comm: &lt;E::GE <span class="kw">as </span>DlogGroup&gt;::Compressed,
+  <span class="kw">pub</span>(<span class="kw">crate</span>) comm: &lt;E::GE <span class="kw">as </span>DlogGroup&gt;::Compressed,
 }
 
 <span class="kw">impl</span>&lt;E&gt; CommitmentTrait&lt;E&gt; <span class="kw">for </span>Commitment&lt;E&gt;

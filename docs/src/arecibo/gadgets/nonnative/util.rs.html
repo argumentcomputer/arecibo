@@ -255,6 +255,43 @@
 <a href="#254" id="254">254</a>
 <a href="#255" id="255">255</a>
 <a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{BitAccess, OptionExt};
 <span class="kw">use </span>bellpepper_core::{
   num::AllocatedNum,
@@ -415,9 +452,9 @@
   <span class="doccomment">/// Computes the natural number represented by an array of bits.
   /// Checks if the natural number equals `self`
   </span><span class="kw">pub fn </span>is_equal&lt;CS: ConstraintSystem&lt;Scalar&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>cs: CS, other: <span class="kw-2">&amp;</span>Bitvector&lt;Scalar&gt;) {
-    <span class="kw">let </span>allocations = other.allocations.clone();
     <span class="kw">let </span><span class="kw-2">mut </span>f = Scalar::ONE;
-    <span class="kw">let </span>sum = allocations
+    <span class="kw">let </span>sum = other
+      .allocations
       .iter()
       .fold(LinearCombination::zero(), |lc, bit| {
         <span class="kw">let </span>l = lc + (f, <span class="kw-2">&amp;</span>bit.bit);
@@ -459,8 +496,7 @@
     <span class="kw">let </span>sum_lc = LinearCombination::zero() + <span class="kw-2">&amp;</span><span class="self">self</span>.num - <span class="kw-2">&amp;</span>sum;
     cs.enforce(|| <span class="string">"sum"</span>, |lc| lc + <span class="kw-2">&amp;</span>sum_lc, |lc| lc + CS::one(), |lc| lc);
     <span class="kw">let </span>bits: Vec&lt;LinearCombination&lt;Scalar&gt;&gt; = allocations
-      .clone()
-      .into_iter()
+      .iter()
       .map(|a| LinearCombination::zero() + <span class="kw-2">&amp;</span>a.bit)
       .collect();
     <span class="prelude-val">Ok</span>(Bitvector {
@@ -502,13 +538,51 @@
 <span class="doccomment">/// Convert a field element to a natural number
 </span><span class="kw">pub fn </span>f_to_nat&lt;Scalar: PrimeField&gt;(f: <span class="kw-2">&amp;</span>Scalar) -&gt; BigInt {
   <span class="kw">let </span><span class="kw-2">mut </span>s = Vec::new();
-  write_be(f, <span class="kw-2">&amp;mut </span>s).unwrap(); <span class="comment">// f.to_repr().write_be(&amp;mut s).unwrap();
-  </span>BigInt::from_bytes_le(Sign::Plus, f.to_repr().as_ref())
+  write_be(f, <span class="kw-2">&amp;mut </span>s).unwrap();
+  BigInt::from_bytes_le(Sign::Plus, f.to_repr().as_ref())
 }
 
 <span class="doccomment">/// Convert a natural number to a field element.
 /// Returns `None` if the number is too big for the field.
 </span><span class="kw">pub fn </span>nat_to_f&lt;Scalar: PrimeField&gt;(n: <span class="kw-2">&amp;</span>BigInt) -&gt; <span class="prelude-ty">Option</span>&lt;Scalar&gt; {
   Scalar::from_str_vartime(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{n}"</span>))
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+  <span class="kw">use </span>bitvec::field::BitField <span class="kw">as _</span>;
+  <span class="kw">use </span>ff::PrimeFieldBits;
+  <span class="kw">use </span>rand::SeedableRng;
+  <span class="kw">use </span>rand_chacha::ChaCha20Rng;
+
+  <span class="comment">// the write_be function above assumes Field::to_repr() outputs a representation that's an instance
+  // of `AsRef&lt;[u8]&gt;` in lower endian. We test that here, as this is not what the I2OSP standard recommends
+  // and may change in some implementations.
+  </span><span class="kw">fn </span>test_repr_is_le_with&lt;F: PrimeFieldBits&gt;() {
+    <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha20Rng::from_seed([<span class="number">0u8</span>; <span class="number">32</span>]);
+    <span class="kw">for </span>_i <span class="kw">in </span><span class="number">0</span>..<span class="number">50 </span>{
+      <span class="kw">let </span>f = F::random(<span class="kw-2">&amp;mut </span>rng);
+      <span class="comment">// This is guaranteed to be in LE
+      </span><span class="kw">let </span>le_bits = f.to_le_bits();
+      <span class="kw">let </span>leftmost_u64 = le_bits[..<span class="number">64</span>].load_le::&lt;u64&gt;();
+
+      <span class="comment">// This is not
+      </span><span class="kw">let </span>f_repr = f.to_repr();
+      <span class="kw">let </span>bytes: [u8; <span class="number">8</span>] = f_repr.as_ref()[..<span class="number">8</span>].try_into().unwrap();
+      <span class="kw">let </span>u64_from_repr = u64::from_le_bytes(bytes);
+
+      <span class="macro">assert_eq!</span>(leftmost_u64, u64_from_repr);
+    }
+  }
+
+  <span class="attr">#[test]
+  </span><span class="kw">fn </span>test_repr_is_le() {
+    test_repr_is_le_with::&lt;pasta_curves::pallas::Scalar&gt;();
+    test_repr_is_le_with::&lt;pasta_curves::pallas::Base&gt;();
+    test_repr_is_le_with::&lt;<span class="kw">crate</span>::provider::bn256_grumpkin::bn256::Scalar&gt;();
+    test_repr_is_le_with::&lt;<span class="kw">crate</span>::provider::bn256_grumpkin::bn256::Base&gt;();
+    test_repr_is_le_with::&lt;<span class="kw">crate</span>::provider::secp_secq::secp256k1::Scalar&gt;();
+    test_repr_is_le_with::&lt;<span class="kw">crate</span>::provider::secp_secq::secp256k1::Base&gt;();
+  }
 }
 </code></pre></div></section></main></body></html>

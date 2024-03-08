@@ -882,12 +882,6 @@
 <a href="#881" id="881">881</a>
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
-<a href="#889" id="889">889</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Supernova implementation support arbitrary argumented circuits and running instances.
 //! There are two Verification Circuits for each argumented circuit: The primary and the secondary.
 //! Each of them is over a cycle curve but
@@ -904,15 +898,9 @@
 </span><span class="kw">use crate</span>::{
   constants::{NIO_NOVA_FOLD, NUM_HASH_BITS},
   gadgets::{
-    ecc::AllocatedPoint,
-    r1cs::{
-      conditionally_select_alloc_relaxed_r1cs,
-      conditionally_select_vec_allocated_relaxed_r1cs_instance, AllocatedR1CSInstance,
-      AllocatedRelaxedR1CSInstance,
-    },
-    utils::{
-      alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
-    },
+    alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_alloc_relaxed_r1cs,
+    conditionally_select_vec_allocated_relaxed_r1cs_instance, le_bits_to_num, AllocatedPoint,
+    AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, ROCircuitTrait, ROConstantsCircuit},
@@ -924,7 +912,7 @@
   ConstraintSystem, SynthesisError,
 };
 
-<span class="kw">use </span>bellpepper::gadgets::Assignment;
+<span class="kw">use </span>bellpepper::gadgets::{boolean_utils::conditionally_select_slice, Assignment};
 
 <span class="kw">use </span>abomonation_derive::Abomonation;
 <span class="kw">use </span>ff::{Field, PrimeField};
@@ -1515,7 +1503,7 @@
     );
 
     <span class="comment">// Compute z_{i+1}
-    </span><span class="kw">let </span>z_input = conditionally_select_vec(
+    </span><span class="kw">let </span>z_input = conditionally_select_slice(
       cs.namespace(|| <span class="string">"select input to F"</span>),
       <span class="kw-2">&amp;</span>z_0,
       <span class="kw-2">&amp;</span>z_i,
@@ -1601,7 +1589,7 @@
       test_shape_cs::TestShapeCS,
     },
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
-    gadgets::utils::scalar_as_base,
+    gadgets::scalar_as_base,
     provider::{
       poseidon::PoseidonConstantsCircuit, Bn256EngineIPA, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,

@@ -1184,17 +1184,18 @@
 <a href="#1183" id="1183">1183</a>
 <a href="#1184" id="1184">1184</a>
 <a href="#1185" id="1185">1185</a>
+<a href="#1186" id="1186">1186</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements various elliptic curve gadgets
 </span><span class="attr">#![allow(non_snake_case)]
 </span><span class="kw">use crate</span>::{
   gadgets::utils::{
-    alloc_num_equals, alloc_one, alloc_zero, conditionally_select, conditionally_select2,
-    select_num_or_one, select_num_or_zero, select_num_or_zero2, select_one_or_diff2,
-    select_one_or_num2, select_zero_or_num2,
+    alloc_num_equals, alloc_one, alloc_zero, conditionally_select2, select_num_or_one,
+    select_num_or_zero, select_num_or_zero2, select_one_or_diff2, select_one_or_num2,
+    select_zero_or_num2,
   },
   traits::Group,
 };
-<span class="kw">use </span>bellpepper::gadgets::Assignment;
+<span class="kw">use </span>bellpepper::gadgets::{boolean_utils::conditionally_select, Assignment};
 <span class="kw">use </span>bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,
@@ -1287,18 +1288,19 @@
   }
 
   <span class="doccomment">/// Allocates a default point on the curve, set to the identity point.
-  </span><span class="kw">pub fn </span>default&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
+  </span><span class="kw">pub fn </span>default&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(<span class="kw-2">mut </span>cs: CS) -&gt; <span class="self">Self </span>{
     <span class="kw">let </span>zero = alloc_zero(cs.namespace(|| <span class="string">"zero"</span>));
     <span class="kw">let </span>one = alloc_one(cs.namespace(|| <span class="string">"one"</span>));
 
-    <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+    <span class="self">Self </span>{
       x: zero.clone(),
       y: zero,
       is_infinity: one,
-    })
+    }
   }
 
   <span class="doccomment">/// Returns coordinates associated with the point.
+  </span><span class="attr">#[allow(unused)]
   </span><span class="kw">pub const fn </span>get_coordinates(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
   ) -&gt; (
@@ -1676,7 +1678,7 @@
     <span class="comment">// convert back to AllocatedPoint
     </span><span class="kw">let </span>res = {
       <span class="comment">// we set acc.is_infinity = self.is_infinity
-      </span><span class="kw">let </span>acc = acc.to_allocated_point(<span class="kw-2">&amp;</span><span class="self">self</span>.is_infinity)<span class="question-mark">?</span>;
+      </span><span class="kw">let </span>acc = acc.to_allocated_point(<span class="kw-2">&amp;</span><span class="self">self</span>.is_infinity);
 
       <span class="comment">// we remove the initial slack if bits[0] is as not as assumed (i.e., it is not 1)
       </span><span class="kw">let </span>acc_minus_initial = {
@@ -1694,7 +1696,7 @@
 
     <span class="comment">// when self.is_infinity = 1, return the default point, else return res
     // we already set res.is_infinity to be self.is_infinity, so we do not need to set it here
-    </span><span class="kw">let </span>default = <span class="self">Self</span>::default(cs.namespace(|| <span class="string">"default"</span>))<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>default = <span class="self">Self</span>::default(cs.namespace(|| <span class="string">"default"</span>));
     <span class="kw">let </span>x = conditionally_select2(
       cs.namespace(|| <span class="string">"check if self.is_infinity is zero (x)"</span>),
       <span class="kw-2">&amp;</span>default.x,
@@ -1715,7 +1717,7 @@
       y,
       is_infinity: res.is_infinity,
     };
-    <span class="kw">let </span><span class="kw-2">mut </span>p_complete = p.to_allocated_point(<span class="kw-2">&amp;</span><span class="self">self</span>.is_infinity)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>p_complete = p.to_allocated_point(<span class="kw-2">&amp;</span><span class="self">self</span>.is_infinity);
 
     <span class="kw">for </span>(i, bit) <span class="kw">in </span>complete_bits.iter().enumerate() {
       <span class="kw">let </span>temp = acc.add(cs.namespace(|| <span class="macro">format!</span>(<span class="string">"add_complete {i}"</span>)), <span class="kw-2">&amp;</span>p_complete)<span class="question-mark">?</span>;
@@ -1782,11 +1784,13 @@
 
 <span class="kw">impl</span>&lt;G: Group&gt; AllocatedPointNonInfinity&lt;G&gt; {
   <span class="doccomment">/// Creates a new `AllocatedPointNonInfinity` from the specified coordinates
+  </span><span class="attr">#[allow(unused)]
   </span><span class="kw">pub const fn </span>new(x: AllocatedNum&lt;G::Base&gt;, y: AllocatedNum&lt;G::Base&gt;) -&gt; <span class="self">Self </span>{
     <span class="self">Self </span>{ x, y }
   }
 
   <span class="doccomment">/// Allocates a new point on the curve using coordinates provided by `coords`.
+  </span><span class="attr">#[allow(unused)]
   </span><span class="kw">pub fn </span>alloc&lt;CS: ConstraintSystem&lt;G::Base&gt;&gt;(
     <span class="kw-2">mut </span>cs: CS,
     coords: <span class="prelude-ty">Option</span>&lt;(G::Base, G::Base)&gt;,
@@ -1810,18 +1814,16 @@
   }
 
   <span class="doccomment">/// Returns an `AllocatedPoint` from an `AllocatedPointNonInfinity`
-  </span><span class="kw">pub fn </span>to_allocated_point(
-    <span class="kw-2">&amp;</span><span class="self">self</span>,
-    is_infinity: <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;AllocatedPoint&lt;G&gt;, SynthesisError&gt; {
-    <span class="prelude-val">Ok</span>(AllocatedPoint {
+  </span><span class="kw">pub fn </span>to_allocated_point(<span class="kw-2">&amp;</span><span class="self">self</span>, is_infinity: <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;) -&gt; AllocatedPoint&lt;G&gt; {
+    AllocatedPoint {
       x: <span class="self">self</span>.x.clone(),
       y: <span class="self">self</span>.y.clone(),
       is_infinity: is_infinity.clone(),
-    })
+    }
   }
 
   <span class="doccomment">/// Returns coordinates associated with the point.
+  </span><span class="attr">#[allow(unused)]
   </span><span class="kw">pub const fn </span>get_coordinates(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;, <span class="kw-2">&amp;</span>AllocatedNum&lt;G::Base&gt;) {
     (<span class="kw-2">&amp;</span><span class="self">self</span>.x, <span class="kw-2">&amp;</span><span class="self">self</span>.y)
   }

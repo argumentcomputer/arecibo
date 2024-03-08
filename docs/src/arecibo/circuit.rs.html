@@ -499,9 +499,6 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! There are two augmented circuits: the primary and the secondary.
 //! Each of them is over a curve in a 2-cycle of elliptic curves.
 //! We have two running instances. Each circuit takes as input 2 hashes: one for each
@@ -511,11 +508,8 @@
 </span><span class="kw">use crate</span>::{
   constants::{NIO_NOVA_FOLD, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
-    ecc::AllocatedPoint,
-    r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
-    utils::{
-      alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
-    },
+    alloc_num_equals, alloc_scalar_as_base, alloc_zero, le_bits_to_num, AllocatedPoint,
+    AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance,
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{
@@ -524,7 +518,7 @@
   Commitment,
 };
 <span class="kw">use </span>abomonation_derive::Abomonation;
-<span class="kw">use </span>bellpepper::gadgets::Assignment;
+<span class="kw">use </span>bellpepper::gadgets::{boolean_utils::conditionally_select_slice, Assignment};
 <span class="kw">use </span>bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,
@@ -825,7 +819,7 @@
     );
 
     <span class="comment">// Compute z_{i+1}
-    </span><span class="kw">let </span>z_input = conditionally_select_vec(
+    </span><span class="kw">let </span>z_input = conditionally_select_slice(
       cs.namespace(|| <span class="string">"select input to F"</span>),
       <span class="kw-2">&amp;</span>z_0,
       <span class="kw-2">&amp;</span>z_i,
@@ -874,7 +868,7 @@
       test_shape_cs::TestShapeCS,
     },
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
-    gadgets::utils::scalar_as_base,
+    gadgets::scalar_as_base,
     provider::{
       poseidon::PoseidonConstantsCircuit, Bn256EngineKZG, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,

@@ -919,9 +919,6 @@
 <a href="#918" id="918">918</a>
 <a href="#919" id="919">919</a>
 <a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines R1CS related types and a folding scheme for Relaxed R1CS
 </span><span class="kw">mod </span>sparse;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>util;
@@ -930,10 +927,7 @@
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
-  gadgets::{
-    nonnative::{bignat::nat_to_limbs, util::f_to_nat},
-    utils::scalar_as_base,
-  },
+  gadgets::{f_to_nat, nat_to_limbs, scalar_as_base},
   traits::{
     commitment::CommitmentEngineTrait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },

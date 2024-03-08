@@ -419,8 +419,8 @@
 </span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>VerifierKey&lt;E: Engine&gt; {
-  ck_v: Arc&lt;CommitmentKey&lt;E&gt;&gt;,
-  ck_s: CommitmentKey&lt;E&gt;,
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) ck_v: Arc&lt;CommitmentKey&lt;E&gt;&gt;,
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) ck_s: CommitmentKey&lt;E&gt;,
 }
 
 <span class="kw">impl</span>&lt;E: Engine&gt; SimpleDigestible <span class="kw">for </span>VerifierKey&lt;E&gt; {}
@@ -540,9 +540,9 @@
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>InnerProductArgument&lt;E: Engine&gt; {
-  L_vec: Vec&lt;CompressedCommitment&lt;E&gt;&gt;,
-  R_vec: Vec&lt;CompressedCommitment&lt;E&gt;&gt;,
-  a_hat: E::Scalar,
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) L_vec: Vec&lt;CompressedCommitment&lt;E&gt;&gt;,
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) R_vec: Vec&lt;CompressedCommitment&lt;E&gt;&gt;,
+  <span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::provider) a_hat: E::Scalar,
 }
 
 <span class="kw">impl</span>&lt;E&gt; InnerProductArgument&lt;E&gt;

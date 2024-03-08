@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["ecc"]};
+window.SIDEBAR_ITEMS = {};

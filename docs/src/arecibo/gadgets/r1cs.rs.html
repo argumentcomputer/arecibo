@@ -422,6 +422,8 @@
 <a href="#421" id="421">421</a>
 <a href="#422" id="422">422</a>
 <a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements various gadgets necessary for folding R1CS types.
 </span><span class="kw">use </span><span class="kw">super</span>::nonnative::{
   bignat::BigNat,
@@ -432,14 +434,16 @@
   gadgets::{
     ecc::AllocatedPoint,
     utils::{
-      alloc_bignat_constant, alloc_one, alloc_scalar_as_base, conditionally_select,
-      conditionally_select_bignat, le_bits_to_num,
+      alloc_bignat_constant, alloc_one, alloc_scalar_as_base, conditionally_select_bignat,
+      le_bits_to_num,
     },
   },
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, Group, ROCircuitTrait, ROConstantsCircuit},
 };
-<span class="kw">use </span>bellpepper::gadgets::{boolean::Boolean, num::AllocatedNum, Assignment};
+<span class="kw">use </span>bellpepper::gadgets::{
+  boolean::Boolean, boolean_utils::conditionally_select, num::AllocatedNum, Assignment,
+};
 <span class="kw">use </span>bellpepper_core::{ConstraintSystem, SynthesisError};
 <span class="kw">use </span>ff::Field;
 <span class="kw">use </span>itertools::Itertools <span class="kw">as _</span>;
@@ -548,7 +552,7 @@
     limb_width: usize,
     n_limbs: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
-    <span class="kw">let </span>W = AllocatedPoint::default(cs.namespace(|| <span class="string">"allocate W"</span>))<span class="question-mark">?</span>;
+    <span class="kw">let </span>W = AllocatedPoint::default(cs.namespace(|| <span class="string">"allocate W"</span>));
     <span class="kw">let </span>E = W.clone();
 
     <span class="kw">let </span>u = W.x.clone(); <span class="comment">// In the default case, W.x = u = 0
@@ -583,7 +587,7 @@
     limb_width: usize,
     n_limbs: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
-    <span class="kw">let </span>E = AllocatedPoint::default(cs.namespace(|| <span class="string">"allocate default E"</span>))<span class="question-mark">?</span>;
+    <span class="kw">let </span>E = AllocatedPoint::default(cs.namespace(|| <span class="string">"allocate default E"</span>));
 
     <span class="kw">let </span>u = alloc_one(cs.namespace(|| <span class="string">"one"</span>));
 
