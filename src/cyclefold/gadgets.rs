@@ -511,16 +511,7 @@ pub mod emulated {
       let r_bits = ro.squeeze(cs.namespace(|| "r bits"), NUM_CHALLENGE_BITS)?;
       let r = le_bits_to_num(cs.namespace(|| "r"), &r_bits)?;
 
-      let u_fold = AllocatedNum::alloc(cs.namespace(|| "u"), || {
-        Ok(*self.u.get_value().get()? + r.get_value().get()?)
-      })?;
-      cs.enforce(
-        || "u_fold = u + r",
-        |lc| lc,
-        |lc| lc,
-        |lc| lc + u_fold.get_variable() - self.u.get_variable() - r.get_variable(),
-      );
-
+      let u_fold = self.u.add(cs.namespace(|| "u_fold = u + r"), &r)?;
       let x0_fold = AllocatedNum::alloc(cs.namespace(|| "x0"), || {
         Ok(*self.x0.get_value().get()? + *r.get_value().get()? * *u_x0.get_value().get()?)
       })?;
