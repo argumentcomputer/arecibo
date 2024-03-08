@@ -4,7 +4,7 @@ use super::{
   },
   OptionExt,
 };
-use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, LinearCombination, SynthesisError};
+use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use ff::PrimeField;
 use itertools::Itertools as _;
 use num_bigint::BigInt;
