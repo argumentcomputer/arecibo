@@ -2,7 +2,8 @@
 mod test {
   use crate::provider::ipa_pc::EvaluationEngine;
   use crate::provider::tests::solidity_compatibility_utils::{
-    ec_points_to_json, field_elements_to_json, generate_pcs_solidity_unit_test_data,
+    compressed_commitment_to_json, ec_points_to_json, field_elements_to_json,
+    generate_pcs_solidity_unit_test_data,
   };
 
   use crate::provider::GrumpkinEngine;
@@ -33,11 +34,11 @@ Grumpkin.GrumpkinAffinePoint[] memory ck_s = new Grumpkin.GrumpkinAffinePoint[](
 uint256[] memory point = new uint256[]({{ len point }});
 {{ #each point }} point[{{ i }}]={{ val }};\n {{ /each }}
 
-Grumpkin.GrumpkinAffinePoint[] memory L_vec = new Grumpkin.GrumpkinAffinePoint[]({{ len L_vec }});
-{{ #each L_vec }} L_vec[{{ i }}]=Grumpkin.GrumpkinAffinePoint({{ x }}, {{y}});\n {{ /each }}
+uint256[] memory L_vec = new uint256[]({{ len L_vec }});
+{{ #each L_vec }} L_vec[{{ i }}]={{ compressed }};\n {{ /each }}
 
-Grumpkin.GrumpkinAffinePoint[] memory R_vec = new Grumpkin.GrumpkinAffinePoint[]({{ len R_vec }});
-{{ #each R_vec }} R_vec[{{ i }}]=Grumpkin.GrumpkinAffinePoint({{ x }}, {{y}});\n {{ /each }}
+uint256[] memory R_vec = new uint256[]({{ len R_vec }});
+{{ #each R_vec }} R_vec[{{ i }}]={{ compressed }};\n {{ /each }}
 
 uint256 a_hat = {{ a_hat }};
 
@@ -94,8 +95,8 @@ return keccak_transcript;
     let l_vec = CommitmentKey::<GrumpkinEngine>::reinterpret_commitments_as_ck(&proof.L_vec)
       .expect("can't reinterpred L_vec");
 
-    let r_vec_array = ec_points_to_json::<GrumpkinEngine>(&r_vec.ck);
-    let l_vec_array = ec_points_to_json::<GrumpkinEngine>(&l_vec.ck);
+    let r_vec_array = compressed_commitment_to_json::<GrumpkinEngine>(&r_vec.ck);
+    let l_vec_array = compressed_commitment_to_json::<GrumpkinEngine>(&l_vec.ck);
     let point_array = field_elements_to_json::<GrumpkinEngine>(&point);
     let ckv_array = ec_points_to_json::<GrumpkinEngine>(&vk.ck_v.ck);
     let cks_array = ec_points_to_json::<GrumpkinEngine>(&vk.ck_s.ck);
