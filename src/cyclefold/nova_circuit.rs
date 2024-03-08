@@ -560,8 +560,8 @@ mod test {
 
   #[test]
   fn test_augmented_circuit_size() {
-    test_augmented_circuit_size_with::<PallasEngine>(&expect!["33312"], &expect!["33339"]);
-    test_augmented_circuit_size_with::<Secp256k1Engine>(&expect!["35148"], &expect!["35175"]);
-    test_augmented_circuit_size_with::<Bn256EngineKZG>(&expect!["33879"], &expect!["33906"]);
+    test_augmented_circuit_size_with::<PallasEngine>(&expect!["33289"], &expect!["33323"]);
+    test_augmented_circuit_size_with::<Secp256k1Engine>(&expect!["35125"], &expect!["35159"]);
+    test_augmented_circuit_size_with::<Bn256EngineKZG>(&expect!["33856"], &expect!["33890"]);
   }
 }
