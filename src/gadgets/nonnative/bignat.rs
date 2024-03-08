@@ -4,10 +4,7 @@ use super::{
   },
   OptionExt,
 };
-use bellpepper_core::{
-  boolean::AllocatedBit, /*num::AllocatedNum,*/ ConstraintSystem, LinearCombination,
-  SynthesisError,
-};
+use bellpepper_core::{boolean::AllocatedBit, ConstraintSystem, LinearCombination, SynthesisError};
 use ff::PrimeField;
 use itertools::Itertools as _;
 use num_bigint::BigInt;
@@ -345,12 +342,10 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
   }
 
   /// Constrain `self` to be equal to `other`, after carrying both.
-  /// The constraint is always satisfied if `always_equal` is true.
   pub fn equal_when_carried<CS: ConstraintSystem<Scalar>>(
     &self,
     mut cs: CS,
     other: &Self,
-    always_equal: &AllocatedBit,
   ) -> Result<(), SynthesisError> {
     self.enforce_limb_width_agreement(other, "equal_when_carried")?;
 
@@ -381,7 +376,8 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
 
       cs.enforce(
         || format!("carry {i}"),
-        |lc| lc + CS::one() - always_equal.get_variable(),
+        |lc| lc,
+        |lc| lc,
         |lc| {
           lc + &carry_in.num + &self.limbs[i] - &other.limbs[i]
             + (nat_to_f(max_word).unwrap(), CS::one())
@@ -391,7 +387,6 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
               CS::one(),
             )
         },
-        |lc| lc,
       );
 
       accumulated_extra /= &target_base;
@@ -401,9 +396,9 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
       } else {
         cs.enforce(
           || format!("carry {i} is out"),
-          |lc| lc + CS::one() - always_equal.get_variable(),
-          |lc| lc + &carry.num - (nat_to_f(&accumulated_extra).unwrap(), CS::one()),
           |lc| lc,
+          |lc| lc,
+          |lc| lc + &carry.num - (nat_to_f(&accumulated_extra).unwrap(), CS::one()),
         );
       }
       carry_in = carry;
@@ -412,17 +407,17 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     for (i, zero_limb) in self.limbs.iter().enumerate().skip(n) {
       cs.enforce(
         || format!("zero self {i}"),
-        |lc| lc + CS::one() - always_equal.get_variable(),
-        |lc| lc + zero_limb,
         |lc| lc,
+        |lc| lc,
+        |lc| lc + zero_limb,
       );
     }
     for (i, zero_limb) in other.limbs.iter().enumerate().skip(n) {
       cs.enforce(
         || format!("zero other {i}"),
-        |lc| lc + CS::one() - always_equal.get_variable(),
-        |lc| lc + zero_limb,
         |lc| lc,
+        |lc| lc,
+        |lc| lc + zero_limb,
       );
     }
     Ok(())
@@ -435,7 +430,6 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     &self,
     mut cs: CS,
     other: &Self,
-    always_equal: &AllocatedBit,
   ) -> Result<(), SynthesisError> {
     self.enforce_limb_width_agreement(other, "equal_when_carried_regroup")?;
     let max_word = max(&self.params.max_word, &other.params.max_word);
@@ -449,7 +443,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
 
     let self_grouped = self.group_limbs(limbs_per_group);
     let other_grouped = other.group_limbs(limbs_per_group);
-    self_grouped.equal_when_carried(cs.namespace(|| "grouped"), &other_grouped, always_equal)
+    self_grouped.equal_when_carried(cs.namespace(|| "grouped"), &other_grouped)
   }
 
   pub fn add(&self, other: &Self) -> Result<Self, SynthesisError> {
@@ -563,16 +557,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
 
     let left_int = Self::from_poly(left, limb_width, left_max_word);
     let right_int = Self::from_poly(right, limb_width, right_max_word);
-
-    let always_equal = AllocatedBit::alloc(cs.namespace(|| "always_equal = false"), Some(false))?;
-    cs.enforce(
-      || "enforce always_equal",
-      |lc| lc,
-      |lc| lc,
-      |lc| lc + always_equal.get_variable(),
-    );
-
-    left_int.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int, &always_equal)?;
+    left_int.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int)?;
     Ok((quotient, remainder))
   }
 
@@ -617,15 +602,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     };
 
     let right_int = Self::from_poly(right, limb_width, right_max_word);
-    let always_equal = AllocatedBit::alloc(cs.namespace(|| "always_equal = false"), Some(false))?;
-    cs.enforce(
-      || "enforce always_equal",
-      |lc| lc,
-      |lc| lc,
-      |lc| lc + always_equal.get_variable(),
-    );
-
-    self.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int, &always_equal)?;
+    self.equal_when_carried_regroup(cs.namespace(|| "carry"), &right_int)?;
     Ok(remainder)
   }
 
