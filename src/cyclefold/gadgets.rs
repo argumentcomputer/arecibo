@@ -230,8 +230,8 @@ pub mod emulated {
   use crate::{
     constants::{NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},
     gadgets::{
-      alloc_zero, conditionally_select_allocated_bit, conditionally_select_bignat, f_to_nat,
-      le_bits_to_num, BigNat,
+      alloc_bignat_constant, alloc_zero, conditionally_select_allocated_bit,
+      conditionally_select_bignat, f_to_nat, le_bits_to_num, BigNat,
     },
     traits::{commitment::CommitmentTrait, Engine, Group, ROCircuitTrait, ROConstantsCircuit},
     RelaxedR1CSInstance,
@@ -392,21 +392,26 @@ pub mod emulated {
       limb_width: usize,
       n_limbs: usize,
     ) -> Result<Self, SynthesisError> {
-      let x = BigNat::alloc_from_nat(
+      let x = alloc_bignat_constant(
         cs.namespace(|| "allocate x_default = 0"),
-        || Ok(f_to_nat(&G::Scalar::ZERO)),
+        &f_to_nat(&G::Base::ZERO),
         limb_width,
         n_limbs,
       )?;
-
-      let y = BigNat::alloc_from_nat(
+      let y = alloc_bignat_constant(
         cs.namespace(|| "allocate y_default = 0"),
-        || Ok(f_to_nat(&G::Scalar::ZERO)),
+        &f_to_nat(&G::Base::ZERO),
         limb_width,
         n_limbs,
       )?;
 
       let is_infinity = AllocatedBit::alloc(cs.namespace(|| "allocate is_infinity"), Some(true))?;
+      cs.enforce(
+        || "is_infinity = 1",
+        |lc| lc,
+        |lc| lc,
+        |lc| lc + CS::one() - is_infinity.get_variable(),
+      );
 
       Ok(Self { x, y, is_infinity })
     }
