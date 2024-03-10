@@ -134,13 +134,13 @@ impl<F: PrimeField> SparseMatrix<F> {
     level = "trace",
     name = "SparseMatrix::multiply_vec_unchecked"
   )]
-  pub fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
+  fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
     let mut sink: Vec<F> = Vec::with_capacity(self.indptr.len() - 1);
     self.multiply_vec_into_unchecked(vector, &mut sink);
     sink
   }
 
-  pub fn multiply_vec_into_unchecked(&self, vector: &[F], sink: &mut Vec<F>) {
+  fn multiply_vec_into_unchecked(&self, vector: &[F], sink: &mut Vec<F>) {
     self
       .indptr
       .par_windows(2)
@@ -167,7 +167,7 @@ impl<F: PrimeField> SparseMatrix<F> {
     level = "trace",
     name = "SparseMatrix::multiply_vec_unchecked"
   )]
-  pub fn multiply_witness_unchecked(&self, W: &[F], u: &F, X: &[F]) -> Vec<F> {
+  fn multiply_witness_unchecked(&self, W: &[F], u: &F, X: &[F]) -> Vec<F> {
     // preallocate the result vector
     let mut sink = Vec::with_capacity(self.indptr.len() - 1);
     self.multiply_witness_into_unchecked(W, u, X, &mut sink);
@@ -183,7 +183,7 @@ impl<F: PrimeField> SparseMatrix<F> {
 
   /// Multiply by a witness representing a dense vector; uses rayon to parallelize.
   /// This does not check that the shape of the matrix/vector are compatible.
-  pub fn multiply_witness_into_unchecked(&self, W: &[F], u: &F, X: &[F], sink: &mut Vec<F>) {
+  fn multiply_witness_into_unchecked(&self, W: &[F], u: &F, X: &[F], sink: &mut Vec<F>) {
     let num_vars = W.len();
     self
       .indptr
