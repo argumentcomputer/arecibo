@@ -12,7 +12,7 @@ use rand_core::{CryptoRng, RngCore, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::provider::pedersen::Commitment;
+use crate::provider::pcs::pedersen::Commitment;
 use crate::provider::traits::DlogGroup;
 use crate::provider::util::fb_msm;
 use crate::{
@@ -88,7 +88,7 @@ impl<E: Engine> KZGProverKey<E> {
     }
   }
 
-  pub fn powers_of_g(&self) -> &[E::G1Affine] {
+  pub(in crate::provider) fn powers_of_g(&self) -> &[E::G1Affine] {
     &self.uv_params.powers_of_g[self.offset..self.offset + self.supported_size]
   }
 }

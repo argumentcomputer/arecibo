@@ -12,8 +12,8 @@
 use crate::{
   errors::NovaError,
   provider::{
-    kzg_commitment::{KZGCommitmentEngine, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
-    pedersen::Commitment,
+    pcs::kzg_commitment::{KZGCommitmentEngine, KZGProverKey, KZGVerifierKey, UniversalKZGParam},
+    pcs::pedersen::Commitment,
     traits::DlogGroup,
     util::iterators::IndexedParallelIteratorExt as _,
   },

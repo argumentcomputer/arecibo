@@ -2,15 +2,13 @@
 //!
 //!
 
+use crate::provider::pcs::kzg_commitment::{
+  KZGCommitmentEngine, KZGProverKey, KZGVerifierKey, UVKZGCommitment, UniversalKZGParam,
+};
 use crate::{
   digest::SimpleDigestible,
   errors::{NovaError, PCSError},
-  provider::{
-    kzg_commitment::{
-      KZGCommitmentEngine, KZGProverKey, KZGVerifierKey, UVKZGCommitment, UniversalKZGParam,
-    },
-    traits::DlogGroup,
-  },
+  provider::traits::DlogGroup,
   spartan::polys::{multilinear::MultilinearPolynomial, univariate::UniPoly},
   traits::{
     commitment::Len, evaluation::EvaluationEngineTrait, Engine as NovaEngine, Group,
@@ -612,16 +610,14 @@ mod test {
 
   use super::{quotients, UVKZGPCS};
 
+  use crate::provider::pcs::{
+    kzg_commitment::{KZGProverKey, UVKZGCommitment, UniversalKZGParam},
+    non_hiding_zeromorph::{batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMPCS},
+  };
   use crate::spartan::polys::univariate::UniPoly;
   use crate::{
     errors::PCSError,
-    provider::{
-      kzg_commitment::{KZGProverKey, UVKZGCommitment, UniversalKZGParam},
-      non_hiding_zeromorph::{batched_lifted_degree_quotient, eval_and_quotient_scalars, ZMPCS},
-      traits::DlogGroup,
-      util::test_utils::prove_verify_from_num_vars,
-      Bn256EngineZM,
-    },
+    provider::{traits::DlogGroup, util::test_utils::prove_verify_from_num_vars, Bn256EngineZM},
     spartan::polys::multilinear::MultilinearPolynomial,
     NovaError,
   };
