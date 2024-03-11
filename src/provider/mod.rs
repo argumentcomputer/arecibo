@@ -27,7 +27,7 @@ use crate::{
 use halo2curves::bn256::Bn256;
 use pasta_curves::{pallas, vesta};
 
-use pcs::kzg_commitment::KZGCommitmentEngine;
+use pcs::kzg10_utilities::KZGCommitmentEngine;
 use pcs::pedersen::CommitmentEngine as PedersenCommitmentEngine;
 
 /// An implementation of the Nova `Engine` trait with Grumpkin curve and Pedersen commitment scheme

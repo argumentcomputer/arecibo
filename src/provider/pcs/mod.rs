@@ -4,6 +4,6 @@
 pub mod hyperkzg;
 pub mod ipa_pc;
 // a non-hiding variant of {kzg, zeromorph}
-pub mod kzg_commitment;
+pub mod kzg10_utilities;
 pub mod non_hiding_zeromorph;
 pub mod pedersen;
