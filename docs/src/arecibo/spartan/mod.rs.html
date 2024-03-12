@@ -327,6 +327,7 @@
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! We provide two implementations, one in snark.rs (which does not use any preprocessing)
@@ -503,9 +504,10 @@
   <span class="macro">assert_eq!</span>(rx.len(), S.num_cons);
 
   <span class="kw">let </span>inner = |M: <span class="kw-2">&amp;</span>SparseMatrix&lt;E::Scalar&gt;, M_evals: <span class="kw-2">&amp;mut </span>Vec&lt;E::Scalar&gt;| {
-    <span class="kw">for </span>(row_idx, ptrs) <span class="kw">in </span>M.indptr.windows(<span class="number">2</span>).enumerate() {
-      <span class="kw">for </span>(val, col_idx) <span class="kw">in </span>M.get_row_unchecked(ptrs.try_into().unwrap()) {
-        M_evals[<span class="kw-2">*</span>col_idx] += rx[row_idx] * val;
+    <span class="kw">for </span>(row_idx, row) <span class="kw">in </span>M.iter_rows().enumerate() {
+      <span class="kw">for </span>(val, col_idx) <span class="kw">in </span>M.get_row(row) {
+        <span class="comment">// TODO(@winston-h-zhang): Parallelize? Will need more complicated locking
+        </span>M_evals[<span class="kw-2">*</span>col_idx] += rx[row_idx] * val;
       }
     }
   };

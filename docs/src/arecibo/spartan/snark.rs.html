@@ -553,7 +553,6 @@
 <a href="#552" id="552">552</a>
 <a href="#553" id="553">553</a>
 <a href="#554" id="554">554</a>
-<a href="#555" id="555">555</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARKTrait` using Spartan that is generic
 //! over the polynomial commitment and evaluation argument (i.e., a PCS)
 //! This version of Spartan does not use preprocessing so the verifier keeps the entire
@@ -907,11 +906,10 @@
      -&gt; Vec&lt;E::Scalar&gt; {
       <span class="kw">let </span>evaluate_with_table =
         |M: <span class="kw-2">&amp;</span>SparseMatrix&lt;E::Scalar&gt;, T_x: <span class="kw-2">&amp;</span>[E::Scalar], T_y: <span class="kw-2">&amp;</span>[E::Scalar]| -&gt; E::Scalar {
-          M.indptr
-            .par_windows(<span class="number">2</span>)
+          M.par_iter_rows()
             .enumerate()
-            .map(|(row_idx, ptrs)| {
-              M.get_row_unchecked(ptrs.try_into().unwrap())
+            .map(|(row_idx, row)| {
+              M.get_row(row)
                 .map(|(val, col_idx)| T_x[row_idx] * T_y[<span class="kw-2">*</span>col_idx] * val)
                 .sum::&lt;E::Scalar&gt;()
             })

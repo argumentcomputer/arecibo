@@ -267,9 +267,9 @@
 ) {
   <span class="kw">let </span>(A, B, C, nn) = X;
   <span class="kw">let </span>n = <span class="kw-2">**</span>nn;
-  <span class="macro">assert_eq!</span>(n + <span class="number">1</span>, A.indptr.len(), <span class="string">"A: invalid shape"</span>);
-  <span class="macro">assert_eq!</span>(n + <span class="number">1</span>, B.indptr.len(), <span class="string">"B: invalid shape"</span>);
-  <span class="macro">assert_eq!</span>(n + <span class="number">1</span>, C.indptr.len(), <span class="string">"C: invalid shape"</span>);
+  <span class="macro">assert_eq!</span>(n, A.num_rows(), <span class="string">"A: invalid shape"</span>);
+  <span class="macro">assert_eq!</span>(n, B.num_rows(), <span class="string">"B: invalid shape"</span>);
+  <span class="macro">assert_eq!</span>(n, C.num_rows(), <span class="string">"C: invalid shape"</span>);
 
   <span class="kw">let </span>add_constraint_component = |index: Index, coeff: <span class="kw-2">&amp;</span>S, M: <span class="kw-2">&amp;mut </span>SparseMatrix&lt;S&gt;| {
     <span class="comment">// we add constraints to the matrix only if the associated coefficient is non-zero
