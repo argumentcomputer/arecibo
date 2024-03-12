@@ -112,9 +112,9 @@ fn add_constraint<S: PrimeField>(
 ) {
   let (A, B, C, nn) = X;
   let n = **nn;
-  assert_eq!(n + 1, A.indptr.len(), "A: invalid shape");
-  assert_eq!(n + 1, B.indptr.len(), "B: invalid shape");
-  assert_eq!(n + 1, C.indptr.len(), "C: invalid shape");
+  assert_eq!(n, A.num_rows(), "A: invalid shape");
+  assert_eq!(n, B.num_rows(), "B: invalid shape");
+  assert_eq!(n, C.num_rows(), "C: invalid shape");
 
   let add_constraint_component = |index: Index, coeff: &S, M: &mut SparseMatrix<S>| {
     // we add constraints to the matrix only if the associated coefficient is non-zero

@@ -13,6 +13,7 @@ use ff::PrimeField;
 use itertools::Itertools as _;
 use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::*;
+use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 
 /// CSR format sparse matrix, We follow the names used by scipy.
@@ -30,6 +31,11 @@ pub struct SparseMatrix<F: PrimeField> {
   /// number of columns
   pub cols: usize,
 }
+
+/// Wrapper type for encode rows of [`SparseMatrix`]
+#[derive(Debug, Clone, RefCast)]
+#[repr(transparent)]
+pub struct RowData([usize; 2]);
 
 /// [`SparseMatrix`]s are often large, and this helps with cloning bottlenecks
 impl<F: PrimeField> Clone for SparseMatrix<F> {
@@ -109,6 +115,30 @@ impl<F: PrimeField> SparseMatrix<F> {
       .collect::<Vec<_>>();
 
     Self::new(&matrix, rows, cols)
+  }
+
+  /// Returns an iterator into the rows
+  pub fn iter_rows(&self) -> impl Iterator<Item = &RowData> {
+    self
+      .indptr
+      .windows(2)
+      .map(|ptrs| RowData::ref_cast(ptrs.try_into().unwrap()))
+  }
+
+  /// Returns a parallel iterator into the rows
+  pub fn par_iter_rows(&self) -> impl IndexedParallelIterator<Item = &RowData> {
+    self
+      .indptr
+      .par_windows(2)
+      .map(|ptrs| RowData::ref_cast(ptrs.try_into().unwrap()))
+  }
+
+  /// Retrieves the data for row slice [i..j] from `row`.
+  /// [`RowData`] **must** be created from unmodified `self` previously to guarentee safety.
+  pub fn get_row(&self, row: &RowData) -> impl Iterator<Item = (&F, &usize)> {
+    self.data[row.0[0]..row.0[1]]
+      .iter()
+      .zip_eq(&self.indices[row.0[0]..row.0[1]])
   }
 
   /// Retrieves the data for row slice [i..j] from `ptrs`.
@@ -225,6 +255,14 @@ impl<F: PrimeField> SparseMatrix<F> {
       i: 0,
       nnz: *self.indptr.last().unwrap(),
     }
+  }
+
+  pub fn num_rows(&self) -> usize {
+    self.indptr.len() - 1
+  }
+
+  pub fn num_cols(&self) -> usize {
+    self.cols
   }
 }
 
