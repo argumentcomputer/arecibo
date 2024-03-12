@@ -42,6 +42,7 @@ jobs:
     uses: lurk-lab/ci-workflows/.github/workflows/check-lurk-compiles.yml@main
     with:
       runner: "buildjet-8vcpu-ubuntu-2204"
+      packages: "pkg-config libssl-dev protobuf-compiler libprotobuf-dev"
 
   # Rustfmt, clippy, doctests
   code-quality:
