@@ -4,7 +4,7 @@ use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::SynthesisError::AssignmentMissing;
 use ff::{Field, PrimeField};
-use neptune::circuit2::{Elt, poseidon_hash_allocated};
+use neptune::circuit2::poseidon_hash_allocated;
 use neptune::generic_array::typenum::U2;
 use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
@@ -45,7 +45,7 @@ impl<G: Group> AllocatedPoint<G> {
   }
 
   #[allow(unused)]
-  pub fn enforce_trivial<CS>(&self, mut cs: CS, is_trivial: &Boolean)
+  pub fn enforce_identity<CS>(&self, mut cs: CS, is_trivial: &Boolean)
   where
     CS: ConstraintSystem<G::Base>,
   {
@@ -154,6 +154,20 @@ impl<G: Group> AllocatedPoint<G> {
     );
 
     Self { x, y, is_infinity }
+  }
+
+  pub fn get_value(&self) -> Option<(G::Base, G::Base, bool)> {
+    let x = self.x.get_value()?;
+    let y = self.y.get_value()?;
+    let is_infinity = self.is_infinity.get_value().map(|is_infinity| {
+      if is_infinity == G::Base::ZERO {
+        false
+      } else if is_infinity == G::Base::ONE {
+        true
+      } else {
+        unreachable!("is_infinity should be 0 or 1")
+      }})?;
+    Some((x, y, is_infinity))
   }
 
   /// checks if `self` is on the curve or if it is infinity
@@ -691,13 +705,6 @@ impl<G: Group> AllocatedPoint<G> {
     )?;
 
     Ok(Self { x, y, is_infinity })
-  }
-
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<G::Base>> {
-    [
-      Elt::Allocated(self.x.clone()),
-      Elt::Allocated(self.y.clone()),
-    ]
   }
 }
 

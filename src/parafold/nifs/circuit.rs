@@ -2,13 +2,11 @@ use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::num::AllocatedNum;
 use ff::PrimeField;
 use itertools::*;
-use neptune::circuit2::{Elt, poseidon_hash_allocated};
 
-use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
 use crate::parafold::cycle_fold::circuit::AllocatedScalarMulAccumulator;
-use crate::parafold::nifs::{
-  PRIMARY_R1CS_INSTANCE_SIZE, R1CSPoseidonConstants, RelaxedR1CSInstance,
-};
+use crate::parafold::gadgets::primary_commitment::AllocatedPrimaryCommitment;
+use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter};
+use crate::parafold::nifs::RelaxedR1CSInstance;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -27,7 +25,7 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
   pub fn fold<CS>(
     &mut self,
     mut cs: CS,
-    X_new: AllocatedNum<E::Scalar>,
+    X_new: &AllocatedNum<E::Scalar>,
     acc_sm: &mut AllocatedScalarMulAccumulator<E>,
     transcript: &mut AllocatedTranscript<E>,
   ) -> Result<(), SynthesisError>
@@ -50,7 +48,7 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
 
     // Linear combination of acc with new
     self.u = u_curr.add(cs.namespace(|| "u_new"), &r)?;
-    self.X = mul_add(cs.namespace(|| "X_next"), X_curr, &X_new, &r)?;
+    self.X = mul_add(cs.namespace(|| "X_next"), X_curr, X_new, &r)?;
     // W_next = W_curr + r * W_new
     self.W = acc_sm.scalar_mul(
       cs.namespace(|| "W_next"),
@@ -90,12 +88,9 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     // Get common challenge
     let r = transcript.squeeze(cs.namespace(|| "squeeze r"))?;
     let r_bits = r.to_bits_le(cs.namespace(|| "r_bits"))?;
-    if let Some(r) = r.get_value() {
-      println!("c mm: {:?}", r);
-    }
 
     // Merge all accumulators
-    zip_eq(accs_L.into_iter(), accs_R.into_iter())
+    zip_eq(accs_L, accs_R)
       .zip_eq(Ts)
       .enumerate()
       .map(|(i, ((acc_L, acc_R), T))| {
@@ -142,22 +137,7 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
       .collect::<Result<Vec<_>, _>>()
   }
 
-  /// Compute the hash of the accumulator over the primary curve.  
-  pub fn hash<CS>(&self, mut cs: CS) -> Result<AllocatedNum<E::Scalar>, SynthesisError>
-  where
-    CS: ConstraintSystem<E::Scalar>,
-  {
-    let elements = self
-      .as_preimage()
-      .into_iter()
-      .enumerate()
-      .map(|(i, x)| x.ensure_allocated(&mut cs.namespace(|| format!("alloc {i}")), true))
-      .collect::<Result<Vec<_>, _>>()?;
-    let constants = R1CSPoseidonConstants::<E>::new_constant_length(PRIMARY_R1CS_INSTANCE_SIZE);
-    poseidon_hash_allocated(cs.namespace(|| "hash"), elements, &constants)
-  }
-
-  pub fn alloc<CS>(mut cs: CS, instance: &RelaxedR1CSInstance<E>) -> Self
+  pub fn alloc<CS>(mut cs: CS, instance: RelaxedR1CSInstance<E>) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
   {
@@ -165,22 +145,20 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     let u = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc u"), || instance.u);
     let X = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc X"), || instance.X);
 
-    let W = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc W"), &instance.W);
-    let E = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc E"), &instance.E);
+    let W = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc W"), instance.W);
+    let E = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc E"), instance.E);
 
     Self { pp, u, X, W, E }
   }
+}
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<E::Scalar>> {
-    chain!(
-      [
-        Elt::Allocated(self.pp.clone()),
-        Elt::Allocated(self.u.clone()),
-        Elt::Allocated(self.X.clone()),
-      ],
-      self.W.as_preimage(),
-      self.E.as_preimage()
-    )
+impl<E: CurveCycleEquipped> AllocatedHashWriter<E::Scalar> for AllocatedRelaxedR1CSInstance<E> {
+  fn write<H: AllocatedHasher<E::Scalar>>(&self, hasher: &mut H) {
+    self.pp.write(hasher);
+    self.u.write(hasher);
+    self.X.write(hasher);
+    self.W.write(hasher);
+    self.E.write(hasher);
   }
 }
 

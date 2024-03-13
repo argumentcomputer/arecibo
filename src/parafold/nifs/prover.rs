@@ -1,20 +1,17 @@
 use ff::Field;
-use itertools::{chain, Itertools};
-use neptune::Poseidon;
+use itertools::Itertools;
 use rayon::prelude::*;
 
+use crate::{Commitment, CommitmentKey, zip_with};
 use crate::errors::NovaError::{ProofVerifyError, UnSatIndex};
 use crate::parafold::cycle_fold::prover::ScalarMulAccumulator;
-use crate::parafold::nifs::{
-  compute_fold_proof, R1CSPoseidonConstants, RelaxedR1CSInstance, PRIMARY_R1CS_INSTANCE_SIZE,
-};
+use crate::parafold::hash::HashElement;
+use crate::parafold::nifs::{compute_fold_proof, RelaxedR1CSInstance};
 use crate::parafold::transcript::prover::Transcript;
-use crate::parafold::transcript::TranscriptElement;
 use crate::r1cs::R1CSShape;
 use crate::supernova::error::SuperNovaError;
 use crate::traits::commitment::CommitmentEngineTrait;
 use crate::traits::CurveCycleEquipped;
-use crate::{zip_with, Commitment, CommitmentKey};
 
 /// A full Relaxed-R1CS accumulator for a circuit
 /// # TODO:
@@ -44,45 +41,9 @@ impl<E: CurveCycleEquipped> RelaxedR1CS<E> {
       E: vec![E::Scalar::ZERO; shape.num_cons],
     }
   }
+
   pub fn instance(&self) -> &RelaxedR1CSInstance<E> {
     &self.instance
-  }
-
-  /// Simulate the fold protocol for a circuit on the primary curve, creating a trivial proof,
-  /// while updating the transcript with the standard pattern.
-  pub fn simulate_fold(acc_sm: &mut ScalarMulAccumulator<E>, transcript: &mut Transcript<E>) {
-    let W_curr = Commitment::<E>::default();
-    let E_curr = Commitment::<E>::default();
-    let W_new = Commitment::<E>::default();
-    let T = Commitment::<E>::default();
-    transcript.absorb(TranscriptElement::CommitmentPrimary(W_new));
-    transcript.absorb(TranscriptElement::CommitmentPrimary(T));
-
-    let r = transcript.squeeze();
-    let _W_next = acc_sm.scalar_mul(W_curr, W_new, r, transcript);
-    let _E_next = acc_sm.scalar_mul(E_curr, T, r, transcript);
-  }
-
-  pub fn simulate_merge_many(
-    n: usize,
-    acc_sm: &mut ScalarMulAccumulator<E>,
-    transcript: &mut Transcript<E>,
-  ) {
-    let W_L = Commitment::<E>::default();
-    let W_R = Commitment::<E>::default();
-    let E_L = Commitment::<E>::default();
-    let E_R = Commitment::<E>::default();
-    let T = Commitment::<E>::default();
-    for _ in 0..n {
-      transcript.absorb(TranscriptElement::CommitmentPrimary(T.clone()));
-    }
-
-    let r = transcript.squeeze();
-    for _ in 0..n {
-      let _W = acc_sm.scalar_mul(W_L, W_R, r, transcript);
-      let E_tmp = acc_sm.scalar_mul(T, E_R, r, transcript);
-      let _E = acc_sm.scalar_mul(E_L, E_tmp, r, transcript);
-    }
   }
 
   /// Given the public IO `X_new` for a circuit with R1CS representation `shape`,
@@ -117,8 +78,8 @@ impl<E: CurveCycleEquipped> RelaxedR1CS<E> {
       )
     };
 
-    transcript.absorb(TranscriptElement::CommitmentPrimary(W_comm_new));
-    transcript.absorb(TranscriptElement::CommitmentPrimary(T_comm));
+    transcript.absorb(HashElement::CommitmentPrimary(W_comm_new));
+    transcript.absorb(HashElement::CommitmentPrimary(T_comm));
 
     let r = transcript.squeeze();
 
@@ -172,10 +133,9 @@ impl<E: CurveCycleEquipped> RelaxedR1CS<E> {
     .unzip();
 
     for T_comm in &T_comms {
-      transcript.absorb(TranscriptElement::CommitmentPrimary(*T_comm));
+      transcript.absorb(HashElement::CommitmentPrimary(*T_comm));
     }
     let r = transcript.squeeze();
-    println!("p mm: {:?}", r);
 
     zip_with!(
       (
@@ -250,97 +210,5 @@ impl<E: CurveCycleEquipped> RelaxedR1CS<E> {
       return Err(SuperNovaError::NovaError(ProofVerifyError));
     }
     Ok(())
-  }
-}
-
-impl<E: CurveCycleEquipped> RelaxedR1CSInstance<E> {
-  pub fn dummy() -> Self {
-    Self {
-      pp: Default::default(),
-      u: Default::default(),
-      X: Default::default(),
-      W: Default::default(),
-      E: Default::default(),
-    }
-  }
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = TranscriptElement<E>> {
-    chain!(
-      [self.pp, self.u, self.X].map(TranscriptElement::Scalar),
-      [
-        TranscriptElement::CommitmentPrimary(self.W.clone()),
-        TranscriptElement::CommitmentPrimary(self.E.clone())
-      ],
-    )
-  }
-
-  /// On the primary curve, the instances are stored as hashes in the recursive state.
-  pub fn hash(&self) -> E::Scalar {
-    let elements = self
-      .as_preimage()
-      .into_iter()
-      .map(|x| x.to_field())
-      .flatten()
-      .collect::<Vec<_>>();
-    let constants = R1CSPoseidonConstants::<E>::new_constant_length(PRIMARY_R1CS_INSTANCE_SIZE);
-    Poseidon::new_with_preimage(&elements, &constants).hash()
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use bellpepper_core::test_cs::TestConstraintSystem;
-  use bellpepper_core::ConstraintSystem;
-  use itertools::zip_eq;
-
-  use crate::parafold::nifs::circuit::AllocatedRelaxedR1CSInstance;
-  use crate::parafold::nifs::PRIMARY_R1CS_INSTANCE_SIZE;
-  use crate::provider::Bn256EngineKZG as E;
-  use crate::traits::Engine;
-
-  use super::*;
-
-  type Scalar = <E as Engine>::Scalar;
-
-  type CS = TestConstraintSystem<Scalar>;
-
-  #[test]
-  fn test_hash() {
-    let mut cs = CS::new();
-
-    let acc = RelaxedR1CSInstance::<E>::dummy();
-    let allocated_acc =
-      AllocatedRelaxedR1CSInstance::<E>::alloc(cs.namespace(|| "alloc acc"), &acc);
-    let acc_hash = acc.hash();
-    let allocated_acc_hash = allocated_acc.hash(cs.namespace(|| "hash")).unwrap();
-
-    let acc_field = acc
-      .as_preimage()
-      .into_iter()
-      .map(|x| x.to_field())
-      .flatten()
-      .collect::<Vec<_>>();
-    let allocated_acc_field = allocated_acc
-      .as_preimage()
-      .into_iter()
-      .enumerate()
-      .map(|(i, x)| {
-        x.ensure_allocated(&mut cs.namespace(|| format!("alloc x[{i}]")), true)
-          .unwrap()
-      })
-      .collect::<Vec<_>>();
-
-    assert_eq!(acc_field.len(), PRIMARY_R1CS_INSTANCE_SIZE);
-    assert_eq!(allocated_acc_field.len(), PRIMARY_R1CS_INSTANCE_SIZE);
-
-    for (_i, (x, allocated_x)) in zip_eq(acc_field, allocated_acc_field).enumerate() {
-      assert_eq!(x, allocated_x.get_value().unwrap());
-    }
-
-    assert_eq!(acc_hash, allocated_acc_hash.get_value().unwrap());
-
-    if !cs.is_satisfied() {
-      println!("{:?}", cs.which_is_unsatisfied());
-    }
-    assert!(cs.is_satisfied());
   }
 }

@@ -1,13 +1,12 @@
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::boolean::Boolean;
-use itertools::{chain, zip_eq};
-use neptune::circuit2::Elt;
+use itertools::{enumerate, zip_eq};
 
 use crate::constants::NUM_CHALLENGE_BITS;
-use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
-use crate::parafold::cycle_fold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
-use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
-use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CSInstance;
+use crate::parafold::gadgets::emulated::AllocatedBase;
+use crate::parafold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
+use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter};
+use crate::parafold::nifs_secondary::{NUM_IO_SECONDARY, RelaxedSecondaryR1CSInstance};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -125,21 +124,18 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
   }
 
   /// Allocate and add the result to the transcript
-  pub fn alloc_unchecked<CS>(mut cs: CS, instance: &RelaxedSecondaryR1CSInstance<E>) -> Self
+  pub fn alloc_unchecked<CS>(mut cs: CS, instance: RelaxedSecondaryR1CSInstance<E>) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
   {
     let u = AllocatedBase::alloc_unchecked(cs.namespace(|| "read u"), instance.u);
-    let X = instance
-      .X
-      .iter()
-      .enumerate()
-      .map(|(i, x)| AllocatedBase::alloc_unchecked(cs.namespace(|| format!("read x[{i}]")), *x))
+    let X = enumerate(instance.X)
+      .map(|(i, x)| AllocatedBase::alloc_unchecked(cs.namespace(|| format!("read x[{i}]")), x))
       .collect();
     let W =
-      AllocatedSecondaryCommitment::<E>::alloc_unchecked(cs.namespace(|| "read W"), &instance.W);
+      AllocatedSecondaryCommitment::<E>::alloc_unchecked(cs.namespace(|| "read W"), instance.W);
     let E =
-      AllocatedSecondaryCommitment::<E>::alloc_unchecked(cs.namespace(|| "read E"), &instance.E);
+      AllocatedSecondaryCommitment::<E>::alloc_unchecked(cs.namespace(|| "read E"), instance.E);
     Self { u, X, W, E }
   }
 
@@ -154,17 +150,10 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
       &zero,
       is_default,
     )?;
-    let X = self
-      .X
-      .iter()
-      .enumerate()
+    let X = enumerate(&self.X)
       .map(|(i, x)| {
-        AllocatedBase::conditionally_select(
-          &mut cs.namespace(|| format!("select X[{i}]")),
-          &x,
-          &zero,
-          is_default,
-        )
+        let cs = &mut cs.namespace(|| format!("select X[{i}]"));
+        AllocatedBase::conditionally_select(cs, x, &zero, is_default)
       })
       .collect::<Result<Vec<_>, _>>()?;
     let W = self
@@ -176,12 +165,26 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
     Ok(Self { u, X, W, E })
   }
 
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<E::Scalar>> + '_ {
-    chain![
-      self.u.as_preimage(),
-      self.X.iter().map(|x| x.as_preimage()).flatten(),
-      self.W.as_preimage(),
-      self.E.as_preimage()
-    ]
+  pub fn get_value(&self) -> Option<RelaxedSecondaryR1CSInstance<E>> {
+    let u = self.u.get_value()?;
+    let X = self
+      .X
+      .iter()
+      .map(|x| x.get_value())
+      .collect::<Option<Vec<_>>>()?;
+    let W = self.W.get_value()?;
+    let E = self.E.get_value()?;
+    Some(RelaxedSecondaryR1CSInstance { u, X, W, E })
+  }
+}
+
+impl<E: CurveCycleEquipped> AllocatedHashWriter<E::Scalar>
+  for AllocatedSecondaryRelaxedR1CSInstance<E>
+{
+  fn write<H: AllocatedHasher<E::Scalar>>(&self, hasher: &mut H) {
+    self.u.write(hasher);
+    self.X.write(hasher);
+    self.W.write(hasher);
+    self.E.write(hasher);
   }
 }

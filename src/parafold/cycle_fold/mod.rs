@@ -1,35 +1,15 @@
-use bellpepper_core::ConstraintSystem;
-use digest::consts::U2;
 use ff::Field;
-use neptune::circuit2::Elt;
+use neptune::generic_array::typenum::U2;
 use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
 use neptune::{Poseidon, Strength};
 
-use crate::parafold::cycle_fold::gadgets::emulated::{field_to_big_int, AllocatedBase};
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::CurveCycleEquipped;
 use crate::Commitment;
 
 pub mod circuit;
-pub mod gadgets;
-pub mod nifs;
 pub mod prover;
-
-pub fn hash_commitment<E: CurveCycleEquipped>(commitment: &Commitment<E>) -> E::Base {
-  // TODO: Find a way to cache this
-  let constants = PoseidonConstants::<E::Base, U2>::new_with_strength_and_type(
-    Strength::Standard,
-    HashType::ConstantLength(2),
-  );
-
-  let (x, y, infinity) = commitment.to_coordinates();
-  if infinity {
-    E::Base::ZERO
-  } else {
-    Poseidon::new_with_preimage(&[x, y], &constants).hash()
-  }
-}
 
 /// Compressed representation of a [Commitment] for a proof over the [Engine]'s scalar field.
 ///
@@ -61,35 +41,17 @@ pub fn hash_commitment<E: CurveCycleEquipped>(commitment: &Commitment<E>) -> E::
 /// When folding a proof for the above IO on the primary curve, each IO elements leads to a non-native "multiply-add",
 /// so this additional hashing that occurs in the secondary circuit ensure we only need to perform this expensive
 /// operation 4 times. Moreover, the fact that r<q ensures that the scalar x \in F_r can be trivially embedded into F_q.
+pub fn hash_commitment<E: CurveCycleEquipped>(commitment: &Commitment<E>) -> E::Base {
+  // TODO: Find a way to cache this
+  let constants = PoseidonConstants::<E::Base, U2>::new_with_strength_and_type(
+    Strength::Standard,
+    HashType::ConstantLength(2),
+  );
 
-/// Allocated [HashedCommitment]
-///
-/// # Details
-/// Inside the primary circuit, a [Commitment] C is represented by the limbs of the hash `h_C = H(C.x, C.y)`.
-/// The limbs of `h_C` are not range-checked and we assume this check occurs during the conversion to a big integer.
-///
-/// # TODO
-/// - Investigate whether a `is_infinity` flag is needed. It could be used to avoid synthesizing secondary circuits
-///   when the scalar multiplication is trivial.
-#[derive(Debug, Clone)]
-pub struct AllocatedPrimaryCommitment<E: CurveCycleEquipped> {
-  pub(crate) hash: AllocatedBase<E>,
-}
-
-impl<E: CurveCycleEquipped> AllocatedPrimaryCommitment<E> {
-  pub fn alloc<CS: ConstraintSystem<E::Scalar>>(mut cs: CS, commitment: &Commitment<E>) -> Self {
-    let hash = hash_commitment::<E>(commitment);
-    let hash = AllocatedBase::alloc(cs.namespace(|| "alloc hash"), hash);
-    Self { hash }
-  }
-
-  pub fn as_preimage(&self) -> impl IntoIterator<Item = Elt<E::Scalar>> {
-    self.hash.as_preimage()
-  }
-
-  pub fn eq_native(&self, other: &Commitment<E>) -> bool {
-    let self_hash = self.hash.to_big_int();
-    let other_hash = field_to_big_int(&hash_commitment::<E>(other));
-    self_hash == other_hash
+  let (x, y, infinity) = commitment.to_coordinates();
+  if infinity {
+    E::Base::ZERO
+  } else {
+    Poseidon::new_with_preimage(&[x, y], &constants).hash()
   }
 }

@@ -2,10 +2,10 @@ use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use bellpepper_core::boolean::Boolean;
 use ff::PrimeField;
 
-use crate::parafold::cycle_fold::AllocatedPrimaryCommitment;
-use crate::parafold::cycle_fold::gadgets::emulated::AllocatedBase;
-use crate::parafold::cycle_fold::nifs::circuit::AllocatedSecondaryRelaxedR1CSInstance;
-use crate::parafold::cycle_fold::nifs::NUM_IO_SECONDARY;
+use crate::parafold::gadgets::emulated::AllocatedBase;
+use crate::parafold::gadgets::primary_commitment::AllocatedPrimaryCommitment;
+use crate::parafold::nifs_secondary::circuit::AllocatedSecondaryRelaxedR1CSInstance;
+use crate::parafold::nifs_secondary::NUM_IO_SECONDARY;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -14,10 +14,12 @@ pub struct AllocatedScalarMulAccumulator<E: CurveCycleEquipped> {
   deferred: Vec<AllocatedScalarMulInstance<E>>,
 }
 
-impl<E: CurveCycleEquipped> Drop for AllocatedScalarMulAccumulator<E> {
-  fn drop(&mut self) {
-    assert!(self.deferred.is_empty(), "unproved scalar multiplications")
-  }
+#[derive(Debug, Clone)]
+pub struct AllocatedScalarMulInstance<E: CurveCycleEquipped> {
+  A: AllocatedPrimaryCommitment<E>,
+  B: AllocatedPrimaryCommitment<E>,
+  x_bits: Vec<Boolean>,
+  C: AllocatedPrimaryCommitment<E>,
 }
 
 impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
@@ -57,14 +59,14 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
   pub fn finalize<CS>(
     mut self,
     mut cs: CS,
-    acc_cf: &mut AllocatedSecondaryRelaxedR1CSInstance<E>,
+    mut acc_cf:  AllocatedSecondaryRelaxedR1CSInstance<E>,
     transcript: &mut AllocatedTranscript<E>,
-  ) -> Result<(), SynthesisError>
+  ) -> Result<AllocatedSecondaryRelaxedR1CSInstance<E>, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
     for (i, instance) in self.deferred.drain(..).enumerate() {
-      let X = instance.to_io(CS::one());
+      let X = instance.into_io(CS::one());
 
       // TODO: In order to avoid computing unnecessary proofs, we can check
       // - x = 0 => C = A
@@ -74,20 +76,19 @@ impl<E: CurveCycleEquipped> AllocatedScalarMulAccumulator<E> {
         transcript,
       )?;
     }
-    Ok(())
+    Ok(acc_cf)
   }
 }
 
-#[derive(Debug, Clone)]
-pub struct AllocatedScalarMulInstance<E: CurveCycleEquipped> {
-  A: AllocatedPrimaryCommitment<E>,
-  B: AllocatedPrimaryCommitment<E>,
-  x_bits: Vec<Boolean>,
-  C: AllocatedPrimaryCommitment<E>,
+impl<E: CurveCycleEquipped> Drop for AllocatedScalarMulAccumulator<E> {
+  /// Ensures that every scalar multiplication is proved
+  fn drop(&mut self) {
+    assert!(self.deferred.is_empty(), "unproved scalar multiplications")
+  }
 }
 
 impl<E: CurveCycleEquipped> AllocatedScalarMulInstance<E> {
-  fn to_io(self, one: Variable) -> [AllocatedBase<E>; NUM_IO_SECONDARY] {
+  fn into_io(self, one: Variable) -> [AllocatedBase<E>; NUM_IO_SECONDARY] {
     let Self { A, B, x_bits, C } = self;
 
     // Convert the elements in the instance to a bignum modulo E1::Base.

@@ -1,36 +1,42 @@
 use std::sync::Arc;
 
 use bellpepper_core::ConstraintSystem;
-use neptune::hash_type::HashType;
-use neptune::Strength;
+use itertools::zip_eq;
 use rayon::prelude::*;
 
 use crate::bellpepper::r1cs::NovaShape;
 use crate::bellpepper::shape_cs::ShapeCS;
 use crate::bellpepper::solver::SatisfyingAssignment;
-use crate::CommitmentKey;
 use crate::errors::NovaError;
-use crate::parafold::circuit::{synthesize_merge, synthesize_step};
-use crate::parafold::cycle_fold::nifs::prover::RelaxedSecondaryR1CS;
-use crate::parafold::cycle_fold::prover::ScalarMulInstance;
+use crate::parafold::{NIVCIO, NIVCPoseidonConstants, NIVCStepProof, ProvingKey};
+use crate::parafold::cycle_fold::prover::{ScalarMulAccumulator, ScalarMulInstance};
 use crate::parafold::nifs::prover::RelaxedR1CS;
-use crate::parafold::nivc::{NIVCCircuitInput, NIVCIO, NIVCMergeProof};
-use crate::parafold::nivc::prover::NIVCState;
-use crate::parafold::transcript::TranscriptConstants;
-use crate::r1cs::{commitment_key_size, CommitmentKeyHint, R1CSShape};
+use crate::parafold::nifs_secondary::prover::RelaxedSecondaryR1CS;
+use crate::parafold::NIVCMergeProof;
+use crate::parafold::transcript::prover::Transcript;
+use crate::parafold::verifier::VerifierState;
+use crate::r1cs::{commitment_key_size, CommitmentKeyHint};
 use crate::supernova::{NonUniformCircuit, StepCircuit};
+use crate::supernova::error::SuperNovaError;
 use crate::traits::{CurveCycleEquipped, Engine};
 use crate::traits::commitment::CommitmentEngineTrait;
 
-pub struct ProvingKey<E: CurveCycleEquipped> {
-  // public params
-  pub(crate) ck: Arc<CommitmentKey<E>>,
-  pub(crate) ck_cf: Arc<CommitmentKey<E::Secondary>>,
-  // Shapes for each augmented StepCircuit. The last shape is for the merge circuit.
-  pub(crate) arity: usize,
-  pub(crate) shapes: Vec<R1CSShape<E>>,
-  pub(crate) shape_cf: R1CSShape<E::Secondary>,
-  pub(crate) ro_consts: TranscriptConstants<E::Scalar>,
+#[derive(Debug)]
+pub struct RecursiveSNARK<E: CurveCycleEquipped> {
+  accs: Vec<RelaxedR1CS<E>>,
+  acc_cf: RelaxedSecondaryR1CS<E>,
+}
+
+pub struct RecursiveSNARKProof<E: CurveCycleEquipped> {
+  verifier_state: VerifierState<E>,
+  step_proof: NIVCStepProof<E>,
+}
+
+#[derive(Debug)]
+pub struct NIVCUpdateWitness<E: CurveCycleEquipped> {
+  index: usize,
+  X: E::Scalar,
+  W: Vec<E::Scalar>,
 }
 
 impl<E: CurveCycleEquipped> ProvingKey<E> {
@@ -42,15 +48,14 @@ impl<E: CurveCycleEquipped> ProvingKey<E> {
     let num_circuits_nivc = non_uniform_circuit.num_circuits();
     // total number of circuits also contains merge circuit.
     let num_circuits = num_circuits_nivc + 1;
-    let transcript_constants = TranscriptConstants::<E::Scalar>::new_with_strength_and_type(
-      Strength::Standard,
-      HashType::Sponge,
-    );
+
+    let constants = NIVCPoseidonConstants::<E>::new();
+
     let arity = non_uniform_circuit.primary_circuit(0).arity();
 
-    let dummy_input =
-      NIVCCircuitInput::<E>::dummy(transcript_constants.clone(), arity, num_circuits);
-    let dummy_merge_proof = NIVCMergeProof::<E>::dummy(transcript_constants.clone(), num_circuits);
+    let dummy_state = VerifierState::<E>::dummy(arity, num_circuits);
+    let dummy_state_proof = NIVCStepProof::dummy();
+    let dummy_merge_proof = NIVCMergeProof::dummy(num_circuits);
 
     let circuits = (0..num_circuits_nivc)
       .map(|i| non_uniform_circuit.primary_circuit(i))
@@ -61,25 +66,22 @@ impl<E: CurveCycleEquipped> ProvingKey<E> {
         assert_eq!(circuit.arity(), arity);
 
         let mut cs: ShapeCS<E> = ShapeCS::new();
-        let _ = synthesize_step(
-          &mut cs,
-          &dummy_input,
-          transcript_constants.clone(),
-          &circuit,
-        )
-        .unwrap();
+        let _ = dummy_state
+          .clone()
+          .synthesize_step(&mut cs, dummy_state_proof.clone(), &circuit, &constants)
+          .unwrap();
         // We use the largest commitment_key for all instances
         cs.r1cs_shape()
       })
       .collect::<Vec<_>>();
     let shape_merge = {
       let mut cs: ShapeCS<E> = ShapeCS::new();
-      let _ = synthesize_merge(
+      let _ = VerifierState::synthesize_merge(
         &mut cs,
-        &dummy_input,
-        &dummy_input,
+        dummy_state.clone(),
+        dummy_state.clone(),
         dummy_merge_proof,
-        transcript_constants.clone(),
+        &constants,
       )
       .unwrap();
       cs.r1cs_shape()
@@ -88,8 +90,8 @@ impl<E: CurveCycleEquipped> ProvingKey<E> {
 
     let shape_cf = {
       let mut cs: ShapeCS<E::Secondary> = ShapeCS::new();
-      let dummy = ScalarMulInstance::<E>::dummy();
-      dummy.synthesize(&mut cs).unwrap();
+      let dummy_instance = ScalarMulInstance::<E>::default();
+      dummy_instance.synthesize(&mut cs).unwrap();
       cs.r1cs_shape()
     };
 
@@ -103,35 +105,15 @@ impl<E: CurveCycleEquipped> ProvingKey<E> {
     let ck = Arc::new(E::CE::setup(b"ck", size_primary));
     let ck_cf = Arc::new(<E::Secondary as Engine>::CE::setup(b"ck", size_secondary));
 
-    let ro_consts = TranscriptConstants::<E::Scalar>::new_with_strength_and_type(
-      Strength::Standard,
-      HashType::Sponge,
-    );
-
     Self {
       ck,
       ck_cf,
       arity,
       shapes,
       shape_cf,
-      ro_consts,
+      constants,
     }
   }
-}
-
-#[derive(Debug)]
-pub struct RecursiveSNARK<E: CurveCycleEquipped> {
-  state: NIVCState<E>,
-
-  circuit_input: NIVCCircuitInput<E>,
-}
-
-#[derive(Debug)]
-pub struct NIVCUpdateWitness<E: CurveCycleEquipped> {
-  pub(crate) index: usize,
-  pub(crate) X: E::Scalar,
-  pub(crate) W: Vec<E::Scalar>,
-  pub(crate) io_next: NIVCIO<E>,
 }
 
 impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
@@ -142,110 +124,224 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
   /// In the first iteration, the circuit verifier checks the base-case conditions, but does not update any
   /// of the accumulators. To ensure uniformity with the non-base case path, the transcript will be updated
   /// in the normal way, albeit with dummy proof data.
-  pub fn new(pk: &ProvingKey<E>, pc_init: usize, z_init: Vec<E::Scalar>) -> Self {
+  pub fn new(
+    pk: &ProvingKey<E>,
+    pc_init: usize,
+    z_init: Vec<E::Scalar>,
+  ) -> (Self, RecursiveSNARKProof<E>) {
     let num_circuits = pk.shapes.len();
     assert!(pc_init < num_circuits);
     assert_eq!(z_init.len(), pk.arity);
 
     let io = NIVCIO::new(pc_init, z_init);
-    let accs = pk.shapes.iter().map(RelaxedR1CS::new).collect();
+    let accs = pk.shapes.iter().map(RelaxedR1CS::new).collect::<Vec<_>>();
     let acc_cf = RelaxedSecondaryR1CS::new(&pk.shape_cf);
 
-    let mut state = NIVCState::new(io, accs, acc_cf);
-
-    let circuit_input = state.init(pk.ro_consts.clone());
-
-    Self {
-      state,
-      circuit_input,
-    }
+    let proof = RecursiveSNARKProof {
+      verifier_state: VerifierState::new(io, &accs, &acc_cf, &pk.constants),
+      step_proof: NIVCStepProof::dummy(),
+    };
+    let snark = Self { accs, acc_cf };
+    (snark, proof)
   }
 
   pub fn prove_step<C: StepCircuit<E::Scalar>>(
     &mut self,
     pk: &ProvingKey<E>,
     step_circuit: &C,
-  ) -> Result<(), NovaError> {
+    proof: RecursiveSNARKProof<E>,
+  ) -> Result<RecursiveSNARKProof<E>, NovaError> {
+    let RecursiveSNARKProof {
+      verifier_state,
+      step_proof,
+    } = proof;
     let circuit_index = step_circuit.circuit_index();
 
     let mut cs = SatisfyingAssignment::<E>::new();
-    let io_next = synthesize_step(
-      &mut cs,
-      &self.circuit_input,
-      pk.ro_consts.clone(),
-      step_circuit,
-    )?
-    .unwrap();
+    let verifier_state = verifier_state
+      .synthesize_step(&mut cs, step_proof, step_circuit, &pk.constants)?
+      .expect("synthesis should return value");
 
     let (X, W) = cs.to_assignments();
     assert_eq!(X.len(), 3);
     assert_eq!(X[1], X[2]); // TOD HACK IO needs to be even
+    let X = X[1];
 
     let witness = NIVCUpdateWitness {
       index: circuit_index,
-      X: X[1],
+      X,
       W,
-      io_next,
     };
 
-    self.circuit_input = self.state.update(pk, &witness)?;
+    let step_proof = self.update(pk, &witness)?;
 
+    Ok(RecursiveSNARKProof {
+      verifier_state,
+      step_proof,
+    })
+  }
+
+  pub fn verify(
+    &self,
+    pk: &ProvingKey<E>,
+    // proof: &RecursiveSNARKProof<E>,
+  ) -> Result<(), SuperNovaError> {
+    // ) -> Result<NIVCIO<E>, SuperNovaError> {
+    // for (acc, acc_hash) in zip_eq(self.accs, proof.)
+
+    for (acc, shape) in zip_eq(&self.accs, &pk.shapes) {
+      acc.verify(&pk.ck, shape)?;
+    }
+    self.acc_cf.verify(&pk.ck_cf, &pk.shape_cf)?;
     Ok(())
   }
 
-  pub fn verify(&self, pk: &ProvingKey<E>) -> bool {
-    self
-      .state
-      .verify(&pk.ck, &pk.ck_cf, &pk.shapes, &pk.shape_cf)
-      .expect("f");
-    true
-  }
+  pub fn merge(
+    pk: &ProvingKey<E>,
+    self_L: Self,
+    proof_L: RecursiveSNARKProof<E>,
+    self_R: Self,
+    proof_R: RecursiveSNARKProof<E>,
+  ) -> Result<(Self, RecursiveSNARKProof<E>), NovaError> {
+    let RecursiveSNARKProof {
+      verifier_state: verifier_state_L,
+      step_proof: step_proof_L,
+    } = proof_L;
+    let RecursiveSNARKProof {
+      verifier_state: verifier_state_R,
+      step_proof: step_proof_R,
+    } = proof_R;
 
-  pub fn merge(pk: &ProvingKey<E>, self_L: Self, self_R: Self) -> Result<Self, NovaError> {
-    let (mut state, proof) = NIVCState::merge(pk, self_L.state, self_R.state);
+    let mut transcript = Transcript::new(
+      pk.constants.transcript.clone(),
+      [
+        verifier_state_L.transcript_state,
+        verifier_state_R.transcript_state,
+      ],
+    );
+
+    let mut acc_sm = ScalarMulAccumulator::new();
+
+    let accs_L_instance = self_L
+      .accs
+      .iter()
+      .map(|acc| acc.instance().clone())
+      .collect();
+    let accs_R_instance = self_R
+      .accs
+      .iter()
+      .map(|acc| acc.instance().clone())
+      .collect();
+
+    let accs = RelaxedR1CS::<E>::merge_many(
+      &pk.ck,
+      &pk.shapes,
+      self_L.accs,
+      &self_R.accs,
+      &mut acc_sm,
+      &mut transcript,
+    );
+
+    let mut acc_cf = RelaxedSecondaryR1CS::<E>::merge(
+      &pk.ck_cf,
+      &pk.shape_cf,
+      self_L.acc_cf,
+      self_R.acc_cf,
+      &mut transcript,
+    );
+    acc_sm
+      .finalize(&pk.ck_cf, &pk.shape_cf, &mut acc_cf, &mut transcript)
+      .unwrap();
+
+    let (_, transcript_buffer) = transcript.seal();
+
+    let mut self_next = Self { accs, acc_cf };
+
+    let merge_proof = NIVCMergeProof {
+      step_proof_L,
+      step_proof_R,
+      transcript_buffer: Some(transcript_buffer),
+      accs_L: accs_L_instance,
+      accs_R: accs_R_instance,
+    };
 
     let mut cs = SatisfyingAssignment::<E>::new();
-    let io = synthesize_merge(
+    let verifier_state = VerifierState::synthesize_merge(
       &mut cs,
-      &self_L.circuit_input,
-      &self_R.circuit_input,
-      proof,
-      pk.ro_consts.clone(),
+      verifier_state_L,
+      verifier_state_R,
+      merge_proof,
+      &pk.constants,
     )?
     .unwrap();
 
     let (X, W) = cs.to_assignments();
     assert_eq!(X.len(), 3);
     assert_eq!(X[1], X[2]); // TOD HACK IO needs to be even
+    let X = X[1];
 
-    let index = pk.shapes.len() - 1;
+    // Index of merge
+    let merge_circuit_index = pk.shapes.len() - 1;
 
     let witness = NIVCUpdateWitness {
-      index,
-      X: X[1],
+      index: merge_circuit_index,
+      X,
       W,
-      io_next: io,
     };
 
-    let circuit_input = state.update(pk, &witness)?;
+    let step_proof = self_next.update(pk, &witness)?;
+    let proof = RecursiveSNARKProof {
+      verifier_state,
+      step_proof,
+    };
+    Ok((self_next, proof))
+  }
 
-    Ok(Self {
-      state,
-      circuit_input,
-    })
+  fn update(
+    &mut self,
+    pk: &ProvingKey<E>,
+    witness: &NIVCUpdateWitness<E>,
+  ) -> Result<NIVCStepProof<E>, NovaError> {
+    let mut transcript = Transcript::new(pk.constants.transcript.clone(), [witness.X]);
+
+    let mut acc_sm = ScalarMulAccumulator::new();
+
+    let index_prev = witness.index;
+    let acc_prev = &mut self.accs[index_prev];
+    let acc_prev_instance = acc_prev.instance().clone();
+
+    let shape_prev = &pk.shapes[index_prev];
+
+    // Fold the proof for the previous iteration into the correct accumulator
+    acc_prev.fold(
+      &pk.ck,
+      shape_prev,
+      witness.X,
+      &witness.W,
+      &mut acc_sm,
+      &mut transcript,
+    );
+    acc_sm.finalize(&pk.ck_cf, &pk.shape_cf, &mut self.acc_cf, &mut transcript)?;
+
+    let (_, transcript_buffer) = transcript.seal();
+
+    let proof = NIVCStepProof {
+      transcript_buffer: Some(transcript_buffer),
+      acc: acc_prev_instance,
+      index: Some(index_prev),
+    };
+
+    Ok(proof)
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use std::marker::PhantomData;
-
-  use bellpepper_core::{ConstraintSystem, SynthesisError};
-  use bellpepper_core::num::AllocatedNum;
   use bellpepper_core::test_cs::TestConstraintSystem;
   use expect_test::expect;
-  use ff::{Field, PrimeField};
+  use ff::Field;
 
+  use crate::parafold::test::TrivialNonUniform;
   use crate::provider::Bn256EngineKZG as E;
   use crate::traits::Engine;
   use crate::traits::snark::default_ck_hint;
@@ -254,85 +350,20 @@ mod tests {
 
   type Scalar = <E as Engine>::Scalar;
 
-  #[derive(Clone, Debug)]
-  struct TrivialCircuit<F: PrimeField> {
-    index: usize,
-    pc_next: usize,
-    _marker: PhantomData<F>,
-  }
-
-  impl<F: PrimeField> StepCircuit<F> for TrivialCircuit<F> {
-    fn arity(&self) -> usize {
-      1
-    }
-
-    fn circuit_index(&self) -> usize {
-      self.index
-    }
-
-    fn synthesize<CS: ConstraintSystem<F>>(
-      &self,
-      cs: &mut CS,
-      _pc: Option<&AllocatedNum<F>>,
-      z: &[AllocatedNum<F>],
-    ) -> Result<(Option<AllocatedNum<F>>, Vec<AllocatedNum<F>>), SynthesisError> {
-      let pc_next = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pc"), || {
-        F::from(self.pc_next as u64)
-      });
-
-      let z_next = AllocatedNum::alloc(cs.namespace(|| "alloc z_next"), || {
-        let z_next = z[0].get_value().unwrap_or_default();
-        Ok(z_next + F::ONE)
-      })?;
-      Ok((Some(pc_next), vec![z_next]))
-    }
-  }
-
-  #[derive(Clone, Debug)]
-  struct TrivialNonUniform<E: CurveCycleEquipped> {
-    num_circuits: usize,
-    _marker: PhantomData<E>,
-  }
-
-  impl<E: CurveCycleEquipped> NonUniformCircuit<E> for TrivialNonUniform<E> {
-    type C1 = TrivialCircuit<E::Scalar>;
-    type C2 = TrivialCircuit<E::Base>;
-
-    fn num_circuits(&self) -> usize {
-      self.num_circuits
-    }
-
-    fn primary_circuit(&self, circuit_index: usize) -> Self::C1 {
-      TrivialCircuit {
-        index: circuit_index,
-        pc_next: (circuit_index + 1) % self.num_circuits,
-        _marker: Default::default(),
-      }
-    }
-
-    fn secondary_circuit(&self) -> Self::C2 {
-      TrivialCircuit {
-        index: 0,
-        pc_next: 0,
-        _marker: Default::default(),
-      }
-    }
-  }
-
   #[test]
   fn test_new() {
     let num_circuits: usize = 1;
-    let nc = TrivialNonUniform::<E> {
-      num_circuits,
-      _marker: Default::default(),
-    };
+    let nc = TrivialNonUniform::<E>::new(num_circuits);
     let circuit = nc.primary_circuit(0);
-    let ro_consts = TranscriptConstants::<Scalar>::new();
+    let constants = NIVCPoseidonConstants::<E>::new();
 
-    let inputs = NIVCCircuitInput::<E>::dummy(ro_consts.clone(), circuit.arity(), num_circuits);
+    let verifier_state = VerifierState::<E>::dummy(circuit.arity(), num_circuits);
+    let step_proof = NIVCStepProof::<E>::dummy();
 
     let mut cs = TestConstraintSystem::<Scalar>::new();
-    let _ = synthesize_step(&mut cs, &inputs, ro_consts, &circuit).unwrap();
+    let _ = verifier_state
+      .synthesize_step(&mut cs, step_proof, &circuit, &constants)
+      .unwrap();
 
     if !cs.is_satisfied() {
       println!("{:?}", cs.which_is_unsatisfied().unwrap());
@@ -344,34 +375,28 @@ mod tests {
   #[test]
   fn test_prove_step() {
     let num_circuits: usize = 2;
-    let nc = TrivialNonUniform::<E> {
-      num_circuits,
-      _marker: Default::default(),
-    };
+    let nc = TrivialNonUniform::<E>::new(num_circuits);
     let pk = ProvingKey::<E>::setup(&nc, &*default_ck_hint(), &*default_ck_hint());
 
     let pc_init = 0;
     let z_init = vec![Scalar::ZERO];
 
     println!("NEW");
-    let mut snark = RecursiveSNARK::new(&pk, pc_init, z_init);
+    let (mut snark, mut proof) = RecursiveSNARK::new(&pk, pc_init, z_init);
 
     for i in 0..3 {
       println!("{i}");
-      snark
-        .prove_step(&pk, &nc.primary_circuit(i % num_circuits))
+      proof = snark
+        .prove_step(&pk, &nc.primary_circuit(i % num_circuits), proof)
         .unwrap();
     }
-    assert!(snark.verify(&pk))
+    snark.verify(&pk).unwrap();
   }
 
   #[test]
   fn test_prove_merge() {
     let num_circuits: usize = 2;
-    let nc = TrivialNonUniform::<E> {
-      num_circuits,
-      _marker: Default::default(),
-    };
+    let nc = TrivialNonUniform::<E>::new(num_circuits);
     let pk = ProvingKey::<E>::setup(&nc, &*default_ck_hint(), &*default_ck_hint());
 
     let pc_init_L = 0;
@@ -380,35 +405,36 @@ mod tests {
     let z_init_R = vec![Scalar::from(1)];
 
     println!("NEW");
-    let mut snark_L = RecursiveSNARK::new(&pk, pc_init_L, z_init_L);
-    let mut snark_R = RecursiveSNARK::new(&pk, pc_init_R, z_init_R);
+    let (mut snark_L, mut proof_L) = RecursiveSNARK::new(&pk, pc_init_L, z_init_L);
+    let (mut snark_R, mut proof_R) = RecursiveSNARK::new(&pk, pc_init_R, z_init_R);
 
-    snark_L.prove_step(&pk, &nc.primary_circuit(0)).unwrap();
-    snark_R.prove_step(&pk, &nc.primary_circuit(1)).unwrap();
+    proof_L = snark_L
+      .prove_step(&pk, &nc.primary_circuit(0), proof_L)
+      .unwrap();
+    proof_R = snark_R
+      .prove_step(&pk, &nc.primary_circuit(1), proof_R)
+      .unwrap();
 
-    assert!(snark_L.verify(&pk));
-    assert!(snark_R.verify(&pk));
-    let snark = RecursiveSNARK::merge(&pk, snark_L, snark_R).unwrap();
-    assert!(snark.verify(&pk));
+    snark_L.verify(&pk).unwrap();
+    snark_R.verify(&pk).unwrap();
+    let (snark, _proof) = RecursiveSNARK::merge(&pk, snark_L, proof_L, snark_R, proof_R).unwrap();
+    snark.verify(&pk).unwrap();
   }
 
   #[test]
   fn test_merge() {
     let num_circuits: usize = 1;
-    let nc = TrivialNonUniform::<E> {
-      num_circuits,
-      _marker: Default::default(),
-    };
+    let nc = TrivialNonUniform::<E>::new(num_circuits);
     let pk = ProvingKey::<E>::setup(&nc, &*default_ck_hint(), &*default_ck_hint());
 
     let pc_init = 0;
     let z_init = vec![Scalar::from(0)];
 
     println!("NEW");
-    let snark_L = RecursiveSNARK::new(&pk, pc_init, z_init.clone());
-    let snark_R = RecursiveSNARK::new(&pk, pc_init, z_init.clone());
+    let (snark_L, proof_L) = RecursiveSNARK::new(&pk, pc_init, z_init.clone());
+    let (snark_R, proof_R) = RecursiveSNARK::new(&pk, pc_init, z_init.clone());
 
-    let snark = RecursiveSNARK::merge(&pk, snark_L, snark_R).unwrap();
-    assert!(snark.verify(&pk));
+    let (snark, _proof) = RecursiveSNARK::merge(&pk, snark_L, proof_L, snark_R, proof_R).unwrap();
+    snark.verify(&pk).unwrap();
   }
 }

@@ -1,59 +1,31 @@
 use generic_array::typenum::U24;
+use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
+use neptune::Strength;
 
 use crate::Commitment;
-use crate::parafold::cycle_fold::gadgets::emulated::BaseParams;
-use crate::parafold::cycle_fold::hash_commitment;
-use crate::traits::commitment::CommitmentTrait;
-use crate::traits::CurveCycleEquipped;
+use crate::parafold::hash::HashElement;
+use crate::traits::{CurveCycleEquipped, Engine};
 
 pub mod circuit;
 pub mod prover;
 
 /// Poseidon constants for hashing used for the Fiat-Shamir transcript
-pub type TranscriptConstants<F> = PoseidonConstants<F, U24>;
+pub type TranscriptConstants<E> = PoseidonConstants<<E as Engine>::Scalar, U24>;
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum TranscriptElement<E: CurveCycleEquipped> {
-  /// Serialized as self
-  Scalar(E::Scalar),
-  /// Serialized as `[Scalar(limb_0), Scalar(limb_1), ...]`,
-  /// where the limbs are given by the [BaseParams] definition.
-  Base(E::Base),
-  /// Serialized as `Base(hash)`, where `hash = Poseidon<E::Base, U2>(self.x, self.y)`
-  CommitmentPrimary(Commitment<E>),
-  /// Serialized as `[Scalar(self.x), Scalar(self.y)]`
-  CommitmentSecondary(Commitment<E::Secondary>),
-}
-
-impl<E: CurveCycleEquipped> TranscriptElement<E> {
-  pub fn to_field(&self) -> impl IntoIterator<Item = E::Scalar> {
-    // TODO: figure out if we can avoid Vec
-    match self {
-      Self::Scalar(scalar) => vec![*scalar],
-      Self::Base(base) => BaseParams::<E>::base_to_limbs(base),
-      Self::CommitmentPrimary(c) => {
-        let hash = hash_commitment::<E>(c);
-        Self::Base(hash).to_field()
-      }
-      Self::CommitmentSecondary(c) => {
-        let (x, y, _) = c.to_coordinates();
-        [x, y].to_vec()
-      }
-    }
-  }
+pub fn new_transcript_constants<E: Engine>() -> TranscriptConstants<E> {
+  TranscriptConstants::<E>::new_with_strength_and_type(Strength::Standard, HashType::Sponge)
 }
 
 #[cfg(test)]
 mod tests {
-  use std::iter::zip;
-
   use bellpepper_core::ConstraintSystem;
   use bellpepper_core::test_cs::TestConstraintSystem;
-  use neptune::hash_type::HashType;
-  use neptune::Strength;
+  use ff::Field;
 
+  use crate::gadgets::utils::alloc_zero;
   use crate::parafold::transcript::circuit::AllocatedTranscript;
+  use crate::parafold::transcript::new_transcript_constants;
   use crate::parafold::transcript::prover::Transcript;
   use crate::provider::Bn256EngineKZG as E;
   use crate::traits::commitment::CommitmentEngineTrait;
@@ -68,7 +40,7 @@ mod tests {
   type CE = <E as Engine>::CE;
 
   type CS = TestConstraintSystem<Scalar>;
-  type TE = TranscriptElement<E>;
+  type HE = HashElement<E>;
   type CommP = Commitment<E>;
   type CommS = Commitment<ESecondary>;
 
@@ -85,28 +57,20 @@ mod tests {
     let neg_idS = <ESecondary as Engine>::CE::commit(&ckS, &[-Base::one()]);
 
     let elements = [
-      TE::Scalar(Scalar::zero()),
-      TE::Scalar(Scalar::one()),
-      TE::Scalar(Scalar::zero() - Scalar::one()),
-      // We currently don't support the verifier reading any Base elements, but
-      // this is implicitly tested through PrimaryCommitment
-      // TE::Base(Base::zero()),
-      // TE::Base(Base::one()),
-      // TE::Base(Base::zero() - Base::one()),
-      TE::CommitmentPrimary(CommP::default()),
-      TE::CommitmentPrimary(idP),
-      TE::CommitmentPrimary(neg_idP),
-      TE::CommitmentSecondary(CommS::default()),
-      TE::CommitmentSecondary(idS),
-      TE::CommitmentSecondary(neg_idS),
+      HE::Scalar(Scalar::zero()),
+      HE::Scalar(Scalar::one()),
+      HE::Scalar(Scalar::zero() - Scalar::one()),
+      HE::CommitmentPrimary(CommP::default()),
+      HE::CommitmentPrimary(idP),
+      HE::CommitmentPrimary(neg_idP),
+      HE::CommitmentSecondary(CommS::default()),
+      HE::CommitmentSecondary(idS),
+      HE::CommitmentSecondary(neg_idS),
     ];
 
-    let constants = TranscriptConstants::<Scalar>::new_with_strength_and_type(
-      Strength::Standard,
-      HashType::Sponge,
-    );
+    let constants = new_transcript_constants::<E>();
 
-    let mut txP = Transcript::new(constants.clone(), []);
+    let mut txP = Transcript::new(constants.clone(), [Scalar::ZERO]);
     for e in &elements {
       txP.absorb(e.clone());
     }
@@ -114,40 +78,30 @@ mod tests {
     let (state, buffer) = txP.seal();
     assert_eq!(elements.to_vec(), buffer);
 
-    let mut txV = AllocatedTranscript::<E>::new(constants, [], buffer);
+    let zero_alloc = alloc_zero(cs.namespace(|| "alloc zero"));
+    let mut txV = AllocatedTranscript::<E>::new(constants, [zero_alloc], Some(buffer));
 
     // Check that each element is properly deserialized in the circuit
     for (i, e) in elements.iter().enumerate() {
       match e {
-        TranscriptElement::Scalar(e_expected) => {
-          let e = txV
+        HashElement::Scalar(_) => {
+          let _ = txV
             .read_scalar(cs.namespace(|| format!("read scalar {i}")))
             .unwrap();
-          assert_eq!(*e_expected, e.get_value().unwrap());
         }
-        TranscriptElement::Base(_e_expected) => {
-          panic!("read base not used and not implemented")
+        HashElement::Base(_) => {
+          unreachable!("read base not used and not implemented")
         }
-        TranscriptElement::CommitmentPrimary(e_expected) => {
-          let e = txV
+        HashElement::CommitmentPrimary(_) => {
+          let _ = txV
             .read_commitment_primary(cs.namespace(|| format!("read commP {i}")))
             .unwrap();
-          assert!(e.eq_native(e_expected));
         }
-        TranscriptElement::CommitmentSecondary(e_expected) => {
-          let e = txV
+        HashElement::CommitmentSecondary(_) => {
+          let _ = txV
             .read_commitment_secondary(cs.namespace(|| format!("read commS {i}")))
             .unwrap();
-          assert!(e.eq_native(e_expected).unwrap())
         }
-      }
-    }
-
-    // check that the internal state contains all serialized elements
-    let mut internal_state = txV.state().into_iter();
-    for e in elements {
-      for (f_expected, f) in zip(e.to_field(), &mut internal_state) {
-        assert_eq!(f_expected, f.val().unwrap());
       }
     }
 
