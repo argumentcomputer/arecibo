@@ -435,6 +435,7 @@ where
     )
   }
 
+  /// Returns the number of constraints and variables of the secondary circuit
   pub fn num_constraints_and_variables_secondary(&self) -> (usize, usize) {
     (
       self.circuit_shape_secondary.r1cs_shape.num_cons,
