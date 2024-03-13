@@ -1,0 +1,120 @@
+# TODO: Reusify and combine with the `check-lurk-compiles` action and/or make a reusable open-issue action
+# This workflow runs Solidity compatibility tests on Arecibo PRs
+# On a `pull_request` failure, it writes a PR comment to ensure the author/reviewer are notified
+# On a `merge_group` failure, it opens an issue in `solidity-verifier` downstream that compatibility has been broken
+# The workflow is not intended to be a required status check, only to noisily surface breaking changes.
+# Thus, `merge_group` failures should only happen intentionally when breaking changes need to be merged in Arecibo
+#
+# Implementation note: 
+# `falnyr/replace-env-vars-action`, `micalevisk/last-issue-action` and `peter-evans/create-issue-from-file` replace 
+# equivalent functionality  in `JasonEtco/create-an-issue`. We can't use the latter because it doesn't allow creating 
+# the issue in another repo. See https://github.com/JasonEtco/create-an-issue/issues/40
+name: Test Solidity Compatibility
+
+on:
+  merge_group:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - dev
+      - 'feat/**'
+      - release-candidate
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  solidity-compat:
+    runs-on: buildjet-16vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: lurk-lab/ci-workflows
+      - uses: ./.github/actions/ci-env
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@nextest
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo nextest run -E 'test(test_solidity_compatibility)' --release --run-ignored all
+        id: solidity-test
+        continue-on-error: true
+      # Prepares env vars for use in a PR comment or issue in `solidity-verifier`
+      - name: Set env vars
+        if: steps.solidity-test.outcome != 'success'
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            COMMIT=$(echo ${{ github.event.pull_request.head.sha }} | cut -c -7)
+            PR_NUMBER=${{ github.event.pull_request.number }}
+          else
+            COMMIT=$(echo ${{ github.event.merge_group.head_sha }} | cut -c -7)
+            PR_NUMBER=$(echo ${{ github.event.merge_group.head_ref }} | sed -e 's/.*pr-\(.*\)-.*/\1/')
+          fi
+          GITHUB_URL=https://github.com/${{ github.repository }}
+          WORKFLOW_URL=$GITHUB_URL/actions/runs/${{ github.run_id }}
+          echo "WORKFLOW_FILE=$WORKFLOW_URL/workflow" | tee -a $GITHUB_ENV
+          echo "WORKFLOW_URL=$WORKFLOW_URL" | tee -a $GITHUB_ENV
+          echo "COMMIT_URL=$GITHUB_URL/commit/$COMMIT" | tee -a $GITHUB_ENV
+          echo "PR_URL=$GITHUB_URL/pull/$PR_NUMBER" | tee -a $GITHUB_ENV
+          echo "COMMIT=$COMMIT" | tee -a $GITHUB_ENV
+      # Comment failure on PR when test fails on `pull_request`
+      - name: Comment on failing run
+        if: steps.solidity-test.outcome != 'success' && github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            `solidity-verifier` compatibility test failed :x:
+
+            ${{ env.WORKFLOW_URL }}
+      # Open issue in `solidity-verifier` downstream when test fails on `merge_group`
+      - uses: actions/checkout@v4
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')         
+        with:
+          repository: lurk-lab/solidity-verifier
+      # Have to check out Arecibo again to get the issue template
+      - uses: actions/checkout@v4
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')         
+        with:
+          repository: lurk-lab/arecibo
+          path: ${{ github.workspace }}/template
+          sparse-checkout: |
+            .github/SOLIDITY_COMPAT_ISSUE.md
+          sparse-checkout-cone-mode: false
+      # Substitutes env vars for their values in `SOLIDITY_COMPAT_ISSUE.md`
+      - uses: falnyr/replace-env-vars-action@master
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        env:
+          WORKFLOW_URL: ${{ env.WORKFLOW_URL }}
+          WORKFLOW_FILE: ${{ env.WORKFLOW_FILE }}
+          COMMIT: ${{ env.COMMIT }}
+          COMMIT_URL: ${{ env.COMMIT_URL }}
+          PR_URL: ${{ env.PR_URL }}
+        with:
+          filename: ./template/.github/SOLIDITY_COMPAT_ISSUE.md
+      # Finds the last open issue in `solidity-verifier` matching given labels
+      - name: Find the last open compatibility issue
+        id: last-issue
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        uses: micalevisk/last-issue-action@v2
+        with:
+          repository: lurk-lab/solidity-verifier
+          state: open
+          # Find the last updated open issue that has these labels:
+          labels: |
+            compatibility
+            debt
+            automated issue
+      # Update existing issue in `solidity-verifier` downstream or create new one
+      - uses: peter-evans/create-issue-from-file@v5
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        with:
+          token: ${{ secrets.REPO_TOKEN }}
+          repository: lurk-lab/solidity-verifier
+          issue-number: ${{ steps.last-issue.outputs.issue-number }}
+          title: ":rotating_light: Arecibo compatibility is broken"
+          content-filepath: ./template/.github/SOLIDITY_COMPAT_ISSUE.md
+          labels: |
+            compatibility
+            debt
+            automated issue
