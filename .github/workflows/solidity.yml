@@ -59,7 +59,8 @@ jobs:
           echo "COMMIT=$COMMIT" | tee -a $GITHUB_ENV
       # Comment failure on PR when test fails on `pull_request`
       - name: Comment on failing run
-        if: steps.solidity-test.outcome != 'success' && github.event_name == 'pull_request'
+        #if: steps.solidity-test.outcome != 'success' && github.event_name == 'pull_request'
+        if: steps.solidity-test.outcome != 'success' && github.event_name != 'pull_request'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -69,12 +70,14 @@ jobs:
             ${{ env.WORKFLOW_URL }}
       # Open issue in `solidity-verifier` downstream when test fails on `merge_group`
       - uses: actions/checkout@v4
-        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')         
+        #if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        if: steps.solidity-test.outcome != 'success'
         with:
           repository: lurk-lab/solidity-verifier
       # Have to check out Arecibo again to get the issue template
       - uses: actions/checkout@v4
-        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')         
+        #if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        if: steps.solidity-test.outcome != 'success'
         with:
           repository: lurk-lab/arecibo
           path: ${{ github.workspace }}/template
@@ -83,7 +86,8 @@ jobs:
           sparse-checkout-cone-mode: false
       # Substitutes env vars for their values in `SOLIDITY_COMPAT_ISSUE.md`
       - uses: falnyr/replace-env-vars-action@master
-        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        #if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        if: steps.solidity-test.outcome != 'success'
         env:
           WORKFLOW_URL: ${{ env.WORKFLOW_URL }}
           WORKFLOW_FILE: ${{ env.WORKFLOW_FILE }}
@@ -95,7 +99,8 @@ jobs:
       # Finds the last open issue in `solidity-verifier` matching given labels
       - name: Find the last open compatibility issue
         id: last-issue
-        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        #if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        if: steps.solidity-test.outcome != 'success'
         uses: micalevisk/last-issue-action@v2
         with:
           repository: lurk-lab/solidity-verifier
@@ -107,7 +112,8 @@ jobs:
             automated issue
       # Update existing issue in `solidity-verifier` downstream or create new one
       - uses: peter-evans/create-issue-from-file@v5
-        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        #if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
+        if: steps.solidity-test.outcome != 'success'
         with:
           token: ${{ secrets.REPO_TOKEN }}
           repository: lurk-lab/solidity-verifier
