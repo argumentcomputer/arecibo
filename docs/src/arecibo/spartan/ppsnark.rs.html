@@ -1073,6 +1073,7 @@
 <a href="#1072" id="1072">1072</a>
 <a href="#1073" id="1073">1073</a>
 <a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements `RelaxedR1CSSNARK` traits using a spark-based approach to prove evaluations of
 //! sparse multilinear polynomials involved in Spartan's sum-check protocol, thereby providing a preprocessing SNARK
 //! The verifier in this preprocessing SNARK maintains a commitment to R1CS matrices. This is beneficial when using a
@@ -1659,10 +1660,11 @@
     <span class="kw">let </span>u: PolyEvalInstance&lt;E&gt; =
       PolyEvalInstance::batch(<span class="kw-2">&amp;</span>comm_vec, tau_coords.clone(), <span class="kw-2">&amp;</span>eval_vec, <span class="kw-2">&amp;</span>c);
 
-    <span class="comment">// we now need to prove three claims
+    <span class="comment">// we now need to prove four claims
     // (1) 0 = \sum_x poly_tau(x) * (poly_Az(x) * poly_Bz(x) - poly_uCz_E(x)), and eval_Az_at_tau + r * eval_Bz_at_tau + r^2 * eval_Cz_at_tau = (Az+r*Bz+r^2*Cz)(tau)
     // (2) eval_Az_at_tau + c * eval_Bz_at_tau + c^2 * eval_Cz_at_tau = \sum_y L_row(y) * (val_A(y) + c * val_B(y) + c^2 * val_C(y)) * L_col(y)
     // (3) L_row(i) = eq(tau, row(i)) and L_col(i) = z(col(i))
+    // (4) Check that the witness polynomial W is well-formed e.g., it is padded with only zeros
     </span><span class="kw">let </span>gamma = transcript.squeeze(<span class="string">b"g"</span>)<span class="question-mark">?</span>;
     <span class="kw">let </span>r = transcript.squeeze(<span class="string">b"r"</span>)<span class="question-mark">?</span>;
 

@@ -545,13 +545,13 @@
     level = <span class="string">"trace"</span>,
     name = <span class="string">"SparseMatrix::multiply_vec_unchecked"
   </span>)]
-  </span><span class="kw">pub fn </span>multiply_vec_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, vector: <span class="kw-2">&amp;</span>[F]) -&gt; Vec&lt;F&gt; {
+  </span><span class="kw">fn </span>multiply_vec_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, vector: <span class="kw-2">&amp;</span>[F]) -&gt; Vec&lt;F&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>sink: Vec&lt;F&gt; = Vec::with_capacity(<span class="self">self</span>.indptr.len() - <span class="number">1</span>);
     <span class="self">self</span>.multiply_vec_into_unchecked(vector, <span class="kw-2">&amp;mut </span>sink);
     sink
   }
 
-  <span class="kw">pub fn </span>multiply_vec_into_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, vector: <span class="kw-2">&amp;</span>[F], sink: <span class="kw-2">&amp;mut </span>Vec&lt;F&gt;) {
+  <span class="kw">fn </span>multiply_vec_into_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, vector: <span class="kw-2">&amp;</span>[F], sink: <span class="kw-2">&amp;mut </span>Vec&lt;F&gt;) {
     <span class="self">self
       </span>.indptr
       .par_windows(<span class="number">2</span>)
@@ -578,7 +578,7 @@
     level = <span class="string">"trace"</span>,
     name = <span class="string">"SparseMatrix::multiply_vec_unchecked"
   </span>)]
-  </span><span class="kw">pub fn </span>multiply_witness_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, W: <span class="kw-2">&amp;</span>[F], u: <span class="kw-2">&amp;</span>F, X: <span class="kw-2">&amp;</span>[F]) -&gt; Vec&lt;F&gt; {
+  </span><span class="kw">fn </span>multiply_witness_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, W: <span class="kw-2">&amp;</span>[F], u: <span class="kw-2">&amp;</span>F, X: <span class="kw-2">&amp;</span>[F]) -&gt; Vec&lt;F&gt; {
     <span class="comment">// preallocate the result vector
     </span><span class="kw">let </span><span class="kw-2">mut </span>sink = Vec::with_capacity(<span class="self">self</span>.indptr.len() - <span class="number">1</span>);
     <span class="self">self</span>.multiply_witness_into_unchecked(W, u, X, <span class="kw-2">&amp;mut </span>sink);
@@ -594,7 +594,7 @@
 
   <span class="doccomment">/// Multiply by a witness representing a dense vector; uses rayon to parallelize.
   /// This does not check that the shape of the matrix/vector are compatible.
-  </span><span class="kw">pub fn </span>multiply_witness_into_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, W: <span class="kw-2">&amp;</span>[F], u: <span class="kw-2">&amp;</span>F, X: <span class="kw-2">&amp;</span>[F], sink: <span class="kw-2">&amp;mut </span>Vec&lt;F&gt;) {
+  </span><span class="kw">fn </span>multiply_witness_into_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, W: <span class="kw-2">&amp;</span>[F], u: <span class="kw-2">&amp;</span>F, X: <span class="kw-2">&amp;</span>[F], sink: <span class="kw-2">&amp;mut </span>Vec&lt;F&gt;) {
     <span class="kw">let </span>num_vars = W.len();
     <span class="self">self
       </span>.indptr

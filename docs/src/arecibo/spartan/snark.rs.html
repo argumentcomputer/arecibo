@@ -805,7 +805,7 @@
     ];
 
     <span class="kw">let </span>(batched_u, batched_w, sc_proof_batch, claims_batch_left) =
-      batch_eval_prove(u_vec, <span class="kw-2">&amp;</span>w_vec, <span class="kw-2">&amp;mut </span>transcript)<span class="question-mark">?</span>;
+      batch_eval_reduce(u_vec, <span class="kw-2">&amp;</span>w_vec, <span class="kw-2">&amp;mut </span>transcript)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>eval_arg = EE::prove(
       ck,
@@ -969,8 +969,8 @@
   }
 }
 
-<span class="doccomment">/// Proves a batch of polynomial evaluation claims using Sumcheck
-/// reducing them to a single claim at the same point.
+<span class="doccomment">/// Reduces a batch of polynomial evaluation claims using Sumcheck
+/// to a single claim at the same point.
 ///
 /// # Details
 ///
@@ -983,7 +983,7 @@
 ///
 /// We allow the polynomial Pᵢ to have different sizes, by appropriately scaling
 /// the claims and resulting evaluations from Sumcheck.
-</span><span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::spartan) <span class="kw">fn </span>batch_eval_prove&lt;E: Engine&gt;(
+</span><span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::spartan) <span class="kw">fn </span>batch_eval_reduce&lt;E: Engine&gt;(
   u_vec: Vec&lt;PolyEvalInstance&lt;E&gt;&gt;,
   w_vec: <span class="kw-2">&amp;</span>[PolyEvalWitness&lt;E&gt;],
   transcript: <span class="kw-2">&amp;mut </span>E::TE,

@@ -97,7 +97,7 @@
 
   <span class="doccomment">/// Create powers the following powers of `t`:
   /// [t^{2^0}, t^{2^1}, ..., t^{2^{ell-1}}]
-  </span><span class="kw">pub</span>(<span class="kw">in </span><span class="kw">crate</span>::spartan) <span class="kw">fn </span>squares(t: <span class="kw-2">&amp;</span>Scalar, ell: usize) -&gt; Vec&lt;Scalar&gt; {
+  </span><span class="kw">pub fn </span>squares(t: <span class="kw-2">&amp;</span>Scalar, ell: usize) -&gt; Vec&lt;Scalar&gt; {
     successors(<span class="prelude-val">Some</span>(<span class="kw-2">*</span>t), |p: <span class="kw-2">&amp;</span>Scalar| <span class="prelude-val">Some</span>(p.square()))
       .take(ell)
       .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
