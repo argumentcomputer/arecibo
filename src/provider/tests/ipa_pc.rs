@@ -77,9 +77,7 @@ return keccak_transcript;
   // cargo test test_solidity_compatibility_ipa --release -- --ignored --nocapture > ipa.t.sol
   #[test]
   #[ignore]
-  #[allow(unreachable_code)]
   fn test_solidity_compatibility_ipa() {
-    panic!("Testing failure in CI");
     let num_vars = 2;
 
     // Secondary part of verification is IPA over Grumpkin

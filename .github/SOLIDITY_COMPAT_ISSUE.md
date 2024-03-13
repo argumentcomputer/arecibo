@@ -3,6 +3,3 @@ Compatibility with the [Arecibo](https://github.com/lurk-lab/arecibo) dependency
 Check the [Solidity compatibility workflow run](__WORKFLOW_URL__) for details.
 
 This issue was raised by the workflow at __WORKFLOW_FILE__.
-
-> [!NOTE]
-> This is a test
