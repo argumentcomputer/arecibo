@@ -135,7 +135,7 @@ jobs:
             ${{ env.WORKFLOW_URL }}
       # Substitutes env vars for their values in `SOLIDITY_COMPAT_ISSUE.md`
       - uses: falnyr/replace-env-vars-action@master
-        if: steps.solidity-test.outcome != 'success'
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
         env:
           WORKFLOW_URL: ${{ env.WORKFLOW_URL }}
           WORKFLOW_FILE: ${{ env.WORKFLOW_FILE }}
@@ -147,7 +147,7 @@ jobs:
       # Finds the last open issue matching given labels
       - name: Find the last open compatibility issue
         id: last-issue
-        if: steps.solidity-test.outcome != 'success'
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
         uses: micalevisk/last-issue-action@v2
         with:
           repository: lurk-lab/solidity-verifier
@@ -159,7 +159,7 @@ jobs:
             automated issue
       # Update existing issue in `solidity-verifier` or create new one
       - uses: peter-evans/create-issue-from-file@v5
-        if: steps.solidity-test.outcome != 'success'
+        if: steps.solidity-test.outcome != 'success' && (github.event_name != 'pull_request' || github.event.action == 'enqueued')
         with:
           token: ${{ secrets.REPO_TOKEN }}
           repository: lurk-lab/solidity-verifier
