@@ -42,6 +42,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run Solidity test generator
         run: |
+          # Runs all tests with the `test_solidity_compatibility` prefix, e.g. `test_solidity_compatibility_ipa`
           cargo nextest run -E 'test(test_solidity_compatibility)' --release --run-ignored all --nocapture > test-output
         working-directory: ${{ github.workspace }}
       - name: Check out `solidity-verifier` for tests
@@ -56,7 +57,9 @@ jobs:
           version: nightly
       - name: Prep Solidity test files
         run: |
-          # Get test names from output
+          # Get test names from output, extracting the final word after the final `_` in the test output
+          # E.g. `test provider::tests::ipa_pc::test::test_solidity_compatibility_ipa ... ok` returns `ipa`
+          # Expects all tests to live in the `provider` module, but can be changed/strengthened in future
           TEST_NAMES=$(grep 'test provider::*' test-output | awk -F'[_(.*?)\b...]' '{ print $(NF-3) }')
           echo "$TEST_NAMES"
 
