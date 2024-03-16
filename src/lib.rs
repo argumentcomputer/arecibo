@@ -788,7 +788,7 @@ where
 }
 
 /// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct CompressedSNARK<E1, S1, S2>
 where
