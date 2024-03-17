@@ -20,4 +20,4 @@ jobs:
     with:
       default-runner: "self-hosted,gpu-bench"
       default-benches: "supernova-ci"
-      default-env: "ARECIBO_BENCH_OUTPUT=pr-comment ARECIBO_BENCH_NUM_CONS=16384,524288"
+      default-env: "BENCH_OUTPUT=pr-comment BENCH_NUM_CONS=16384,524288"
