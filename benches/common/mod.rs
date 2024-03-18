@@ -36,13 +36,12 @@ impl BenchParams {
 }
 
 fn output_type_env() -> anyhow::Result<String> {
-  std::env::var("ARECIBO_BENCH_OUTPUT")
-    .map_err(|e| anyhow!("ARECIBO_BENCH_OUTPUT env var isn't set: {e}"))
+  std::env::var("BENCH_OUTPUT").map_err(|e| anyhow!("BENCH_OUTPUT env var isn't set: {e}"))
 }
 
 pub(crate) fn noise_threshold_env() -> anyhow::Result<f64> {
-  std::env::var("ARECIBO_BENCH_NOISE_THRESHOLD")
-    .map_err(|e| anyhow!("ARECIBO_BENCH_NOISE_THRESHOLD env var isn't set: {e}"))
+  std::env::var("BENCH_NOISE_THRESHOLD")
+    .map_err(|e| anyhow!("BENCH_NOISE_THRESHOLD env var isn't set: {e}"))
     .and_then(|nt| {
       nt.parse::<f64>()
         .map_err(|e| anyhow!("Failed to parse noise threshold: {e}"))

@@ -9,8 +9,10 @@ commit := `git rev-parse HEAD`
 # Run CPU benchmarks
 bench +benches:
   #!/bin/sh
+  [ $(uname -m) = "x86_64" ] && FEATURES="asm" || FEATURES="default"
+
   for bench in {{benches}}; do
-    cargo criterion --bench $bench
+    cargo criterion --bench $bench --features $FEATURES
   done
 
 # Run CUDA benchmarks on GPU
@@ -22,6 +24,7 @@ gpu-bench +benches:
   export CUDA_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | sed 's/\.//g')
   export EC_GPU_CUDA_NVCC_ARGS="--fatbin --gpu-architecture=sm_$CUDA_ARCH --generate-code=arch=compute_$CUDA_ARCH,code=sm_$CUDA_ARCH"
   export EC_GPU_FRAMEWORK="cuda"
+  [ $(uname -m) = "x86_64" ] && FEATURES="cuda, asm" || FEATURES="cuda"
 
   for bench in {{benches}}; do
     cargo criterion --bench $bench --features "cuda"
@@ -31,11 +34,22 @@ gpu-bench +benches:
 gpu-bench-ci +benches:
   #!/bin/sh
   printenv PATH
-  if [ $(uname -m) = "x86_64" ]; then
-    FEATURES="cuda,asm"
-  else
-    FEATURES="cuda"
+  [ $(uname -m) = "x86_64" ] && FEATURES="cuda, asm" || FEATURES="cuda"
+
+  for bench in {{benches}}; do
+    cargo criterion --bench $bench --features $FEATURES --message-format=json > "$bench-{{commit}}".json
+  done
+
+comparative-bench +benches:
+  #!/bin/sh
+  # Initialize FEATURES based on architecture
+  [ $(uname -m) = "x86_64" ] && FEATURES="asm" || FEATURES=""
+  # Append cuda to FEATURES if nvcc is found
+  if which nvcc > /dev/null; then
+    FEATURES="${FEATURES:+$FEATURES,}cuda"
   fi
+  # add default if FEATURES is empty
+  FEATURES="${FEATURES:-default}"
 
   for bench in {{benches}}; do
     cargo criterion --bench $bench --features $FEATURES --message-format=json > "$bench-{{commit}}".json

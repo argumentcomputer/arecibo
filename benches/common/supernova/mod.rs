@@ -54,8 +54,8 @@ pub fn num_cons() -> Vec<usize> {
 }
 
 fn num_cons_env() -> anyhow::Result<Vec<usize>> {
-  std::env::var("ARECIBO_BENCH_NUM_CONS")
-    .map_err(|e| anyhow!("ARECIBO_BENCH_NUM_CONS env var not set: {e}"))
+  std::env::var("BENCH_NUM_CONS")
+    .map_err(|e| anyhow!("BENCH_NUM_CONS env var not set: {e}"))
     .and_then(|rc| {
       let vec: anyhow::Result<Vec<usize>> = rc
         .split(',')
