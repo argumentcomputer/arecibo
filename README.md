@@ -21,9 +21,16 @@ At its core, Nova relies on a commitment scheme for vectors. Compressing IVC pro
 2. HyperKZG commitments and evaluation argument (supported on curves with pairings e.g., BN254).
 3. KZG commitments with a [Zeromorph](https://eprint.iacr.org/2023/917) evaluation argument (supported on curves equipped with a pairing).
     
-For more details on using  HyperKZG, please see the test `test_ivc_nontrivial_with_compression`. The HyperKZG instantiation requires a universal trusted setup (the so-called "powers of tau"). In the `setup` method in `src/provider/hyperkzg.rs`, one can load group elements produced in an existing KZG trusted setup (that was created for other proof systems based on univariate polynomials such as Plonk or variants), but the library does not currently do so (please see [this](https://github.com/microsoft/Nova/issues/270) issue). 
+For more details on using  HyperKZG / Zeromorph, please see the test `test_ivc_nontrivial_with_compression`. The HyperKZG instantiation requires a universal trusted setup (the so-called "powers of tau"). In the `setup` method in `src/provider/hyperkzg.rs`, one can load group elements produced in an existing KZG trusted setup (that was created for other proof systems based on univariate polynomials such as Plonk or variants), but the library does not currently do so (please see [this](https://github.com/microsoft/Nova/issues/270) issue). 
 
 We also implement a SNARK, based on [Spartan](https://eprint.iacr.org/2019/550.pdf), to compress IVC proofs produced by Nova. There are two variants, one that does *not* use any preprocessing and another that uses preprocessing of circuits to ensure that the verifier's run time does not depend on the size of the step circuit.
+
+> [!NOTE]
+> This library features an implementation of Zeromorph, exclusively available here until the related changes are integrated with the official Nova repository via pull request [#301](https://github.com/microsoft/Nova/pull/301). 
+>
+> Additionally, we've enhanced Nova to support Supernova, offering a variant that is currently unique to this repository. This advanced capability will remain exclusive here until pull request [#283](https://github.com/microsoft/Nova/pull/283) is merged into the official Nova codebase.
+>
+> Our implementation of HyperKZG incorporates notable performance enhancements inspired by Shplonk (BDFG20), as detailed in [this paper](https://eprint.iacr.org/2020/081). These improvements are specifically designed to enhance efficiency and speed.
 
 ## Supported front-ends
 A front-end is a tool to take a high-level program and turn it into an intermediate representation (e.g., a circuit) that can be used to prove executions of the program on concrete inputs. There are three supported ways to write high-level programs in a form that can be proven with Nova.
