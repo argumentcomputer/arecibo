@@ -702,7 +702,6 @@ mod tests {
     bellpepper::{
       r1cs::{NovaShape, NovaWitness},
       solver::SatisfyingAssignment,
-      test_shape_cs::TestShapeCS,
     },
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::scalar_as_base,
@@ -713,6 +712,7 @@ mod tests {
     supernova::circuit::TrivialTestCircuit,
     traits::{snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
+  use bellpepper::util_cs::test_shape_cs::TestShapeCS;
   use expect_test::{expect, Expect};
 
   // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
@@ -740,7 +740,7 @@ mod tests {
       ro_consts1.clone(),
       num_augmented_circuits,
     );
-    let mut cs: TestShapeCS<E1> = TestShapeCS::new();
+    let mut cs: TestShapeCS<E1::Scalar> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
@@ -756,9 +756,9 @@ mod tests {
         ro_consts2.clone(),
         num_augmented_circuits,
       );
-    let mut cs: TestShapeCS<Dual<E1>> = TestShapeCS::new();
+    let mut cs: TestShapeCS<<Dual<E1> as Engine>::Scalar> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
-    let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint());
+    let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint::<Dual<E1>>());
 
     num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 

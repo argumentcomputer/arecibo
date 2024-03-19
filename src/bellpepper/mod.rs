@@ -5,7 +5,6 @@
 pub mod r1cs;
 pub mod shape_cs;
 pub mod solver;
-pub mod test_shape_cs;
 
 #[cfg(test)]
 mod tests {
@@ -43,9 +42,9 @@ mod tests {
 
   fn test_alloc_bit_with<E: Engine>() {
     // First create the shape
-    let mut cs: ShapeCS<E> = ShapeCS::new();
+    let mut cs: ShapeCS<E::Scalar> = ShapeCS::new();
     synthesize_alloc_bit(&mut cs);
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint::<E>());
 
     // Now get the assignment
     let mut cs = SatisfyingAssignment::<E>::new();

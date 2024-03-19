@@ -1,3 +1,4 @@
+use crate::gadgets::alloc_one;
 use crate::gadgets::alloc_zero;
 use crate::provider::poseidon::PoseidonConstantsCircuit;
 use crate::provider::Bn256EngineIPA;
@@ -6,8 +7,8 @@ use crate::provider::Secp256k1Engine;
 use crate::provider::VestaEngine;
 use crate::supernova::circuit::{StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit};
 use crate::traits::snark::default_ck_hint;
-use crate::{bellpepper::test_shape_cs::TestShapeCS, gadgets::alloc_one};
 use abomonation::Abomonation;
+use bellpepper::util_cs::test_shape_cs::TestShapeCS;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
@@ -245,7 +246,7 @@ fn print_constraints_name_on_error_index<
           pp.ro_consts_circuit_primary.clone(),
           num_augmented_circuits,
         );
-      let mut cs: TestShapeCS<E1> = TestShapeCS::new();
+      let mut cs: TestShapeCS<E1::Scalar> = TestShapeCS::new();
       let _ = circuit_primary.synthesize(&mut cs);
       cs.constraints
         .get(*index)
@@ -259,7 +260,7 @@ fn print_constraints_name_on_error_index<
         pp.ro_consts_circuit_secondary.clone(),
         num_augmented_circuits,
       );
-      let mut cs: TestShapeCS<Dual<E1>> = TestShapeCS::new();
+      let mut cs: TestShapeCS<<Dual<E1> as Engine>::Scalar> = TestShapeCS::new();
       let _ = circuit_secondary.synthesize(&mut cs);
       cs.constraints
         .get(*index)
@@ -467,11 +468,11 @@ fn test_recursive_circuit_with<E1>(
     Dual<E1>,
     TrivialTestCircuit<<Dual<E1> as Engine>::Base>,
   > = SuperNovaAugmentedCircuit::new(primary_params, None, &step_circuit1, ro_consts1.clone(), 2);
-  let mut cs: ShapeCS<E1> = ShapeCS::new();
+  let mut cs: ShapeCS<E1::Scalar> = ShapeCS::new();
   if let Err(e) = circuit1.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint());
+  let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint::<E1>());
   num_constraints_primary.assert_eq(&cs.num_constraints().to_string());
 
   // Initialize the shape and ck for the secondary
@@ -485,11 +486,11 @@ fn test_recursive_circuit_with<E1>(
       ro_consts2.clone(),
       2,
     );
-  let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
+  let mut cs: ShapeCS<<Dual<E1> as Engine>::Scalar> = ShapeCS::new();
   if let Err(e) = circuit2.synthesize(&mut cs) {
     panic!("{}", e)
   }
-  let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint());
+  let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint::<Dual<E1>>());
   num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
   // Execute the base case for the primary

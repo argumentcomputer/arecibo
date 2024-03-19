@@ -272,7 +272,7 @@ where
       c_primary,
       ro_consts_circuit_primary.clone(),
     );
-    let mut cs: ShapeCS<E1> = ShapeCS::new();
+    let mut cs: ShapeCS<E1::Scalar> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape_and_key(ck_hint1);
     let ck_primary = Arc::new(ck_primary);
@@ -284,7 +284,7 @@ where
       c_secondary,
       ro_consts_circuit_secondary.clone(),
     );
-    let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
+    let mut cs: ShapeCS<<Dual<E1> as Engine>::Scalar> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape_and_key(ck_hint2);
     let ck_secondary = Arc::new(ck_secondary);
@@ -1005,9 +1005,10 @@ pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
   // Initialize ck for the primary
   let augmented_circuit: NovaAugmentedCircuit<'_, Dual<E1>, C> =
     NovaAugmentedCircuit::new(&augmented_circuit_params, None, circuit, ro_consts_circuit);
-  let mut cs: ShapeCS<E1> = ShapeCS::new();
+  let mut cs: ShapeCS<E1::Scalar> = ShapeCS::new();
   let _ = augmented_circuit.synthesize(&mut cs);
-  cs.r1cs_shape().digest()
+  let r1cs_shape: R1CSShape<E1> = cs.r1cs_shape();
+  r1cs_shape.digest()
 }
 
 type CommitmentKey<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey;

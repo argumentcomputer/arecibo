@@ -781,7 +781,6 @@ mod tests {
     bellpepper::{
       r1cs::{NovaShape, NovaWitness},
       solver::SatisfyingAssignment,
-      test_shape_cs::TestShapeCS,
     },
     provider::{
       bn256_grumpkin::{bn256, grumpkin},
@@ -791,6 +790,7 @@ mod tests {
     },
     traits::{snark::default_ck_hint, Engine},
   };
+  use bellpepper::util_cs::test_shape_cs::TestShapeCS;
   use expect_test::{expect, Expect};
   use ff::{Field, PrimeFieldBits};
   use pasta_curves::{arithmetic::CurveAffine, group::Curve, pallas, vesta};
@@ -1033,11 +1033,11 @@ mod tests {
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
     // First create the shape
-    let mut cs: TestShapeCS<E2> = TestShapeCS::new();
+    let mut cs: TestShapeCS<E2::Scalar> = TestShapeCS::new();
     let _ = synthesize_smul::<E1::GE, _>(cs.namespace(|| "synthesize"));
     expected_constraints.assert_eq(&cs.num_constraints().to_string());
     expected_variables.assert_eq(&cs.num_aux().to_string());
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint::<E2>());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1090,10 +1090,10 @@ mod tests {
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
     // First create the shape
-    let mut cs: TestShapeCS<E2> = TestShapeCS::new();
+    let mut cs: TestShapeCS<E2::Scalar> = TestShapeCS::new();
     let _ = synthesize_add_equal::<E1::GE, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint::<E2>());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1164,11 +1164,11 @@ mod tests {
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
     // First create the shape
-    let mut cs: TestShapeCS<E2> = TestShapeCS::new();
+    let mut cs: TestShapeCS<E2::Scalar> = TestShapeCS::new();
     let _ = synthesize_add_negation::<E1::GE, _>(cs.namespace(|| "synthesize add equal"));
     expected_constraints.assert_eq(&cs.num_constraints().to_string());
     expected_variables.assert_eq(&cs.num_aux().to_string());
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint::<E2>());
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();

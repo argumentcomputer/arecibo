@@ -175,13 +175,13 @@ mod tests {
     bellpepper::{
       r1cs::{NovaShape, NovaWitness},
       solver::SatisfyingAssignment,
-      test_shape_cs::TestShapeCS,
     },
     provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     r1cs::commitment_key,
     traits::{snark::default_ck_hint, Engine},
   };
   use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+  use bellpepper::util_cs::test_shape_cs::TestShapeCS;
   use ff::{Field, PrimeField};
   use rand::rngs::OsRng;
 
@@ -220,9 +220,9 @@ mod tests {
 
   fn test_tiny_r1cs_bellpepper_with<E: Engine>() {
     // First create the shape
-    let mut cs: TestShapeCS<E> = TestShapeCS::new();
+    let mut cs: TestShapeCS<E::Scalar> = TestShapeCS::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, None);
-    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape_and_key(&*default_ck_hint::<E>());
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 
