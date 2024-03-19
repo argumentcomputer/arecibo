@@ -8,11 +8,12 @@ use crate::bellpepper::r1cs::NovaShape;
 use crate::bellpepper::shape_cs::ShapeCS;
 use crate::bellpepper::solver::SatisfyingAssignment;
 use crate::errors::NovaError;
-use crate::parafold::{NIVCIO, NIVCPoseidonConstants, NIVCStepProof, ProvingKey};
+use crate::parafold::{NIVCPoseidonConstants, ProvingKey, StepCircuitIO, StepProof};
 use crate::parafold::cycle_fold::prover::{ScalarMulAccumulator, ScalarMulInstance};
+use crate::parafold::hash::{HashElement, HashWriter};
+use crate::parafold::MergeProof;
 use crate::parafold::nifs::prover::RelaxedR1CS;
 use crate::parafold::nifs_secondary::prover::RelaxedSecondaryR1CS;
-use crate::parafold::NIVCMergeProof;
 use crate::parafold::transcript::prover::Transcript;
 use crate::parafold::verifier::VerifierState;
 use crate::r1cs::{commitment_key_size, CommitmentKeyHint};
@@ -29,7 +30,7 @@ pub struct RecursiveSNARK<E: CurveCycleEquipped> {
 
 pub struct RecursiveSNARKProof<E: CurveCycleEquipped> {
   verifier_state: VerifierState<E>,
-  step_proof: NIVCStepProof<E>,
+  step_proof: StepProof<E>,
 }
 
 #[derive(Debug)]
@@ -53,9 +54,9 @@ impl<E: CurveCycleEquipped> ProvingKey<E> {
 
     let arity = non_uniform_circuit.primary_circuit(0).arity();
 
-    let dummy_state = VerifierState::<E>::dummy(arity, num_circuits);
-    let dummy_state_proof = NIVCStepProof::dummy();
-    let dummy_merge_proof = NIVCMergeProof::dummy(num_circuits);
+    let dummy_state = VerifierState::<E>::dummy(arity, num_circuits, &constants);
+    let dummy_state_proof = StepProof::dummy();
+    let dummy_merge_proof = MergeProof::dummy(num_circuits);
 
     let circuits = (0..num_circuits_nivc)
       .map(|i| non_uniform_circuit.primary_circuit(i))
@@ -67,7 +68,6 @@ impl<E: CurveCycleEquipped> ProvingKey<E> {
 
         let mut cs: ShapeCS<E> = ShapeCS::new();
         let _ = dummy_state
-          .clone()
           .synthesize_step(&mut cs, dummy_state_proof.clone(), &circuit, &constants)
           .unwrap();
         // We use the largest commitment_key for all instances
@@ -78,8 +78,8 @@ impl<E: CurveCycleEquipped> ProvingKey<E> {
       let mut cs: ShapeCS<E> = ShapeCS::new();
       let _ = VerifierState::synthesize_merge(
         &mut cs,
-        dummy_state.clone(),
-        dummy_state.clone(),
+        &dummy_state,
+        &dummy_state,
         dummy_merge_proof,
         &constants,
       )
@@ -133,13 +133,14 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
     assert!(pc_init < num_circuits);
     assert_eq!(z_init.len(), pk.arity);
 
-    let io = NIVCIO::new(pc_init, z_init);
+    let io = StepCircuitIO::new(pc_init, z_init);
+    // Initialize all accumulators to None
     let accs = pk.shapes.iter().map(RelaxedR1CS::new).collect::<Vec<_>>();
     let acc_cf = RelaxedSecondaryR1CS::new(&pk.shape_cf);
 
     let proof = RecursiveSNARKProof {
       verifier_state: VerifierState::new(io, &accs, &acc_cf, &pk.constants),
-      step_proof: NIVCStepProof::dummy(),
+      step_proof: StepProof::dummy(),
     };
     let snark = Self { accs, acc_cf };
     (snark, proof)
@@ -181,14 +182,7 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
     })
   }
 
-  pub fn verify(
-    &self,
-    pk: &ProvingKey<E>,
-    // proof: &RecursiveSNARKProof<E>,
-  ) -> Result<(), SuperNovaError> {
-    // ) -> Result<NIVCIO<E>, SuperNovaError> {
-    // for (acc, acc_hash) in zip_eq(self.accs, proof.)
-
+  pub fn verify(&self, pk: &ProvingKey<E>) -> Result<(), SuperNovaError> {
     for (acc, shape) in zip_eq(&self.accs, &pk.shapes) {
       acc.verify(&pk.ck, shape)?;
     }
@@ -237,7 +231,7 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
       &pk.ck,
       &pk.shapes,
       self_L.accs,
-      &self_R.accs,
+      self_R.accs,
       &mut acc_sm,
       &mut transcript,
     );
@@ -257,7 +251,7 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
 
     let mut self_next = Self { accs, acc_cf };
 
-    let merge_proof = NIVCMergeProof {
+    let merge_proof = MergeProof {
       step_proof_L,
       step_proof_R,
       transcript_buffer: Some(transcript_buffer),
@@ -268,8 +262,8 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
     let mut cs = SatisfyingAssignment::<E>::new();
     let verifier_state = VerifierState::synthesize_merge(
       &mut cs,
-      verifier_state_L,
-      verifier_state_R,
+      &verifier_state_L,
+      &verifier_state_R,
       merge_proof,
       &pk.constants,
     )?
@@ -301,7 +295,7 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
     &mut self,
     pk: &ProvingKey<E>,
     witness: &NIVCUpdateWitness<E>,
-  ) -> Result<NIVCStepProof<E>, NovaError> {
+  ) -> Result<StepProof<E>, NovaError> {
     let mut transcript = Transcript::new(pk.constants.transcript.clone(), [witness.X]);
 
     let mut acc_sm = ScalarMulAccumulator::new();
@@ -309,6 +303,10 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
     let index_prev = witness.index;
     let acc_prev = &mut self.accs[index_prev];
     let acc_prev_instance = acc_prev.instance().clone();
+
+    // Get the hash of the accumulator and add it to the transcript
+    let acc_prev_hash = acc_prev_instance.hash(&pk.constants.primary_r1cs);
+    transcript.absorb(HashElement::Scalar(acc_prev_hash));
 
     let shape_prev = &pk.shapes[index_prev];
 
@@ -325,7 +323,7 @@ impl<E: CurveCycleEquipped> RecursiveSNARK<E> {
 
     let (_, transcript_buffer) = transcript.seal();
 
-    let proof = NIVCStepProof {
+    let proof = StepProof {
       transcript_buffer: Some(transcript_buffer),
       acc: acc_prev_instance,
       index: Some(index_prev),
@@ -357,8 +355,8 @@ mod tests {
     let circuit = nc.primary_circuit(0);
     let constants = NIVCPoseidonConstants::<E>::new();
 
-    let verifier_state = VerifierState::<E>::dummy(circuit.arity(), num_circuits);
-    let step_proof = NIVCStepProof::<E>::dummy();
+    let verifier_state = VerifierState::<E>::dummy(circuit.arity(), num_circuits, &constants);
+    let step_proof = StepProof::<E>::dummy();
 
     let mut cs = TestConstraintSystem::<Scalar>::new();
     let _ = verifier_state
@@ -369,7 +367,7 @@ mod tests {
       println!("{:?}", cs.which_is_unsatisfied().unwrap());
     }
 
-    expect!["18682"].assert_eq(&cs.num_constraints().to_string());
+    expect!["18698"].assert_eq(&cs.num_constraints().to_string());
   }
 
   #[test]
@@ -394,8 +392,8 @@ mod tests {
   }
 
   #[test]
-  fn test_prove_merge() {
-    let num_circuits: usize = 2;
+  fn test_prove_merge_single() {
+    let num_circuits: usize = 3;
     let nc = TrivialNonUniform::<E>::new(num_circuits);
     let pk = ProvingKey::<E>::setup(&nc, &*default_ck_hint(), &*default_ck_hint());
 
@@ -422,18 +420,29 @@ mod tests {
   }
 
   #[test]
-  fn test_merge() {
-    let num_circuits: usize = 1;
+  fn test_prove_merge_many() {
+    let num_circuits: usize = 10;
     let nc = TrivialNonUniform::<E>::new(num_circuits);
     let pk = ProvingKey::<E>::setup(&nc, &*default_ck_hint(), &*default_ck_hint());
 
-    let pc_init = 0;
-    let z_init = vec![Scalar::from(0)];
+    let pc_init_L = 0;
+    let z_init_L = vec![Scalar::from(0)];
+    let pc_init_R = 1;
+    let z_init_R = vec![Scalar::from(1)];
 
     println!("NEW");
-    let (snark_L, proof_L) = RecursiveSNARK::new(&pk, pc_init, z_init.clone());
-    let (snark_R, proof_R) = RecursiveSNARK::new(&pk, pc_init, z_init.clone());
+    let (mut snark_L, mut proof_L) = RecursiveSNARK::new(&pk, pc_init_L, z_init_L);
+    let (mut snark_R, mut proof_R) = RecursiveSNARK::new(&pk, pc_init_R, z_init_R);
 
+    proof_L = snark_L
+      .prove_step(&pk, &nc.primary_circuit(0), proof_L)
+      .unwrap();
+    proof_R = snark_R
+      .prove_step(&pk, &nc.primary_circuit(1), proof_R)
+      .unwrap();
+
+    snark_L.verify(&pk).unwrap();
+    snark_R.verify(&pk).unwrap();
     let (snark, _proof) = RecursiveSNARK::merge(&pk, snark_L, proof_L, snark_R, proof_R).unwrap();
     snark.verify(&pk).unwrap();
   }

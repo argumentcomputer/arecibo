@@ -166,7 +166,8 @@ impl<G: Group> AllocatedPoint<G> {
         true
       } else {
         unreachable!("is_infinity should be 0 or 1")
-      }})?;
+      }
+    })?;
     Some((x, y, is_infinity))
   }
 
@@ -596,7 +597,7 @@ impl<G: Group> AllocatedPoint<G> {
         cs.namespace(|| format!("acc_iteration_{i}")),
         &temp,
         &acc,
-        &Boolean::from(bit.clone()),
+        bit,
       )?;
 
       p = p.double_incomplete(cs.namespace(|| format!("double {i}")))?;
@@ -617,7 +618,7 @@ impl<G: Group> AllocatedPoint<G> {
         cs.namespace(|| "remove slack if necessary"),
         &acc,
         &acc_minus_initial,
-        &Boolean::from(scalar_bits[0].clone()),
+        &scalar_bits[0],
       )?
     };
 
@@ -652,7 +653,7 @@ impl<G: Group> AllocatedPoint<G> {
         cs.namespace(|| format!("acc_complete_iteration_{i}")),
         &temp,
         &acc,
-        &Boolean::from(bit.clone()),
+        bit,
       )?;
 
       p_complete = p_complete.double(cs.namespace(|| format!("double_complete {i}")))?;

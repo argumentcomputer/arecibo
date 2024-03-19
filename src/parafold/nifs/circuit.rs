@@ -1,12 +1,15 @@
+use bellpepper_core::boolean::Boolean;
+use bellpepper_core::num::{AllocatedNum, Num};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
-use bellpepper_core::num::AllocatedNum;
-use ff::PrimeField;
+use bellpepper_emulated::util::alloc_num_equals_constant;
+use ff::{Field, PrimeField};
 use itertools::*;
 
+use crate::gadgets::utils::{alloc_zero, conditionally_select};
 use crate::parafold::cycle_fold::circuit::AllocatedScalarMulAccumulator;
 use crate::parafold::gadgets::primary_commitment::AllocatedPrimaryCommitment;
-use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter};
-use crate::parafold::nifs::RelaxedR1CSInstance;
+use crate::parafold::hash::{AllocatedHashWriter, AllocatedHasher};
+use crate::parafold::nifs::{PrimaryR1CSConstants, RelaxedR1CSInstance};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -28,6 +31,7 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     X_new: &AllocatedNum<E::Scalar>,
     acc_sm: &mut AllocatedScalarMulAccumulator<E>,
     transcript: &mut AllocatedTranscript<E>,
+    is_trivial: &Boolean,
   ) -> Result<(), SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
@@ -36,6 +40,8 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     let T = transcript.read_commitment_primary(cs.namespace(|| "transcript T"))?;
 
     let r = transcript.squeeze(&mut cs.namespace(|| "squeeze r"))?;
+    let zero = alloc_zero(cs.namespace(|| "alloc zero"));
+    let r = conditionally_select(cs.namespace(|| "trivial => r = 0"), &zero, &r, is_trivial)?;
     let r_bits = r.to_bits_le(cs.namespace(|| "r_bits"))?;
 
     let Self {
@@ -137,7 +143,7 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
       .collect::<Result<Vec<_>, _>>()
   }
 
-  pub fn alloc<CS>(mut cs: CS, instance: RelaxedR1CSInstance<E>) -> Self
+  pub fn alloc<CS>(mut cs: CS, instance: &RelaxedR1CSInstance<E>) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
   {
@@ -149,6 +155,75 @@ impl<E: CurveCycleEquipped> AllocatedRelaxedR1CSInstance<E> {
     let E = AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc E"), instance.E);
 
     Self { pp, u, X, W, E }
+  }
+
+  pub fn alloc_from_hash<CS>(
+    mut cs: CS,
+    hash: &AllocatedNum<E::Scalar>,
+    instance: &RelaxedR1CSInstance<E>,
+    constants: &PrimaryR1CSConstants<E>,
+  ) -> Result<Self, SynthesisError>
+  where
+    CS: ConstraintSystem<E::Scalar>,
+  {
+    let acc = Self::alloc(cs.namespace(|| "alloc"), instance);
+
+    let hash_is_zero: Boolean = alloc_num_equals_constant(
+      cs.namespace(|| "hash_is_zero"),
+      &Num::from(hash.clone()),
+      E::Scalar::ZERO,
+    )?
+    .into();
+
+    acc.enforce_trivial(
+      cs.namespace(|| "hash_is_zero => acc.is_trivial"),
+      &hash_is_zero,
+    )?;
+
+    let acc_hash = acc.hash(cs.namespace(|| "acc_hash"), constants)?;
+
+    // cs.enforce(
+    //   || "(hash = 0) OR (hash = acc_hash)",
+    //   |lc| lc + hash.get_variable(),
+    //   |lc| lc + hash.get_variable() - acc_hash.get_variable(),
+    //   |lc| lc,
+    // );
+
+    cs.enforce(
+      || "!hash_is_zero => (hash = acc_hash)",
+      |_| hash_is_zero.not().lc(CS::one(), E::Scalar::ZERO),
+      |lc| lc + hash.get_variable() - acc_hash.get_variable(),
+      |lc| lc,
+    );
+
+    Ok(acc)
+  }
+
+  #[allow(unused)]
+  pub fn enforce_trivial<CS: ConstraintSystem<E::Scalar>>(
+    &self,
+    mut cs: CS,
+    is_default: &Boolean,
+  ) -> Result<(), SynthesisError> {
+    cs.enforce(
+      || "is_default => u = 0",
+      |_| is_default.lc(CS::one(), E::Scalar::ONE),
+      |lc| lc + self.u.get_variable(),
+      |lc| lc,
+    );
+    cs.enforce(
+      || "is_default => X = 0",
+      |_| is_default.lc(CS::one(), E::Scalar::ONE),
+      |lc| lc + self.X.get_variable(),
+      |lc| lc,
+    );
+    self
+      .W
+      .enforce_trivial(cs.namespace(|| "is_default => W = id"), is_default)?;
+    self
+      .E
+      .enforce_trivial(cs.namespace(|| "is_default => E = id"), is_default)?;
+    Ok(())
   }
 }
 

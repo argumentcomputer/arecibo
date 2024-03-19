@@ -1,4 +1,5 @@
-use bellpepper_core::ConstraintSystem;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::boolean::Boolean;
 
 use crate::Commitment;
 use crate::parafold::cycle_fold::hash_commitment;
@@ -17,6 +18,7 @@ use crate::traits::CurveCycleEquipped;
 ///   when the scalar multiplication is trivial.
 #[derive(Debug, Clone)]
 pub struct AllocatedPrimaryCommitment<E: CurveCycleEquipped> {
+  #[allow(unused)]
   value: Commitment<E>,
   pub(crate) hash: AllocatedBase<E>,
 }
@@ -31,9 +33,18 @@ impl<E: CurveCycleEquipped> AllocatedPrimaryCommitment<E> {
     }
   }
 
-  pub fn get_value(&self) -> Option<Commitment<E>> {
-    debug_assert_eq!(hash_commitment::<E>(&self.value), self.hash.get_value()?);
-    Some(self.value)
+  #[allow(unused)]
+  pub fn get_value(&self) -> Commitment<E> {
+    debug_assert_eq!(hash_commitment::<E>(&self.value), self.hash.get_value());
+    self.value
+  }
+
+  pub fn enforce_trivial<CS: ConstraintSystem<E::Scalar>>(
+    &self,
+    cs: CS,
+    is_default: &Boolean,
+  ) -> Result<(), SynthesisError> {
+    self.hash.enforce_trivial(cs, is_default)
   }
 }
 

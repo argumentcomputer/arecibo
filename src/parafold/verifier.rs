@@ -5,19 +5,17 @@ use ff::Field;
 use itertools::{enumerate, zip_eq};
 
 use crate::gadgets::utils::{alloc_num_equals, alloc_zero, conditionally_select};
-use crate::parafold::{
-  NIVCMergeProof, NIVCPoseidonConstants, NIVCStepProof, VerifierStateConstants,
-};
+use crate::parafold::{MergeProof, NIVCPoseidonConstants, StepProof, VerifierStateConstants};
 use crate::parafold::cycle_fold::circuit::AllocatedScalarMulAccumulator;
 use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter, Hasher, HashWriter};
-use crate::parafold::io::AllocatedNIVCIO;
+use crate::parafold::io::AllocatedStepCircuitIO;
 use crate::parafold::nifs::circuit::AllocatedRelaxedR1CSInstance;
 use crate::parafold::nifs::prover::RelaxedR1CS;
 use crate::parafold::nifs::RelaxedR1CSInstance;
 use crate::parafold::nifs_secondary::circuit::AllocatedSecondaryRelaxedR1CSInstance;
 use crate::parafold::nifs_secondary::prover::RelaxedSecondaryR1CS;
 use crate::parafold::nifs_secondary::RelaxedSecondaryR1CSInstance;
-use crate::parafold::NIVCIO;
+use crate::parafold::StepCircuitIO;
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::supernova::StepCircuit;
 use crate::traits::CurveCycleEquipped;
@@ -26,14 +24,14 @@ use crate::traits::CurveCycleEquipped;
 #[derive(Clone, Debug, PartialEq)]
 pub struct VerifierState<E: CurveCycleEquipped> {
   pub(crate) transcript_state: E::Scalar,
-  io: NIVCIO<E>,
+  io: StepCircuitIO<E>,
   accs_hash: Vec<E::Scalar>,
   acc_cf: RelaxedSecondaryR1CSInstance<E>,
 }
 
 impl<E: CurveCycleEquipped> VerifierState<E> {
   pub fn new(
-    io: NIVCIO<E>,
+    io: StepCircuitIO<E>,
     accs: &[RelaxedR1CS<E>],
     acc_cf: &RelaxedSecondaryR1CS<E>,
     constants: &NIVCPoseidonConstants<E>,
@@ -50,9 +48,9 @@ impl<E: CurveCycleEquipped> VerifierState<E> {
   }
 
   pub fn synthesize_step<CS, SF>(
-    self,
+    &self,
     mut cs: CS,
-    step_proof: NIVCStepProof<E>,
+    step_proof: StepProof<E>,
     step_circuit: &SF,
     constants: &NIVCPoseidonConstants<E>,
   ) -> Result<Option<Self>, SynthesisError>
@@ -74,9 +72,9 @@ impl<E: CurveCycleEquipped> VerifierState<E> {
   #[allow(unused)]
   pub fn synthesize_merge<CS>(
     mut cs: CS,
-    input_L: Self,
-    input_R: Self,
-    merge_proof: NIVCMergeProof<E>,
+    input_L: &Self,
+    input_R: &Self,
+    merge_proof: MergeProof<E>,
     constants: &NIVCPoseidonConstants<E>,
   ) -> Result<Option<Self>, SynthesisError>
   where
@@ -96,11 +94,13 @@ impl<E: CurveCycleEquipped> VerifierState<E> {
     Ok(state.get_value())
   }
 
-  pub fn dummy(arity: usize, num_circuit: usize) -> Self {
+  pub fn dummy(arity: usize, num_circuit: usize, _constants: &NIVCPoseidonConstants<E>) -> Self {
+    let dummy_hash = E::Scalar::ZERO;
+    // let dummy_hash = RelaxedR1CSInstance::<E>::init(E::Scalar::ZERO).hash(&constants.primary_r1cs);
     Self {
       transcript_state: Default::default(),
-      io: NIVCIO::dummy(arity),
-      accs_hash: vec![Default::default(); num_circuit],
+      io: StepCircuitIO::dummy(arity),
+      accs_hash: vec![dummy_hash; num_circuit],
       acc_cf: Default::default(),
     }
   }
@@ -111,73 +111,76 @@ impl<E: CurveCycleEquipped> VerifierState<E> {
 #[derive(Clone, Debug)]
 pub struct AllocatedVerifierState<E: CurveCycleEquipped> {
   transcript_state: AllocatedNum<E::Scalar>,
-  pub io: AllocatedNIVCIO<E>,
+  pub io: AllocatedStepCircuitIO<E>,
   accs_hash: Vec<AllocatedNum<E::Scalar>>,
   acc_cf: AllocatedSecondaryRelaxedR1CSInstance<E>,
 }
 
 impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
-  pub fn alloc_unverified<CS>(mut cs: CS, state: VerifierState<E>) -> (Self, Boolean)
+  pub fn alloc_unverified<CS>(mut cs: CS, state: &VerifierState<E>) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
   {
+    // Previous state of the transcript
     let transcript_state =
       AllocatedNum::alloc_infallible(cs.namespace(|| "alloc transcript_state"), || {
         state.transcript_state
       });
 
-    let io = AllocatedNIVCIO::alloc(cs.namespace(|| "alloc io"), state.io);
-    let accs_hash = enumerate(state.accs_hash)
+    // Step Circuit IO
+    let io = AllocatedStepCircuitIO::alloc(cs.namespace(|| "alloc io"), &state.io);
+
+    // Allocate hashes of R1CS accumulators. If the accumulator has not been initialized yet,
+    // we define it as 0.
+    let accs_hash = enumerate(&state.accs_hash)
       .map(|(i, acc_hash)| {
-        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc acc_hash {i}")), || acc_hash)
+        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc acc_hash {i}")), || *acc_hash)
       })
-      .collect::<Vec<_>>();
+      .collect();
+
+    // Allocate the CycleFold accumulator, without checking
     let acc_cf = AllocatedSecondaryRelaxedR1CSInstance::alloc_unchecked(
       cs.namespace(|| "alloc acc_cf"),
-      state.acc_cf,
+      &state.acc_cf,
     );
 
-    // Define the base case as transcript_prev == 0
-    let is_base_case = {
-      let zero = alloc_zero(cs.namespace(|| "alloc zero"));
-      let is_base_case = alloc_num_equals(
-        cs.namespace(|| "transcript_state == 0"),
-        &transcript_state,
-        &zero,
-      )
-      .unwrap();
-      Boolean::from(is_base_case)
-    };
-
-    // Enforce that the current IO is trivial, i.e. io.in == io.out
-    io.enforce_trivial(
-      cs.namespace(|| "is_base_case => (io.in == io.out)"),
-      &is_base_case,
-    );
-
-    (
-      Self {
-        transcript_state,
-        io,
-        accs_hash,
-        acc_cf,
-      },
-      is_base_case,
-    )
+    Self {
+      transcript_state,
+      io,
+      accs_hash,
+      acc_cf,
+    }
   }
 
   /// Loads a previously proved state from a proof of its correctness.
   pub fn init<CS>(
     mut cs: CS,
-    instance: VerifierState<E>,
-    step_proof: NIVCStepProof<E>,
+    input_state: &VerifierState<E>,
+    step_proof: StepProof<E>,
     constants: &NIVCPoseidonConstants<E>,
   ) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let (state, is_base_case) = Self::alloc_unverified(cs.namespace(|| "alloc"), instance);
+    let state = Self::alloc_unverified(cs.namespace(|| "alloc"), input_state);
     let state_hash = state.hash(cs.namespace(|| "state hash"), &constants.verifier_state)?;
+
+    // Define the base case as transcript_prev == 0
+    let is_base_case: Boolean = {
+      let zero = alloc_zero(cs.namespace(|| "alloc zero"));
+      Boolean::from(alloc_num_equals(
+        cs.namespace(|| "transcript_state == 0"),
+        &state.transcript_state,
+        &zero,
+      )?)
+    };
+
+    // Step Circuit IO
+    // Enforce that the current IO is trivial, i.e. io.in == io.out
+    state.io.enforce_trivial(
+      cs.namespace(|| "is_base_case => (io.in == io.out)"),
+      &is_base_case,
+    );
 
     let mut transcript = AllocatedTranscript::new(
       constants.transcript.clone(),
@@ -185,17 +188,11 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
       step_proof.transcript_buffer,
     );
 
-    // Initialize scalar mul accumulator for folding
-    let mut acc_sm = AllocatedScalarMulAccumulator::new();
-
-    // Load pre-image of accumulator to be updated
-    let mut acc = AllocatedRelaxedR1CSInstance::alloc(cs.namespace(|| "alloc acc"), step_proof.acc);
+    // Get the hash of the accumulator being updated
+    let acc_hash_curr = transcript.read_scalar(cs.namespace(|| "acc_hash_curr"))?;
 
     // Create selector for acc_hash_curr and ensure it is contained in accs_hash
     let accs_hash_selector = {
-      // Compute its hash
-      let acc_hash_curr = acc.hash(cs.namespace(|| "acc_hash_curr"), &constants.primary_r1cs)?;
-
       let bits = state
         .accs_hash
         .iter()
@@ -203,6 +200,7 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
         .map(|(i, acc_hash)| {
           let mut cs = cs.namespace(|| format!("accs_hash_selector[{i}]"));
           // Allocate a bit which is true if i == index_prev
+          // If index_prev = None, always allocate false
           let bit = step_proof.index.map_or(false, |index_prev| index_prev == i);
           let bit = AllocatedBit::alloc(cs.namespace(|| "alloc selector"), Some(bit)).unwrap();
 
@@ -214,15 +212,14 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
             |lc| lc,
           );
 
-          Boolean::Is(bit)
+          Boolean::from(bit)
         })
         .collect::<Vec<_>>();
 
+      // Ensure only 1 selection bit is true, except in the base case where all bits are 0
       let bits_sum = bits.iter().fold(LinearCombination::zero(), |lc, bit| {
         lc + &bit.lc(CS::one(), E::Scalar::ONE)
       });
-
-      // Ensure only 1 selection bit is true, except in the base case where all bits are 0
       cs.enforce(
         || "is_base.not = ∑_i bits[i]",
         |lc| lc,
@@ -233,6 +230,17 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
       bits
     };
 
+    // "dereference" the hash of the accumulator
+    let mut acc = AllocatedRelaxedR1CSInstance::alloc_from_hash(
+      cs.namespace(|| "alloc acc"),
+      &acc_hash_curr,
+      &step_proof.acc,
+      &constants.primary_r1cs,
+    )?;
+
+    // Initialize scalar mul accumulator for folding
+    let mut acc_sm = AllocatedScalarMulAccumulator::new();
+
     // Set the R1CS IO as the transcript init followed by the state
     let X_new = state_hash;
     acc.fold(
@@ -240,6 +248,7 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
       &X_new,
       &mut acc_sm,
       &mut transcript,
+      &is_base_case,
     )?;
     let acc_hash_next = acc.hash(
       cs.namespace(|| "hash acc_hash_next"),
@@ -247,28 +256,23 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
     )?;
 
     // Update hashes of accumulators in state
-    let accs_hash = zip_eq(&state.accs_hash, &accs_hash_selector)
+    let accs_hash = zip_eq(state.accs_hash, &accs_hash_selector)
       .enumerate()
       .map(|(i, (acc_hash, bit))| {
-        conditionally_select(
-          cs.namespace(|| format!("acc_hash_next {i}")),
-          &acc_hash_next,
-          acc_hash,
-          bit,
-        )
+        let cs = cs.namespace(|| format!("acc_next_hash[{i}]"));
+        conditionally_select(cs, &acc_hash_next, &acc_hash, bit)
       })
       .collect::<Result<Vec<_>, _>>()?;
 
     // Prove all scalar multiplication by updating the secondary curve accumulator
     // If this is the first iteration, then reset `acc_cf` to its default state since no scalar multiplications
     // were actually computed
-    let acc_cf = acc_sm
-      .finalize(
-        cs.namespace(|| "finalize acc_sm"),
-        state.acc_cf,
-        &mut transcript,
-      )?
-      .select_default(cs.namespace(|| "enforce trivial acc_cf"), &is_base_case)?;
+    let acc_cf = acc_sm.finalize(
+      cs.namespace(|| "finalize acc_sm"),
+      state.acc_cf,
+      &mut transcript,
+    )?;
+    let acc_cf = acc_cf.select_default(cs.namespace(|| "enforce trivial acc_cf"), &is_base_case)?;
 
     let transcript_state = transcript.seal(cs.namespace(|| "checkpoint"))?;
 
@@ -295,31 +299,31 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
 
   pub fn merge<CS>(
     mut cs: CS,
-    input_L: VerifierState<E>,
-    input_R: VerifierState<E>,
-    proof: NIVCMergeProof<E>,
+    input_L: &VerifierState<E>,
+    input_R: &VerifierState<E>,
+    proof: MergeProof<E>,
     constants: &NIVCPoseidonConstants<E>,
   ) -> Result<Self, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
   {
     // Verify L
-    let self_L = AllocatedVerifierState::init(
+    let self_L = Self::init(
       cs.namespace(|| "alloc state_L"),
       input_L,
       proof.step_proof_L,
       constants,
     )?;
-    let accs_L = self_L.load_accs(cs.namespace(|| "load accs_L"), proof.accs_L, constants)?;
+    let accs_L = self_L.load_accs(cs.namespace(|| "load accs_L"), &proof.accs_L, constants)?;
 
     // Verify R
-    let self_R = AllocatedVerifierState::init(
+    let self_R = Self::init(
       cs.namespace(|| "alloc state_R"),
       input_R,
       proof.step_proof_R,
       constants,
     )?;
-    let accs_R = self_R.load_accs(cs.namespace(|| "load accs_R"), proof.accs_R, constants)?;
+    let accs_R = self_R.load_accs(cs.namespace(|| "load accs_R"), &proof.accs_R, constants)?;
 
     let mut transcript = AllocatedTranscript::new(
       constants.transcript.clone(),
@@ -327,7 +331,7 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
       proof.transcript_buffer,
     );
 
-    let io = AllocatedNIVCIO::merge(cs.namespace(|| "io merge"), self_L.io, self_R.io);
+    let io = AllocatedStepCircuitIO::merge(cs.namespace(|| "io merge"), self_L.io, self_R.io);
 
     let mut acc_sm = AllocatedScalarMulAccumulator::new();
 
@@ -365,30 +369,28 @@ impl<E: CurveCycleEquipped> AllocatedVerifierState<E> {
     })
   }
 
-  fn load_accs<CS>(
+  fn load_accs<'a, CS>(
     &self,
     mut cs: CS,
-    accs: Vec<RelaxedR1CSInstance<E>>,
+    accs: impl IntoIterator<Item = &'a RelaxedR1CSInstance<E>>,
     constants: &NIVCPoseidonConstants<E>,
   ) -> Result<Vec<AllocatedRelaxedR1CSInstance<E>>, SynthesisError>
   where
     CS: ConstraintSystem<E::Scalar>,
+    E: 'a,
   {
     zip_eq(accs, &self.accs_hash)
-      .map(|(acc_native, acc_hash)| {
-        let acc = AllocatedRelaxedR1CSInstance::alloc(cs.namespace(|| "alloc acc"), acc_native);
-        let acc_hash_real = acc.hash(cs.namespace(|| "hash acc"), &constants.primary_r1cs)?;
-
-        // Ensure the loaded accumulator's hash matches the one from the state
-        cs.enforce(
-          || "acc_hash_real == acc_hash",
-          |lc| lc,
-          |lc| lc,
-          |lc| lc + acc_hash_real.get_variable() - acc_hash.get_variable(),
-        );
-        Ok::<_, SynthesisError>(acc)
+      .enumerate()
+      .map(|(i, (acc_native, acc_hash))| {
+        let cs = cs.namespace(|| format!("load acc {i}"));
+        AllocatedRelaxedR1CSInstance::alloc_from_hash(
+          cs,
+          acc_hash,
+          acc_native,
+          &constants.primary_r1cs,
+        )
       })
-      .collect::<Result<Vec<_>, _>>()
+      .collect()
   }
 
   fn get_value(&self) -> Option<VerifierState<E>> {
@@ -455,8 +457,8 @@ mod tests {
     let num_circuits = 1;
     let nc = TrivialNonUniform::<E>::new(num_circuits);
 
-    let state = VerifierState::<E>::dummy(arity, num_circuits);
-    let dummy_proof = NIVCStepProof::<E>::dummy();
+    let state = VerifierState::<E>::dummy(arity, num_circuits, &constants);
+    let dummy_proof = StepProof::<E>::dummy();
     let _ = state.synthesize_step(
       cs.namespace(|| "step"),
       dummy_proof,
@@ -464,13 +466,14 @@ mod tests {
       &constants,
     );
 
-    expect![["18682"]].assert_eq(&cs.num_constraints().to_string());
+    expect!["18698"].assert_eq(&cs.num_constraints().to_string());
 
     if !cs.is_satisfied() {
       println!("{:?}", cs.which_is_unsatisfied());
     }
     assert!(cs.is_satisfied());
   }
+
   #[test]
   fn test_merge() {
     let mut cs = CS::new();
@@ -479,18 +482,18 @@ mod tests {
     let arity = 1;
     let num_circuits = 1;
 
-    let state_L = VerifierState::<E>::dummy(arity, num_circuits);
-    let state_R = VerifierState::<E>::dummy(arity, num_circuits);
-    let merge_proof = NIVCMergeProof::<E>::dummy(num_circuits);
+    let state_L = VerifierState::<E>::dummy(arity, num_circuits, &constants);
+    let state_R = VerifierState::<E>::dummy(arity, num_circuits, &constants);
+    let merge_proof = MergeProof::<E>::dummy(num_circuits);
     let _ = VerifierState::synthesize_merge(
       cs.namespace(|| "merge"),
-      state_L,
-      state_R,
+      &state_L,
+      &state_R,
       merge_proof,
       &constants,
     );
 
-    expect![["67617"]].assert_eq(&cs.num_constraints().to_string());
+    expect!["67675"].assert_eq(&cs.num_constraints().to_string());
 
     if !cs.is_satisfied() {
       println!("{:?}", cs.which_is_unsatisfied());

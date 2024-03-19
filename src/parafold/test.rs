@@ -3,7 +3,10 @@ use std::marker::PhantomData;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::num::AllocatedNum;
 use ff::PrimeField;
+use itertools::zip_eq;
+use neptune::circuit2::Elt;
 
+use crate::parafold::hash::{AllocatedHashWriter, HashWriter};
 use crate::supernova::{NonUniformCircuit, StepCircuit};
 use crate::traits::CurveCycleEquipped;
 
@@ -77,5 +80,31 @@ impl<E: CurveCycleEquipped> NonUniformCircuit<E> for TrivialNonUniform<E> {
       pc_next: 0,
       _marker: Default::default(),
     }
+  }
+}
+
+pub fn check_write<E, CS, HW, AHW>(mut cs: CS, element: &HW, allocated: &AHW)
+where
+  E: CurveCycleEquipped,
+  CS: ConstraintSystem<E::Scalar>,
+  HW: HashWriter<E>,
+  AHW: AllocatedHashWriter<E::Scalar>,
+{
+  let mut hasher = Vec::<E::Scalar>::new();
+  let mut allocated_hasher = Vec::<Elt<E::Scalar>>::new();
+  element.write(&mut hasher);
+  allocated.write(&mut allocated_hasher);
+
+  let allocated_hasher = allocated_hasher
+    .into_iter()
+    .enumerate()
+    .map(|(i, element)| {
+      element
+        .ensure_allocated(&mut cs.namespace(|| i.to_string()), true)
+        .unwrap()
+    });
+
+  for (element, allocated) in zip_eq(hasher, allocated_hasher) {
+    assert_eq!(element, allocated.get_value().unwrap());
   }
 }

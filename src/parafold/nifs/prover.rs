@@ -2,7 +2,6 @@ use ff::Field;
 use itertools::Itertools;
 use rayon::prelude::*;
 
-use crate::{Commitment, CommitmentKey, zip_with};
 use crate::errors::NovaError::{ProofVerifyError, UnSatIndex};
 use crate::parafold::cycle_fold::prover::ScalarMulAccumulator;
 use crate::parafold::hash::HashElement;
@@ -12,6 +11,7 @@ use crate::r1cs::R1CSShape;
 use crate::supernova::error::SuperNovaError;
 use crate::traits::commitment::CommitmentEngineTrait;
 use crate::traits::CurveCycleEquipped;
+use crate::{zip_with, Commitment, CommitmentKey};
 
 /// A full Relaxed-R1CS accumulator for a circuit
 /// # TODO:
@@ -109,14 +109,14 @@ impl<E: CurveCycleEquipped> RelaxedR1CS<E> {
   pub fn merge_many(
     ck: &CommitmentKey<E>,
     shapes: &[R1CSShape<E>],
-    mut accs_L: Vec<Self>,
-    accs_R: &[Self],
+    accs_L: Vec<Self>,
+    accs_R: Vec<Self>,
     acc_sm: &mut ScalarMulAccumulator<E>,
     transcript: &mut Transcript<E>,
   ) -> Vec<Self> {
     // TODO: parallelize
     let (Ts, T_comms): (Vec<_>, Vec<_>) = zip_with!(
-      (accs_L.iter_mut(), accs_R.iter(), shapes),
+      (accs_L.iter(), accs_R.iter(), shapes),
       |acc_L, acc_R, shape| {
         compute_fold_proof(
           ck,
@@ -140,20 +140,24 @@ impl<E: CurveCycleEquipped> RelaxedR1CS<E> {
     zip_with!(
       (
         accs_L.into_iter(),
-        accs_R.iter(),
-        Ts.iter(),
+        accs_R.into_iter(),
+        Ts.into_iter(),
         T_comms.into_iter()
       ),
       |acc_L, acc_R, T, T_comm| {
         let W = zip_with!(
-          (acc_L.W.into_par_iter(), acc_R.W.par_iter()),
+          (acc_L.W.into_par_iter(), acc_R.W.into_par_iter()),
           |w_L, w_R| w_L + r * w_R
         )
         .collect();
 
         let E = zip_with!(
-          (acc_L.E.into_par_iter(), T.par_iter(), acc_R.E.par_iter()),
-          |e_L, t, e_R| e_L + r * (*t + r * e_R)
+          (
+            acc_L.E.into_par_iter(),
+            T.into_par_iter(),
+            acc_R.E.into_par_iter()
+          ),
+          |e_L, t, e_R| e_L + r * (t + r * e_R)
         )
         .collect();
 

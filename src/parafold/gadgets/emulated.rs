@@ -1,20 +1,20 @@
 use std::marker::PhantomData;
 use std::ops::BitAnd;
 
+use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::num::Num;
-use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use bellpepper_emulated::field_element::{
   EmulatedFieldElement, EmulatedFieldParams, EmulatedLimbs,
 };
 use bellpepper_emulated::util::bigint_to_scalar;
 use ff::{Field, PrimeField, PrimeFieldBits};
-use itertools::{zip_eq, Itertools};
+use itertools::{enumerate, Itertools, zip_eq};
 use num_bigint::{BigInt, Sign};
 use num_traits::{Num as num_Num, One, Zero};
 
 use crate::constants::{BN_LIMB_WIDTH, BN_N_LIMBS};
-use crate::parafold::hash::{AllocatedHashWriter, AllocatedHasher};
+use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter};
 use crate::traits::CurveCycleEquipped;
 
 #[derive(Debug, Clone)]
@@ -84,8 +84,12 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
       })
       .collect::<Vec<_>>();
 
-    let value = bits.iter().rev().fold(E::Base::ZERO, |v: E::Base, limb| {
-      v.double() + E::Base::from(limb.get_value().unwrap_or_default() as u64)
+    let value = bits.iter().rev().fold(E::Base::ZERO, |v: E::Base, bit| {
+      if bit.get_value().unwrap_or_default() {
+        v.double() + E::Base::ONE
+      } else {
+        v.double()
+      }
     });
 
     assert!(limbs.len() <= BaseParams::<E>::num_limbs());
@@ -185,9 +189,33 @@ impl<E: CurveCycleEquipped> AllocatedBase<E> {
   //   ))
   // }
 
-  pub fn get_value(&self) -> Option<E::Base> {
+  pub fn get_value(&self) -> E::Base {
     debug_assert_eq!(field_to_big_int(&self.value), self.to_big_int());
-    Some(self.value)
+    self.value
+  }
+
+  pub fn enforce_trivial<CS: ConstraintSystem<E::Scalar>>(
+    &self,
+    mut cs: CS,
+    is_default: &Boolean,
+  ) -> Result<(), SynthesisError> {
+    let EmulatedLimbs::Allocated(limbs) = self
+      .element
+      .compact_limbs(0, BaseParams::<E>::bits_per_limb())?
+    else {
+      unreachable!()
+    };
+
+    for (i, limb) in enumerate(limbs) {
+      cs.enforce(
+        || format!("limb[{i}] = 0"),
+        |_| is_default.lc(CS::one(), E::Scalar::ONE),
+        |_| limb.lc(E::Scalar::ONE),
+        |lc| lc,
+      );
+    }
+
+    Ok(())
   }
 }
 

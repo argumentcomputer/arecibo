@@ -5,34 +5,34 @@ use ff::Field;
 use itertools::{enumerate, zip_eq};
 
 use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter, Hasher, HashWriter};
-use crate::parafold::NIVCIO;
+use crate::parafold::StepCircuitIO;
 use crate::supernova::EnforcingStepCircuit;
 use crate::traits::CurveCycleEquipped;
 
 /// The input and output of a NIVC computation over one or more steps.
 #[derive(Debug, Clone)]
-pub struct AllocatedNIVCIO<E: CurveCycleEquipped> {
+pub struct AllocatedStepCircuitIO<E: CurveCycleEquipped> {
   pc_in: AllocatedNum<E::Scalar>,
   z_in: Vec<AllocatedNum<E::Scalar>>,
   pc_out: AllocatedNum<E::Scalar>,
   z_out: Vec<AllocatedNum<E::Scalar>>,
 }
 
-impl<E: CurveCycleEquipped> AllocatedNIVCIO<E> {
-  pub fn alloc<CS>(mut cs: CS, state: NIVCIO<E>) -> Self
+impl<E: CurveCycleEquipped> AllocatedStepCircuitIO<E> {
+  pub fn alloc<CS>(mut cs: CS, state: &StepCircuitIO<E>) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
   {
     let pc_in = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pc_in"), || state.pc_in);
-    let z_in = enumerate(state.z_in)
+    let z_in = enumerate(&state.z_in)
       .map(|(i, z)| {
-        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc z_in[{i}]")), || z)
+        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc z_in[{i}]")), || *z)
       })
       .collect();
     let pc_out = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc pc_out"), || state.pc_out);
-    let z_out = enumerate(state.z_out)
+    let z_out = enumerate(&state.z_out)
       .map(|(i, z)| {
-        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc z_out[{i}]")), || z)
+        AllocatedNum::alloc_infallible(cs.namespace(|| format!("alloc z_out[{i}]")), || *z)
       })
       .collect();
 
@@ -120,7 +120,7 @@ impl<E: CurveCycleEquipped> AllocatedNIVCIO<E> {
   }
 
   /// Attempt to extract the native representation.
-  pub fn get_value(&self) -> Option<NIVCIO<E>> {
+  pub fn get_value(&self) -> Option<StepCircuitIO<E>> {
     let pc_in = self.pc_in.get_value()?;
     let z_in = self
       .z_in
@@ -133,7 +133,7 @@ impl<E: CurveCycleEquipped> AllocatedNIVCIO<E> {
       .iter()
       .map(|z| z.get_value())
       .collect::<Option<Vec<_>>>()?;
-    Some(NIVCIO {
+    Some(StepCircuitIO {
       pc_in,
       z_in,
       pc_out,
@@ -142,7 +142,7 @@ impl<E: CurveCycleEquipped> AllocatedNIVCIO<E> {
   }
 }
 
-impl<E: CurveCycleEquipped> NIVCIO<E> {
+impl<E: CurveCycleEquipped> StepCircuitIO<E> {
   pub fn new(pc_init: usize, z_init: Vec<E::Scalar>) -> Self {
     Self {
       pc_in: E::Scalar::from(pc_init as u64),
@@ -162,7 +162,7 @@ impl<E: CurveCycleEquipped> NIVCIO<E> {
   }
 }
 
-impl<E: CurveCycleEquipped> HashWriter<E> for NIVCIO<E> {
+impl<E: CurveCycleEquipped> HashWriter<E> for StepCircuitIO<E> {
   fn write<H: Hasher<E>>(&self, hasher: &mut H) {
     hasher.absorb_scalar(self.pc_in);
     for z in &self.z_in {
@@ -175,7 +175,7 @@ impl<E: CurveCycleEquipped> HashWriter<E> for NIVCIO<E> {
   }
 }
 
-impl<E: CurveCycleEquipped> AllocatedHashWriter<E::Scalar> for AllocatedNIVCIO<E> {
+impl<E: CurveCycleEquipped> AllocatedHashWriter<E::Scalar> for AllocatedStepCircuitIO<E> {
   fn write<H: AllocatedHasher<E::Scalar>>(&self, hasher: &mut H) {
     self.pc_in.write(hasher);
     self.z_in.write(hasher);

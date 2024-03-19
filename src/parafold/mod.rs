@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use digest::consts::U16;
+use ff::Field;
 use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
 use neptune::Strength;
@@ -20,6 +21,7 @@ mod cycle_fold;
 
 mod nifs;
 
+#[allow(unused)]
 pub mod prover;
 
 mod gadgets;
@@ -47,7 +49,7 @@ pub struct ProvingKey<E: CurveCycleEquipped> {
 /// # Note
 /// - An IO result is trivial if {pc, z}_in == {pc, z}_out
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NIVCIO<E: CurveCycleEquipped> {
+pub struct StepCircuitIO<E: CurveCycleEquipped> {
   pc_in: E::Scalar,
   z_in: Vec<E::Scalar>,
   pc_out: E::Scalar,
@@ -56,16 +58,16 @@ pub struct NIVCIO<E: CurveCycleEquipped> {
 
 /// A proof for loading a previous NIVC output inside a circuit.
 #[derive(Debug, Clone)]
-pub struct NIVCStepProof<E: CurveCycleEquipped> {
+pub struct StepProof<E: CurveCycleEquipped> {
   pub transcript_buffer: Option<Vec<HashElement<E>>>,
   pub acc: RelaxedR1CSInstance<E>,
   pub index: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
-pub struct NIVCMergeProof<E: CurveCycleEquipped> {
-  step_proof_L: NIVCStepProof<E>,
-  step_proof_R: NIVCStepProof<E>,
+pub struct MergeProof<E: CurveCycleEquipped> {
+  step_proof_L: StepProof<E>,
+  step_proof_R: StepProof<E>,
   pub transcript_buffer: Option<Vec<HashElement<E>>>,
   pub accs_L: Vec<RelaxedR1CSInstance<E>>,
   pub accs_R: Vec<RelaxedR1CSInstance<E>>,
@@ -92,38 +94,26 @@ impl<E: Engine> NIVCPoseidonConstants<E> {
       transcript: new_transcript_constants::<E>(),
     }
   }
-
-  // pub fn primary_r1cs(&self) -> &PrimaryR1CSConstants<E> {
-  //   &self.primary_r1cs
-  // }
-  //
-  // pub fn verifier_state(&self) -> &VerifierStateConstants<E> {
-  //   &self.verifier_state
-  // }
-  //
-  // pub fn transcript(&self) -> &TranscriptConstants<E> {
-  //   &self.transcript
-  // }
 }
 
-impl<E: CurveCycleEquipped> NIVCStepProof<E> {
+impl<E: CurveCycleEquipped> StepProof<E> {
   fn dummy() -> Self {
     Self {
       transcript_buffer: None,
-      acc: Default::default(),
+      acc: RelaxedR1CSInstance::init(E::Scalar::ZERO),
       index: None,
     }
   }
 }
 
-impl<E: CurveCycleEquipped> NIVCMergeProof<E> {
+impl<E: CurveCycleEquipped> MergeProof<E> {
   pub fn dummy(num_circuits: usize) -> Self {
     Self {
-      step_proof_L: NIVCStepProof::dummy(),
-      step_proof_R: NIVCStepProof::dummy(),
+      step_proof_L: StepProof::dummy(),
+      step_proof_R: StepProof::dummy(),
       transcript_buffer: None,
-      accs_L: vec![Default::default(); num_circuits],
-      accs_R: vec![Default::default(); num_circuits],
+      accs_L: vec![RelaxedR1CSInstance::init(E::Scalar::ZERO); num_circuits],
+      accs_R: vec![RelaxedR1CSInstance::init(E::Scalar::ZERO); num_circuits],
     }
   }
 }
@@ -135,7 +125,7 @@ mod tests {
 
   use crate::parafold::hash::{AllocatedHashWriter, HashWriter};
   use crate::parafold::verifier::{AllocatedVerifierState, VerifierState};
-  use crate::parafold::{new_verifier_state_constants, NIVCPoseidonConstants, NIVCStepProof};
+  use crate::parafold::{NIVCPoseidonConstants, StepProof};
   use crate::provider::Bn256EngineKZG as E;
   use crate::traits::Engine;
 
@@ -149,11 +139,11 @@ mod tests {
 
     let constants = NIVCPoseidonConstants::<E>::new();
 
-    let instance = VerifierState::<E>::dummy(0, 1);
-    let proof = NIVCStepProof::<E>::dummy();
+    let instance = VerifierState::<E>::dummy(0, 1, &constants);
+    let proof = StepProof::<E>::dummy();
 
     let _state =
-      AllocatedVerifierState::init(cs.namespace(|| "alloc"), instance, proof, &constants);
+      AllocatedVerifierState::init(cs.namespace(|| "alloc"), &instance, proof, &constants);
 
     if !cs.is_satisfied() {
       println!("{:?}", cs.which_is_unsatisfied());
@@ -165,14 +155,14 @@ mod tests {
   fn test_hash() {
     let mut cs = CS::new();
 
-    let constants = new_verifier_state_constants::<E>();
-    let state = VerifierState::<E>::dummy(4, 4);
-    let state_hash = state.hash(&constants);
-    let (allocated_state, _) =
-      AllocatedVerifierState::<E>::alloc_unverified(cs.namespace(|| "alloc state"), state);
+    let constants = NIVCPoseidonConstants::<E>::new();
+    let state = VerifierState::<E>::dummy(4, 4, &constants);
+    let state_hash = state.hash(&constants.verifier_state);
+    let allocated_state =
+      AllocatedVerifierState::<E>::alloc_unverified(cs.namespace(|| "alloc state"), &state);
 
     let allocated_state_hash = allocated_state
-      .hash(cs.namespace(|| "hash"), &constants)
+      .hash(cs.namespace(|| "hash"), &constants.verifier_state)
       .unwrap();
 
     assert_eq!(state_hash, allocated_state_hash.get_value().unwrap());

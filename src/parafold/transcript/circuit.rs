@@ -41,17 +41,16 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let element = if let Some(buffer) = &mut self.buffer {
-      buffer.next().ok_or(SynthesisError::AssignmentMissing)?
-    } else {
-      HashElement::Scalar(Default::default())
+    let HashElement::Scalar(element) = (match &mut self.buffer {
+      Some(buffer) => buffer.next().ok_or(SynthesisError::AssignmentMissing)?,
+      None => HashElement::Scalar(Default::default()),
+    }) else {
+      unreachable!()
     };
 
-    let allocated = match element {
-      HashElement::Scalar(val) => AllocatedNum::alloc_infallible(cs.namespace(|| "alloc"), || val),
-      _ => return Err(SynthesisError::Unsatisfiable),
-    };
+    let allocated = AllocatedNum::alloc_infallible(cs.namespace(|| "alloc"), || element);
     allocated.write(&mut self.state);
+
     Ok(allocated)
   }
 
@@ -62,19 +61,15 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let element = if let Some(buffer) = &mut self.buffer {
-      buffer.next().ok_or(SynthesisError::AssignmentMissing)?
-    } else {
-      HashElement::CommitmentPrimary(Default::default())
+    let HashElement::CommitmentPrimary(element) = (match &mut self.buffer {
+      Some(buffer) => buffer.next().ok_or(SynthesisError::AssignmentMissing)?,
+      None => HashElement::CommitmentPrimary(Default::default()),
+    }) else {
+      unreachable!()
     };
 
-    let allocated = match element {
-      HashElement::CommitmentPrimary(commitment) => {
-        AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc commitment primary"), commitment)
-      }
-      _ => return Err(SynthesisError::AssignmentMissing),
-    };
-
+    let allocated =
+      AllocatedPrimaryCommitment::alloc(cs.namespace(|| "alloc commitment primary"), element);
     allocated.write(&mut self.state);
 
     Ok(allocated)
@@ -87,20 +82,15 @@ impl<E: CurveCycleEquipped> AllocatedTranscript<E> {
   where
     CS: ConstraintSystem<E::Scalar>,
   {
-    let element = if let Some(buffer) = &mut self.buffer {
-      buffer.next().ok_or(SynthesisError::AssignmentMissing)?
-    } else {
-      HashElement::CommitmentSecondary(Default::default())
+    let HashElement::CommitmentSecondary(element) = (match &mut self.buffer {
+      Some(buffer) => buffer.next().ok_or(SynthesisError::AssignmentMissing)?,
+      None => HashElement::CommitmentSecondary(Default::default()),
+    }) else {
+      unreachable!()
     };
 
-    let allocated = match element {
-      HashElement::CommitmentSecondary(commitment) => AllocatedSecondaryCommitment::alloc(
-        cs.namespace(|| "alloc commitment secondary"),
-        commitment,
-      ),
-      _ => return Err(SynthesisError::AssignmentMissing),
-    };
-
+    let allocated =
+      AllocatedSecondaryCommitment::alloc(cs.namespace(|| "alloc commitment secondary"), element);
     allocated.write(&mut self.state);
 
     Ok(allocated)

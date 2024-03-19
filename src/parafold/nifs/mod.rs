@@ -32,10 +32,10 @@ pub struct RelaxedR1CSInstance<E: CurveCycleEquipped> {
   E: Commitment<E>,
 }
 
-impl<E: CurveCycleEquipped> Default for RelaxedR1CSInstance<E> {
-  fn default() -> Self {
+impl<E: CurveCycleEquipped> RelaxedR1CSInstance<E> {
+  pub fn init(pp: E::Scalar) -> Self {
     Self {
-      pp: Default::default(),
+      pp,
       u: Default::default(),
       X: Default::default(),
       W: Default::default(),
@@ -115,8 +115,9 @@ mod tests {
   use bellpepper_core::ConstraintSystem;
   use bellpepper_core::test_cs::TestConstraintSystem;
 
-  use crate::parafold::hash::{AllocatedHashWriter, check_write};
+  use crate::parafold::hash::AllocatedHashWriter;
   use crate::parafold::nifs::circuit::AllocatedRelaxedR1CSInstance;
+  use crate::parafold::test::check_write;
   use crate::provider::Bn256EngineKZG as E;
   use crate::traits::Engine;
 
@@ -130,9 +131,9 @@ mod tests {
   fn test_write() {
     let mut cs = CS::new();
 
-    let acc = RelaxedR1CSInstance::<E>::default();
+    let acc = RelaxedR1CSInstance::<E>::init(Scalar::ZERO);
     let allocated_acc =
-      AllocatedRelaxedR1CSInstance::<E>::alloc(cs.namespace(|| "alloc acc"), acc.clone());
+      AllocatedRelaxedR1CSInstance::<E>::alloc(cs.namespace(|| "alloc acc"), &acc);
     check_write(cs.namespace(|| "check write"), &acc, &allocated_acc);
 
     if !cs.is_satisfied() {
@@ -147,9 +148,9 @@ mod tests {
 
     let constants = new_primary_r1cs_constants::<E>();
 
-    let acc = RelaxedR1CSInstance::<E>::default();
+    let acc = RelaxedR1CSInstance::<E>::init(Scalar::ZERO);
     let allocated_acc =
-      AllocatedRelaxedR1CSInstance::<E>::alloc(cs.namespace(|| "alloc acc"), acc.clone());
+      AllocatedRelaxedR1CSInstance::<E>::alloc(cs.namespace(|| "alloc acc"), &acc);
 
     let acc_hash = acc.hash(&constants);
     let allocated_acc_hash = allocated_acc

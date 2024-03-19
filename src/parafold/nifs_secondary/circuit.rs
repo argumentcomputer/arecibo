@@ -1,12 +1,12 @@
-use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::boolean::Boolean;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use itertools::{enumerate, zip_eq};
 
 use crate::constants::NUM_CHALLENGE_BITS;
 use crate::parafold::gadgets::emulated::AllocatedBase;
 use crate::parafold::gadgets::secondary_commitment::AllocatedSecondaryCommitment;
-use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter};
-use crate::parafold::nifs_secondary::{NUM_IO_SECONDARY, RelaxedSecondaryR1CSInstance};
+use crate::parafold::hash::{AllocatedHashWriter, AllocatedHasher};
+use crate::parafold::nifs_secondary::{RelaxedSecondaryR1CSInstance, NUM_IO_SECONDARY};
 use crate::parafold::transcript::circuit::AllocatedTranscript;
 use crate::traits::CurveCycleEquipped;
 
@@ -124,13 +124,13 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
   }
 
   /// Allocate and add the result to the transcript
-  pub fn alloc_unchecked<CS>(mut cs: CS, instance: RelaxedSecondaryR1CSInstance<E>) -> Self
+  pub fn alloc_unchecked<CS>(mut cs: CS, instance: &RelaxedSecondaryR1CSInstance<E>) -> Self
   where
     CS: ConstraintSystem<E::Scalar>,
   {
     let u = AllocatedBase::alloc_unchecked(cs.namespace(|| "read u"), instance.u);
-    let X = enumerate(instance.X)
-      .map(|(i, x)| AllocatedBase::alloc_unchecked(cs.namespace(|| format!("read x[{i}]")), x))
+    let X = enumerate(&instance.X)
+      .map(|(i, x)| AllocatedBase::alloc_unchecked(cs.namespace(|| format!("read x[{i}]")), *x))
       .collect();
     let W =
       AllocatedSecondaryCommitment::<E>::alloc_unchecked(cs.namespace(|| "read W"), instance.W);
@@ -166,12 +166,8 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryRelaxedR1CSInstance<E> {
   }
 
   pub fn get_value(&self) -> Option<RelaxedSecondaryR1CSInstance<E>> {
-    let u = self.u.get_value()?;
-    let X = self
-      .X
-      .iter()
-      .map(|x| x.get_value())
-      .collect::<Option<Vec<_>>>()?;
+    let u = self.u.get_value();
+    let X = self.X.iter().map(|x| x.get_value()).collect();
     let W = self.W.get_value()?;
     let E = self.E.get_value()?;
     Some(RelaxedSecondaryR1CSInstance { u, X, W, E })

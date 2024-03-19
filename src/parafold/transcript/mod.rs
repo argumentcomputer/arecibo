@@ -3,9 +3,7 @@ use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
 use neptune::Strength;
 
-use crate::Commitment;
-use crate::parafold::hash::HashElement;
-use crate::traits::{CurveCycleEquipped, Engine};
+use crate::traits::Engine;
 
 pub mod circuit;
 pub mod prover;
@@ -23,15 +21,15 @@ mod tests {
   use bellpepper_core::test_cs::TestConstraintSystem;
   use ff::Field;
 
+  use crate::Commitment;
   use crate::gadgets::utils::alloc_zero;
+  use crate::parafold::hash::HashElement;
   use crate::parafold::transcript::circuit::AllocatedTranscript;
   use crate::parafold::transcript::new_transcript_constants;
   use crate::parafold::transcript::prover::Transcript;
   use crate::provider::Bn256EngineKZG as E;
+  use crate::traits::{CurveCycleEquipped, Engine};
   use crate::traits::commitment::CommitmentEngineTrait;
-  use crate::traits::Engine;
-
-  use super::*;
 
   type ESecondary = <E as CurveCycleEquipped>::Secondary;
   type Scalar = <E as Engine>::Scalar;

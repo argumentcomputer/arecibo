@@ -1,21 +1,20 @@
-use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::num::{AllocatedNum, Num};
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
-use itertools::zip_eq;
-use neptune::{Arity, Poseidon};
-use neptune::circuit2::{Elt, poseidon_hash_allocated};
+use neptune::circuit2::{poseidon_hash_allocated, Elt};
 use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
 use neptune::sponge::api::{IOPattern, SpongeAPI, SpongeOp};
 use neptune::sponge::circuit::SpongeCircuit;
-use neptune::sponge::vanilla::{Sponge, SpongeTrait};
 use neptune::sponge::vanilla::Mode::Simplex;
+use neptune::sponge::vanilla::{Sponge, SpongeTrait};
+use neptune::{Arity, Poseidon};
 
-use crate::Commitment;
 use crate::parafold::cycle_fold::hash_commitment;
 use crate::parafold::gadgets::emulated::BaseParams;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::CurveCycleEquipped;
+use crate::Commitment;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum HashElement<E: CurveCycleEquipped> {
@@ -83,15 +82,15 @@ impl<E: CurveCycleEquipped> Hasher<E> for Vec<E::Scalar> {
     match constants.hash_type {
       HashType::ConstantLength(len) => {
         assert_eq!(self.len(), len);
-        Poseidon::new_with_preimage(&self, &constants).hash()
+        Poseidon::new_with_preimage(self, constants).hash()
       }
       HashType::Sponge => {
         let num_absorbs = self.len() as u32;
         let acc = &mut ();
-        let mut sponge = Sponge::new_with_constants(&constants, Simplex);
+        let mut sponge = Sponge::new_with_constants(constants, Simplex);
         let parameter = IOPattern(vec![SpongeOp::Absorb(num_absorbs), SpongeOp::Squeeze(1u32)]);
         sponge.start(parameter, None, acc);
-        SpongeAPI::absorb(&mut sponge, num_absorbs, &self, acc);
+        SpongeAPI::absorb(&mut sponge, num_absorbs, self, acc);
         let hash = SpongeAPI::squeeze(&mut sponge, 1, acc);
         SpongeAPI::finish(&mut sponge, acc).expect("no error");
         hash[0]
@@ -178,9 +177,9 @@ impl<F: PrimeField> AllocatedHasher<F> for Vec<Elt<F>> {
 
         let pattern = IOPattern(vec![SpongeOp::Absorb(num_absorbs), SpongeOp::Squeeze(1u32)]);
         let acc = &mut cs.namespace(|| "squeeze");
-        let mut sponge = SpongeCircuit::new_with_constants(&constants, Simplex);
+        let mut sponge = SpongeCircuit::new_with_constants(constants, Simplex);
         sponge.start(pattern, None, acc);
-        SpongeAPI::absorb(&mut sponge, num_absorbs, &self, acc);
+        SpongeAPI::absorb(&mut sponge, num_absorbs, self, acc);
         let state_out = SpongeAPI::squeeze(&mut sponge, 1, acc);
         SpongeAPI::finish(&mut sponge, acc).expect("no error");
 
@@ -194,37 +193,10 @@ impl<F: PrimeField> AllocatedHasher<F> for Vec<Elt<F>> {
 }
 
 #[cfg(test)]
-pub fn check_write<E, CS, HW, AHW>(mut cs: CS, element: &HW, allocated: &AHW)
-where
-  E: CurveCycleEquipped,
-  CS: ConstraintSystem<E::Scalar>,
-  HW: HashWriter<E>,
-  AHW: AllocatedHashWriter<E::Scalar>,
-{
-  let mut hasher = Vec::<E::Scalar>::new();
-  let mut allocated_hasher = Vec::<Elt<E::Scalar>>::new();
-  element.write(&mut hasher);
-  allocated.write(&mut allocated_hasher);
-
-  let allocated_hasher = allocated_hasher
-    .into_iter()
-    .enumerate()
-    .map(|(i, element)| {
-      element
-        .ensure_allocated(&mut cs.namespace(|| i.to_string()), true)
-        .unwrap()
-    });
-
-  for (element, allocated) in zip_eq(hasher, allocated_hasher) {
-    assert_eq!(element, allocated.get_value().unwrap());
-  }
-}
-
-#[cfg(test)]
 mod tests {
-  use bellpepper_core::ConstraintSystem;
   use bellpepper_core::num::AllocatedNum;
   use bellpepper_core::test_cs::TestConstraintSystem;
+  use bellpepper_core::ConstraintSystem;
 
   use crate::parafold::gadgets::emulated::AllocatedBase;
   use crate::parafold::gadgets::primary_commitment::AllocatedPrimaryCommitment;
@@ -282,13 +254,13 @@ mod tests {
         }
         HashElement::Base(e) => {
           let e_alloc = AllocatedBase::<E>::alloc(cs.namespace(|| "alloc"), &e);
-          assert_eq!(e, e_alloc.get_value().unwrap());
+          assert_eq!(e, e_alloc.get_value());
           let e_alloc = AllocatedBase::<E>::alloc_unchecked(cs.namespace(|| "alloc unchecked"), e);
-          assert_eq!(e, e_alloc.get_value().unwrap());
+          assert_eq!(e, e_alloc.get_value());
         }
         HashElement::CommitmentPrimary(e) => {
           let e_alloc = AllocatedPrimaryCommitment::<E>::alloc(cs, e);
-          assert_eq!(e, e_alloc.get_value().unwrap());
+          assert_eq!(e, e_alloc.get_value());
         }
         HashElement::CommitmentSecondary(e) => {
           let e_alloc = AllocatedSecondaryCommitment::<E>::alloc(cs.namespace(|| "alloc"), e);

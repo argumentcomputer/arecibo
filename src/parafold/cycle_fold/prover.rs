@@ -1,6 +1,7 @@
-use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::num::AllocatedNum;
 
+use crate::{Commitment, CommitmentKey};
 use crate::bellpepper::solver::SatisfyingAssignment;
 use crate::gadgets::utils::scalar_as_base;
 use crate::parafold::cycle_fold::hash_commitment;
@@ -11,7 +12,6 @@ use crate::parafold::transcript::prover::Transcript;
 use crate::r1cs::R1CSShape;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::CurveCycleEquipped;
-use crate::{Commitment, CommitmentKey};
 
 /// A [ScalarMulAccumulator] represents a coprocessor for efficiently computing non-native ECC scalar multiplications
 /// inside a circuit.
@@ -135,27 +135,75 @@ impl<E: CurveCycleEquipped> ScalarMulInstance<E> {
 }
 #[cfg(test)]
 mod tests {
-  use bellpepper_core::test_cs::TestConstraintSystem;
+  use bellpepper_core::boolean::Boolean;
   use bellpepper_core::ConstraintSystem;
+  use bellpepper_core::test_cs::TestConstraintSystem;
   use expect_test::expect;
 
+  use crate::parafold::cycle_fold::circuit::AllocatedScalarMulAccumulator;
+  use crate::parafold::gadgets::primary_commitment::AllocatedPrimaryCommitment;
+  use crate::parafold::nifs_secondary::circuit::AllocatedSecondaryRelaxedR1CSInstance;
+  use crate::parafold::nifs_secondary::RelaxedSecondaryR1CSInstance;
+  use crate::parafold::transcript::circuit::AllocatedTranscript;
+  use crate::parafold::transcript::new_transcript_constants;
   use crate::provider::Bn256EngineKZG as E;
   use crate::traits::Engine;
 
   use super::*;
 
+  type Scalar = <E as Engine>::Scalar;
   type Base = <E as Engine>::Base;
 
-  type CS = TestConstraintSystem<Base>;
+  type CS1 = TestConstraintSystem<Scalar>;
+  type CS2 = TestConstraintSystem<Base>;
 
   #[test]
-  fn test_scalar_mul() {
-    let mut cs = CS::new();
+  fn test_scalar_mul_secondary() {
+    let mut cs = CS2::new();
     let instance = ScalarMulInstance::<E>::default();
 
     instance.synthesize(cs.namespace(|| "scalar mul")).unwrap();
 
     expect!["3405"].assert_eq(&cs.num_constraints().to_string());
+
+    if !cs.is_satisfied() {
+      println!("{:?}", cs.which_is_unsatisfied());
+    }
+    assert!(cs.is_satisfied());
+  }
+
+  #[test]
+  fn test_scalar_primary() {
+    let mut cs = CS1::new();
+
+    let constants = new_transcript_constants::<E>();
+    let mut transcript = AllocatedTranscript::<E>::new(constants, [], None);
+    let identity =
+      AllocatedPrimaryCommitment::<E>::alloc(cs.namespace(|| "alloc"), Commitment::<E>::default());
+    let scalar: Vec<Boolean> = vec![];
+    let mut acc_sm = AllocatedScalarMulAccumulator::<E>::new();
+    let acc_cf = AllocatedSecondaryRelaxedR1CSInstance::<E>::alloc_unchecked(
+      cs.namespace(|| "alloc acc_cf"),
+      &RelaxedSecondaryR1CSInstance::<E>::default(),
+    );
+    let constraints_alloc = cs.num_constraints();
+
+    let _ = acc_sm
+      .scalar_mul(
+        cs.namespace(|| "acc sm"),
+        identity.clone(),
+        identity.clone(),
+        scalar,
+        &mut transcript,
+      )
+      .unwrap();
+
+    let _ = acc_sm
+      .finalize(cs.namespace(|| "finalize"), acc_cf, &mut transcript)
+      .unwrap();
+
+    let constraints = cs.num_constraints() - constraints_alloc;
+    expect!["6584"].assert_eq(&constraints.to_string());
 
     if !cs.is_satisfied() {
       println!("{:?}", cs.which_is_unsatisfied());

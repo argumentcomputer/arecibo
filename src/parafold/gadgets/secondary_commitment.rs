@@ -1,12 +1,12 @@
-use bellpepper_core::boolean::Boolean;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::boolean::Boolean;
 use ff::Field;
 
-use crate::parafold::gadgets::ecc::AllocatedPoint;
-use crate::parafold::hash::{AllocatedHashWriter, AllocatedHasher};
-use crate::traits::commitment::CommitmentTrait;
-use crate::traits::{CurveCycleEquipped, Engine};
 use crate::Commitment;
+use crate::parafold::gadgets::ecc::AllocatedPoint;
+use crate::parafold::hash::{AllocatedHasher, AllocatedHashWriter};
+use crate::traits::{CurveCycleEquipped, Engine};
+use crate::traits::commitment::CommitmentTrait;
 
 #[derive(Debug, Clone)]
 pub struct AllocatedSecondaryCommitment<E: CurveCycleEquipped> {
@@ -84,7 +84,7 @@ impl<E: CurveCycleEquipped> AllocatedSecondaryCommitment<E> {
   }
 
   pub fn get_value(&self) -> Option<Commitment<E::Secondary>> {
-    debug_assert_eq!(self.value.to_coordinates(), self.point.get_value()?,);
+    debug_assert_eq!(self.value.to_coordinates(), self.point.get_value()?);
 
     Some(self.value)
   }
