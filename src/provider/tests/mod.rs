@@ -1,4 +1,5 @@
 mod ipa_pc;
+mod poseidon;
 
 #[cfg(test)]
 pub mod solidity_compatibility_utils {
