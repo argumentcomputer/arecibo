@@ -311,7 +311,7 @@ impl<E: Engine> R1CSShape<E> {
   }
 
   /// Computes the error term E = Az * Bz - u*Cz.
-  fn compute_E(
+  pub fn compute_E(
     &self,
     W: &[E::Scalar],
     u: &E::Scalar,

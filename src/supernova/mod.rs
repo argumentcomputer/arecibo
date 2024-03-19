@@ -43,7 +43,7 @@ use bellpepper_core::ConstraintSystem;
 use crate::nifs::NIFS;
 
 mod circuit; // declare the module first
-pub use circuit::{StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit};
+pub use circuit::{EnforcingStepCircuit, StepCircuit, TrivialSecondaryCircuit, TrivialTestCircuit};
 use circuit::{
   SuperNovaAugmentedCircuit, SuperNovaAugmentedCircuitInputs, SuperNovaAugmentedCircuitParams,
 };

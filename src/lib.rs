@@ -25,6 +25,7 @@ pub mod r1cs;
 pub mod spartan;
 pub mod traits;
 
+mod parafold;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
