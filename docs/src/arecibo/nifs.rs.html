@@ -400,7 +400,7 @@
 
 <span class="doccomment">/// A SNARK that holds the proof of a step of an incremental computation
 </span><span class="attr">#[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>NIFS&lt;E: Engine&gt; {
   <span class="kw">pub</span>(<span class="kw">crate</span>) comm_T: CompressedCommitment&lt;E&gt;,

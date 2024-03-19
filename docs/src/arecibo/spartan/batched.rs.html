@@ -670,7 +670,7 @@
 <span class="doccomment">/// A succinct proof of knowledge of a witness to a batch of relaxed R1CS instances
 /// The proof is produced using Spartan's combination of the sum-check and
 /// the commitment to a vector viewed as a polynomial commitment
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>BatchedRelaxedR1CSSNARK&lt;E: Engine, EE: EvaluationEngineTrait&lt;E&gt;&gt; {
   sc_proof_outer: SumcheckProof&lt;E&gt;,

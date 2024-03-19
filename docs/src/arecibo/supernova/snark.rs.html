@@ -738,7 +738,7 @@
 }
 
 <span class="doccomment">/// A SNARK that proves the knowledge of a valid `RecursiveSNARK`
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = <span class="string">""</span>)]
 </span><span class="kw">pub struct </span>CompressedSNARK&lt;E1, S1, S2&gt;
 <span class="kw">where
