@@ -3,7 +3,6 @@
 use std::ops::Index;
 
 use crate::{
-  bellpepper::shape_cs::ShapeCS,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
@@ -18,6 +17,7 @@ use crate::{
   },
   Commitment, CommitmentKey, R1CSWithArity,
 };
+use bellpepper::util_cs::shape_cs::ShapeCS;
 
 #[cfg(feature = "abomonate")]
 use abomonation::Abomonation;
@@ -265,7 +265,7 @@ where
             ro_consts_circuit_primary.clone(),
             num_circuits,
           );
-        let mut cs: ShapeCS<E1> = ShapeCS::new();
+        let mut cs: ShapeCS<E1::Scalar> = ShapeCS::new();
         circuit_primary
           .synthesize(&mut cs)
           .expect("circuit synthesis failed");
@@ -294,7 +294,7 @@ where
         ro_consts_circuit_secondary.clone(),
         num_circuits,
       );
-    let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
+    let mut cs: ShapeCS<<Dual<E1> as Engine>::Scalar> = ShapeCS::new();
     circuit_secondary
       .synthesize(&mut cs)
       .expect("circuit synthesis failed");
@@ -1191,11 +1191,11 @@ pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
       ro_consts_circuit,
       num_augmented_circuits,
     );
-  let mut cs: ShapeCS<E1> = ShapeCS::new();
+  let mut cs: ShapeCS<E1::Scalar> = ShapeCS::new();
   let _ = augmented_circuit.synthesize(&mut cs);
 
   let F_arity = circuit.arity();
-  let circuit_params = R1CSWithArity::new(cs.r1cs_shape(), F_arity);
+  let circuit_params = R1CSWithArity::<E1>::new(cs.r1cs_shape(), F_arity);
   circuit_params.digest()
 }
 

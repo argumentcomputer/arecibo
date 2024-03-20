@@ -2,13 +2,14 @@
 
 #![allow(non_snake_case)]
 
-use super::{shape_cs::ShapeCS, solver::SatisfyingAssignment, test_shape_cs::TestShapeCS};
+use super::solver::SatisfyingAssignment;
 use crate::{
   errors::NovaError,
   r1cs::{commitment_key, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, SparseMatrix},
   traits::Engine,
   CommitmentKey,
 };
+use bellpepper::util_cs::{shape_cs::ShapeCS, test_shape_cs::TestShapeCS};
 use bellpepper_core::{Index, LinearCombination};
 use ff::PrimeField;
 
@@ -57,7 +58,7 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
 
 macro_rules! impl_nova_shape {
   ( $name:ident) => {
-    impl<E: Engine> NovaShape<E> for $name<E>
+    impl<E: Engine> NovaShape<E> for $name<E::Scalar>
     where
       E::Scalar: PrimeField,
     {

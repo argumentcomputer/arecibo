@@ -364,7 +364,6 @@ mod tests {
     bellpepper::{
       r1cs::{NovaShape, NovaWitness},
       solver::SatisfyingAssignment,
-      test_shape_cs::TestShapeCS,
     },
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::scalar_as_base,
@@ -374,6 +373,7 @@ mod tests {
     },
     traits::{circuit::TrivialCircuit, snark::default_ck_hint, CurveCycleEquipped, Dual},
   };
+  use bellpepper::util_cs::test_shape_cs::TestShapeCS;
   use expect_test::{expect, Expect};
 
   // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
@@ -391,7 +391,7 @@ mod tests {
     // Initialize the shape and ck for the primary
     let circuit1: NovaAugmentedCircuit<'_, Dual<E1>, TrivialCircuit<<Dual<E1> as Engine>::Base>> =
       NovaAugmentedCircuit::new(primary_params, None, &tc1, ro_consts1.clone());
-    let mut cs: TestShapeCS<E1> = TestShapeCS::new();
+    let mut cs: TestShapeCS<E1::Scalar> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape_and_key(&*default_ck_hint());
 
@@ -401,9 +401,9 @@ mod tests {
     // Initialize the shape and ck for the secondary
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
       NovaAugmentedCircuit::new(secondary_params, None, &tc2, ro_consts2.clone());
-    let mut cs: TestShapeCS<Dual<E1>> = TestShapeCS::new();
+    let mut cs: TestShapeCS<<Dual<E1> as Engine>::Scalar> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
-    let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint());
+    let (shape2, ck2) = cs.r1cs_shape_and_key(&*default_ck_hint::<Dual<E1>>());
 
     expected_num_constraints_secondary.assert_eq(&cs.num_constraints().to_string());
 
