@@ -2,14 +2,14 @@
 
 #![allow(non_snake_case)]
 
-use super::{shape_cs::ShapeCS, solver::SatisfyingAssignment};
+use super::solver::SatisfyingAssignment;
 use crate::{
   errors::NovaError,
   r1cs::{commitment_key, CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, SparseMatrix},
   traits::Engine,
   CommitmentKey,
 };
-use bellpepper::util_cs::test_shape_cs::TestShapeCS;
+use bellpepper::util_cs::{shape_cs::ShapeCS, test_shape_cs::TestShapeCS};
 use bellpepper_core::{Index, LinearCombination};
 use ff::PrimeField;
 

@@ -34,11 +34,11 @@ use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::{
   bellpepper::{
     r1cs::{NovaShape, NovaWitness},
-    shape_cs::ShapeCS,
     solver::SatisfyingAssignment,
   },
   r1cs::R1CSResult,
 };
+use ::bellpepper::util_cs::shape_cs::ShapeCS;
 use abomonation::Abomonation;
 use abomonation_derive::Abomonation;
 use bellpepper_core::{ConstraintSystem, SynthesisError};

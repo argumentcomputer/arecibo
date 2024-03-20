@@ -3,7 +3,6 @@
 use std::ops::Index;
 
 use crate::{
-  bellpepper::shape_cs::ShapeCS,
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_HASH_BITS},
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
@@ -18,6 +17,7 @@ use crate::{
   },
   Commitment, CommitmentKey, R1CSWithArity,
 };
+use bellpepper::util_cs::shape_cs::ShapeCS;
 
 #[cfg(feature = "abomonate")]
 use abomonation::Abomonation;

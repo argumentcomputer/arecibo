@@ -3,7 +3,6 @@
 //! [Bellpepper]: https://github.com/lurk-lab/bellpepper
 
 pub mod r1cs;
-pub mod shape_cs;
 pub mod solver;
 
 #[cfg(test)]
@@ -11,12 +10,12 @@ mod tests {
   use crate::{
     bellpepper::{
       r1cs::{NovaShape, NovaWitness},
-      shape_cs::ShapeCS,
       solver::SatisfyingAssignment,
     },
     provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
     traits::{snark::default_ck_hint, Engine},
   };
+  use bellpepper::util_cs::shape_cs::ShapeCS;
   use bellpepper_core::{num::AllocatedNum, ConstraintSystem};
   use ff::PrimeField;
 
