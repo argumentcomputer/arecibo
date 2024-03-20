@@ -18,22 +18,16 @@ mod nifs;
 
 // public modules
 pub mod constants;
+pub mod cyclefold;
+pub mod data;
 pub mod errors;
 pub mod gadgets;
 pub mod provider;
 pub mod r1cs;
 pub mod spartan;
+pub mod supernova;
 pub mod traits;
 
-pub mod cyclefold;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-pub mod data;
-pub mod supernova;
-
-use once_cell::sync::OnceCell;
-use traits::{CurveCycleEquipped, Dual};
-
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use crate::data::{write_arecibo_data, write_data};
 use crate::digest::{DigestComputer, SimpleDigestible};
 use crate::{
@@ -53,6 +47,7 @@ use errors::NovaError;
 use ff::{Field, PrimeField};
 use gadgets::scalar_as_base;
 use nifs::NIFS;
+use once_cell::sync::OnceCell;
 use r1cs::{
   CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
@@ -64,6 +59,7 @@ use traits::{
   snark::RelaxedR1CSSNARKTrait,
   AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
 };
+use traits::{CurveCycleEquipped, Dual};
 
 /// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
@@ -359,13 +355,6 @@ pub struct ResourceBuffer<E: Engine> {
   T: Vec<E::Scalar>,
 }
 
-/// A very simple config for [`RecursiveSNARK`] in charge of logging behavior.
-/// To be fleshed out and extended in the future.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RecursiveSNARKConfig {
-  write_data: bool,
-}
-
 /// A SNARK that proves the correct execution of an incremental computation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -390,8 +379,6 @@ where
   i: usize,
   zi_primary: Vec<E1::Scalar>,
   zi_secondary: Vec<<Dual<E1> as Engine>::Scalar>,
-
-  config: RecursiveSNARKConfig,
 }
 
 impl<E1> RecursiveSNARK<E1>
@@ -503,20 +490,8 @@ where
       T: r1cs::default_T::<Dual<E1>>(r1cs_secondary.num_cons),
     };
 
-    let config = RecursiveSNARKConfig {
-      #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-      write_data: write_data(),
-      #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-      write_data: false,
-    };
-
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    if config.write_data {
-      write_arecibo_data(
-        format!("r1cs_primary_{:?}", pp.digest()),
-        "",
-        &r1cs_primary,
-      );
+    if write_data() {
+      write_arecibo_data(format!("r1cs_primary_{:?}", pp.digest()), "", &r1cs_primary);
     }
 
     Ok(Self {
@@ -535,8 +510,6 @@ where
       i: 0,
       zi_primary,
       zi_secondary,
-
-      config,
     })
   }
 
@@ -626,8 +599,7 @@ where
       &mut self.buffer_primary.ABC_Z_2,
     )?;
 
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    if self.config.write_data {
+    if write_data() {
       let W = l_w_primary.W;
       write_arecibo_data(
         format!("witness_{:?}", pp.digest()),
