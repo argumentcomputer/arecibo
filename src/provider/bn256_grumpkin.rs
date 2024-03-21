@@ -8,7 +8,7 @@ use digest::{ExtendableOutput, Update};
 use ff::{FromUniformBytes, PrimeField};
 use group::{cofactor::CofactorCurveAffine, Curve, Group as AnotherGroup};
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-use grumpkin_msm::{grumpkin as grumpkin_msm};
+use grumpkin_msm::grumpkin as grumpkin_msm;
 // Remove this when https://github.com/zcash/pasta_curves/issues/41 resolves
 use halo2curves::{bn256::G2Affine, CurveAffine, CurveExt};
 use num_bigint::BigInt;
@@ -35,10 +35,17 @@ pub mod grumpkin {
   };
 }
 
-fn ingonyama_bn256_msm(points: &[bn256::Affine], scalars: &[bn256::Scalar]) -> bn256::Point {
-  let stream = ingonyama_grumpkin_msm::Config::new();
-  let cfg = ingonyama_grumpkin_msm::default_config(&stream.stream);
-  ingonyama_grumpkin_msm::bn256_msm(&points, &scalars, &cfg)
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+fn bn256_msm(points: &[bn256::Affine], scalars: &[bn256::Scalar]) -> bn256::Point {
+  cfg_if::cfg_if! {
+    if #[cfg(feature = "cuda")] {
+      let stream = ingonyama_grumpkin_msm::Config::new();
+      let cfg = ingonyama_grumpkin_msm::default_config(&stream.stream);
+      ingonyama_grumpkin_msm::bn256_msm(&points, &scalars, &cfg)
+    } else {
+      grumpkin_msm::bn256(points, scalars)
+    }
+  }
 }
 
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -46,7 +53,7 @@ impl_traits!(
   bn256,
   "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
   "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47",
-  ingonyama_bn256_msm
+  bn256_msm
 );
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 impl_traits!(
