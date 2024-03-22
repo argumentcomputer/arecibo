@@ -11,7 +11,7 @@ use crate::{
     BN_LIMB_WIDTH, BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT,
     NUM_HASH_BITS,
   },
-  cyclefold::circuit::CyclefoldCircuit,
+  cyclefold::circuit::CycleFoldCircuit,
   errors::NovaError,
   gadgets::scalar_as_base,
   r1cs::{
@@ -98,7 +98,7 @@ where
 
     let ro_consts_cyclefold = ROConstants::<Dual<E1>>::default();
     let mut cs: ShapeCS<Dual<E1>> = ShapeCS::new();
-    let circuit_cyclefold: CyclefoldCircuit<E1> = CyclefoldCircuit::default();
+    let circuit_cyclefold: CycleFoldCircuit<E1> = CycleFoldCircuit::default();
     let _ = circuit_cyclefold.synthesize(&mut cs);
     let (r1cs_shape_cyclefold, ck_cyclefold) = cs.r1cs_shape_and_key(ck_hint_cyclefold);
     let circuit_shape_cyclefold = R1CSWithArity::new(r1cs_shape_cyclefold, 0);
@@ -297,8 +297,8 @@ where
       pp.circuit_shape_cyclefold.r1cs_shape.num_vars,
     );
 
-    let circuit_cyclefold_E: CyclefoldCircuit<E1> =
-      CyclefoldCircuit::new(Some(self.r_U_primary.comm_E), Some(comm_T), r_bools);
+    let circuit_cyclefold_E: CycleFoldCircuit<E1> =
+      CycleFoldCircuit::new(Some(self.r_U_primary.comm_E), Some(comm_T), r_bools);
 
     let _ = circuit_cyclefold_E.synthesize(&mut cs_cyclefold_E);
 
@@ -325,7 +325,7 @@ where
       pp.circuit_shape_cyclefold.r1cs_shape.num_vars,
     );
 
-    let circuit_cyclefold_W: CyclefoldCircuit<E1> = CyclefoldCircuit::new(
+    let circuit_cyclefold_W: CycleFoldCircuit<E1> = CycleFoldCircuit::new(
       Some(self.r_U_primary.comm_W),
       Some(self.l_u_primary.comm_W),
       r_bools,

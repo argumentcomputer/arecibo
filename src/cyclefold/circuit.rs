@@ -16,14 +16,14 @@ use crate::{
 use bellpepper::gadgets::boolean_utils::conditionally_select;
 
 /// A structure containing the CycleFold circuit inputs and implementing the synthesize function
-pub struct CyclefoldCircuit<E: Engine> {
+pub struct CycleFoldCircuit<E: Engine> {
   commit_1: Option<Commitment<E>>,
   commit_2: Option<Commitment<E>>,
   scalar: Option<[bool; NUM_CHALLENGE_BITS]>,
   poseidon_constants: PoseidonConstants<E::Base, generic_array::typenum::U2>,
 }
 
-impl<E: Engine> Default for CyclefoldCircuit<E> {
+impl<E: Engine> Default for CycleFoldCircuit<E> {
   fn default() -> Self {
     let poseidon_constants = PoseidonConstants::new();
     Self {
@@ -34,7 +34,7 @@ impl<E: Engine> Default for CyclefoldCircuit<E> {
     }
   }
 }
-impl<E: Engine> CyclefoldCircuit<E> {
+impl<E: Engine> CycleFoldCircuit<E> {
   /// Create a new CycleFold circuit with the given inputs
   pub fn new(
     commit_1: Option<Commitment<E>>,
@@ -181,7 +181,7 @@ mod tests {
     E1: CurveCycleEquipped,
   {
     // Instantiate the circuit with trivial inputs
-    let circuit: CyclefoldCircuit<Dual<E1>> = CyclefoldCircuit::default();
+    let circuit: CycleFoldCircuit<Dual<E1>> = CycleFoldCircuit::default();
 
     // Synthesize the R1CS shape
     let mut cs: ShapeCS<E1> = ShapeCS::new();
@@ -228,14 +228,13 @@ mod tests {
     let r_bits = r
       .to_le_bits()
       .into_iter()
-      .map(Some)
-      .collect::<Option<Vec<_>>>()
-      .map(|mut vec| {
-        vec.resize_with(128, || false);
-        vec.try_into().unwrap()
-      });
+      .take(128)
+      .collect::<Vec<_>>()
+      .try_into()
+      .unwrap();
 
-    let circuit: CyclefoldCircuit<Dual<E>> = CyclefoldCircuit::new(Some(C_1), Some(C_2), r_bits);
+    let circuit: CycleFoldCircuit<Dual<E>> =
+      CycleFoldCircuit::new(Some(C_1), Some(C_2), Some(r_bits));
 
     // Calculate the result out of circuit
     let native_result = C_1 + C_2 * r;
