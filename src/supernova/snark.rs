@@ -458,65 +458,6 @@ mod test {
     }
   }
 
-  fn test_nivc_trivial_with_compression_with<E1, S1, S2>()
-  where
-    E1: CurveCycleEquipped,
-    S1: BatchedRelaxedR1CSSNARKTrait<E1>,
-    S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
-    <E1::Scalar as PrimeField>::Repr: Abomonation,
-    <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
-  {
-    const NUM_STEPS: usize = 6;
-
-    let secondary_circuit = TrivialSecondaryCircuit::default();
-    let test_circuits = TestCircuit::new(NUM_STEPS);
-
-    let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
-
-    let z0_primary = vec![E1::Scalar::from(17u64)];
-    let z0_secondary = vec![<Dual<E1> as Engine>::Scalar::ZERO];
-
-    let mut recursive_snark = RecursiveSNARK::new(
-      &pp,
-      &test_circuits[0],
-      &test_circuits[0],
-      &secondary_circuit,
-      &z0_primary,
-      &z0_secondary,
-    )
-    .unwrap();
-
-    for circuit in test_circuits.iter().take(NUM_STEPS) {
-      recursive_snark
-        .prove_step(&pp, circuit, &secondary_circuit)
-        .unwrap();
-
-      recursive_snark
-        .verify(&pp, &z0_primary, &z0_secondary)
-        .unwrap();
-    }
-
-    let (prover_key, verifier_key) = CompressedSNARK::<_, S1, S2>::setup(&pp).unwrap();
-
-    let compressed_snark = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark).unwrap();
-
-    compressed_snark
-      .verify(&pp, &verifier_key, &z0_primary, &z0_secondary)
-      .unwrap();
-  }
-
-  #[test]
-  fn test_nivc_trivial_with_compression() {
-    // ppSNARK
-    test_nivc_trivial_with_compression_with::<PallasEngine, S1PP<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<Bn256EngineIPA, S1PP<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<Secp256k1Engine, S1PP<_>, S2<_>>();
-    // classic SNARK
-    test_nivc_trivial_with_compression_with::<PallasEngine, S1<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<Bn256EngineIPA, S1<_>, S2<_>>();
-    test_nivc_trivial_with_compression_with::<Secp256k1Engine, S1<_>, S2<_>>();
-  }
-
   #[derive(Clone)]
   struct BigPowerCircuit<E> {
     _p: PhantomData<E>,
@@ -637,18 +578,19 @@ mod test {
     }
   }
 
-  fn test_compression_with_circuit_size_difference_with<E1, S1, S2>()
+  fn test_compression_with<E1, S1, S2, F, C>(num_steps: usize, circuits_factory: F)
   where
     E1: CurveCycleEquipped,
     S1: BatchedRelaxedR1CSSNARKTrait<E1>,
     S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
     <E1::Scalar as PrimeField>::Repr: Abomonation,
     <<Dual<E1> as Engine>::Scalar as PrimeField>::Repr: Abomonation,
+    C: NonUniformCircuit<E1, C1 = C, C2 = TrivialSecondaryCircuit<<Dual<E1> as Engine>::Scalar>>
+      + StepCircuit<E1::Scalar>,
+    F: Fn(usize) -> Vec<C>,
   {
-    const NUM_STEPS: usize = 4;
-
     let secondary_circuit = TrivialSecondaryCircuit::default();
-    let test_circuits = BigTestCircuit::new(NUM_STEPS);
+    let test_circuits = circuits_factory(num_steps);
 
     let pp = PublicParams::setup(&test_circuits[0], &*S1::ck_floor(), &*S2::ck_floor());
 
@@ -665,7 +607,7 @@ mod test {
     )
     .unwrap();
 
-    for circuit in test_circuits.iter().take(NUM_STEPS) {
+    for circuit in test_circuits.iter().take(num_steps) {
       recursive_snark
         .prove_step(&pp, circuit, &secondary_circuit)
         .unwrap();
@@ -685,14 +627,33 @@ mod test {
   }
 
   #[test]
-  fn test_compression_with_circuit_size_difference() {
+  fn test_nivc_trivial_with_compression() {
+    const NUM_STEPS: usize = 6;
+
     // ppSNARK
-    test_compression_with_circuit_size_difference_with::<PallasEngine, S1PP<_>, S2<_>>();
-    test_compression_with_circuit_size_difference_with::<Bn256EngineIPA, S1PP<_>, S2<_>>();
-    test_compression_with_circuit_size_difference_with::<Secp256k1Engine, S1PP<_>, S2<_>>();
+    test_compression_with::<PallasEngine, S1PP<_>, S2<_>, _, _>(NUM_STEPS, TestCircuit::new);
+
+    test_compression_with::<Bn256EngineIPA, S1PP<_>, S2<_>, _, _>(NUM_STEPS, TestCircuit::new);
+    test_compression_with::<Secp256k1Engine, S1PP<_>, S2<_>, _, _>(NUM_STEPS, TestCircuit::new);
+
     // classic SNARK
-    test_compression_with_circuit_size_difference_with::<PallasEngine, S1<_>, S2<_>>();
-    test_compression_with_circuit_size_difference_with::<Bn256EngineIPA, S1<_>, S2<_>>();
-    test_compression_with_circuit_size_difference_with::<Secp256k1Engine, S1<_>, S2<_>>();
+    test_compression_with::<PallasEngine, S1<_>, S2<_>, _, _>(NUM_STEPS, TestCircuit::new);
+    test_compression_with::<Bn256EngineIPA, S1<_>, S2<_>, _, _>(NUM_STEPS, TestCircuit::new);
+    test_compression_with::<Secp256k1Engine, S1<_>, S2<_>, _, _>(NUM_STEPS, TestCircuit::new);
+  }
+
+  #[test]
+  fn test_compression_with_circuit_size_difference() {
+    const NUM_STEPS: usize = 4;
+
+    // ppSNARK
+    test_compression_with::<PallasEngine, S1PP<_>, S2<_>, _, _>(NUM_STEPS, BigTestCircuit::new);
+    test_compression_with::<Bn256EngineIPA, S1PP<_>, S2<_>, _, _>(NUM_STEPS, BigTestCircuit::new);
+    test_compression_with::<Secp256k1Engine, S1PP<_>, S2<_>, _, _>(NUM_STEPS, BigTestCircuit::new);
+
+    // classic SNARK
+    test_compression_with::<PallasEngine, S1<_>, S2<_>, _, _>(NUM_STEPS, BigTestCircuit::new);
+    test_compression_with::<Bn256EngineIPA, S1<_>, S2<_>, _, _>(NUM_STEPS, BigTestCircuit::new);
+    test_compression_with::<Secp256k1Engine, S1<_>, S2<_>, _, _>(NUM_STEPS, BigTestCircuit::new);
   }
 }
