@@ -2,7 +2,7 @@
 #![allow(non_snake_case)]
 
 use crate::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO, NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD},
   errors::NovaError,
   r1cs::{
     R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
@@ -60,7 +60,10 @@ impl<E: Engine> NIFS<E> {
     }
 
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), 7 + io_arity);
+    let mut ro = E::RO::new(
+      ro_consts.clone(),
+      NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD + io_arity,
+    );
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
