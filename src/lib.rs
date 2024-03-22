@@ -25,6 +25,7 @@ pub mod r1cs;
 pub mod spartan;
 pub mod traits;
 
+pub mod cyclefold;
 pub mod supernova;
 
 use once_cell::sync::OnceCell;
@@ -538,7 +539,7 @@ where
     let l_u_secondary_i = self.l_u_secondary.clone();
 
     // fold the secondary circuit's instance
-    let nifs_secondary = NIFS::prove_mut(
+    let (nifs_secondary, _) = NIFS::prove_mut(
       &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),
@@ -579,7 +580,7 @@ where
       cs_primary.r1cs_instance_and_witness(&pp.circuit_shape_primary.r1cs_shape, &pp.ck_primary)?;
 
     // fold the primary circuit's instance
-    let nifs_primary = NIFS::prove_mut(
+    let (nifs_primary, _) = NIFS::prove_mut(
       &*pp.ck_primary,
       &pp.ro_consts_primary,
       &pp.digest(),
@@ -850,7 +851,7 @@ where
     recursive_snark: &RecursiveSNARK<E1>,
   ) -> Result<Self, NovaError> {
     // fold the secondary circuit's instance with its running instance
-    let (nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
+    let (nifs_secondary, (f_U_secondary, f_W_secondary), _) = NIFS::prove(
       &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(pp.digest()),

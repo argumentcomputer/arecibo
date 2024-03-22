@@ -155,8 +155,7 @@ impl<Scalar: PrimeField> Num<Scalar> {
     Ok(())
   }
 
-  /// Computes the natural number represented by an array of bits.
-  /// Checks if the natural number equals `self`
+  /// Checks if the natural number equals an array of bits.
   pub fn is_equal<CS: ConstraintSystem<Scalar>>(&self, mut cs: CS, other: &Bitvector<Scalar>) {
     let mut f = Scalar::ONE;
     let sum = other

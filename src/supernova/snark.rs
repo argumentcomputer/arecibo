@@ -109,7 +109,7 @@ where
       &recursive_snark.l_w_secondary,
     );
 
-    let (nifs_secondary, (f_U_secondary, f_W_secondary)) = res_secondary?;
+    let (nifs_secondary, (f_U_secondary, f_W_secondary), _) = res_secondary?;
 
     // Prepare the list of primary Relaxed R1CS instances (a default instance is provided for
     // uninitialized circuits)

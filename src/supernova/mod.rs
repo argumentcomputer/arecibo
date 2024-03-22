@@ -765,7 +765,7 @@ where
     assert_eq!(self.program_counter, E1::Scalar::from(circuit_index as u64));
 
     // fold the secondary circuit's instance
-    let nifs_secondary = NIFS::prove_mut(
+    let (nifs_secondary, _) = NIFS::prove_mut(
       &*pp.ck_secondary,
       &pp.ro_consts_secondary,
       &scalar_as_base::<E1>(self.pp_digest),
@@ -839,7 +839,7 @@ where
       )
     };
 
-    let nifs_primary = NIFS::prove_mut(
+    let (nifs_primary, _) = NIFS::prove_mut(
       &*pp.ck_primary,
       &pp.ro_consts_primary,
       &self.pp_digest,

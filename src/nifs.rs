@@ -2,13 +2,13 @@
 #![allow(non_snake_case)]
 
 use crate::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO, NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD},
   errors::NovaError,
   r1cs::{
     R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
   },
   scalar_as_base,
-  traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROTrait},
+  traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROConstants, ROTrait},
   Commitment, CommitmentKey, CompressedCommitment,
 };
 use serde::{Deserialize, Serialize};
@@ -20,9 +20,6 @@ use serde::{Deserialize, Serialize};
 pub struct NIFS<E: Engine> {
   pub(crate) comm_T: CompressedCommitment<E>,
 }
-
-type ROConstants<E> =
-  <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants;
 
 impl<E: Engine> NIFS<E> {
   /// Takes as input a Relaxed R1CS instance-witness tuple `(U1, W1)` and
@@ -48,9 +45,25 @@ impl<E: Engine> NIFS<E> {
     W1: &RelaxedR1CSWitness<E>,
     U2: &R1CSInstance<E>,
     W2: &R1CSWitness<E>,
-  ) -> Result<(Self, (RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>)), NovaError> {
+  ) -> Result<
+    (
+      Self,
+      (RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>),
+      E::Scalar,
+    ),
+    NovaError,
+  > {
+    // Check `U1` and `U2` have the same arity
+    let io_arity = U1.X.len();
+    if io_arity != U2.X.len() {
+      return Err(NovaError::InvalidInputLength);
+    }
+
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let mut ro = E::RO::new(
+      ro_consts.clone(),
+      NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD + io_arity,
+    );
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
@@ -79,6 +92,7 @@ impl<E: Engine> NIFS<E> {
         comm_T: comm_T.compress(),
       },
       (U, W),
+      r,
     ))
   }
 
@@ -101,7 +115,7 @@ impl<E: Engine> NIFS<E> {
     T: &mut Vec<E::Scalar>,
     ABC_Z_1: &mut R1CSResult<E>,
     ABC_Z_2: &mut R1CSResult<E>,
-  ) -> Result<Self, NovaError> {
+  ) -> Result<(Self, E::Scalar), NovaError> {
     // initialize a new RO
     let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 
@@ -127,9 +141,12 @@ impl<E: Engine> NIFS<E> {
     W1.fold_mut(W2, T, &r)?;
 
     // return the commitment
-    Ok(Self {
-      comm_T: comm_T.compress(),
-    })
+    Ok((
+      Self {
+        comm_T: comm_T.compress(),
+      },
+      r,
+    ))
   }
 
   /// Takes as input a relaxed R1CS instance `U1` and R1CS instance `U2`
@@ -279,7 +296,7 @@ mod tests {
     // produce a step SNARK with (W1, U1) as the first incoming witness-instance pair
     let res = NIFS::prove(ck, ro_consts, pp_digest, shape, &r_U, &r_W, U1, W1);
     assert!(res.is_ok());
-    let (nifs, (_U, W)) = res.unwrap();
+    let (nifs, (_U, W), _) = res.unwrap();
 
     // verify the step SNARK with U1 as the first incoming instance
     let res = nifs.verify(ro_consts, pp_digest, &r_U, U1);
@@ -295,7 +312,7 @@ mod tests {
     // produce a step SNARK with (W2, U2) as the second incoming witness-instance pair
     let res = NIFS::prove(ck, ro_consts, pp_digest, shape, &r_U, &r_W, U2, W2);
     assert!(res.is_ok());
-    let (nifs, (_U, W)) = res.unwrap();
+    let (nifs, (_U, W), _) = res.unwrap();
 
     // verify the step SNARK with U1 as the first incoming instance
     let res = nifs.verify(ro_consts, pp_digest, &r_U, U2);

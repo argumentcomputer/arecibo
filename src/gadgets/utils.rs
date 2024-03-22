@@ -169,6 +169,33 @@ pub fn alloc_num_equals<F: PrimeField, CS: ConstraintSystem<F>>(
   Ok(r)
 }
 
+// TODO: Figure out if this can be done better
+pub fn conditionally_select_allocated_bit<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  a: &AllocatedBit,
+  b: &AllocatedBit,
+  condition: &Boolean,
+) -> Result<AllocatedBit, SynthesisError> {
+  let c = AllocatedBit::alloc(
+    cs.namespace(|| "conditionally select result"),
+    if condition.get_value().unwrap_or(false) {
+      a.get_value()
+    } else {
+      b.get_value()
+    },
+  )?;
+
+  // a * condition + b*(1-condition) = c ->
+  // a * condition - b*condition = c - b
+  cs.enforce(
+    || "conditional select constraint",
+    |lc| lc + a.get_variable() - b.get_variable(),
+    |_| condition.lc(CS::one(), F::ONE),
+    |lc| lc + c.get_variable() - b.get_variable(),
+  );
+
+  Ok(c)
+}
 /// If condition return a otherwise b where a and b are `BigNats`
 pub fn conditionally_select_bignat<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
