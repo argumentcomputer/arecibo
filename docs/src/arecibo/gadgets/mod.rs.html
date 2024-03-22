@@ -18,12 +18,13 @@
 <a href="#17" id="17">17</a>
 <a href="#18" id="18">18</a>
 <a href="#19" id="19">19</a>
+<a href="#20" id="20">20</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements various gadgets necessary for Nova and applications built with Nova.
 </span><span class="kw">mod </span>ecc;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>ecc::AllocatedPoint;
 
 <span class="kw">mod </span>nonnative;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>nonnative::{bignat::nat_to_limbs, util::f_to_nat};
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>nonnative::{bignat::nat_to_limbs, bignat::BigNat, util::f_to_nat, util::Num};
 
 <span class="kw">mod </span>r1cs;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>r1cs::{
@@ -35,6 +36,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>utils::alloc_one;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>utils::{
-  alloc_num_equals, alloc_scalar_as_base, alloc_zero, le_bits_to_num, scalar_as_base,
+  alloc_bignat_constant, alloc_num_equals, alloc_scalar_as_base, alloc_zero,
+  conditionally_select_allocated_bit, conditionally_select_bignat, le_bits_to_num, scalar_as_base,
 };
 </code></pre></div></section></main></body></html>

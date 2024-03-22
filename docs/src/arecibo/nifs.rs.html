@@ -383,17 +383,34 @@
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a non-interactive folding scheme
 </span><span class="attr">#![allow(non_snake_case)]
 
 </span><span class="kw">use crate</span>::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO, NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD},
   errors::NovaError,
   r1cs::{
     R1CSInstance, R1CSResult, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness,
   },
   scalar_as_base,
-  traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROTrait},
+  traits::{commitment::CommitmentTrait, AbsorbInROTrait, Engine, ROConstants, ROTrait},
   Commitment, CommitmentKey, CompressedCommitment,
 };
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -405,9 +422,6 @@
 </span><span class="kw">pub struct </span>NIFS&lt;E: Engine&gt; {
   <span class="kw">pub</span>(<span class="kw">crate</span>) comm_T: CompressedCommitment&lt;E&gt;,
 }
-
-<span class="kw">type </span>ROConstants&lt;E&gt; =
-  &lt;&lt;E <span class="kw">as </span>Engine&gt;::RO <span class="kw">as </span>ROTrait&lt;&lt;E <span class="kw">as </span>Engine&gt;::Base, &lt;E <span class="kw">as </span>Engine&gt;::Scalar&gt;&gt;::Constants;
 
 <span class="kw">impl</span>&lt;E: Engine&gt; NIFS&lt;E&gt; {
   <span class="doccomment">/// Takes as input a Relaxed R1CS instance-witness tuple `(U1, W1)` and
@@ -433,9 +447,25 @@
     W1: <span class="kw-2">&amp;</span>RelaxedR1CSWitness&lt;E&gt;,
     U2: <span class="kw-2">&amp;</span>R1CSInstance&lt;E&gt;,
     W2: <span class="kw-2">&amp;</span>R1CSWitness&lt;E&gt;,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, (RelaxedR1CSInstance&lt;E&gt;, RelaxedR1CSWitness&lt;E&gt;)), NovaError&gt; {
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;
+    (
+      <span class="self">Self</span>,
+      (RelaxedR1CSInstance&lt;E&gt;, RelaxedR1CSWitness&lt;E&gt;),
+      E::Scalar,
+    ),
+    NovaError,
+  &gt; {
+    <span class="comment">// Check `U1` and `U2` have the same arity
+    </span><span class="kw">let </span>io_arity = U1.X.len();
+    <span class="kw">if </span>io_arity != U2.X.len() {
+      <span class="kw">return </span><span class="prelude-val">Err</span>(NovaError::InvalidInputLength);
+    }
+
     <span class="comment">// initialize a new RO
-    </span><span class="kw">let </span><span class="kw-2">mut </span>ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>ro = E::RO::new(
+      ro_consts.clone(),
+      NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD + io_arity,
+    );
 
     <span class="comment">// append the digest of pp to the transcript
     </span>ro.absorb(scalar_as_base::&lt;E&gt;(<span class="kw-2">*</span>pp_digest));
@@ -464,6 +494,7 @@
         comm_T: comm_T.compress(),
       },
       (U, W),
+      r,
     ))
   }
 
@@ -486,7 +517,7 @@
     T: <span class="kw-2">&amp;mut </span>Vec&lt;E::Scalar&gt;,
     ABC_Z_1: <span class="kw-2">&amp;mut </span>R1CSResult&lt;E&gt;,
     ABC_Z_2: <span class="kw-2">&amp;mut </span>R1CSResult&lt;E&gt;,
-  ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
+  ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, E::Scalar), NovaError&gt; {
     <span class="comment">// initialize a new RO
     </span><span class="kw">let </span><span class="kw-2">mut </span>ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
 
@@ -512,9 +543,12 @@
     </span>W1.fold_mut(W2, T, <span class="kw-2">&amp;</span>r)<span class="question-mark">?</span>;
 
     <span class="comment">// return the commitment
-    </span><span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-      comm_T: comm_T.compress(),
-    })
+    </span><span class="prelude-val">Ok</span>((
+      <span class="self">Self </span>{
+        comm_T: comm_T.compress(),
+      },
+      r,
+    ))
   }
 
   <span class="doccomment">/// Takes as input a relaxed R1CS instance `U1` and R1CS instance `U2`
@@ -664,7 +698,7 @@
     <span class="comment">// produce a step SNARK with (W1, U1) as the first incoming witness-instance pair
     </span><span class="kw">let </span>res = NIFS::prove(ck, ro_consts, pp_digest, shape, <span class="kw-2">&amp;</span>r_U, <span class="kw-2">&amp;</span>r_W, U1, W1);
     <span class="macro">assert!</span>(res.is_ok());
-    <span class="kw">let </span>(nifs, (_U, W)) = res.unwrap();
+    <span class="kw">let </span>(nifs, (_U, W), <span class="kw">_</span>) = res.unwrap();
 
     <span class="comment">// verify the step SNARK with U1 as the first incoming instance
     </span><span class="kw">let </span>res = nifs.verify(ro_consts, pp_digest, <span class="kw-2">&amp;</span>r_U, U1);
@@ -680,7 +714,7 @@
     <span class="comment">// produce a step SNARK with (W2, U2) as the second incoming witness-instance pair
     </span><span class="kw">let </span>res = NIFS::prove(ck, ro_consts, pp_digest, shape, <span class="kw-2">&amp;</span>r_U, <span class="kw-2">&amp;</span>r_W, U2, W2);
     <span class="macro">assert!</span>(res.is_ok());
-    <span class="kw">let </span>(nifs, (_U, W)) = res.unwrap();
+    <span class="kw">let </span>(nifs, (_U, W), <span class="kw">_</span>) = res.unwrap();
 
     <span class="comment">// verify the step SNARK with U1 as the first incoming instance
     </span><span class="kw">let </span>res = nifs.verify(ro_consts, pp_digest, <span class="kw-2">&amp;</span>r_U, U2);

@@ -1987,7 +1987,7 @@
     <span class="macro">assert_eq!</span>(<span class="self">self</span>.program_counter, E1::Scalar::from(circuit_index <span class="kw">as </span>u64));
 
     <span class="comment">// fold the secondary circuit's instance
-    </span><span class="kw">let </span>nifs_secondary = NIFS::prove_mut(
+    </span><span class="kw">let </span>(nifs_secondary, <span class="kw">_</span>) = NIFS::prove_mut(
       <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
       <span class="kw-2">&amp;</span>scalar_as_base::&lt;E1&gt;(<span class="self">self</span>.pp_digest),
@@ -2061,7 +2061,7 @@
       )
     };
 
-    <span class="kw">let </span>nifs_primary = NIFS::prove_mut(
+    <span class="kw">let </span>(nifs_primary, <span class="kw">_</span>) = NIFS::prove_mut(
       <span class="kw-2">&amp;*</span>pp.ck_primary,
       <span class="kw-2">&amp;</span>pp.ro_consts_primary,
       <span class="kw-2">&amp;</span><span class="self">self</span>.pp_digest,

@@ -1245,7 +1245,7 @@
   ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SynthesisError&gt; {
     <span class="self">self</span>.enforce_limb_width_agreement(other, <span class="string">"equal_when_carried"</span>)<span class="question-mark">?</span>;
 
-    <span class="comment">// We'll propegate carries over the first `n` limbs.
+    <span class="comment">// We'll propagate carries over the first `n` limbs.
     </span><span class="kw">let </span>n = min(<span class="self">self</span>.limbs.len(), other.limbs.len());
     <span class="kw">let </span>target_base = BigInt::from(<span class="number">1u8</span>) &lt;&lt; <span class="self">self</span>.params.limb_width <span class="kw">as </span>u32;
     <span class="kw">let </span><span class="kw-2">mut </span>accumulated_extra = BigInt::from(<span class="number">0usize</span>);

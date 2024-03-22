@@ -1707,6 +1707,7 @@
 <a href="#1706" id="1706">1706</a>
 <a href="#1707" id="1707">1707</a>
 <a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This library implements Nova, a high-speed recursive SNARK.
 </span><span class="attr">#![deny(
   warnings,
@@ -1734,6 +1735,7 @@
 <span class="kw">pub mod </span>spartan;
 <span class="kw">pub mod </span>traits;
 
+<span class="kw">pub mod </span>cyclefold;
 <span class="kw">pub mod </span>supernova;
 
 <span class="kw">use </span>once_cell::sync::OnceCell;
@@ -2247,7 +2249,7 @@
     <span class="kw">let </span>l_u_secondary_i = <span class="self">self</span>.l_u_secondary.clone();
 
     <span class="comment">// fold the secondary circuit's instance
-    </span><span class="kw">let </span>nifs_secondary = NIFS::prove_mut(
+    </span><span class="kw">let </span>(nifs_secondary, <span class="kw">_</span>) = NIFS::prove_mut(
       <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
       <span class="kw-2">&amp;</span>scalar_as_base::&lt;E1&gt;(pp.digest()),
@@ -2288,7 +2290,7 @@
       cs_primary.r1cs_instance_and_witness(<span class="kw-2">&amp;</span>pp.circuit_shape_primary.r1cs_shape, <span class="kw-2">&amp;</span>pp.ck_primary)<span class="question-mark">?</span>;
 
     <span class="comment">// fold the primary circuit's instance
-    </span><span class="kw">let </span>nifs_primary = NIFS::prove_mut(
+    </span><span class="kw">let </span>(nifs_primary, <span class="kw">_</span>) = NIFS::prove_mut(
       <span class="kw-2">&amp;*</span>pp.ck_primary,
       <span class="kw-2">&amp;</span>pp.ro_consts_primary,
       <span class="kw-2">&amp;</span>pp.digest(),
@@ -2559,7 +2561,7 @@
     recursive_snark: <span class="kw-2">&amp;</span>RecursiveSNARK&lt;E1&gt;,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, NovaError&gt; {
     <span class="comment">// fold the secondary circuit's instance with its running instance
-    </span><span class="kw">let </span>(nifs_secondary, (f_U_secondary, f_W_secondary)) = NIFS::prove(
+    </span><span class="kw">let </span>(nifs_secondary, (f_U_secondary, f_W_secondary), <span class="kw">_</span>) = NIFS::prove(
       <span class="kw-2">&amp;*</span>pp.ck_secondary,
       <span class="kw-2">&amp;</span>pp.ro_consts_secondary,
       <span class="kw-2">&amp;</span>scalar_as_base::&lt;E1&gt;(pp.digest()),

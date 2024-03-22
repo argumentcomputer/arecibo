@@ -430,7 +430,7 @@
   util::{f_to_nat, Num},
 };
 <span class="kw">use crate</span>::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+  constants::{NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD},
   gadgets::{
     ecc::AllocatedPoint,
     utils::{
@@ -655,7 +655,7 @@
     n_limbs: usize,
   ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SynthesisError&gt; {
     <span class="comment">// Compute r:
-    </span><span class="kw">let </span><span class="kw-2">mut </span>ro = E::ROCircuit::new(ro_consts, NUM_FE_FOR_RO);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>ro = E::ROCircuit::new(ro_consts, NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD + N);
     ro.absorb(params);
 
     <span class="comment">// running instance `U` does not need to absorbed since u.X[0] = Hash(params, U, i, z0, zi)
