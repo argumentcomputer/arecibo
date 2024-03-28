@@ -491,7 +491,9 @@ where
     };
 
     if write_data() {
-      write_arecibo_data(format!("r1cs_primary_{:?}", pp.digest()), "", &r1cs_primary);
+      write_arecibo_data(format!("sparse_matrices_{:?}", pp.digest()), "A", &r1cs_primary.A);
+      write_arecibo_data(format!("sparse_matrices_{:?}", pp.digest()), "B", &r1cs_primary.B);
+      write_arecibo_data(format!("sparse_matrices_{:?}", pp.digest()), "C", &r1cs_primary.C);
     }
 
     Ok(Self {
