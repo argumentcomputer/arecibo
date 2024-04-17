@@ -490,17 +490,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> BatchedRelaxedR1CSSNARKTrait<E>
     let evals_Z = zip_with!(iter, (self.evals_W, U, r_y), |eval_W, U, r_y| {
       let eval_X = {
         // constant term
-        let poly_X = iter::once((0, U.u))
-          .chain(
-            //remaining inputs
-            U.X
-            .iter()
-            .enumerate()
-            // filter_map uses the sparsity of the polynomial, if irrelevant
-            // we should replace by UniPoly
-            .filter_map(|(i, x_i)| (!x_i.is_zero_vartime()).then_some((i + 1, *x_i))),
-          )
-          .collect();
+        let poly_X = iter::once(U.u).chain(U.X.iter().cloned()).collect();
         SparsePolynomial::new(r_y.len() - 1, poly_X).evaluate(&r_y[1..])
       };
       (E::Scalar::ONE - r_y[0]) * eval_W + r_y[0] * eval_X

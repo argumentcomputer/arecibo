@@ -24,7 +24,7 @@ use crate::{
       },
       SumcheckProof,
     },
-    PolyEvalInstance, PolyEvalWitness, SparsePolynomial,
+    PolyEvalInstance, PolyEvalWitness,
   },
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
@@ -42,7 +42,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::polys::masked_eq::MaskedEqPolynomial;
+use super::polys::{masked_eq::MaskedEqPolynomial, multilinear::SparsePolynomial};
 
 fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar> {
   let mut v_padded = vec![*e; n];
@@ -930,17 +930,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
           };
 
           let eval_X = {
-            // constant term
-            let poly_X = std::iter::once((0, U.u))
-              .chain(
-                //remaining inputs
-                (0..U.X.len())
-                // filter_map uses the sparsity of the polynomial, if irrelevant
-                // we should replace by UniPoly
-                .filter_map(|i| (!U.X[i].is_zero_vartime()).then_some((i + 1, U.X[i]))),
-              )
-              .collect();
-            SparsePolynomial::new(vk.num_vars.log_2(), poly_X).evaluate(&rand_sc_unpad[1..])
+            // public IO is (u, X)
+            let X = vec![U.u]
+              .into_iter()
+              .chain(U.X.iter().cloned())
+              .collect::<Vec<E::Scalar>>();
+
+            // evaluate the sparse polynomial at rand_sc_unpad[1..]
+            let poly_X = SparsePolynomial::new(rand_sc_unpad.len() - 1, X);
+            poly_X.evaluate(&rand_sc_unpad[1..])
           };
 
           self.eval_W + factor * rand_sc_unpad[0] * eval_X
