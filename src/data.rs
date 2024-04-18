@@ -29,8 +29,9 @@ pub struct DataConfig {
   #[cfg(not(target_arch = "wasm32"))]
   root_dir: Utf8PathBuf,
   #[cfg(not(target_arch = "wasm32"))]
-  section_counters: HashMap<String, usize>,
+  section_label_counters: HashMap<String, usize>,
   write_data: bool,
+  witness_size: usize,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -45,8 +46,9 @@ pub fn init_config() -> Mutex<DataConfig> {
 
   let config = DataConfig {
     root_dir,
-    section_counters: HashMap::new(),
+    section_label_counters: HashMap::new(),
     write_data: WRITE,
+    witness_size: 0,
   };
 
   Mutex::new(config)
@@ -76,8 +78,8 @@ pub fn write_arecibo_data<T: Serialize>(
     fs::create_dir_all(&section_path).expect("Failed to create section directory");
   }
 
-  let section = section.as_ref().to_string();
-  let counter = config.section_counters.entry(section).or_insert(0);
+  let section_label = format!("{}/{}", section.as_ref(), label.as_ref());
+  let counter = config.section_label_counters.entry(section_label).or_insert(0);
 
   let file_path = section_path.join(format!("{}_{:?}", label.as_ref().as_str(), counter));
   *counter += 1;
@@ -149,4 +151,18 @@ pub fn set_write_data(write_data: bool) {
   let mutex = ARECIBO_CONFIG.get_or_init(init_config);
   let mut config = mutex.lock().unwrap();
   config.write_data = write_data;
+}
+
+/// Are we configured to write data?
+pub fn witness_size() -> usize {
+  let mutex = ARECIBO_CONFIG.get_or_init(init_config);
+  let config = mutex.lock().unwrap();
+  config.witness_size
+}
+
+/// Set the configuration for writing data.
+pub fn set_witness_size(witness_size: usize) {
+  let mutex = ARECIBO_CONFIG.get_or_init(init_config);
+  let mut config = mutex.lock().unwrap();
+  config.witness_size = witness_size;
 }
