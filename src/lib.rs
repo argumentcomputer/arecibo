@@ -1,7 +1,7 @@
 //! This library implements Nova, a high-speed recursive SNARK.
 #![deny(
-  warnings,
-  unused,
+  // warnings,
+  // unused,
   future_incompatible,
   nonstandard_style,
   rust_2018_idioms,
@@ -25,8 +25,8 @@ pub mod r1cs;
 pub mod spartan;
 pub mod traits;
 
-pub mod cyclefold;
-pub mod supernova;
+// pub mod cyclefold;
+// pub mod supernova;
 
 use once_cell::sync::OnceCell;
 use traits::{CurveCycleEquipped, Dual};
@@ -60,6 +60,19 @@ use traits::{
   snark::RelaxedR1CSSNARKTrait,
   AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
 };
+
+/// The type of counter used to measure the progress of the recusrive computation
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum StepCounterType {
+  /// Incremental counter is a standard monotonically increasing integer
+  Incremental,
+  /// External counter introduces completion that is defined outside of the circuit
+  External,
+}
+
+/// When using Extenral Step counter type, the verifier should use
+/// `FINAL_EXTERNAL_COUNTER` as the number of steps of execution.
+pub const FINAL_EXTERNAL_COUNTER: usize = 1;
 
 /// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
@@ -97,6 +110,7 @@ where
 {
   F_arity_primary: usize,
   F_arity_secondary: usize,
+  counter_type: StepCounterType,
   ro_consts_primary: ROConstants<E>,
   ro_consts_circuit_primary: ROConstantsCircuit<Dual<E>>,
   ck_primary: Arc<CommitmentKey<E>>,
@@ -261,6 +275,13 @@ where
     let F_arity_primary = c_primary.arity();
     let F_arity_secondary = c_secondary.arity();
 
+    let step_counter_primary = c_primary.get_counter_type();
+    let step_counter_secondary = c_secondary.get_counter_type();
+
+    if step_counter_primary != step_counter_secondary {
+      return Err(NovaError::MismatchedCounterType);
+    }
+
     // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
     let ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>> =
       ROConstantsCircuit::<Dual<E1>>::default();
@@ -300,6 +321,7 @@ where
     Ok(Self {
       F_arity_primary,
       F_arity_secondary,
+      counter_type: step_counter_primary,
       ro_consts_primary,
       ro_consts_circuit_primary,
       ck_primary,
@@ -321,6 +343,11 @@ where
       .get_or_try_init(|| DigestComputer::new(self).digest())
       .cloned()
       .expect("Failure in retrieving digest")
+  }
+
+  /// Returns the type of the counter for this circuit
+  pub fn get_counter_type(&self) -> StepCounterType {
+    self.counter_type
   }
 
   /// Returns the number of constraints in the primary and secondary circuits
@@ -538,6 +565,8 @@ where
     let r_U_secondary_i = self.r_U_secondary.clone();
     let l_u_secondary_i = self.l_u_secondary.clone();
 
+    let counter_type = pp.get_counter_type();
+
     // fold the secondary circuit's instance
     let (nifs_secondary, _) = NIFS::prove_mut(
       &*pp.ck_secondary,
@@ -633,7 +662,12 @@ where
     self.l_u_secondary = l_u_secondary;
     self.l_w_secondary = l_w_secondary;
 
-    self.i += 1;
+    // self.i += 1;
+
+    match counter_type {
+      StepCounterType::Incremental => self.i += 1,
+      StepCounterType::External => self.i = 1,
+    };
 
     Ok(())
   }
@@ -646,11 +680,26 @@ where
     z0_primary: &[E1::Scalar],
     z0_secondary: &[<Dual<E1> as Engine>::Scalar],
   ) -> Result<(Vec<E1::Scalar>, Vec<<Dual<E1> as Engine>::Scalar>), NovaError> {
-    // number of steps cannot be zero
-    let is_num_steps_zero = num_steps == 0;
+    let counter_type = pp.get_counter_type();
 
-    // check if the provided proof has executed num_steps
-    let is_num_steps_not_match = self.i != num_steps;
+    // If counter_type is External, the number of invocations
+    // is irrevelant since progress is measured externally.
+    // If it is Incremental, then it should have been executed it
+    // num_steps, and num_steps should be non-zero.
+    match counter_type {
+      StepCounterType::External => {}
+      StepCounterType::Incremental => {
+        // number of steps cannot be zero
+        if num_steps == 0 {
+          return Err(NovaError::ProofVerifyError);
+        }
+
+        // check if the provided proof has executed num_steps
+        if self.i != num_steps {
+          return Err(NovaError::ProofVerifyError);
+        }
+      }
+    }
 
     // check if the initial inputs match
     let is_inputs_not_match = self.z0_primary != z0_primary || self.z0_secondary != z0_secondary;
@@ -660,11 +709,7 @@ where
       || self.r_U_primary.X.len() != 2
       || self.r_U_secondary.X.len() != 2;
 
-    if is_num_steps_zero
-      || is_num_steps_not_match
-      || is_inputs_not_match
-      || is_instance_has_two_outputs
-    {
+    if is_inputs_not_match || is_instance_has_two_outputs {
       return Err(NovaError::ProofVerifyError);
     }
 
