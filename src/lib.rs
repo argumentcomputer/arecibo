@@ -25,8 +25,8 @@ pub mod r1cs;
 pub mod spartan;
 pub mod traits;
 
-// pub mod cyclefold;
-// pub mod supernova;
+pub mod cyclefold;
+pub mod supernova;
 
 use once_cell::sync::OnceCell;
 use traits::{CurveCycleEquipped, Dual};
