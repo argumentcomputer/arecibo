@@ -11,8 +11,8 @@
 #[macro_use]
 mod macros;
 pub(crate) mod math;
-pub mod polys;
 pub mod nizk;
+pub mod polys;
 // pub mod ppsnark;
 // pub mod snark;
 // mod sumcheck;
@@ -27,7 +27,7 @@ use crate::{
 };
 use ff::Field;
 use itertools::Itertools as _;
-use polys::multilinear::SparsePolynomial;
+
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
 use rayon_scan::ScanParallelIterator as _;
 use ref_cast::RefCast;

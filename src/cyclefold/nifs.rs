@@ -2,8 +2,8 @@
 
 use std::marker::PhantomData;
 
-use rand_core::OsRng;
 use ff::Field;
+use rand_core::OsRng;
 
 use crate::{
   constants::{NIO_CYCLE_FOLD, NUM_CHALLENGE_BITS, NUM_FE_IN_EMULATED_POINT},

@@ -8,8 +8,8 @@ use crate::{
   },
   // zip_with,
 };
-use abomonation_derive::Abomonation;
 use abomonation::Abomonation;
+use abomonation_derive::Abomonation;
 use core::{
   fmt::Debug,
   marker::PhantomData,
@@ -18,7 +18,7 @@ use core::{
 use ff::Field;
 use group::{
   prime::{PrimeCurve, PrimeCurveAffine},
-  Curve, Group, GroupEncoding,
+  Group, GroupEncoding,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -243,7 +243,7 @@ where
     let mut blinding_label = label.to_vec();
     blinding_label.extend(b"blinding factor");
     let blinding = E::GE::from_label(&blinding_label, 1);
-    let h = blinding.first().unwrap().clone();
+    let h = *blinding.first().unwrap();
 
     Self::CommitmentKey {
       ck: E::GE::from_label(label, n.next_power_of_two()),
@@ -255,7 +255,7 @@ where
     let mut blinding_label = label.to_vec();
     blinding_label.extend(b"blinding factor");
     let blinding = E::GE::from_label(&blinding_label, 1);
-    let h = blinding.first().unwrap().clone();
+    let h = *blinding.first().unwrap();
 
     Self::CommitmentKey {
       ck: E::GE::from_label(label, n),
@@ -270,7 +270,7 @@ where
   ) -> Self::CommitmentKey {
     Self::CommitmentKey {
       ck: E::GE::from_label(label, n.next_power_of_two()),
-      h: h.clone(),
+      h: *h,
     }
   }
 
@@ -281,7 +281,7 @@ where
   ) -> Self::CommitmentKey {
     Self::CommitmentKey {
       ck: E::GE::from_label(label, n),
-      h: h.clone(),
+      h: *h,
     }
   }
 
@@ -292,16 +292,14 @@ where
     scalars.push(*r);
 
     let mut bases = ck.ck[..v.len()].to_vec();
-    bases.push(ck.h.clone());
+    bases.push(ck.h);
 
     Commitment {
       comm: E::GE::vartime_multiscalar_mul(&scalars, &bases),
     }
   }
 
-  fn from_preprocessed(
-    ck: Vec<<E::GE as PrimeCurve>::Affine>,
-  ) -> CommitmentKey<E> {
+  fn from_preprocessed(ck: Vec<<E::GE as PrimeCurve>::Affine>) -> CommitmentKey<E> {
     let h = E::GE::gen().preprocessed(); // this is irrelevant since we will not use a blind
     CommitmentKey { ck, h }
   }
@@ -311,7 +309,7 @@ where
   }
 
   fn get_blinding_gen(ck: &Self::CommitmentKey) -> <E::GE as PrimeCurve>::Affine {
-    ck.h.clone()
+    ck.h
   }
 }
 
@@ -352,11 +350,11 @@ where
     (
       CommitmentKey {
         ck: self.ck[0..n].to_vec(),
-        h: self.h.clone(),
+        h: self.h,
       },
       CommitmentKey {
         ck: self.ck[n..].to_vec(),
-        h: self.h.clone(),
+        h: self.h,
       },
     )
   }
@@ -370,7 +368,7 @@ where
         .chain(other.ck.iter().cloned())
         .collect::<Vec<_>>()
     };
-    Self { ck, h: self.h.clone(), }
+    Self { ck, h: self.h }
   }
 
   // combines the left and right halves of `self` using `w1` and `w2` as the weights
@@ -380,15 +378,12 @@ where
     let ck = (0..self.ck.len() / 2)
       .into_par_iter()
       .map(|i| {
-        let bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
+        let bases = [L.ck[i], R.ck[i]].to_vec();
         E::GE::vartime_multiscalar_mul(&w, &bases).preprocessed()
       })
       .collect();
 
-    CommitmentKey {
-      ck,
-      h: self.h.clone(),
-    }
+    CommitmentKey { ck, h: self.h }
   }
 
   /// Scales each element in `self` by `r`
@@ -402,7 +397,7 @@ where
 
     CommitmentKey {
       ck: ck_scaled,
-      h: self.h.clone(),
+      h: self.h,
     }
   }
 

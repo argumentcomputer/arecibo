@@ -6,11 +6,11 @@ use crate::{
   traits::{AbsorbInROTrait, Engine, TranscriptReprTrait},
 };
 use abomonation::Abomonation;
-use group::prime::PrimeCurve;
 use core::{
   fmt::Debug,
   ops::{Add, Mul, MulAssign, Sub},
 };
+use group::prime::PrimeCurve;
 use serde::{Deserialize, Serialize};
 
 /// A helper trait for types implementing scalar multiplication.
@@ -116,23 +116,17 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment;
 
   /// Returns the generators of the commitment
-  fn get_gens(
-    ck: &Self::CommitmentKey,
-  ) -> Vec<<<E as Engine>::GE as PrimeCurve>::Affine>
+  fn get_gens(ck: &Self::CommitmentKey) -> Vec<<<E as Engine>::GE as PrimeCurve>::Affine>
   where
     E::GE: DlogGroup;
 
   /// Returns the blinding generator of the commitment
-  fn get_blinding_gen(
-    ck: &Self::CommitmentKey,
-  ) -> <<E as Engine>::GE as PrimeCurve>::Affine
+  fn get_blinding_gen(ck: &Self::CommitmentKey) -> <<E as Engine>::GE as PrimeCurve>::Affine
   where
     E::GE: DlogGroup;
 
   /// Converts a commitment into generators (with no blinding generator)
-  fn from_preprocessed(
-    com: Vec<<<E as Engine>::GE as PrimeCurve>::Affine>,
-  ) -> Self::CommitmentKey
+  fn from_preprocessed(com: Vec<<<E as Engine>::GE as PrimeCurve>::Affine>) -> Self::CommitmentKey
   where
     E::GE: DlogGroup;
 }

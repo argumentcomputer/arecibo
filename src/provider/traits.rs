@@ -1,8 +1,8 @@
 use crate::traits::{Group, TranscriptReprTrait};
-use abomonation::Abomonation;
+
 use group::prime::PrimeCurveAffine;
 use group::{prime::PrimeCurve, GroupEncoding};
-use pasta_curves::pallas::Affine;
+
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::Mul;

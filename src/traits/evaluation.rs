@@ -29,11 +29,11 @@ pub trait EvaluationEngineTrait<E: Engine + serde::Serialize>: Clone + Send + Sy
 
   /// A type that holds the evaluation argument
   type EvaluationArgument: Clone
-  + Send
-  + Sync
-  + Serialize
-  + for<'de> Deserialize<'de>
-  + GetEvalCommitmentsTrait<E>;
+    + Send
+    + Sync
+    + Serialize
+    + for<'de> Deserialize<'de>
+    + GetEvalCommitmentsTrait<E>;
 
   /// A method to perform any additional setup needed to produce proofs of evaluations
   ///
@@ -63,7 +63,6 @@ pub trait EvaluationEngineTrait<E: Engine + serde::Serialize>: Clone + Send + Sy
   //   eval: &E::Scalar,
   //   arg: &Self::EvaluationArgument,
   // ) -> Result<(), NovaError>;
-
 
   /// A method to prove evaluations of a batch of polynomials
   #[allow(clippy::too_many_arguments)]

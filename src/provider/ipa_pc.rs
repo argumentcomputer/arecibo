@@ -1,8 +1,8 @@
 //! This module implements `EvaluationEngine` using an IPA-based polynomial commitment scheme
 use crate::{
   digest::SimpleDigestible,
-  errors::{NovaError},
-  provider::{pedersen::CommitmentKeyExtTrait, traits::DlogGroup, },
+  errors::NovaError,
+  provider::{pedersen::CommitmentKeyExtTrait, traits::DlogGroup},
   spartan::polys::eq::EqPolynomial,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait},
@@ -706,7 +706,14 @@ where
     &self,
     n: usize,
     transcript: &mut E::TE,
-  ) -> Result<(Vec<<E::GE as DlogGroup>::ScalarExt>, Vec<<E::GE as DlogGroup>::ScalarExt>, Vec<<E::GE as DlogGroup>::ScalarExt>), NovaError> {
+  ) -> Result<
+    (
+      Vec<<E::GE as DlogGroup>::ScalarExt>,
+      Vec<<E::GE as DlogGroup>::ScalarExt>,
+      Vec<<E::GE as DlogGroup>::ScalarExt>,
+    ),
+    NovaError,
+  > {
     let lg_n = self.P_L_vec.len();
     if lg_n >= 32 {
       // 4 billion multiplications should be enough for anyone
@@ -843,7 +850,7 @@ where
       &[self.z_1, (self.z_1 * a), self.z_2],
       &[
         c_hat.preprocessed(),
-        CE::<E>::get_gens(&ck_y)[0].clone(),
+        CE::<E>::get_gens(&ck_y)[0],
         CE::<E>::get_blinding_gen(&ck_y),
       ],
     );
