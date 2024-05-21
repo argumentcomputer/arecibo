@@ -4,6 +4,7 @@
 //! polynomial commitment scheme in which the verifier's costs is succinct.
 //! This code includes experimental optimizations to reduce runtimes and proof sizes.
 use crate::gadgets::lookup::Lookup;
+use crate::spartan::sumcheck::engine::NaturalNumVec;
 use crate::{
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
@@ -20,7 +21,11 @@ use crate::{
     powers,
     sumcheck::{
       engine::{
-        InnerSumcheckInstance, MemorySumcheckInstance, OuterSumcheckInstance, SumcheckEngine,
+        InnerSumcheckInstance,
+        MemorySumcheckInstance,
+        OuterSumcheckInstance,
+        SumcheckEngine,
+        LookupSumcheckInstance,
         WitnessBoundSumcheck,
       },
       SumcheckProof,
@@ -238,7 +243,6 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
       comm_val_C: comm_vec[4],
       comm_ts_row: comm_vec[5],
       comm_ts_col: comm_vec[6],
-
       // lookup
       comm_init_values_lookup: comm_vec[7],
       comm_const_ts_lookup: comm_vec[8],
@@ -780,35 +784,42 @@ where
         || {
           // 4th sumcheck instance to prove lookup
 
+          let table_size = pk.S_repr.const_ts_lookup.len().try_into().unwrap();
+          let const_one = vec![E::Scalar::from(1u64); table_size];
+          let table_size: u64 = table_size.try_into().unwrap();
+
           let (comm_lookup_oracles, lookup_oracles, lookup_aux) =
-          MemorySumcheckInstance::<E>::compute_oracles(
+          LookupSumcheckInstance::<E>::compute_oracles(
             ck,
             &lookup_r,
             &lookup_gamma,
-            &(0..pk.S_repr.N).map(|i| E::Scalar::from(i as u64)).collect::<Vec<_>>(), // address
-            &(0..pk.S_repr.N).map(|i| E::Scalar::from(i as u64)).collect::<Vec<_>>(), // address
-            &pk.S_repr.init_values_lookup,
-            &pk.S_repr.const_ts_lookup,
-            &(0..pk.S_repr.N).map(|i| E::Scalar::from(i as u64)).collect::<Vec<_>>(), // address
-            &(0..pk.S_repr.N).map(|i| E::Scalar::from(i as u64)).collect::<Vec<_>>(), // address
-            &final_values,
-            &final_ts,
+            vec![
+              Box::new(NaturalNumVec::<E>::new(table_size)), // address
+              Box::new(init_values.clone().into_iter()),
+              // init_ts is zero vector
+            ], // t set
+            vec![
+              Box::new(NaturalNumVec::<E>::new(table_size)), // address
+              Box::new(final_values.clone().into_iter()),
+              Box::new(final_ts.clone().into_iter()),
+            ], // w set
+            &const_one, // ts
           )?;
 
           // absorb the commitments
           let mut transcript_guard = transcript_parallel.lock().unwrap();
           transcript_guard.absorb(b"l", &comm_lookup_oracles.as_slice());
 
-          //let rho = transcript_guard.squeeze(b"r")?;
-          //let poly_eq = MultilinearPolynomial::new(PowPolynomial::new(&rho, num_rounds_sc).evals());
+          let rho = transcript_guard.squeeze(b"r")?;
+          let poly_eq = MultilinearPolynomial::new(PowPolynomial::new(&rho, num_rounds_sc).evals());
 
           Ok::<_, NovaError>((
-            MemorySumcheckInstance::<E>::new(
-              lookup_oracles.clone(),
-              lookup_aux,
-              pk.S_repr.const_ts_lookup.clone(), // poly_eq
-              pk.S_repr.const_ts_lookup.clone(), // ts_row
-              final_ts.clone(),                  // ts_col
+            LookupSumcheckInstance::new(
+              lookup_oracles[0..2].to_vec().try_into().unwrap(),
+              lookup_aux[0..2].to_vec().try_into().unwrap(),
+              poly_eq.Z,
+              pk.S_repr.const_ts_lookup.clone(),
+              Some(RW_acc),
             ),
             comm_lookup_oracles,
             lookup_oracles,
@@ -865,6 +876,7 @@ where
       eval_val_C,
       eval_row,
       eval_col,
+      // lookup
       eval_init_value_lookup,
       eval_final_value_lookup,
       eval_final_ts_lookup,
@@ -1227,6 +1239,14 @@ where
       self.eval_col,
       self.eval_w_plus_r_inv_col,
       self.eval_ts_col,
+
+      // lookup
+      self.eval_t_plus_r_inv_lookup,
+      self.eval_w_plus_r_inv_lookup,
+      self.eval_ts_lookup,
+      self.eval_init_value_lookup,
+      self.eval_final_value_lookup,
+      self.eval_final_ts_lookup,
     ];
 
     let comm_vec = [
@@ -1248,6 +1268,13 @@ where
       vk.S_comm.comm_col,
       comm_w_plus_r_inv_col,
       vk.S_comm.comm_ts_col,
+      // lookup
+      comm_t_plus_r_inv_lookup,
+      comm_w_plus_r_inv_lookup,
+      vk.S_comm.comm_const_ts_lookup, // ts
+      vk.S_comm.comm_init_values_lookup,
+      comm_final_value,
+      comm_final_ts,
     ];
     transcript.absorb(b"e", &eval_vec.as_slice()); // comm_vec is already in the transcript
     let c = transcript.squeeze(b"c")?;
