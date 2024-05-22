@@ -95,7 +95,6 @@ pub trait RelaxedR1CSLookupSNARKTrait<E: Engine>:
     final_table: Lookup<E::Scalar>,
   ) -> Result<Self, NovaError>;
 
-  /*
   /// Verifies a SNARK for a relaxed R1CS
   fn verify<E2: Engine>(
     &self,
@@ -109,7 +108,6 @@ pub trait RelaxedR1CSLookupSNARKTrait<E: Engine>:
     E: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E as Engine>::Scalar>;
 
-  */
 }
 
 /// A trait that defines the behavior of a `zkSNARK` to prove knowledge of satisfying witness to batches of relaxed R1CS instances.

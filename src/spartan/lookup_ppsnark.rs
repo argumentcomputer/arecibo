@@ -13,7 +13,7 @@ use crate::{
     math::Math,
     polys::{
       eq::EqPolynomial,
-      //identity::IdentityPolynomial,
+      identity::IdentityPolynomial,
       multilinear::MultilinearPolynomial,
       power::PowPolynomial,
       univariate::{CompressedUniPoly, UniPoly},
@@ -48,8 +48,12 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::Mutex;
+use crate::traits::AbsorbInROTrait;
+use crate::ROTrait;
+use crate::scalar_as_base;
+use crate::constants::NUM_CHALLENGE_BITS;
 
-//use super::polys::{masked_eq::MaskedEqPolynomial, multilinear::SparsePolynomial};
+use super::polys::{masked_eq::MaskedEqPolynomial, multilinear::SparsePolynomial};
 
 fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar> {
   let mut v_padded = vec![*e; n];
@@ -508,6 +512,40 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARK<E, EE> {
       witness_claims,
       lookup_claims,
     ))
+  }
+
+  fn verify_challenge<E2: Engine>(
+    comm_final_value: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
+    comm_final_ts: <<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment,
+    lookup_intermediate_gamma: E::Scalar,
+    challenges: (E::Scalar, E::Scalar),
+  ) -> Result<(), NovaError>
+  where
+    E: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E as Engine>::Scalar>,
+  {
+    // verify fingerprint challenge
+    let (lookup_r, lookup_gamma) = challenges;
+
+    let ro_consts =
+      <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
+
+    let mut hasher = <E as Engine>::RO::new(ro_consts.clone(), 7);
+    let lookup_intermediate_gamma: E2::Scalar = scalar_as_base::<E>(lookup_intermediate_gamma);
+    hasher.absorb(lookup_intermediate_gamma);
+    comm_final_value.absorb_in_ro(&mut hasher);
+    comm_final_ts.absorb_in_ro(&mut hasher);
+    let computed_gamma = hasher.squeeze(NUM_CHALLENGE_BITS);
+    if lookup_gamma != computed_gamma {
+      return Err(NovaError::InvalidMultisetProof);
+    }
+    let mut hasher = <E as Engine>::RO::new(ro_consts, 1);
+    hasher.absorb(scalar_as_base::<E>(computed_gamma));
+    let computed_r = hasher.squeeze(NUM_CHALLENGE_BITS);
+    if lookup_r != computed_r {
+      return Err(NovaError::InvalidMultisetProof);
+    }
+    Ok(())
   }
 }
 
@@ -1048,14 +1086,31 @@ where
     })
   }
 
-  /*
+  
   /// verifies a proof of satisfiability of a `RelaxedR1CS` instance
-  fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
+  fn verify<E2: Engine>(
+    &self,
+    vk: &Self::VerifierKey,
+    U: &RelaxedR1CSInstance<E>,
+    lookup_intermediate_gamma: E::Scalar,
+    RW_acc: E::Scalar,
+    challenges: (E::Scalar, E::Scalar),
+  ) -> Result<(), NovaError>
+  where
+    E: Engine<Base = <E2 as Engine>::Scalar>,
+    E2: Engine<Base = <E as Engine>::Scalar>,
+  {
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
+    let (lookup_r, lookup_gamma) = challenges;
 
     // append the verifier key (including commitment to R1CS matrices) and the RelaxedR1CSInstance to the transcript
     transcript.absorb(b"vk", &vk.digest());
     transcript.absorb(b"U", U);
+
+    // add lookup table to transcript
+    transcript.absorb(b"RW_acc", &RW_acc);
+    transcript.absorb(b"r", &lookup_r);
+    transcript.absorb(b"gamma", &lookup_gamma);
 
     let comm_Az = Commitment::<E>::decompress(&self.comm_Az)?;
     let comm_Bz = Commitment::<E>::decompress(&self.comm_Bz)?;
@@ -1067,7 +1122,21 @@ where
     let comm_t_plus_r_inv_col = Commitment::<E>::decompress(&self.comm_t_plus_r_inv_col)?;
     let comm_w_plus_r_inv_col = Commitment::<E>::decompress(&self.comm_w_plus_r_inv_col)?;
 
+    let comm_t_plus_r_inv_lookup = Commitment::<E>::decompress(&self.comm_t_plus_r_inv_lookup)?;
+    let comm_w_plus_r_inv_lookup = Commitment::<E>::decompress(&self.comm_w_plus_r_inv_lookup)?;
+    let comm_final_value = Commitment::<E>::decompress(&self.comm_final_value)?;
+    let comm_final_ts = Commitment::<E>::decompress(&self.comm_final_ts)?;
+
+    // verify lookup challenge
+    Self::verify_challenge::<E2>(
+      comm_final_value,
+      comm_final_ts,
+      lookup_intermediate_gamma,
+      challenges,
+    )?;
+
     transcript.absorb(b"c", &[comm_Az, comm_Bz, comm_Cz].as_slice());
+    transcript.absorb(b"c", &[comm_final_value, comm_final_ts].as_slice());
 
     let num_rounds_sc = vk.S_comm.N.log_2();
     let tau = transcript.squeeze(b"t")?;
@@ -1102,16 +1171,18 @@ where
         comm_w_plus_r_inv_row,
         comm_t_plus_r_inv_col,
         comm_w_plus_r_inv_col,
+        comm_t_plus_r_inv_lookup,
+        comm_w_plus_r_inv_lookup,
       ]
       .as_slice(),
     );
 
     let rho = transcript.squeeze(b"r")?;
 
-    let num_claims = 10;
+    let num_claims = 13;
     let s = transcript.squeeze(b"r")?;
     let coeffs = powers(&s, num_claims);
-    let claim = (coeffs[7] + coeffs[8]) * claim; // rest are zeros
+    let claim = (coeffs[7] + coeffs[8]) * claim + coeffs[10] * RW_acc; // rest are zeros
 
     // verify sc
     let (claim_sc_final, rand_sc) = self.sc.verify(claim, num_rounds_sc, 3, &mut transcript)?;
@@ -1183,6 +1254,20 @@ where
         eval_w + r
       };
 
+      let eval_addr = IdentityPolynomial::new(num_rounds_sc).evaluate(&rand_sc);
+      let eval_t_plus_r_lookup = {
+        let eval_val = self.eval_init_value_lookup;
+        let eval_t = eval_addr + lookup_gamma * eval_val;
+        eval_t + lookup_r
+      };
+
+      let eval_w_plus_r_lookup = {
+        let eval_val = self.eval_final_value_lookup;
+        let eval_ts = self.eval_final_ts_lookup;
+        let eval_w = eval_addr + lookup_gamma * eval_val + lookup_gamma * lookup_gamma * eval_ts;
+        eval_w + lookup_r
+      };
+
       let claim_mem_final_expected: E::Scalar = coeffs[0]
         * (self.eval_t_plus_r_inv_row - self.eval_w_plus_r_inv_row)
         + coeffs[1] * (self.eval_t_plus_r_inv_col - self.eval_w_plus_r_inv_col)
@@ -1210,10 +1295,20 @@ where
 
       let claim_witness_final_expected = coeffs[9] * taus_masked_bound_rand_sc * self.eval_W;
 
+      let claim_lookup_expected = coeffs[10]
+      * (self.eval_t_plus_r_inv_lookup - self.eval_w_plus_r_inv_lookup)
+      + coeffs[11]
+        * (rand_eq_bound_rand_sc
+          * (self.eval_t_plus_r_inv_lookup * eval_t_plus_r_lookup - self.eval_ts_lookup))
+      + coeffs[12]
+        * (rand_eq_bound_rand_sc
+          * (self.eval_w_plus_r_inv_lookup * eval_w_plus_r_lookup - E::Scalar::ONE));
+
       claim_mem_final_expected
         + claim_outer_final_expected
         + claim_inner_final_expected
         + claim_witness_final_expected
+        + claim_lookup_expected
     };
 
     if claim_sc_final_expected != claim_sc_final {
@@ -1292,7 +1387,7 @@ where
 
     Ok(())
   }
-  */
+  
 }
 
 #[cfg(test)]
