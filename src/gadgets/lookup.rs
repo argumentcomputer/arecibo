@@ -577,7 +577,7 @@ impl<F: PrimeField> Lookup<F> {
         .collect(),
       global_ts: F::ZERO,
       table_type,
-      max_cap_global_ts_log2: max_cap_global_ts_log2,
+      max_cap_global_ts_log2,
     }
   }
 

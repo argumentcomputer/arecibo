@@ -67,6 +67,10 @@ pub trait RelaxedR1CSLookupSNARKTrait<E: Engine>:
   /// A type that represents the verifier's key
   type VerifierKey: Send + Sync + DigestHelperTrait<E>;
 
+  /// This associated function (not a method) provides a hint that offers
+  /// a minimum sizing cue for the commitment key used by this SNARK
+  /// implementation. The commitment key passed in setup should then
+  /// be at least as large as this hint.
   fn ck_floor() -> Box<dyn for<'a> Fn(&'a R1CSShape<E>) -> usize> {
     default_ck_hint()
   }

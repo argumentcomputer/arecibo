@@ -822,7 +822,7 @@ where
         || {
           // 4th sumcheck instance to prove lookup
 
-          let table_size = pk.S_repr.const_ts_lookup.len().try_into().unwrap();
+          let table_size = pk.S_repr.const_ts_lookup.len();
           let const_one = vec![E::Scalar::from(1u64); table_size];
           let table_size: u64 = table_size.try_into().unwrap();
 

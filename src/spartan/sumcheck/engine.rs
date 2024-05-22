@@ -699,7 +699,7 @@ impl<E: Engine> LookupSumcheckInstance<E> {
     gamma: &E::Scalar,
     mut t_sets: Vec<Box<dyn ExactSizeIterator<Item = E::Scalar> + Sync + Send + 'a>>,
     mut w_sets: Vec<Box<dyn ExactSizeIterator<Item = E::Scalar> + Sync + Send + 'a>>,
-    ts: &Vec<E::Scalar>,
+    ts: &[E::Scalar],
   ) -> Result<([Commitment<E>; 2], [Vec<E::Scalar>; 2], [Vec<E::Scalar>; 2]), NovaError> {
     // get power of gamma
     let hash_func_vec = |vectors: &mut Vec<
@@ -802,7 +802,7 @@ impl<E: Engine> LookupSumcheckInstance<E> {
     };
 
     let ((t_inv, w_inv), (t, w)) = {
-      let ((t_inv, w_inv), (t, w)) = helper(&T, &W, &ts, r);
+      let ((t_inv, w_inv), (t, w)) = helper(&T, &W, ts, r);
       ((t_inv?, w_inv?), (t?, w?))
     };
 
@@ -845,7 +845,7 @@ impl<E: Engine> LookupSumcheckInstance<E> {
 impl<E: Engine> SumcheckEngine<E> for LookupSumcheckInstance<E> {
   fn initial_claims(&self) -> Vec<E::Scalar> {
     vec![
-      self.initial_claim.clone().unwrap_or_default(),
+      self.initial_claim.unwrap_or_default(),
       E::Scalar::ZERO,
       E::Scalar::ZERO,
     ]
