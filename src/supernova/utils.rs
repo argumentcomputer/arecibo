@@ -8,7 +8,11 @@ use itertools::Itertools as _;
 
 use crate::{
   constants::NIO_NOVA_FOLD,
-  gadgets::{conditionally_select_alloc_relaxed_r1cs, AllocatedRelaxedR1CSInstance},
+  cyclefold::gadgets::emulated::AllocatedEmulRelaxedR1CSInstance,
+  gadgets::{
+    conditionally_select_alloc_relaxed_r1cs, conditionally_select_emul_alloc_relaxed_r1cs,
+    AllocatedRelaxedR1CSInstance,
+  },
   traits::Engine,
 };
 
@@ -45,6 +49,52 @@ pub fn get_from_vec_alloc_relaxed_r1cs<E: Engine, CS: ConstraintSystem<<E as Eng
     .skip(1)
     .try_fold(first, |matched, (i, (candidate, equal_bit))| {
       conditionally_select_alloc_relaxed_r1cs(
+        cs.namespace(|| format!("next_matched_allocated-{:?}", i)),
+        candidate,
+        &matched,
+        equal_bit,
+      )
+    })?;
+
+  Ok(selected)
+}
+
+/// Return the element of `a` given by the indicator bit in `selector_vec`.
+///
+/// This function assumes `selector_vec` has been properly constrained", i.e. that exactly one entry is equal to 1.
+//
+// NOTE: When `a` is greater than 5 (estimated), it will be cheaper to use a multicase gadget.
+//
+// We should plan to rely on a well-designed gadget offering a common interface but that adapts its implementation based
+// on the size of inputs (known at synthesis time). The threshold size depends on the size of the elements of `a`. The
+// larger the elements, the fewer are needed before multicase becomes cost-effective.
+pub fn get_from_vec_alloc_emul_relaxed_r1cs<
+  E: Engine,
+  CS: ConstraintSystem<<E as Engine>::Base>,
+>(
+  mut cs: CS,
+  a: &[AllocatedEmulRelaxedR1CSInstance<E>],
+  selector_vec: &[Boolean],
+) -> Result<AllocatedEmulRelaxedR1CSInstance<E>, SynthesisError> {
+  assert_eq!(a.len(), selector_vec.len());
+
+  // Compare all instances in `a` to the first one
+  let first: AllocatedEmulRelaxedR1CSInstance<E> = a
+    .first()
+    .cloned()
+    .ok_or_else(|| SynthesisError::IncompatibleLengthVector("empty vec length".to_string()))?;
+
+  // Since `selector_vec` is correct, only one entry is 1.
+  // If selector_vec[0] is 1, then all `conditionally_select` will return `first`.
+  // Otherwise, the correct instance will be selected.
+  // TODO: reformulate when iterator_try_reduce stabilizes
+  let selected = a
+    .iter()
+    .zip_eq(selector_vec.iter())
+    .enumerate()
+    .skip(1)
+    .try_fold(first, |matched, (i, (candidate, equal_bit))| {
+      conditionally_select_emul_alloc_relaxed_r1cs::<E, _>(
         cs.namespace(|| format!("next_matched_allocated-{:?}", i)),
         candidate,
         &matched,

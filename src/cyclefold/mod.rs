@@ -1,9 +1,9 @@
 //! This module defines CycleFold folding scheme and its related functions.
 
-mod circuit;
-mod gadgets;
+pub(crate) mod circuit;
+pub(crate) mod gadgets;
 mod nova_circuit;
-mod util;
+pub(crate) mod util;
 
 pub mod nifs;
 pub mod snark;

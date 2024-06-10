@@ -1,9 +1,13 @@
 //! This module implements various gadgets necessary for folding R1CS types.
-use super::nonnative::{
-  bignat::BigNat,
-  util::{f_to_nat, Num},
+use super::{
+  conditionally_select_allocated_bit,
+  nonnative::{
+    bignat::BigNat,
+    util::{f_to_nat, Num},
+  },
 };
 use crate::{
+  cyclefold::gadgets::emulated::{AllocatedEmulPoint, AllocatedEmulRelaxedR1CSInstance},
   constants::{NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD},
   gadgets::{
     ecc::AllocatedPoint,
@@ -394,6 +398,75 @@ pub fn conditionally_select_vec_allocated_relaxed_r1cs_instance<
     .collect::<Result<Vec<AllocatedRelaxedR1CSInstance<E, N>>, _>>()
 }
 
+/// c = cond ? a: b, where a, b: `Vec<AllocatedRelaxedR1CSInstance>`
+pub fn conditionally_select_vec_emul_allocated_relaxed_r1cs_instance<
+  E: Engine,
+  CS: ConstraintSystem<<E as Engine>::Base>,
+>(
+  mut cs: CS,
+  a: &[AllocatedEmulRelaxedR1CSInstance<E>],
+  b: &[AllocatedEmulRelaxedR1CSInstance<E>],
+  condition: &Boolean,
+) -> Result<Vec<AllocatedEmulRelaxedR1CSInstance<E>>, SynthesisError> {
+  a.iter()
+    .enumerate()
+    .zip_eq(b.iter())
+    .map(|((i, a), b)| {
+      a.conditionally_select(
+        cs.namespace(|| format!("cond ? a[{}]: b[{}]", i, i)),
+        b,
+        condition,
+      )
+    })
+    .collect::<Result<Vec<AllocatedEmulRelaxedR1CSInstance<E>>, _>>()
+}
+
+/// c = cond ? a: b, where a, b: `AllocatedRelaxedR1CSInstance`
+pub fn conditionally_select_emul_alloc_relaxed_r1cs<
+  E: Engine,
+  CS: ConstraintSystem<<E as Engine>::Base>,
+>(
+  mut cs: CS,
+  a: &AllocatedEmulRelaxedR1CSInstance<E>,
+  b: &AllocatedEmulRelaxedR1CSInstance<E>,
+  condition: &Boolean,
+) -> Result<AllocatedEmulRelaxedR1CSInstance<E>, SynthesisError> {
+  let c = AllocatedEmulRelaxedR1CSInstance {
+    comm_W: conditionally_select_emul_point(
+      cs.namespace(|| "comm_W = cond ? a.comm_W : b.comm_W"),
+      &a.comm_W,
+      &b.comm_W,
+      condition,
+    )?,
+    comm_E: conditionally_select_emul_point(
+      cs.namespace(|| "comm_E = cond ? a.comm_E : b.comm_E"),
+      &a.comm_E,
+      &b.comm_E,
+      condition,
+    )?,
+    u: conditionally_select(
+      cs.namespace(|| "u = cond ? a.u : b.u"),
+      &a.u,
+      &b.u,
+      condition,
+    )?,
+    x0: conditionally_select(
+      cs.namespace(|| "x0 = cond ? a.x0 : b.x0"),
+      &a.x0,
+      &b.x0,
+      condition,
+    )?,
+    x1: conditionally_select(
+      cs.namespace(|| "x1 = cond ? a.x1 : b.x1"),
+      &a.x1,
+      &b.x1,
+      condition,
+    )?,
+  };
+  Ok(c)
+}
+
+
 /// c = cond ? a: b, where a, b: `AllocatedPoint`
 pub fn conditionally_select_point<G: Group, CS: ConstraintSystem<G::Base>>(
   mut cs: CS,
@@ -415,6 +488,36 @@ pub fn conditionally_select_point<G: Group, CS: ConstraintSystem<G::Base>>(
       condition,
     )?,
     is_infinity: conditionally_select(
+      cs.namespace(|| "is_infinity = cond ? a.is_infinity : b.is_infinity"),
+      &a.is_infinity,
+      &b.is_infinity,
+      condition,
+    )?,
+  };
+  Ok(c)
+}
+
+/// c = cond ? a: b, where a, b: `EmulAllocatedPoint`
+pub fn conditionally_select_emul_point<G: Group, CS: ConstraintSystem<G::Base>>(
+  mut cs: CS,
+  a: &AllocatedEmulPoint<G>,
+  b: &AllocatedEmulPoint<G>,
+  condition: &Boolean,
+) -> Result<AllocatedEmulPoint<G>, SynthesisError> {
+  let c = AllocatedEmulPoint {
+    x: conditionally_select_bignat(
+      cs.namespace(|| "x = cond ? a.x : b.x"),
+      &a.x,
+      &b.x,
+      condition,
+    )?,
+    y: conditionally_select_bignat(
+      cs.namespace(|| "y = cond ? a.y : b.y"),
+      &a.y,
+      &b.y,
+      condition,
+    )?,
+    is_infinity: conditionally_select_allocated_bit(
       cs.namespace(|| "is_infinity = cond ? a.is_infinity : b.is_infinity"),
       &a.is_infinity,
       &b.is_infinity,

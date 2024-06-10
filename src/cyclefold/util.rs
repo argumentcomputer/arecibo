@@ -61,7 +61,7 @@ pub(super) fn absorb_cyclefold_r1cs<E: Engine>(u: &R1CSInstance<E>, ro: &mut E::
   });
 }
 
-pub(super) fn absorb_primary_relaxed_r1cs<E1, E2>(U: &RelaxedR1CSInstance<E1>, ro: &mut E2::RO)
+pub(crate) fn absorb_primary_relaxed_r1cs<E1, E2>(U: &RelaxedR1CSInstance<E1>, ro: &mut E2::RO)
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -76,7 +76,7 @@ where
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub(super) struct FoldingData<E: Engine> {
+pub(crate) struct FoldingData<E: Engine> {
   pub U: RelaxedR1CSInstance<E>,
   pub u: R1CSInstance<E>,
   pub T: Commitment<E>,

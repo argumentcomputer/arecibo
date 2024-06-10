@@ -49,6 +49,8 @@ use circuit::{
 };
 use error::SuperNovaError;
 
+pub mod cyclefold;
+
 /// A struct that manages all the digests of the primary circuits of a SuperNova instance
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct CircuitDigests<E: Engine> {

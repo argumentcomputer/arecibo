@@ -417,14 +417,15 @@ pub mod emulated {
     }
   }
 
+  #[derive(Clone)]
   /// A non-native circuit version of a `RelaxedR1CSInstance`. This is used for the in-circuit
   /// representation of the primary running instance
   pub struct AllocatedEmulRelaxedR1CSInstance<E: Engine> {
     pub comm_W: AllocatedEmulPoint<E::GE>,
     pub comm_E: AllocatedEmulPoint<E::GE>,
-    u: AllocatedNum<E::Base>,
-    x0: AllocatedNum<E::Base>,
-    x1: AllocatedNum<E::Base>,
+    pub(crate) u: AllocatedNum<E::Base>,
+    pub(crate) x0: AllocatedNum<E::Base>,
+    pub(crate) x1: AllocatedNum<E::Base>,
   }
 
   impl<E> AllocatedEmulRelaxedR1CSInstance<E>
