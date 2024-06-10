@@ -7,8 +7,8 @@ use super::{
   },
 };
 use crate::{
-  cyclefold::gadgets::emulated::{AllocatedEmulPoint, AllocatedEmulRelaxedR1CSInstance},
   constants::{NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_IO_FOR_NOVA_FOLD},
+  cyclefold::gadgets::emulated::{AllocatedEmulPoint, AllocatedEmulRelaxedR1CSInstance},
   gadgets::{
     ecc::AllocatedPoint,
     utils::{
@@ -465,7 +465,6 @@ pub fn conditionally_select_emul_alloc_relaxed_r1cs<
   };
   Ok(c)
 }
-
 
 /// c = cond ? a: b, where a, b: `AllocatedPoint`
 pub fn conditionally_select_point<G: Group, CS: ConstraintSystem<G::Base>>(
