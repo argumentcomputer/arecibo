@@ -179,84 +179,6 @@ where
     pp
   }
 
-  // /// Breaks down an instance of [`PublicParams`] into the circuit params and auxiliary params.
-  // pub fn into_parts(self) -> (Vec<R1CSWithArity<E1>>, AuxParams<E1>) {
-  //   let digest = self.digest();
-
-  //   let Self {
-  //     circuit_shapes,
-  //     ro_consts_primary,
-  //     ro_consts_circuit_primary,
-  //     ck_primary,
-  //     augmented_circuit_params_primary,
-  //     ro_consts_secondary,
-  //     ro_consts_circuit_secondary,
-  //     ck_secondary,
-  //     circuit_shape_secondary,
-  //     augmented_circuit_params_secondary,
-  //     digest: _digest,
-  //   } = self;
-
-  //   let aux_params = AuxParams {
-  //     ro_consts_primary,
-  //     ro_consts_circuit_primary,
-  //     ck_primary,
-  //     augmented_circuit_params_primary,
-  //     ro_consts_secondary,
-  //     ro_consts_circuit_secondary,
-  //     ck_secondary,
-  //     circuit_shape_secondary,
-  //     augmented_circuit_params_secondary,
-  //     digest,
-  //   };
-
-  //   (circuit_shapes, aux_params)
-  // }
-
-  // /// Create a [`PublicParams`] from a vector of raw [`R1CSWithArity`] and auxiliary params.
-  // pub fn from_parts(circuit_shapes: Vec<R1CSWithArity<E1>>, aux_params: AuxParams<E1>) -> Self {
-  //   let pp = Self {
-  //     circuit_shapes,
-  //     ro_consts_primary: aux_params.ro_consts_primary,
-  //     ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
-  //     ck_primary: aux_params.ck_primary,
-  //     augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
-  //     ro_consts_secondary: aux_params.ro_consts_secondary,
-  //     ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
-  //     ck_secondary: aux_params.ck_secondary,
-  //     circuit_shape_secondary: aux_params.circuit_shape_secondary,
-  //     augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
-  //     digest: OnceCell::new(),
-  //   };
-  //   assert_eq!(
-  //     aux_params.digest,
-  //     pp.digest(),
-  //     "param data is invalid; aux_params contained the incorrect digest"
-  //   );
-  //   pp
-  // }
-
-  // /// Create a [`PublicParams`] from a vector of raw [`R1CSWithArity`] and auxiliary params.
-  // /// We don't check that the `aux_params.digest` is a valid digest for the created params.
-  // pub fn from_parts_unchecked(
-  //   circuit_shapes: Vec<R1CSWithArity<E1>>,
-  //   aux_params: AuxParams<E1>,
-  // ) -> Self {
-  //   Self {
-  //     circuit_shapes,
-  //     ro_consts_primary: aux_params.ro_consts_primary,
-  //     ro_consts_circuit_primary: aux_params.ro_consts_circuit_primary,
-  //     ck_primary: aux_params.ck_primary,
-  //     augmented_circuit_params_primary: aux_params.augmented_circuit_params_primary,
-  //     ro_consts_secondary: aux_params.ro_consts_secondary,
-  //     ro_consts_circuit_secondary: aux_params.ro_consts_circuit_secondary,
-  //     ck_secondary: aux_params.ck_secondary,
-  //     circuit_shape_secondary: aux_params.circuit_shape_secondary,
-  //     augmented_circuit_params_secondary: aux_params.augmented_circuit_params_secondary,
-  //     digest: aux_params.digest.into(),
-  //   }
-  // }
-
   /// Compute primary and secondary commitment keys sized to handle the largest of the circuits in the provided
   /// `R1CSWithArity`.
   fn compute_ck_primary(
@@ -283,41 +205,6 @@ where
       .cloned()
       .expect("Failure in retrieving digest")
   }
-
-  // /// Returns the number of constraints and variables of inner circuit based on index
-  // pub fn num_constraints_and_variables(&self, index: usize) -> (usize, usize) {
-  //   (
-  //     self.circuit_shapes[index].r1cs_shape.num_cons,
-  //     self.circuit_shapes[index].r1cs_shape.num_vars,
-  //   )
-  // }
-
-  // /// Returns the number of constraints and variables of the secondary circuit
-  // pub fn num_constraints_and_variables_secondary(&self) -> (usize, usize) {
-  //   (
-  //     self.circuit_shape_secondary.r1cs_shape.num_cons,
-  //     self.circuit_shape_secondary.r1cs_shape.num_vars,
-  //   )
-  // }
-
-  // /// All of the primary circuit digests of this [`PublicParams`]
-  // pub fn circuit_param_digests(&self) -> CircuitDigests<E1> {
-  //   let digests = self
-  //     .circuit_shapes
-  //     .iter()
-  //     .map(|cp| cp.digest())
-  //     .collect::<Vec<_>>();
-  //   CircuitDigests { digests }
-  // }
-
-  // /// Returns all the primary R1CS Shapes
-  // fn primary_r1cs_shapes(&self) -> Vec<&R1CSShape<E1>> {
-  //   self
-  //     .circuit_shapes
-  //     .iter()
-  //     .map(|cs| &cs.r1cs_shape)
-  //     .collect::<Vec<_>>()
-  // }
 }
 
 /// A SNARK that proves the correct execution of an non-uniform incremental computation
