@@ -169,7 +169,7 @@ where
       assert_eq!(self.num_absorbs, self.state.len());
 
       sponge.start(parameter, None, acc);
-      neptune::sponge::api::SpongeAPI::absorb(
+      SpongeAPI::absorb(
         &mut sponge,
         self.num_absorbs as u32,
         &(0..self.state.len())
@@ -178,7 +178,7 @@ where
         acc,
       );
 
-      let output = neptune::sponge::api::SpongeAPI::squeeze(&mut sponge, 1, acc);
+      let output = SpongeAPI::squeeze(&mut sponge, 1, acc);
       sponge.finish(acc).unwrap();
       output
     };
