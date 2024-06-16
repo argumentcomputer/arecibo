@@ -18,8 +18,8 @@ use tap::TapOptional;
 use tracing::debug;
 
 use super::augmented_circuit::SuperNovaAugmentedCircuit;
+use super::snark::NonUniformCircuit;
 use super::snark::RecursiveSNARK;
-use super::traits::NonUniformCircuit;
 
 #[derive(Clone, Debug, Default)]
 struct CubicCircuit<F> {
@@ -238,8 +238,8 @@ fn print_constraints_name_on_error_index<E1, C1: StepCircuit<E1::Scalar>>(
         SuperNovaAugmentedCircuit::new(
           &pp.augmented_circuit_params,
           None,
-          pp.ro_consts_circuit_primary.clone(),
           c_primary,
+          pp.ro_consts_circuit_primary.clone(),
           num_augmented_circuits,
         );
       let mut cs: TestShapeCS<E1> = TestShapeCS::new();

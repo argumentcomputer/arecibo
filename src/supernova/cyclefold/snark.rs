@@ -17,9 +17,15 @@ use crate::cyclefold::util::FoldingData;
 use crate::digest::DigestComputer;
 use crate::errors::NovaError;
 use crate::gadgets::scalar_as_base;
+use crate::r1cs;
 use crate::r1cs::commitment_key_size;
+use crate::r1cs::R1CSResult;
+use crate::r1cs::R1CSShape;
 use crate::supernova::circuit::StepCircuit;
 use crate::supernova::cyclefold::augmented_circuit::SuperNovaAugmentedCircuit;
+use crate::supernova::cyclefold::util::SuperNovaFoldingData;
+use crate::supernova::CircuitDigests;
+use crate::supernova::ResourceBuffer;
 use crate::traits::commitment::CommitmentEngineTrait;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::AbsorbInROTrait;
@@ -49,7 +55,7 @@ use std::ops::Index;
 use std::sync::Arc;
 use tracing::debug;
 
-use super::{augmented_circuit::SuperNovaAugmentedCircuitParams, traits::NonUniformCircuit};
+use super::augmented_circuit::SuperNovaAugmentedCircuitParams;
 
 impl<E1> Index<usize> for PublicParams<E1>
 where
@@ -132,8 +138,8 @@ where
           SuperNovaAugmentedCircuit::new(
             &augmented_circuit_params,
             None,
-            ro_consts_circuit_primary.clone(),
             &c_primary,
+            ro_consts_circuit_primary.clone(),
             num_circuits,
           );
         let mut cs: ShapeCS<E1> = ShapeCS::new();
@@ -205,6 +211,41 @@ where
       .cloned()
       .expect("Failure in retrieving digest")
   }
+
+  /// Returns the number of constraints and variables of inner circuit based on index
+  pub fn num_constraints_and_variables(&self, index: usize) -> (usize, usize) {
+    (
+      self.circuit_shapes[index].r1cs_shape.num_cons,
+      self.circuit_shapes[index].r1cs_shape.num_vars,
+    )
+  }
+
+  /// Returns the number of constraints and variables of the cyclefold circuit
+  pub fn num_constraints_and_variables_secondary(&self) -> (usize, usize) {
+    (
+      self.circuit_shape_cyclefold.r1cs_shape.num_cons,
+      self.circuit_shape_cyclefold.r1cs_shape.num_vars,
+    )
+  }
+
+  /// All of the primary circuit digests of this [`PublicParams`]
+  pub fn circuit_param_digests(&self) -> CircuitDigests<E1> {
+    let digests = self
+      .circuit_shapes
+      .iter()
+      .map(|cp| cp.digest())
+      .collect::<Vec<_>>();
+    CircuitDigests { digests }
+  }
+
+  /// Returns all the primary R1CS Shapes
+  pub fn primary_r1cs_shapes(&self) -> Vec<&R1CSShape<E1>> {
+    self
+      .circuit_shapes
+      .iter()
+      .map(|cs| &cs.r1cs_shape)
+      .collect::<Vec<_>>()
+  }
 }
 
 /// A SNARK that proves the correct execution of an non-uniform incremental computation
@@ -239,6 +280,10 @@ where
   // cyclefold circuit data
   r_W_cyclefold: RelaxedR1CSWitness<Dual<E1>>,
   r_U_cyclefold: RelaxedR1CSInstance<Dual<E1>>,
+
+  // memory buffers for folding steps
+  buffer_primary: ResourceBuffer<E1>,
+  buffer_cyclefold: ResourceBuffer<Dual<E1>>,
 }
 
 impl<E1> RecursiveSNARK<E1>
@@ -277,14 +322,12 @@ where
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
     let program_counter = E1::Scalar::from(circuit_index as u64);
-    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>, E1> =
+    let inputs_primary: SuperNovaAugmentedCircuitInputs<Dual<E1>, E1> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<E1>(pp.digest()),
         E1::Scalar::ZERO,
         z0_primary.to_vec(),
         None, // zi = None for basecase
-        None,
-        None,
         None,
         None,
         None,
@@ -297,8 +340,8 @@ where
       SuperNovaAugmentedCircuit::new(
         &pp.augmented_circuit_params,
         Some(inputs_primary),
-        pp.ro_consts_circuit_primary.clone(),
         c_primary,
+        pp.ro_consts_circuit_primary.clone(),
         num_augmented_circuits,
       );
 
@@ -336,29 +379,42 @@ where
       .get_value()
       .ok_or::<SuperNovaError>(NovaError::from(SynthesisError::AssignmentMissing).into())?;
 
+    let r_W_primary = RelaxedR1CSWitness::default(&pp[c_primary.circuit_index()].r1cs_shape);
+    let r_U_primary =
+      RelaxedR1CSInstance::default(&*pp.ck_primary, &pp[c_primary.circuit_index()].r1cs_shape);
+
     // handle the base case by initialize U_next in next round
     let r_W_primary_initial_list = (0..num_augmented_circuits)
-      .map(|i| {
-        let c_primary = non_uniform_circuit.primary_circuit(i);
-        // TODO: remove option
-        Some(RelaxedR1CSWitness::default(
-          &pp[c_primary.circuit_index()].r1cs_shape,
-        ))
-      })
+      .map(|i| (i == circuit_index).then(|| r_W_primary.clone()))
       .collect::<Vec<Option<RelaxedR1CSWitness<E1>>>>();
 
     let r_U_primary_initial_list = (0..num_augmented_circuits)
-      .map(|i| {
-        let c_primary = non_uniform_circuit.primary_circuit(i);
-        Some(RelaxedR1CSInstance::default(
-          &*pp.ck_primary,
-          &pp[c_primary.circuit_index()].r1cs_shape,
-        ))
-      })
+      .map(|i| (i == circuit_index).then(|| r_U_primary.clone()))
       .collect::<Vec<Option<RelaxedR1CSInstance<E1>>>>();
-    // let r_U_primary_initial_list = (0..num_augmented_circuits)
-    //   .map(|i| Some(r_U_primary.clone()))
-    //   .collect::<Vec<Option<RelaxedR1CSInstance<E1>>>>();
+
+    // find the largest length r1cs shape for the buffer size
+    let max_num_cons = pp
+      .circuit_shapes
+      .iter()
+      .map(|circuit| circuit.r1cs_shape.num_cons)
+      .max()
+      .unwrap();
+
+    let buffer_primary = ResourceBuffer {
+      l_w: None,
+      l_u: None,
+      ABC_Z_1: R1CSResult::default(max_num_cons),
+      ABC_Z_2: R1CSResult::default(max_num_cons),
+      T: r1cs::default_T::<E1>(max_num_cons),
+    };
+
+    let buffer_cyclefold = ResourceBuffer {
+      l_w: None,
+      l_u: None,
+      ABC_Z_1: R1CSResult::default(r1cs_cyclefold.num_cons),
+      ABC_Z_2: R1CSResult::default(r1cs_cyclefold.num_cons),
+      T: r1cs::default_T::<Dual<E1>>(r1cs_cyclefold.num_cons),
+    };
 
     Ok(Self {
       pp_digest: pp.digest(),
@@ -374,10 +430,23 @@ where
       l_u_primary,
       r_W_cyclefold,
       r_U_cyclefold,
+      buffer_primary,
+      buffer_cyclefold,
     })
   }
 
+  /// Inputs of the primary circuits
+  pub fn z0_primary(&self) -> &Vec<E1::Scalar> {
+    &self.z0_primary
+  }
+
+  /// Outputs of the primary circuits
+  pub fn zi_primary(&self) -> &Vec<E1::Scalar> {
+    &self.zi_primary
+  }
+
   /// Run the i'th step of NIVC with CycleFold
+  #[tracing::instrument(skip_all, name = "supernova::RecursiveSNARK::prove_step")]
   pub fn prove_step<C1: StepCircuit<E1::Scalar>>(
     &mut self,
     pp: &PublicParams<E1>,
@@ -505,15 +574,16 @@ where
       pp[circuit_index].r1cs_shape.num_vars,
     );
 
-    let inputs_primary: SuperNovaAugmentedCircuitInputs<'_, Dual<E1>, E1> =
+    let data_p =
+      SuperNovaFoldingData::new(self.r_U_primary.clone(), self.l_u_primary.clone(), comm_T);
+
+    let inputs_primary: SuperNovaAugmentedCircuitInputs<Dual<E1>, E1> =
       SuperNovaAugmentedCircuitInputs::new(
         scalar_as_base::<E1>(pp.digest()),
         E1::Scalar::from(self.i as u64),
         self.z0_primary.clone(),
         Some(self.zi_primary.clone()), // zi = None for basecase
-        Some(&self.r_U_primary),
-        Some(self.l_u_primary.clone()),
-        Some(comm_T),
+        Some(data_p),
         Some(data_c_E),
         Some(data_c_W),
         Some(E_new),
@@ -526,8 +596,8 @@ where
       SuperNovaAugmentedCircuit::new(
         &pp.augmented_circuit_params,
         Some(inputs_primary),
-        pp.ro_consts_circuit_primary.clone(),
         c_primary,
+        pp.ro_consts_circuit_primary.clone(),
         self.num_augmented_circuits,
       );
 
@@ -562,8 +632,19 @@ where
     // running primary Instance
     self.r_U_primary[proven_circuit_index] = Some(r_U_primary);
 
+    if self.r_U_primary[circuit_index].is_none() {
+      self.r_U_primary[circuit_index] = Some(RelaxedR1CSInstance::default(
+        &*pp.ck_primary,
+        &pp[circuit_index].r1cs_shape,
+      ))
+    }
     // running primary Witness
     self.r_W_primary[proven_circuit_index] = Some(r_W_primary);
+
+    if self.r_W_primary[circuit_index].is_none() {
+      self.r_W_primary[circuit_index] =
+        Some(RelaxedR1CSWitness::default(&pp[circuit_index].r1cs_shape))
+    }
 
     // U
     self.l_u_primary = l_u_primary;
@@ -671,8 +752,9 @@ where
         hasher.absorb(*e);
       }
 
-      self.r_U_primary.iter().for_each(|U| {
-        let r_U_primary_i = U.as_ref().unwrap();
+      self.r_U_primary.iter().enumerate().for_each(|(i, U)| {
+        let default_r_U = RelaxedR1CSInstance::<E1>::default(&*pp.ck_primary, &pp[i].r1cs_shape);
+        let r_U_primary_i = U.as_ref().unwrap_or(&default_r_U);
 
         absorb_primary_relaxed_r1cs::<E1, Dual<E1>>(r_U_primary_i, &mut hasher);
       });
@@ -739,4 +821,69 @@ where
 
     Ok(z0_primary.to_vec())
   }
+}
+
+/// SuperNova helper trait, for implementors that provide sets of sub-circuits to be proved via NIVC. `C1` must be a
+/// type (likely an `Enum`) for which a potentially-distinct instance can be supplied for each `index` below
+/// `self.num_circuits()`.
+pub trait NonUniformCircuit<E1>
+where
+  E1: CurveCycleEquipped,
+{
+  /// The type of the step-circuits on the primary
+  type C1: StepCircuit<E1::Scalar>;
+
+  /// Initial circuit index, defaults to zero.
+  fn initial_circuit_index(&self) -> usize {
+    0
+  }
+
+  /// How many circuits are provided?
+  fn num_circuits(&self) -> usize;
+
+  /// Return a new instance of the primary circuit at `index`.
+  fn primary_circuit(&self, circuit_index: usize) -> Self::C1;
+}
+
+/// Extension trait to simplify getting scalar form of initial circuit index.
+trait InitialProgramCounter<E1>: NonUniformCircuit<E1>
+where
+  E1: CurveCycleEquipped,
+{
+  /// Initial program counter is the initial circuit index as a `Scalar`.
+  fn initial_program_counter(&self) -> E1::Scalar {
+    E1::Scalar::from(self.initial_circuit_index() as u64)
+  }
+}
+
+impl<E1: CurveCycleEquipped, T: NonUniformCircuit<E1>> InitialProgramCounter<E1> for T {}
+
+/// Compute the circuit digest of a supernova [`StepCircuit`].
+///
+/// Note for callers: This function should be called with its performance characteristics in mind.
+/// It will synthesize and digest the full `circuit` given.
+pub fn circuit_digest<E1: CurveCycleEquipped, C: StepCircuit<E1::Scalar>>(
+  circuit: &C,
+  num_augmented_circuits: usize,
+) -> E1::Scalar {
+  let augmented_circuit_params = SuperNovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS);
+
+  // ro_consts_circuit are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
+  let ro_consts_circuit = ROConstantsCircuit::<Dual<E1>>::default();
+
+  // Initialize ck for the primary
+  let augmented_circuit: SuperNovaAugmentedCircuit<'_, Dual<E1>, E1, C> =
+    SuperNovaAugmentedCircuit::new(
+      &augmented_circuit_params,
+      None,
+      circuit,
+      ro_consts_circuit,
+      num_augmented_circuits,
+    );
+  let mut cs: ShapeCS<E1> = ShapeCS::new();
+  let _ = augmented_circuit.synthesize(&mut cs);
+
+  let F_arity = circuit.arity();
+  let circuit_params = R1CSWithArity::new(cs.r1cs_shape(), F_arity);
+  circuit_params.digest()
 }

@@ -1,15 +1,15 @@
 use crate::constants::{BN_N_LIMBS, NIO_CYCLE_FOLD, NUM_FE_IN_EMULATED_POINT, NUM_HASH_BITS};
-use crate::cyclefold::gadgets::emulated::{AllocatedEmulPoint, AllocatedEmulRelaxedR1CSInstance};
+use crate::cyclefold::gadgets::emulated::AllocatedEmulRelaxedR1CSInstance;
 use crate::cyclefold::gadgets::AllocatedCycleFoldData;
 use crate::gadgets::{
   alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_emul_alloc_relaxed_r1cs,
   conditionally_select_vec_emul_allocated_relaxed_r1cs_instance, le_bits_to_num,
   AllocatedRelaxedR1CSInstance,
 };
+use crate::supernova::cyclefold::gadgets::emulated as supernova_emulated;
 use itertools::Itertools as _;
 
-use crate::r1cs::{R1CSInstance, RelaxedR1CSInstance};
-use crate::supernova::utils::{get_from_vec_alloc_emul_relaxed_r1cs, get_selector_vec_from_index};
+use crate::supernova::utils::get_selector_vec_from_index;
 use crate::traits::commitment::CommitmentTrait;
 use crate::traits::ROCircuitTrait;
 use crate::zip_with;
@@ -26,6 +26,9 @@ use bellpepper_core::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use serde::{Deserialize, Serialize};
+
+use super::gadgets::emulated::SuperNovaAllocatedFoldingData;
+use super::util::SuperNovaFoldingData;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 pub struct SuperNovaAugmentedCircuitParams {
   limb_width: usize,
@@ -42,7 +45,7 @@ impl SuperNovaAugmentedCircuitParams {
 }
 
 #[derive(Debug)]
-pub struct SuperNovaAugmentedCircuitInputs<'a, E1, E2>
+pub struct SuperNovaAugmentedCircuitInputs<E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -55,9 +58,7 @@ where
   /// Input to the circuit for the non-base case
   zi: Option<Vec<E1::Base>>,
 
-  U: Option<&'a [Option<RelaxedR1CSInstance<E2>>]>,
-  u: Option<R1CSInstance<E2>>,
-  T: Option<Commitment<E2>>,
+  data_p: Option<SuperNovaFoldingData<E2>>,
 
   data_c_1: Option<FoldingData<E1>>,
   data_c_2: Option<FoldingData<E1>>,
@@ -71,7 +72,7 @@ where
   last_augmented_circuit_index: E1::Base,
 }
 
-impl<'a, E1, E2> SuperNovaAugmentedCircuitInputs<'a, E1, E2>
+impl<E1, E2> SuperNovaAugmentedCircuitInputs<E1, E2>
 where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
@@ -81,9 +82,7 @@ where
     i: E1::Base,
     z0: Vec<E1::Base>,
     zi: Option<Vec<E1::Base>>,
-    U: Option<&'a [Option<RelaxedR1CSInstance<E2>>]>,
-    u: Option<R1CSInstance<E2>>,
-    T: Option<Commitment<E2>>,
+    data_p: Option<SuperNovaFoldingData<E2>>,
     data_c_1: Option<FoldingData<E1>>,
     data_c_2: Option<FoldingData<E1>>,
     E_new: Option<Commitment<E2>>,
@@ -96,9 +95,7 @@ where
       i,
       z0,
       zi,
-      U,
-      u,
-      T,
+      data_p,
       data_c_1,
       data_c_2,
       E_new,
@@ -117,7 +114,7 @@ where
 {
   params: &'a SuperNovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<E1>,
-  inputs: Option<SuperNovaAugmentedCircuitInputs<'a, E1, E2>>,
+  inputs: Option<SuperNovaAugmentedCircuitInputs<E1, E2>>,
   step_circuit: &'a SC,          // The function that is applied for each step
   num_augmented_circuits: usize, // number of overall augmented circuits
 }
@@ -130,9 +127,9 @@ where
 {
   pub fn new(
     params: &'a SuperNovaAugmentedCircuitParams,
-    inputs: Option<SuperNovaAugmentedCircuitInputs<'a, E1, E2>>,
-    ro_consts: ROConstantsCircuit<E1>,
+    inputs: Option<SuperNovaAugmentedCircuitInputs<E1, E2>>,
     step_circuit: &'a SC,
+    ro_consts: ROConstantsCircuit<E1>,
     num_augmented_circuits: usize,
   ) -> Self {
     Self {
@@ -151,21 +148,17 @@ where
     num_augmented_circuits: usize,
   ) -> Result<
     (
-      AllocatedNum<E1::Base>,                              // pp_digest
-      AllocatedNum<E1::Base>,                              // i
-      Vec<AllocatedNum<E1::Base>>,                         // z0
-      Vec<AllocatedNum<E1::Base>>,                         // zi
-      Vec<emulated::AllocatedEmulRelaxedR1CSInstance<E1>>, // U
-      emulated::AllocatedEmulPoint<E1::GE>,                // u_W
-      AllocatedNum<E1::Base>,                              // u_x0
-      AllocatedNum<E1::Base>,                              // u_x1
-      emulated::AllocatedEmulPoint<E1::GE>,                // T
-      AllocatedCycleFoldData<E1>,                          // data_c_1
-      AllocatedCycleFoldData<E1>,                          // data_c_2
-      emulated::AllocatedEmulPoint<E1::GE>,                // E_new
-      emulated::AllocatedEmulPoint<E1::GE>,                // W_new
-      AllocatedNum<E1::Base>,                              // program_counter
-      Vec<Boolean>,                                        // last_augmented_circuit_selector
+      AllocatedNum<E1::Base>,                                // pp_digest
+      AllocatedNum<E1::Base>,                                // i
+      Vec<AllocatedNum<E1::Base>>,                           // z0
+      Vec<AllocatedNum<E1::Base>>,                           // zi
+      supernova_emulated::SuperNovaAllocatedFoldingData<E1>, // data_p
+      AllocatedCycleFoldData<E1>,                            // data_c_1
+      AllocatedCycleFoldData<E1>,                            // data_c_2
+      emulated::AllocatedEmulPoint<E1::GE>,                  // E_new
+      emulated::AllocatedEmulPoint<E1::GE>,                  // W_new
+      AllocatedNum<E1::Base>,                                // program_counter
+      Vec<Boolean>,                                          // last_augmented_circuit_selector
     ),
     SynthesisError,
   > {
@@ -197,61 +190,15 @@ where
       })
       .collect::<Result<Vec<AllocatedNum<E1::Base>>, _>>()?;
 
-    // x: <E2::Base> & y: <E2::Base> coords stored as BigNats<E1::Base>
-    let U = (0..num_augmented_circuits)
-      .map(|i| {
-        emulated::AllocatedEmulRelaxedR1CSInstance::alloc(
-          cs.namespace(|| format!("Allocate U {:?}", i)),
-          self
-            .inputs
-            .as_ref()
-            .and_then(|inputs| inputs.U.and_then(|U| U[i].as_ref())),
-          self.params.limb_width,
-          self.params.n_limbs,
-        )
-      })
-      .collect::<Result<Vec<AllocatedEmulRelaxedR1CSInstance<E1>>, _>>()?;
-
-    let u_W: AllocatedEmulPoint<E1::GE> = AllocatedEmulPoint::alloc(
-      cs.namespace(|| "allocate u_W"),
+    let data_p = SuperNovaAllocatedFoldingData::<E1>::alloc(
+      cs.namespace(|| "data_p"),
       self
         .inputs
         .as_ref()
-        .and_then(|inputs| inputs.u.as_ref())
-        .as_ref()
-        .map(|u| u.comm_W.to_coordinates()),
+        .and_then(|inputs| inputs.data_p.as_ref()),
       limb_width,
       n_limbs,
-    )?;
-
-    let u_x0 = AllocatedNum::alloc(cs.namespace(|| "allocate u_x0"), || {
-      self
-        .inputs
-        .as_ref()
-        .and_then(|inputs| inputs.u.as_ref())
-        .as_ref()
-        .map_or(Ok(E1::Base::ZERO), |u| Ok(u.X[0]))
-    })?;
-
-    let u_x1 = AllocatedNum::alloc(cs.namespace(|| "allocate u_x1"), || {
-      self
-        .inputs
-        .as_ref()
-        .and_then(|inputs| inputs.u.as_ref())
-        .as_ref()
-        .map_or(Ok(E1::Base::ZERO), |u| Ok(u.X[1]))
-    })?;
-
-    let T: AllocatedEmulPoint<E1::GE> = AllocatedEmulPoint::alloc(
-      cs.namespace(|| "allocate T"),
-      self
-        .inputs
-        .as_ref()
-        .and_then(|inputs| inputs.T)
-        .as_ref()
-        .map(|t| t.to_coordinates()),
-      limb_width,
-      n_limbs,
+      num_augmented_circuits,
     )?;
 
     // x: <E1::Base> & y: <E1::Base> coords stored as E1::Bases
@@ -330,11 +277,7 @@ where
       i,
       z_0,
       z_i,
-      U,
-      u_W,
-      u_x0,
-      u_x1,
-      T,
+      data_p,
       data_c_1,
       data_c_2,
       E_new,
@@ -384,11 +327,7 @@ where
     i: &AllocatedNum<E1::Base>,
     z_0: &[AllocatedNum<E1::Base>],
     z_i: &[AllocatedNum<E1::Base>],
-    U: Vec<emulated::AllocatedEmulRelaxedR1CSInstance<E1>>, // U
-    u_W: emulated::AllocatedEmulPoint<E1::GE>,              // u_W
-    u_x0: AllocatedNum<E1::Base>,                           // u_x0
-    u_x1: AllocatedNum<E1::Base>,                           // u_x1
-    T: emulated::AllocatedEmulPoint<E1::GE>,                // T
+    data_p: &SuperNovaAllocatedFoldingData<E1>,
     data_c_1: &AllocatedCycleFoldData<E1>,
     data_c_2: &AllocatedCycleFoldData<E1>,
     E_new: emulated::AllocatedEmulPoint<E1::GE>,
@@ -422,7 +361,7 @@ where
       ro.absorb(e);
     }
 
-    U.iter().enumerate().try_for_each(|(i, U)| {
+    data_p.U.iter().enumerate().try_for_each(|(i, U)| {
       U.absorb_in_ro(cs.namespace(|| format!("absorb U_new {:?}", i)), &mut ro)
     })?;
 
@@ -431,7 +370,7 @@ where
 
     let check_primary = alloc_num_equals(
       cs.namespace(|| "u.X[0] = H(params, i, z0, zi, U_p)"),
-      &u_x0,
+      &data_p.u_x0,
       &hash_p,
     )?;
 
@@ -450,8 +389,11 @@ where
     let hash_c = le_bits_to_num(cs.namespace(|| "cyclefold hash"), &hash_c_bits)?;
 
     // check the hash matches the public IO from the last primary instance
-    let check_cyclefold =
-      alloc_num_equals(cs.namespace(|| "u.X[1] = H(params, U_c)"), &u_x1, &hash_c)?;
+    let check_cyclefold = alloc_num_equals(
+      cs.namespace(|| "u.X[1] = H(params, U_c)"),
+      &data_p.u_x1,
+      &hash_c,
+    )?;
 
     let check_io = AllocatedBit::and(
       cs.namespace(|| "both IOs match"),
@@ -511,9 +453,8 @@ where
     )?;
 
     // Run NIFS Verifier
-    let U_to_fold = get_from_vec_alloc_emul_relaxed_r1cs(
-      cs.namespace(|| "U to fold"),
-      &U,
+    let U_to_fold = data_p.U_to_fold(
+      cs.namespace(|| "data_p.U_to_fold"),
       last_augmented_circuit_selector,
     )?;
 
@@ -522,16 +463,16 @@ where
       pp_digest,
       W_new,
       E_new,
-      &u_W,
-      &u_x0,
-      &u_x1,
-      &T,
+      &data_p.u_W,
+      &data_p.u_x0,
+      &data_p.u_x1,
+      &data_p.T,
       self.ro_consts.clone(),
     )?;
 
     // update AllocatedRelaxedR1CSInstance on index match augmented circuit index
     let U_next: Vec<AllocatedEmulRelaxedR1CSInstance<E1>> = zip_with!(
-      (U.iter(), last_augmented_circuit_selector.iter()),
+      (data_p.U.iter(), last_augmented_circuit_selector.iter()),
       |U, equal_bit| {
         conditionally_select_emul_alloc_relaxed_r1cs(
           cs.namespace(|| "select on index namespace"),
@@ -558,11 +499,7 @@ where
       i,
       z_0,
       z_i,
-      U,
-      u_W,
-      u_x0,
-      u_x1,
-      T,
+      data_p,
       data_c_1,
       data_c_2,
       E_new,
@@ -588,11 +525,7 @@ where
       &i,
       &z_0,
       &z_i,
-      U,
-      u_W,
-      u_x0,
-      u_x1,
-      T,
+      &data_p,
       &data_c_1,
       &data_c_2,
       E_new,
