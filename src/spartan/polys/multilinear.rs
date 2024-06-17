@@ -181,7 +181,7 @@ impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {
 
 #[cfg(test)]
 mod tests {
-  use crate::provider::{self, bn256_grumpkin::bn256, secp_secq::secp256k1};
+  use crate::provider::{bn256_grumpkin::bn256, secp_secq::secp256k1};
 
   use super::*;
   use rand_chacha::ChaCha20Rng;
@@ -293,8 +293,8 @@ mod tests {
   #[test]
   fn test_evaluation() {
     test_evaluation_with::<pasta_curves::Fp>();
-    test_evaluation_with::<provider::bn256_grumpkin::bn256::Scalar>();
-    test_evaluation_with::<provider::secp_secq::secp256k1::Scalar>();
+    test_evaluation_with::<bn256::Scalar>();
+    test_evaluation_with::<secp256k1::Scalar>();
   }
 
   /// This binds the variables of a multilinear polynomial to a provided sequence

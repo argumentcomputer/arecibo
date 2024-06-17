@@ -25,7 +25,7 @@ pub mod solidity_compatibility_utils {
   ) {
     use rand_core::SeedableRng;
 
-    let mut rng = rand::rngs::StdRng::seed_from_u64(num_vars as u64);
+    let mut rng = StdRng::seed_from_u64(num_vars as u64);
 
     let (poly, point, eval) =
       crate::provider::util::test_utils::random_poly_with_eval::<E, StdRng>(num_vars, &mut rng);
