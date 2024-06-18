@@ -8,7 +8,7 @@ pub mod ipa_pc;
 // crate-public modules, made crate-public mostly for tests
 pub(crate) mod bn256_grumpkin;
 mod pasta;
-mod pedersen;
+pub mod pedersen;
 pub(crate) mod poseidon;
 pub(crate) mod secp_secq;
 pub(crate) mod traits;
@@ -32,15 +32,16 @@ use crate::{
 };
 // use halo2curves::bn256::Bn256;
 use pasta_curves::{pallas, vesta};
+use serde::{Deserialize, Serialize};
 
 // use self::kzg_commitment::KZGCommitmentEngine;
 
 /// An implementation of the Nova `Engine` trait with Grumpkin curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GrumpkinEngine;
 
 /// An implementation of the Nova `Engine` trait with BN254 curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Bn256EngineIPA;
 
 impl Engine for Bn256EngineIPA {
@@ -103,11 +104,11 @@ impl CurveCycleEquipped for Bn256EngineIPA {
 // }
 
 /// An implementation of the Nova `Engine` trait with Secp256k1 curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Secp256k1Engine;
 
 /// An implementation of the Nova `Engine` trait with Secp256k1 curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Secq256k1Engine;
 
 impl Engine for Secp256k1Engine {
@@ -135,11 +136,11 @@ impl CurveCycleEquipped for Secp256k1Engine {
 }
 
 /// An implementation of the Nova `Engine` trait with Pallas curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PallasEngine;
 
 /// An implementation of the Nova `Engine` trait with Vesta curve and Pedersen commitment scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct VestaEngine;
 
 impl Engine for PallasEngine {

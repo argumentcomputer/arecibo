@@ -386,7 +386,7 @@ mod tests {
     constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::scalar_as_base,
     provider::{
-      poseidon::PoseidonConstantsCircuit, Bn256EngineKZG, GrumpkinEngine, PallasEngine,
+      poseidon::PoseidonConstantsCircuit, GrumpkinEngine, PallasEngine,
       Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     traits::{circuit::TrivialCircuit, snark::default_ck_hint, CurveCycleEquipped, Dual},
@@ -486,16 +486,16 @@ mod tests {
     let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true);
     let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false);
     let ro_consts1: ROConstantsCircuit<GrumpkinEngine> = PoseidonConstantsCircuit::default();
-    let ro_consts2: ROConstantsCircuit<Bn256EngineKZG> = PoseidonConstantsCircuit::default();
+    // let ro_consts2: ROConstantsCircuit<Bn256EngineKZG> = PoseidonConstantsCircuit::default();
 
-    test_recursive_circuit_with::<Bn256EngineKZG>(
-      &params1,
-      &params2,
-      ro_consts1,
-      ro_consts2,
-      &expect!["9985"],
-      &expect!["10538"],
-    );
+    // test_recursive_circuit_with::<Bn256EngineKZG>(
+    //   &params1,
+    //   &params2,
+    //   ro_consts1,
+    //   ro_consts2,
+    //   &expect!["9985"],
+    //   &expect!["10538"],
+    // );
   }
 
   #[test]
