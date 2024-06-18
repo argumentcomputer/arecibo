@@ -69,7 +69,7 @@ where
 }
 
 /// A vector of [`R1CSWithArity`] adjoined to a set of [`PublicParams`]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PublicParams<E1>
 where
@@ -845,6 +845,7 @@ where
   fn primary_circuit(&self, circuit_index: usize) -> Self::C1;
 }
 
+#[allow(dead_code)]
 /// Extension trait to simplify getting scalar form of initial circuit index.
 trait InitialProgramCounter<E1>: NonUniformCircuit<E1>
 where
