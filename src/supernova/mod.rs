@@ -1182,19 +1182,6 @@ where
   fn secondary_circuit(&self) -> Self::C2;
 }
 
-/// Extension trait to simplify getting scalar form of initial circuit index.
-trait InitialProgramCounter<E1>: NonUniformCircuit<E1>
-where
-  E1: CurveCycleEquipped,
-{
-  /// Initial program counter is the initial circuit index as a `Scalar`.
-  fn initial_program_counter(&self) -> E1::Scalar {
-    E1::Scalar::from(self.initial_circuit_index() as u64)
-  }
-}
-
-impl<E1: CurveCycleEquipped, T: NonUniformCircuit<E1>> InitialProgramCounter<E1> for T {}
-
 /// Compute the circuit digest of a supernova [`StepCircuit`].
 ///
 /// Note for callers: This function should be called with its performance characteristics in mind.

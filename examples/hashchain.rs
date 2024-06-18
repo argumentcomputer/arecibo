@@ -96,9 +96,9 @@ impl<G: Group> StepCircuit<G::Scalar> for HashChainCircuit<G> {
       let acc = &mut ns;
 
       sponge.start(parameter, None, acc);
-      neptune::sponge::api::SpongeAPI::absorb(&mut sponge, num_absorbs, &elt, acc);
+      SpongeAPI::absorb(&mut sponge, num_absorbs, &elt, acc);
 
-      let output = neptune::sponge::api::SpongeAPI::squeeze(&mut sponge, 1, acc);
+      let output = SpongeAPI::squeeze(&mut sponge, 1, acc);
       sponge.finish(acc).unwrap();
       Elt::ensure_allocated(&output[0], &mut ns.namespace(|| "ensure allocated"), true)?
     };
