@@ -61,6 +61,18 @@ use traits::{
   AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
 };
 
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum StepCounterType {
+  /// Incremental counter is a standard monotonically increasing integer
+  Incremental,
+  /// External counter introduces completion that is defined outside of the circuit
+  External,
+}
+
+/// When using Extenral Step counter type, the verifier should use
+/// `FINAL_EXTERNAL_COUNTER` as the number of steps of execution.
+pub const FINAL_EXTERNAL_COUNTER: usize = 1;
+
 /// A type that holds parameters for the primary and secondary circuits of Nova and SuperNova
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
 #[serde(bound = "")]
@@ -99,6 +111,7 @@ where
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E>,
   ro_consts_circuit_primary: ROConstantsCircuit<Dual<E>>,
+  counter_type: StepCounterType,
   ck_primary: Arc<CommitmentKey<E>>,
   circuit_shape_primary: R1CSWithArity<E>,
   ro_consts_secondary: ROConstants<Dual<E>>,
@@ -261,6 +274,13 @@ where
     let F_arity_primary = c_primary.arity();
     let F_arity_secondary = c_secondary.arity();
 
+    let step_counter_primary = c_primary.get_counter_type();
+    let step_counter_secondary = c_secondary.get_counter_type();
+
+    if step_counter_primary != step_counter_secondary {
+      return Err(NovaError::MismatchedCounterType);
+    }
+
     // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
     let ro_consts_circuit_primary: ROConstantsCircuit<Dual<E1>> =
       ROConstantsCircuit::<Dual<E1>>::default();
@@ -302,6 +322,7 @@ where
       F_arity_secondary,
       ro_consts_primary,
       ro_consts_circuit_primary,
+      counter_type: step_counter_primary,
       ck_primary,
       circuit_shape_primary,
       ro_consts_secondary,
@@ -322,6 +343,12 @@ where
       .cloned()
       .expect("Failure in retrieving digest")
   }
+
+  /// Returns the type of the counter for this circuit
+  pub fn get_counter_type(&self) -> StepCounterType {
+    self.counter_type
+  }
+  
 
   /// Returns the number of constraints in the primary and secondary circuits
   pub const fn num_constraints(&self) -> (usize, usize) {
@@ -538,6 +565,8 @@ where
     let r_U_secondary_i = self.r_U_secondary.clone();
     let l_u_secondary_i = self.l_u_secondary.clone();
 
+    let counter_type = pp.get_counter_type();
+
     // fold the secondary circuit's instance
     let (nifs_secondary, _) = NIFS::prove_mut(
       &*pp.ck_secondary,
@@ -633,7 +662,10 @@ where
     self.l_u_secondary = l_u_secondary;
     self.l_w_secondary = l_w_secondary;
 
-    self.i += 1;
+    match counter_type {
+      StepCounterType::Incremental => self.i += 1,
+      StepCounterType::External => self.i = 1,
+    };
 
     Ok(())
   }
@@ -646,11 +678,26 @@ where
     z0_primary: &[E1::Scalar],
     z0_secondary: &[<Dual<E1> as Engine>::Scalar],
   ) -> Result<(Vec<E1::Scalar>, Vec<<Dual<E1> as Engine>::Scalar>), NovaError> {
-    // number of steps cannot be zero
-    let is_num_steps_zero = num_steps == 0;
+    let counter_type = pp.get_counter_type();
 
-    // check if the provided proof has executed num_steps
-    let is_num_steps_not_match = self.i != num_steps;
+    // If counter_type is External, the number of invocations
+    // is irrevelant since progress is measured externally.
+    // If it is Incremental, then it should have been executed it
+    // num_steps, and num_steps should be non-zero.
+    match counter_type {
+      StepCounterType::External => {}
+      StepCounterType::Incremental => {
+        // number of steps cannot be zero
+        if num_steps == 0 {
+          return Err(NovaError::ProofVerifyError);
+        }
+
+        // check if the provided proof has executed num_steps
+        if self.i != num_steps {
+          return Err(NovaError::ProofVerifyError);
+        }
+      }
+    }
 
     // check if the initial inputs match
     let is_inputs_not_match = self.z0_primary != z0_primary || self.z0_secondary != z0_secondary;
@@ -660,11 +707,7 @@ where
       || self.r_U_primary.X.len() != 2
       || self.r_U_secondary.X.len() != 2;
 
-    if is_num_steps_zero
-      || is_num_steps_not_match
-      || is_inputs_not_match
-      || is_instance_has_two_outputs
-    {
+    if is_inputs_not_match || is_instance_has_two_outputs {
       return Err(NovaError::ProofVerifyError);
     }
 
@@ -1039,14 +1082,33 @@ mod tests {
   type S<E, EE> = spartan::snark::RelaxedR1CSSNARK<E, EE>;
   type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
 
-  #[derive(Clone, Debug, Default)]
-  struct CubicCircuit<F> {
+  #[derive(Clone, Debug)]
+  struct CubicCircuit<F: PrimeField> {
     _p: PhantomData<F>,
+    counter_type: StepCounterType,
+  }
+
+
+  impl<F> Default for CubicCircuit<F>
+  where
+    F: PrimeField,
+  {
+    /// Creates a new trivial test circuit with step counter type Incremental
+    fn default() -> CubicCircuit<F> {
+      Self {
+        _p: PhantomData::default(),
+        counter_type: StepCounterType::Incremental,
+      }
+    }
   }
 
   impl<F: PrimeField> StepCircuit<F> for CubicCircuit<F> {
     fn arity(&self) -> usize {
       1
+    }
+
+    fn get_counter_type(&self) -> StepCounterType {
+      self.counter_type
     }
 
     fn synthesize<CS: ConstraintSystem<F>>(
@@ -1121,36 +1183,37 @@ mod tests {
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["e5a6a85b77f3fb958b69722a5a21bf656fd21a6b5a012708a4b086b6be6d2b03"],
+      &expect!["cbbc103130b77249bfb14b86f5e9800f29704ef06fd38ff0964dcc385ac62d00"],
     );
 
     test_pp_digest_with::<PallasEngine, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["ec707a8b822baebca114b6e61b238374f9ed358c542dd37ee73febb47832cd01"],
+      &expect!["f1f9ba473c14dbf6ddb1b3dddb1b3e97547020f24879baaf5bf6ef02d2de1001"],
     );
 
     test_pp_digest_with::<Bn256EngineIPA, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["df52de22456157eb056003d4dc580a167ab8ce40a151c9944ea09a6fd0028600"],
+      &expect!["fcc7c59047346231c7f811cb8ff380d93098dca1749d352db84914381e1f5d00"],
     );
 
     test_pp_digest_with::<Bn256EngineIPA, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["b3ad0f4b734c5bd2ab9e83be8ee0cbaaa120e5cd0270b51cb9d7778a33f0b801"],
+      &expect!["a94ab6c20ecb1c175dbced286e17c0587ef3b05cdbf9457dd723a6e0f11f9601"],
     );
 
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &TrivialCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["e1feca53664212ee750da857c726b2a09bb30b2964f22ea85a19b58c9eaf5701"],
+      &expect!["8a5dc9867538ade2691aa6e23fed408d399cde10e4cd9c92359f7adb81113b02"],
     );
+
     test_pp_digest_with::<Secp256k1Engine, _, _, EE<_>, EE<_>>(
       &CubicCircuit::default(),
       &TrivialCircuit::default(),
-      &expect!["4ad6b10b6fd24fecba49f08d35bc874a6da9c77735bc0bcf4b78b1914a97e602"],
+      &expect!["ffff2f5d3a9b5077ad861498b4b042029d8fe3a2fda36a38ad6e13ee4b41a703"],
     );
   }
 
@@ -1503,6 +1566,11 @@ mod tests {
         1
       }
 
+      /// Returns the type of the counter for this circuit
+      fn get_counter_type(&self) -> StepCounterType {
+        StepCounterType::Incremental
+      }
+
       fn synthesize<CS: ConstraintSystem<F>>(
         &self,
         cs: &mut CS,
@@ -1647,14 +1715,33 @@ mod tests {
   }
 
   fn test_setup_with<E1: CurveCycleEquipped>() {
-    #[derive(Clone, Debug, Default)]
+    #[derive(Clone, Debug)]
     struct CircuitWithInputize<F: PrimeField> {
       _p: PhantomData<F>,
+      counter_type: StepCounterType,
+    }
+
+    impl<F> Default for CircuitWithInputize<F>
+    where
+      F: PrimeField,
+    {
+      /// Creates a new trivial test circuit with step counter type Incremental
+      fn default() -> CircuitWithInputize<F> {
+        Self {
+          _p: PhantomData::default(),
+          counter_type: StepCounterType::Incremental,
+        }
+      }
     }
 
     impl<F: PrimeField> StepCircuit<F> for CircuitWithInputize<F> {
       fn arity(&self) -> usize {
         1
+      }
+
+      /// Returns the type of the counter for this circuit
+      fn get_counter_type(&self) -> StepCounterType {
+        self.counter_type
       }
 
       fn synthesize<CS: ConstraintSystem<F>>(
