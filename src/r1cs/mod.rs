@@ -23,6 +23,9 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub(crate) use sparse::SparseMatrix;
+use rand::rngs::OsRng;
+
+use crate::traits::commitment::ZKCommitmentEngineTrait;
 
 /// A type that holds the shape of the R1CS matrices
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Abomonation)]
@@ -55,6 +58,13 @@ pub struct R1CSWitness<E: Engine> {
   W: Vec<E::Scalar>,
 }
 
+/// A type that holds a witness for a given R1CS instance with zero-knowledge
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ZKR1CSWitness<E: Engine> {
+  pub(crate) W: Vec<E::Scalar>,
+  pub(crate) r_W: E::Scalar,
+}
+
 /// A type that holds an R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -68,6 +78,15 @@ pub struct R1CSInstance<E: Engine> {
 pub struct RelaxedR1CSWitness<E: Engine> {
   pub(crate) W: Vec<E::Scalar>,
   pub(crate) E: Vec<E::Scalar>,
+}
+
+/// A type that holds a witness for a given Relaxed R1CS instance with zero-knowledge
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ZKRelaxedR1CSWitness<E: Engine> {
+  pub(crate) W: Vec<E::Scalar>,
+  pub(crate) r_W: E::Scalar,
+  pub(crate) E: Vec<E::Scalar>,
+  pub(crate) r_E: E::Scalar,
 }
 
 /// A type that holds a Relaxed R1CS instance
@@ -379,6 +398,52 @@ impl<E: Engine> R1CSShape<E> {
     Ok(())
   }
 
+  #[allow(dead_code)]
+  pub fn is_sat_relaxed_zk(
+    &self,
+    ck: &CommitmentKey<E>,
+    U: &RelaxedR1CSInstance<E>,
+    W: &ZKRelaxedR1CSWitness<E>,
+  ) -> Result<(), NovaError>
+  where
+      E: Engine,
+      <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+  {
+      assert_eq!(W.W.len(), self.num_vars);
+      assert_eq!(W.E.len(), self.num_cons);
+      assert_eq!(U.X.len(), self.num_io);
+
+      // verify if Az * Bz - u*Cz = E
+      let E = self.compute_E(&W.W, &U.u, &U.X)?;
+      W.E
+          .par_iter()
+          .zip_eq(E.into_par_iter())
+          .enumerate()
+          .try_for_each(|(i, (we, e))| {
+              if *we != e {
+                  // constraint failed, retrieve constraint name
+                  Err(NovaError::UnSatIndex(i))
+              } else {
+                  Ok(())
+              }
+          })?;
+
+      // verify if comm_E and comm_W are commitments to E and W
+      let res_comm = {
+          let (comm_W, comm_E) = rayon::join(
+              || <E as Engine>::CE::zkcommit(ck, &W.W, &W.r_W),
+              || <E as Engine>::CE::zkcommit(ck, &W.E, &W.r_E),
+          );
+          U.comm_W == comm_W && U.comm_E == comm_E
+      };
+
+      if !res_comm {
+          return Err(NovaError::UnSat);
+      }
+      Ok(())
+  }
+
+
   /// Checks if the R1CS instance is satisfiable given a witness and its shape
   pub fn is_sat(
     &self,
@@ -401,6 +466,36 @@ impl<E: Engine> R1CSShape<E> {
 
     // verify if comm_W is a commitment to W
     if U.comm_W != CE::<E>::commit(ck, &W.W) {
+      return Err(NovaError::UnSat);
+    }
+    Ok(())
+  }
+
+  pub fn is_sat_zk(
+    &self,
+    ck: &CommitmentKey<E>,
+    U: &R1CSInstance<E>,
+    W: &ZKR1CSWitness<E>,
+  ) -> Result<(), NovaError> 
+  where
+    E: Engine,
+    <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+  {
+    assert_eq!(W.W.len(), self.num_vars);
+    assert_eq!(U.X.len(), self.num_io);
+
+    // verify if Az * Bz - u*Cz = 0
+    let E = self.compute_E(&W.W, &E::Scalar::ONE, &U.X)?;
+    E.into_par_iter().enumerate().try_for_each(|(i, e)| {
+      if e != E::Scalar::ZERO {
+        Err(NovaError::UnSatIndex(i))
+      } else {
+        Ok(())
+      }
+    })?;
+
+    // verify if comm_W is a commitment to W
+    if U.comm_W != <E as Engine>::CE::zkcommit(ck, &W.W, &W.r_W) {
       return Err(NovaError::UnSat);
     }
     Ok(())
@@ -458,6 +553,61 @@ impl<E: Engine> R1CSShape<E> {
     Ok((T, comm_T))
   }
 
+  pub fn commit_T_zk(
+    &self,
+    ck: &CommitmentKey<E>,
+    U1: &RelaxedR1CSInstance<E>,
+    W1: &ZKRelaxedR1CSWitness<E>,
+    U2: &R1CSInstance<E>,
+    W2: &ZKR1CSWitness<E>,
+    r_T: &E::Scalar,
+  ) -> Result<(Vec<E::Scalar>, Commitment<E>), NovaError>
+  where
+    E: Engine,
+    <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+  {
+    let (AZ_1, BZ_1, CZ_1) = tracing::trace_span!("AZ_1, BZ_1, CZ_1")
+      .in_scope(|| self.multiply_witness(&W1.W, &U1.u, &U1.X))?;
+
+    let (AZ_2, BZ_2, CZ_2) = tracing::trace_span!("AZ_2, BZ_2, CZ_2")
+      .in_scope(|| self.multiply_witness(&W2.W, &E::Scalar::ONE, &U2.X))?;
+
+    let (AZ_1_circ_BZ_2, AZ_2_circ_BZ_1, u_1_cdot_CZ_2, u_2_cdot_CZ_1) =
+      tracing::trace_span!("cross terms").in_scope(|| {
+        let AZ_1_circ_BZ_2 = (0..AZ_1.len())
+          .into_par_iter()
+          .map(|i| AZ_1[i] * BZ_2[i])
+          .collect::<Vec<E::Scalar>>();
+        let AZ_2_circ_BZ_1 = (0..AZ_2.len())
+          .into_par_iter()
+          .map(|i| AZ_2[i] * BZ_1[i])
+          .collect::<Vec<E::Scalar>>();
+        let u_1_cdot_CZ_2 = (0..CZ_2.len())
+          .into_par_iter()
+          .map(|i| U1.u * CZ_2[i])
+          .collect::<Vec<E::Scalar>>();
+        let u_2_cdot_CZ_1 = (0..CZ_1.len())
+          .into_par_iter()
+          .map(|i| CZ_1[i])
+          .collect::<Vec<E::Scalar>>();
+        (AZ_1_circ_BZ_2, AZ_2_circ_BZ_1, u_1_cdot_CZ_2, u_2_cdot_CZ_1)
+      });
+
+    let T = tracing::trace_span!("T").in_scope(|| {
+      AZ_1_circ_BZ_2
+        .par_iter()
+        .zip_eq(&AZ_2_circ_BZ_1)
+        .zip_eq(&u_1_cdot_CZ_2)
+        .zip_eq(&u_2_cdot_CZ_1)
+        .map(|(((a, b), c), d)| *a + *b - *c - *d)
+        .collect::<Vec<E::Scalar>>()
+    });
+
+    let comm_T = <E as Engine>::CE::zkcommit(ck, &T, r_T);
+
+    Ok((T, comm_T))
+  }
+
   /// A method to compute a commitment to the cross-term `T` given a
   /// Relaxed R1CS instance-witness pair and an R1CS instance-witness pair
   ///
@@ -506,6 +656,57 @@ impl<E: Engine> R1CSShape<E> {
     });
 
     Ok(CE::<E>::commit(ck, T))
+  }
+
+  pub fn commit_T_into_zk(
+    &self,
+    ck: &CommitmentKey<E>,
+    U1: &RelaxedR1CSInstance<E>,
+    W1: &ZKRelaxedR1CSWitness<E>,
+    U2: &R1CSInstance<E>,
+    W2: &ZKR1CSWitness<E>,
+    T: &mut Vec<E::Scalar>,
+    ABC_Z_1: &mut R1CSResult<E>,
+    ABC_Z_2: &mut R1CSResult<E>,
+    r_T: &E::Scalar,
+  ) -> Result<Commitment<E>, NovaError>
+  where
+    E: Engine,
+    <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+  {
+    tracing::info_span!("AZ_1, BZ_1, CZ_1")
+      .in_scope(|| self.multiply_witness_into(&W1.W, &U1.u, &U1.X, ABC_Z_1))?;
+
+    let R1CSResult {
+      AZ: AZ_1,
+      BZ: BZ_1,
+      CZ: CZ_1,
+    } = ABC_Z_1;
+
+    tracing::info_span!("AZ_2, BZ_2, CZ_2")
+      .in_scope(|| self.multiply_witness_into(&W2.W, &E::Scalar::ONE, &U2.X, ABC_Z_2))?;
+
+    let R1CSResult {
+      AZ: AZ_2,
+      BZ: BZ_2,
+      CZ: CZ_2,
+    } = ABC_Z_2;
+
+    // this doesn't allocate memory but has bad temporal cache locality -- should test to see which is faster
+    T.clear();
+    tracing::info_span!("T").in_scope(|| {
+      (0..AZ_1.len())
+        .into_par_iter()
+        .map(|i| {
+          let AZ_1_circ_BZ_2 = AZ_1[i] * BZ_2[i];
+          let AZ_2_circ_BZ_1 = AZ_2[i] * BZ_1[i];
+          let u_1_cdot_Cz_2_plus_Cz_1 = U1.u * CZ_2[i] + CZ_1[i];
+          AZ_1_circ_BZ_2 + AZ_2_circ_BZ_1 - u_1_cdot_Cz_2_plus_Cz_1
+        })
+        .collect_into_vec(T)
+    });
+
+    Ok(<E as Engine>::CE::zkcommit(ck, T, r_T))
   }
 
   /// Pads the `R1CSShape` so that the shape passes `is_regular_shape`
@@ -594,6 +795,29 @@ impl<E: Engine> R1CSWitness<E> {
   /// Commits to the witness using the supplied generators
   pub fn commit(&self, ck: &CommitmentKey<E>) -> Commitment<E> {
     CE::<E>::commit(ck, &self.W)
+  }
+}
+
+impl<E: Engine> ZKR1CSWitness<E> {
+  /// A method to create a witness object using a vector of scalars
+  pub fn new(S: &R1CSShape<E>, W: Vec<E::Scalar>) -> Result<Self, NovaError> {
+    if S.num_vars != W.len() {
+      Err(NovaError::InvalidWitnessLength)
+    } else {
+      Ok(ZKR1CSWitness {
+        W: W.to_owned(),
+        r_W: E::Scalar::random(&mut OsRng),
+      })
+    }
+  }
+
+  /// Commits to the witness using the supplied generators
+  pub fn commit(&self, ck: &CommitmentKey<E>) -> Commitment<E>
+  where
+    E: Engine,
+    <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+  {
+    <E as Engine>::CE::zkcommit(ck, &self.W, &self.r_W)
   }
 }
 
@@ -696,6 +920,107 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
     E.extend(vec![E::Scalar::ZERO; S.num_cons - E.len()]);
 
     Self { W, E }
+  }
+}
+
+impl<E: Engine> ZKRelaxedR1CSWitness<E> {
+  /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
+  pub fn default(S: &R1CSShape<E>) -> Self {
+    Self {
+      W: vec![E::Scalar::ZERO; S.num_vars],
+      r_W: E::Scalar::ZERO,
+      E: vec![E::Scalar::ZERO; S.num_cons],
+      r_E: E::Scalar::ZERO,
+    }
+  }
+
+  /// Initializes a new `RelaxedR1CSWitness` from an `R1CSWitness`
+  pub fn from_r1cs_witness(S: &R1CSShape<E>, witness: ZKR1CSWitness<E>) -> Self
+  where
+    E: Engine,
+    <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+  {
+    Self {
+      W: witness.W.clone(),
+      r_W: witness.r_W,
+      E: vec![<E as Engine>::Scalar::ZERO; S.num_cons],
+      r_E: <E as Engine>::Scalar::ZERO,
+    }
+  }
+
+  /// Commits to the witness using the supplied generators
+  pub fn commit(&self, ck: &CommitmentKey<E>) -> (Commitment<E>, Commitment<E>)
+  where
+    E: Engine,
+    <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+  {
+    (
+      <E as Engine>::CE::zkcommit(ck, &self.W, &self.r_W),
+      <E as Engine>::CE::zkcommit(ck, &self.E, &self.r_E),
+    )
+  }
+
+  /// Folds an incoming `R1CSWitness` into the current one
+  pub fn fold(
+    &self,
+    W2: &ZKR1CSWitness<E>,
+    T: &[<E as Engine>::Scalar],
+    r_T: &<E as Engine>::Scalar,
+    r: &<E as Engine>::Scalar,
+  ) -> Result<Self, NovaError> {
+    let (W1, r_W1, E1, r_E1) = (&self.W, &self.r_W, &self.E, &self.r_E);
+    let (W2, r_W2) = (&W2.W, &W2.r_W);
+
+    if W1.len() != W2.len() {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    let W = zip_with!((W1.par_iter(), W2), |a, b| *a + *r * *b).collect::<Vec<<E as Engine>::Scalar>>();
+    let r_W = *r_W1 + *r * *r_W2;
+    let E = zip_with!((E1.par_iter(), T), |a, b| *a + *r * *b).collect::<Vec<<E as Engine>::Scalar>>();
+    let r_E = *r_E1 + *r * *r_T;
+    Ok(ZKRelaxedR1CSWitness { W, r_W, E, r_E })
+  }
+
+  /// Mutably folds an incoming `R1CSWitness` into the current one
+  pub fn fold_mut(
+    &mut self,
+    W2: &R1CSWitness<E>,
+    T: &[E::Scalar],
+    r: &E::Scalar,
+  ) -> Result<(), NovaError> {
+    if self.W.len() != W2.W.len() {
+      return Err(NovaError::InvalidWitnessLength);
+    }
+
+    self
+      .W
+      .par_iter_mut()
+      .zip_eq(&W2.W)
+      .for_each(|(a, b)| *a += *r * *b);
+    self
+      .E
+      .par_iter_mut()
+      .zip_eq(T)
+      .for_each(|(a, b)| *a += *r * *b);
+
+    Ok(())
+  }
+
+  /// Pads the provided witness to the correct length
+  pub fn pad(&self, S: &R1CSShape<E>) -> Self {
+    let mut W = self.W.clone();
+    W.extend(vec![E::Scalar::ZERO; S.num_vars - W.len()]);
+
+    let mut E = self.E.clone();
+    E.extend(vec![E::Scalar::ZERO; S.num_cons - E.len()]);
+
+    Self {
+      W,
+      r_W: self.r_W,
+      E,
+      r_E: self.r_E,
+    }
   }
 }
 

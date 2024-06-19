@@ -163,6 +163,12 @@ impl<Scalar: PrimeField> SparsePolynomial<Scalar> {
   }
 }
 
+impl SparsePolynomial<halo2curves::bn256::Fr> {
+  pub fn new_zk(num_vars: usize, Z: Vec<halo2curves::bn256::Fr>) -> Self {
+      Self { num_vars, Z }
+  }
+}
+
 /// Adds another multilinear polynomial to `self`.
 /// Assumes the two polynomials have the same number of variables.
 impl<Scalar: PrimeField> Add for MultilinearPolynomial<Scalar> {

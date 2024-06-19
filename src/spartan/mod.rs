@@ -18,6 +18,8 @@ pub mod snark;
 mod sumcheck;
 
 pub mod nizk;
+mod zksumcheck;
+pub mod zksnark;
 
 use crate::{
   r1cs::{R1CSShape, SparseMatrix},

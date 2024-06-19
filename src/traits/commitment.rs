@@ -121,6 +121,20 @@ pub trait ZKCommitmentEngineTrait<E: Engine>: CommitmentEngineTrait<E> {
   where
       E::GE: DlogGroup;
 
+  /// Returns the generators of the commitment
+  fn get_gens(
+    ck: &Self::CommitmentKey,
+  ) -> Vec<<<E as Engine>::GE as PrimeCurve>::Affine>
+  where
+    E::GE: DlogGroup;
+
+  /// Returns the blinding generator of the commitment
+  fn get_blinding_gen(
+    ck: &Self::CommitmentKey,
+  ) -> <<E as Engine>::GE as PrimeCurve>::Affine
+  where
+    E::GE: DlogGroup;
+
   /// Commits to the provided vector using the provided generators
   fn zkcommit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment;
 }

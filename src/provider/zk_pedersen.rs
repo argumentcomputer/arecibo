@@ -315,6 +315,14 @@ where
     CommitmentKey { ck, h }
   }
 
+  fn get_gens(ck: &Self::CommitmentKey) -> Vec<<E::GE as PrimeCurve>::Affine> {
+    ck.ck.clone()
+  }
+
+  fn get_blinding_gen(ck: &Self::CommitmentKey) -> <E::GE as PrimeCurve>::Affine {
+    ck.h.clone()
+  }
+
   fn zkcommit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
     assert!(ck.ck.len() >= v.len());
 
