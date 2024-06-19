@@ -4,6 +4,8 @@ use crate::{
   errors::NovaError,
   traits::{AbsorbInROTrait, Engine, TranscriptReprTrait},
 };
+use group::prime::PrimeCurve;
+use crate::provider::traits::DlogGroup;
 use abomonation::Abomonation;
 use core::{
   fmt::Debug,
@@ -85,4 +87,37 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
 
   /// Commits to the provided vector using the provided generators
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar]) -> Self::Commitment;
+
+}
+
+/// A trait that defines additional methods specific to zk commitments
+pub trait ZKCommitmentEngineTrait<E: Engine>: CommitmentEngineTrait<E> {
+
+  /// Samples a new commitment key of a specified size
+  fn setup_exact(label: &'static [u8], n: usize) -> Self::CommitmentKey;
+
+  /// Samples a new commitment key (power of 2) but reuses the blinding generator of ck
+  fn setup_with_blinding(
+    label: &'static [u8],
+    n: usize,
+    h: &<<E as Engine>::GE as PrimeCurve>::Affine,
+  ) -> Self::CommitmentKey
+  where
+    E::GE: DlogGroup;
+
+  /// Samples a new commitment key of specific size but reuses the blinding generator of ck
+  fn setup_exact_with_blinding(
+    label: &'static [u8],
+    n: usize,
+    h: &<<E as Engine>::GE as PrimeCurve>::Affine,
+  ) -> Self::CommitmentKey
+  where
+    E::GE: DlogGroup;
+
+  /// Converts a commitment into generators (with no blinding generator)
+  fn from_preprocessed(
+      com: Vec<<<E as Engine>::GE as PrimeCurve>::Affine>,
+  ) -> Self::CommitmentKey
+  where
+      E::GE: DlogGroup;
 }

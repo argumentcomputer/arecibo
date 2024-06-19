@@ -9,6 +9,7 @@ pub mod non_hiding_zeromorph;
 pub(crate) mod bn256_grumpkin;
 mod pasta;
 pub mod pedersen;
+pub mod zk_pedersen;
 pub(crate) mod poseidon;
 pub(crate) mod secp_secq;
 pub(crate) mod traits;
@@ -25,6 +26,7 @@ use crate::{
     bn256_grumpkin::{bn256, grumpkin},
     keccak::Keccak256Transcript,
     pedersen::CommitmentEngine as PedersenCommitmentEngine,
+    zk_pedersen::CommitmentEngine as ZKPedersenCommitmentEngine,
     poseidon::{PoseidonRO, PoseidonROCircuit},
     secp_secq::{secp256k1, secq256k1},
   },
@@ -51,6 +53,20 @@ impl Engine for Bn256EngineIPA {
   type ROCircuit = PoseidonROCircuit<Self::Base>;
   type TE = Keccak256Transcript<Self>;
   type CE = PedersenCommitmentEngine<Self>;
+}
+
+/// An implementation of the Nova `Engine` trait with BN254 curve and Pedersen commitment scheme with zero-knowledge.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Bn256EngineZKPedersen;
+
+impl Engine for Bn256EngineZKPedersen {
+  type Base = bn256::Base;
+  type Scalar = bn256::Scalar;
+  type GE = bn256::Point;
+  type RO = PoseidonRO<Self::Base, Self::Scalar>;
+  type ROCircuit = PoseidonROCircuit<Self::Base>;
+  type TE = Keccak256Transcript<Self>;
+  type CE = ZKPedersenCommitmentEngine<Self>;
 }
 
 impl Engine for GrumpkinEngine {
@@ -91,6 +107,10 @@ impl Engine for Bn256EngineKZG {
 }
 
 impl CurveCycleEquipped for Bn256EngineIPA {
+  type Secondary = GrumpkinEngine;
+}
+
+impl CurveCycleEquipped for Bn256EngineZKPedersen {
   type Secondary = GrumpkinEngine;
 }
 
