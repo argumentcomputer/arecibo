@@ -12,7 +12,7 @@ use abomonation_derive::Abomonation;
 use core::{
   fmt::Debug,
   marker::PhantomData,
-  ops::{Add, Mul, MulAssign},
+  ops::{Add, Mul, MulAssign, Sub},
 };
 use ff::Field;
 use group::{
@@ -206,6 +206,20 @@ where
   }
 }
 
+impl<E> Sub for Commitment<E>
+where
+  E: Engine,
+  E::GE: DlogGroup,
+{
+  type Output = Commitment<E>;
+
+  fn sub(self, other: Commitment<E>) -> Commitment<E> {
+    Commitment {
+      comm: self.comm - other.comm,
+    }
+  }
+}
+
 /// Provides a commitment engine
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitmentEngine<E> {
@@ -299,6 +313,20 @@ where
   ) -> CommitmentKey<E> {
     let h = E::GE::generator().to_affine(); // this is irrelevant since we will not use a blind
     CommitmentKey { ck, h }
+  }
+
+  fn zkcommit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
+    assert!(ck.ck.len() >= v.len());
+
+    let mut scalars: Vec<E::Scalar> = v.to_vec();
+    scalars.push(*r);
+
+    let mut bases = ck.ck[..v.len()].to_vec();
+    bases.push(ck.h.clone());
+
+    Commitment {
+      comm: E::GE::vartime_multiscalar_mul(&scalars, &bases),
+    }
   }
 }
 

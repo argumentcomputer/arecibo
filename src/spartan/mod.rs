@@ -17,6 +17,8 @@ pub mod lookup_ppsnark;
 pub mod snark;
 mod sumcheck;
 
+pub mod nizk;
+
 use crate::{
   r1cs::{R1CSShape, SparseMatrix},
   traits::Engine,
