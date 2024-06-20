@@ -357,6 +357,61 @@ where
   }
 
   #[allow(dead_code)]
+  #[inline]
+  fn compute_eval_points_cubic_with_additive_term<F>(
+    poly_A: &MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
+    poly_B: &MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
+    poly_C: &MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
+    poly_D: &MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
+    comb_func: &F,
+  ) -> (<Bn256EngineZKPedersen as Engine>::Scalar, <Bn256EngineZKPedersen as Engine>::Scalar, <Bn256EngineZKPedersen as Engine>::Scalar)
+  where
+    F: Fn(&<Bn256EngineZKPedersen as Engine>::Scalar, &<Bn256EngineZKPedersen as Engine>::Scalar, &<Bn256EngineZKPedersen as Engine>::Scalar, &<Bn256EngineZKPedersen as Engine>::Scalar) -> <Bn256EngineZKPedersen as Engine>::Scalar + Sync,
+  {
+    let len = poly_A.len() / 2;
+    (0..len)
+      .into_par_iter()
+      .map(|i| {
+        // eval 0: bound_func is A(low)
+        let eval_point_0 = comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i]);
+
+        let poly_A_right_term = poly_A[len + i] - poly_A[i];
+        let poly_B_right_term = poly_B[len + i] - poly_B[i];
+        let poly_C_right_term = poly_C[len + i] - poly_C[i];
+        let poly_D_right_term = poly_D[len + i] - poly_D[i];
+
+        // eval 2: bound_func is -A(low) + 2*A(high)
+        let poly_A_bound_point = poly_A[len + i] + poly_A_right_term;
+        let poly_B_bound_point = poly_B[len + i] + poly_B_right_term;
+        let poly_C_bound_point = poly_C[len + i] + poly_C_right_term;
+        let poly_D_bound_point = poly_D[len + i] + poly_D_right_term;
+        let eval_point_2 = comb_func(
+          &poly_A_bound_point,
+          &poly_B_bound_point,
+          &poly_C_bound_point,
+          &poly_D_bound_point,
+        );
+
+        // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
+        let poly_A_bound_point = poly_A_bound_point + poly_A_right_term;
+        let poly_B_bound_point = poly_B_bound_point + poly_B_right_term;
+        let poly_C_bound_point = poly_C_bound_point + poly_C_right_term;
+        let poly_D_bound_point = poly_D_bound_point + poly_D_right_term;
+        let eval_point_3 = comb_func(
+          &poly_A_bound_point,
+          &poly_B_bound_point,
+          &poly_C_bound_point,
+          &poly_D_bound_point,
+        );
+        (eval_point_0, eval_point_2, eval_point_3)
+      })
+      .reduce(
+        || (<Bn256EngineZKPedersen as Engine>::Scalar::ZERO, <Bn256EngineZKPedersen as Engine>::Scalar::ZERO, <Bn256EngineZKPedersen as Engine>::Scalar::ZERO),
+        |a, b| (a.0 + b.0, a.1 + b.1, a.2 + b.2),
+      )
+  }
+
+  #[allow(dead_code)]
   pub fn prove_cubic_with_additive_term<F>(
     claim: &<Bn256EngineZKPedersen as Engine>::Scalar,
     blind_claim: &<Bn256EngineZKPedersen as Engine>::Scalar,
