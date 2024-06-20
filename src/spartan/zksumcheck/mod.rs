@@ -14,6 +14,8 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use crate::Engine;
 
+pub(in crate::spartan) mod engine;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct ZKSumcheckProof {
   comm_polys: Vec<CompressedCommitment<Bn256EngineZKPedersen>>,
@@ -310,9 +312,9 @@ where
   #[allow(dead_code)]
   #[inline]
   fn compute_eval_points_cubic<F>(
-    poly_A: &mut MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
-    poly_B: &mut MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
-    poly_C: &mut MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
+    poly_A: &MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
+    poly_B: &MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
+    poly_C: &MultilinearPolynomial<<Bn256EngineZKPedersen as Engine>::Scalar>,
     comb_func: &F,
   ) -> (<Bn256EngineZKPedersen as Engine>::Scalar, <Bn256EngineZKPedersen as Engine>::Scalar, <Bn256EngineZKPedersen as Engine>::Scalar)
   where
