@@ -22,8 +22,8 @@ use rand_core::{CryptoRng, RngCore};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-pub(crate) use sparse::SparseMatrix;
 use rand::rngs::OsRng;
+pub(crate) use sparse::SparseMatrix;
 
 use crate::traits::commitment::ZKCommitmentEngineTrait;
 
@@ -398,6 +398,7 @@ impl<E: Engine> R1CSShape<E> {
     Ok(())
   }
 
+  /// Checks if the Relaxed R1CS instance is satisfiable given a witness and its shape
   #[allow(dead_code)]
   pub fn is_sat_relaxed_zk(
     &self,
@@ -406,43 +407,42 @@ impl<E: Engine> R1CSShape<E> {
     W: &ZKRelaxedR1CSWitness<E>,
   ) -> Result<(), NovaError>
   where
-      E: Engine,
-      <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
+    E: Engine,
+    <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
   {
-      assert_eq!(W.W.len(), self.num_vars);
-      assert_eq!(W.E.len(), self.num_cons);
-      assert_eq!(U.X.len(), self.num_io);
+    assert_eq!(W.W.len(), self.num_vars);
+    assert_eq!(W.E.len(), self.num_cons);
+    assert_eq!(U.X.len(), self.num_io);
 
-      // verify if Az * Bz - u*Cz = E
-      let E = self.compute_E(&W.W, &U.u, &U.X)?;
-      W.E
-          .par_iter()
-          .zip_eq(E.into_par_iter())
-          .enumerate()
-          .try_for_each(|(i, (we, e))| {
-              if *we != e {
-                  // constraint failed, retrieve constraint name
-                  Err(NovaError::UnSatIndex(i))
-              } else {
-                  Ok(())
-              }
-          })?;
+    // verify if Az * Bz - u*Cz = E
+    let E = self.compute_E(&W.W, &U.u, &U.X)?;
+    W.E
+      .par_iter()
+      .zip_eq(E.into_par_iter())
+      .enumerate()
+      .try_for_each(|(i, (we, e))| {
+        if *we != e {
+          // constraint failed, retrieve constraint name
+          Err(NovaError::UnSatIndex(i))
+        } else {
+          Ok(())
+        }
+      })?;
 
-      // verify if comm_E and comm_W are commitments to E and W
-      let res_comm = {
-          let (comm_W, comm_E) = rayon::join(
-              || <E as Engine>::CE::zkcommit(ck, &W.W, &W.r_W),
-              || <E as Engine>::CE::zkcommit(ck, &W.E, &W.r_E),
-          );
-          U.comm_W == comm_W && U.comm_E == comm_E
-      };
+    // verify if comm_E and comm_W are commitments to E and W
+    let res_comm = {
+      let (comm_W, comm_E) = rayon::join(
+        || <E as Engine>::CE::zkcommit(ck, &W.W, &W.r_W),
+        || <E as Engine>::CE::zkcommit(ck, &W.E, &W.r_E),
+      );
+      U.comm_W == comm_W && U.comm_E == comm_E
+    };
 
-      if !res_comm {
-          return Err(NovaError::UnSat);
-      }
-      Ok(())
+    if !res_comm {
+      return Err(NovaError::UnSat);
+    }
+    Ok(())
   }
-
 
   /// Checks if the R1CS instance is satisfiable given a witness and its shape
   pub fn is_sat(
@@ -471,12 +471,13 @@ impl<E: Engine> R1CSShape<E> {
     Ok(())
   }
 
+  /// Checks if the R1CS instance is satisfiable given a witness and its shape
   pub fn is_sat_zk(
     &self,
     ck: &CommitmentKey<E>,
     U: &R1CSInstance<E>,
     W: &ZKR1CSWitness<E>,
-  ) -> Result<(), NovaError> 
+  ) -> Result<(), NovaError>
   where
     E: Engine,
     <E as Engine>::CE: ZKCommitmentEngineTrait<E>,
@@ -553,6 +554,8 @@ impl<E: Engine> R1CSShape<E> {
     Ok((T, comm_T))
   }
 
+  /// A method to compute a binding and hiding commitment to the cross-term `T` given a
+  /// Relaxed R1CS instance-witness pair and an R1CS instance-witness pair
   pub fn commit_T_zk(
     &self,
     ck: &CommitmentKey<E>,
@@ -658,6 +661,10 @@ impl<E: Engine> R1CSShape<E> {
     Ok(CE::<E>::commit(ck, T))
   }
 
+  /// A method to compute a binding and hiding commitment to the cross-term `T` given a
+  /// Relaxed R1CS instance-witness pair and an R1CS instance-witness pair
+  ///
+  /// This is [`R1CSShape::commit_T`] but into a buffer.
   pub fn commit_T_into_zk(
     &self,
     ck: &CommitmentKey<E>,
@@ -975,9 +982,11 @@ impl<E: Engine> ZKRelaxedR1CSWitness<E> {
       return Err(NovaError::InvalidWitnessLength);
     }
 
-    let W = zip_with!((W1.par_iter(), W2), |a, b| *a + *r * *b).collect::<Vec<<E as Engine>::Scalar>>();
+    let W =
+      zip_with!((W1.par_iter(), W2), |a, b| *a + *r * *b).collect::<Vec<<E as Engine>::Scalar>>();
     let r_W = *r_W1 + *r * *r_W2;
-    let E = zip_with!((E1.par_iter(), T), |a, b| *a + *r * *b).collect::<Vec<<E as Engine>::Scalar>>();
+    let E =
+      zip_with!((E1.par_iter(), T), |a, b| *a + *r * *b).collect::<Vec<<E as Engine>::Scalar>>();
     let r_E = *r_E1 + *r * *r_T;
     Ok(ZKRelaxedR1CSWitness { W, r_W, E, r_E })
   }

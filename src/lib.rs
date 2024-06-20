@@ -61,6 +61,7 @@ use traits::{
   AbsorbInROTrait, Engine, ROConstants, ROConstantsCircuit, ROTrait,
 };
 
+/// Step counter
 #[derive(Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum StepCounterType {
   /// Incremental counter is a standard monotonically increasing integer
@@ -112,7 +113,8 @@ where
   ro_consts_primary: ROConstants<E>,
   ro_consts_circuit_primary: ROConstantsCircuit<Dual<E>>,
   counter_type: StepCounterType,
-  ck_primary: Arc<CommitmentKey<E>>,
+  /// Commitment key for the primary circuit
+  pub ck_primary: Arc<CommitmentKey<E>>,
   circuit_shape_primary: R1CSWithArity<E>,
   ro_consts_secondary: ROConstants<Dual<E>>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E>,
@@ -348,7 +350,6 @@ where
   pub fn get_counter_type(&self) -> StepCounterType {
     self.counter_type
   }
-  
 
   /// Returns the number of constraints in the primary and secondary circuits
   pub const fn num_constraints(&self) -> (usize, usize) {
@@ -1087,7 +1088,6 @@ mod tests {
     _p: PhantomData<F>,
     counter_type: StepCounterType,
   }
-
 
   impl<F> Default for CubicCircuit<F>
   where
