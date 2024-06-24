@@ -14,6 +14,7 @@ use std::io::{self, Write};
 pub struct Bit<Scalar: PrimeField> {
   /// The linear combination which constrain the value of the bit
   pub bit: LinearCombination<Scalar>,
+  #[allow(unused)]
   /// The value of the bit (filled at witness-time)
   pub value: Option<bool>,
 }
