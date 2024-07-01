@@ -74,8 +74,7 @@ pub fn alloc_scalar_as_base<E, CS>(
   input: Option<E::Scalar>,
 ) -> Result<AllocatedNum<E::Base>, SynthesisError>
 where
-  E: Engine,
-  <E as Engine>::Scalar: PrimeFieldBits,
+  E: Engine<Scalar: PrimeFieldBits>,
   CS: ConstraintSystem<<E as Engine>::Base>,
 {
   AllocatedNum::alloc(cs.namespace(|| "allocate scalar as base"), || {
