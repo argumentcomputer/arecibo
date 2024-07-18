@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::Engine;
 
 /// KnowledgeProof
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KnowledgeProof {
   alpha: CompressedCommitment<Bn256EngineZKPedersen>,
   z1: <Bn256EngineZKPedersen as Engine>::Scalar,
@@ -21,7 +21,7 @@ pub struct KnowledgeProof {
 }
 
 /// EqualityProof
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EqualityProof {
   /// alpha
   pub alpha: CompressedCommitment<Bn256EngineZKPedersen>,
@@ -30,7 +30,7 @@ pub struct EqualityProof {
 }
 
 /// ProductProof
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProductProof {
   alpha: CompressedCommitment<Bn256EngineZKPedersen>,
   beta: CompressedCommitment<Bn256EngineZKPedersen>,
@@ -39,7 +39,7 @@ pub struct ProductProof {
 }
 
 /// DocProductProof
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DotProductProof {
   delta: CompressedCommitment<Bn256EngineZKPedersen>,
   beta: CompressedCommitment<Bn256EngineZKPedersen>,
