@@ -30,7 +30,7 @@ use crate::traits::zkevaluation::GetEvalCommitmentsTrait;
 use ff::Field;
 
 ///A type that represents generators for commitments used in sumcheck
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound = "")]
 pub struct SumcheckGens {
   /// 1 Generator
@@ -89,7 +89,7 @@ where
   EE: EvaluationEngineTrait<Bn256EngineZKPedersen>,
 {
   fn new(shape: R1CSShape<Bn256EngineZKPedersen>, vk_ee: EE::VerifierKey) -> Self {
-    let scalar_gen = EE::get_scalar_gen_vk(vk_ee.clone());
+    let scalar_gen: crate::provider::zk_pedersen::CommitmentKey<Bn256EngineZKPedersen> = EE::get_scalar_gen_vk(vk_ee.clone());
 
     VerifierKey {
       vk_ee,
