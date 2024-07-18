@@ -804,21 +804,9 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
 
     let eval_L_row = claims_inner[0][0];
     let blind_eval_L_row = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_L_row = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_L_row],
-    //   &blind_eval_L_row,
-    // )
-    // .compress();
 
     let eval_L_col = claims_inner[0][1];
     let blind_eval_L_col = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_L_col = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_L_col],
-    //   &blind_eval_L_col,
-    // )
-    // .compress();
 
     let blind_prod_eval_L_row_eval_L_col = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
 
@@ -849,15 +837,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
 
     let eval_w_plus_r_inv_row = claims_mem[0][1];
     let blind_eval_w_plus_r_inv_row = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_w_plus_r_inv_row = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_w_plus_r_inv_row],
-    //   &blind_eval_w_plus_r_inv_row,
-    // )
-    // .compress();
-
-    
-
 
     let eval_ts_row = claims_mem[0][2];
     let blind_eval_ts_row = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
@@ -873,12 +852,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
 
     let eval_w_plus_r_inv_col = claims_mem[1][1];
     let blind_eval_w_plus_r_inv_col = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_w_plus_r_inv_col = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_w_plus_r_inv_col],
-    //   &blind_eval_w_plus_r_inv_col,
-    // )
-    // .compress();
 
     let blind_prod_eval_w_plus_r_inv_col_eval_L_col = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
 
@@ -927,13 +900,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
     };
 
     let blind_eval_row = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_row = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_row],
-    //   &blind_eval_row,
-    // )
-    // .compress();
-
 
     let blind_prod_eval_row_eval_w_plus_r_inv_row = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
 
@@ -953,28 +919,11 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
 
 
     let blind_eval_val_A = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_val_A = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_val_A],
-    //   &blind_eval_val_A,
-    // )
-    // .compress();
 
     let blind_eval_val_B = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_val_B = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_val_B],
-    //   &blind_eval_val_B,
-    // )
-    // .compress();
 
     let blind_eval_val_C = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_val_C = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_val_C],
-    //   &blind_eval_val_C,
-    // )
-    // .compress();
+
 
     let blind_prod_eval_L_row_eval_L_col_eval_val_A = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
 
@@ -1076,20 +1025,8 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
     };
 
     let blind_eval_W_X = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_W_X = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_W_X],
-    //   &blind_eval_W_X,
-    // )
-    // .compress();
 
     let blind_eval_t_plus_r_inv_col = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_t_plus_r_inv_col = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_t_plus_r_inv_col],
-    //   &blind_eval_t_plus_r_inv_col,
-    // )
-    // .compress();
 
     let blind_prod_eval_t_plus_r_inv_col_eval_W_X = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
 
@@ -1108,20 +1045,8 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
     }?;
 
     let blind_eval_Az = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_Az = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_Az],
-    //   &blind_eval_Az,
-    // )
-    // .compress();
 
     let blind_eval_Bz = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_Bz = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_Bz],
-    //   &blind_eval_Bz,
-    // )
-    // .compress();
 
     let blind_prod_eval_Az_eval_Bz = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
 
@@ -1157,12 +1082,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
 
 
     let blind_eval_col = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
-    // let comm_eval_col = <Bn256EngineZKPedersen as Engine>::CE::zkcommit(
-    //   &EE::get_scalar_gen_pk(pk.pk_ee.clone()),
-    //   &[eval_col],
-    //   &blind_eval_col,
-    // )
-    // .compress();
 
     let blind_prod_eval_w_plus_r_inv_col_eval_col = <Bn256EngineZKPedersen as Engine>::Scalar::random(&mut OsRng);
 
@@ -1252,26 +1171,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
       comm_mem_oracles[3],
       pk.S_comm.comm_ts_col,
     ];
-    // let poly_vec = [
-    //   &W,
-    //   &Az,
-    //   &Bz,
-    //   &Cz,
-    //   &E,
-    //   &L_row,
-    //   &L_col,
-    //   &pk.S_repr.val_A,
-    //   &pk.S_repr.val_B,
-    //   &pk.S_repr.val_C,
-    //   mem_oracles[0].as_ref(),
-    //   &pk.S_repr.row,
-    //   mem_oracles[1].as_ref(),
-    //   &pk.S_repr.ts_row,
-    //   mem_oracles[2].as_ref(),
-    //   &pk.S_repr.col,
-    //   mem_oracles[3].as_ref(),
-    //   &pk.S_repr.ts_col,
-    // ];
 
     let poly_vec = [
       W,
@@ -1300,12 +1199,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
     let comm_eval_vec = vec![];
 
     transcript.absorb(b"e", &eval_vec.as_slice()); // comm_vec is already in the transcript
-    // let c = transcript.squeeze(b"c")?;
-    // let w: PolyEvalWitness<E> = PolyEvalWitness::batch(&poly_vec, &c);
-    // let u: PolyEvalInstance<E> = PolyEvalInstance::batch(&comm_vec, rand_sc.clone(), &eval_vec, &c);
-
-    // let eval_arg = EE::prove_batch(ck, &pk.pk_ee, &mut transcript, &u.c, &w.p, &blind_polys, &rand_sc, &u.e, &blind_evals, comm_evals)?;
-
 
     let eval_arg = EE::prove_batch(
       ck,
@@ -1429,13 +1322,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
     let comm_eval_Bz: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_Bz)?;
     let comm_eval_Cz: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_Cz)?;
     let comm_eval_E: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_E)?;
-    // let comm_eval_L_row: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_L_row)?;
-    // let comm_eval_L_col: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_L_col)?;
-    // let comm_eval_val_A: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_val_A)?;
-    // let comm_eval_val_B: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_val_B)?;
-    // let comm_eval_val_C: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_val_C)?;
-
-    // let comm_eval_W_X: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_eval_W_X)?;
 
     let comm_claim: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_claim)?;
 
@@ -1448,8 +1334,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
         &self.comm_eval_Bz,
         &self.comm_prod_eval_Az_eval_Bz,
     )?;
-
-    // let comm_prod_eval_L_row_eval_L_col: crate::provider::zk_pedersen::Commitment<Bn256EngineZKPedersen> = Commitment::<E>::decompress(&self.comm_prod_eval_L_row_eval_L_col)?;
 
     self.proof_prod_eval_L_row_eval_L_col.verify(
         &vk.sumcheck_gens.ck_1,
@@ -1544,25 +1428,8 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
 
     let num_rounds_sc = vk.S_comm.N.log_2();
     let tau = transcript.squeeze(b"t")?;
-    // let tau_coords = PowPolynomial::new(&tau, num_rounds_sc).coordinates();
 
-    // // add claims about Az, Bz, and Cz to be checked later
-    // // since all the three polynomials are opened at tau,
-    // // we can combine them into a single polynomial opened at tau
-    // let eval_vec = vec![
-    //   self.eval_Az_at_tau,
-    //   self.eval_Bz_at_tau,
-    //   self.eval_Cz_at_tau,
-    // ];
-
-    // transcript.absorb(b"e", &eval_vec.as_slice());
-
-    // transcript.absorb(b"e", &vec![comm_L_row, comm_L_col].as_slice());
-    // let comm_vec = vec![comm_Az, comm_Bz, comm_Cz];
     let c = transcript.squeeze(b"c")?;
-    // let u: PolyEvalInstance<E> =
-    //   PolyEvalInstance::batch(&comm_vec, tau_coords.clone(), &eval_vec, &c);
-    // let claim = u.e;
 
     let gamma = transcript.squeeze(b"g")?;
 
@@ -1585,13 +1452,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
     let s = transcript.squeeze(b"r")?;
     let coeffs = powers(&s, num_claims);
     let comm_claim = comm_claim * (coeffs[7] + coeffs[8]); // rest are zeros
-
-    // verify sc
-    // let (claim_sc_final, rand_sc) = self.sc.verify(claim, num_rounds_sc, 3, &mut transcript)?;
-
-    // let comm_claim =
-    // <Bn256EngineZKPedersen as Engine>::CE::zkcommit(&vk.sumcheck_gens.ck_1, &[claim], &<Bn256EngineZKPedersen as Engine>::Scalar::ZERO).compress();
-
 
     let (claim_sc_final, rand_sc) = self.sc.verify(
         &comm_claim.compress(),
@@ -1618,57 +1478,7 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
         eval_t
       };
 
-      // let eval_w_plus_row = {
-      //   let eval_addr_row = self.eval_row;
-      //   let eval_val_row = self.eval_L_row;
-      //   let eval_w = eval_addr_row + gamma * eval_val_row;
-      //   eval_w
-      // };
-
       let eval_addr_col_t = IdentityPolynomial::new(num_rounds_sc).evaluate(&rand_sc);
-
-
-      // let eval_t_plus_col = {
-      //   // memory contents is z, so we compute eval_Z from eval_W and eval_X
-      //   // let eval_val_col = {
-      //   //   // rand_sc was padded, so we now remove the padding
-      //   //   let (factor, rand_sc_unpad) = {
-      //   //     let l = vk.S_comm.N.log_2() - (2 * vk.num_vars).log_2();
-
-      //   //     let mut factor = E::Scalar::ONE;
-      //   //     for r_p in rand_sc.iter().take(l) {
-      //   //       factor *= E::Scalar::ONE - r_p
-      //   //     }
-
-      //   //     let rand_sc_unpad = rand_sc[l..].to_vec();
-
-      //   //     (factor, rand_sc_unpad)
-      //   //   };
-
-      //   //   let eval_X = {
-      //   //     // public IO is (u, X)
-      //   //     let X = vec![U.u]
-      //   //       .into_iter()
-      //   //       .chain(U.X.iter().cloned())
-      //   //       .collect::<Vec<E::Scalar>>();
-
-      //   //     // evaluate the sparse polynomial at rand_sc_unpad[1..]
-      //   //     let poly_X = SparsePolynomial::new(rand_sc_unpad.len() - 1, X);
-      //   //     poly_X.evaluate(&rand_sc_unpad[1..])
-      //   //   };
-
-      //   //   self.eval_W + factor * rand_sc_unpad[0] * eval_X
-      //   // };
-      //   let eval_t = comm_eval_W_X *  gamma;
-      //   eval_t
-      // };
-
-      // let eval_w_plus_col = {
-      //   let eval_addr_col = self.eval_col;
-      //   let eval_val_col = self.eval_L_col;
-      //   let eval_w = eval_addr_col + gamma * eval_val_col;
-      //   eval_w
-      // };
 
       let claim_one =
       <Bn256EngineZKPedersen as Engine>::CE::zkcommit(&vk.sumcheck_gens.ck_1, &[<Bn256EngineZKPedersen as Engine>::Scalar::ONE], &<Bn256EngineZKPedersen as Engine>::Scalar::ZERO);
@@ -1699,27 +1509,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
       return Err(NovaError::InvalidSumcheckProof);
     }
 
-    // let eval_vec = vec![
-    //   self.eval_W,
-    //   self.eval_Az,
-    //   self.eval_Bz,
-    //   self.eval_Cz,
-    //   self.eval_E,
-    //   self.eval_L_row,
-    //   self.eval_L_col,
-    //   self.eval_val_A,
-    //   self.eval_val_B,
-    //   self.eval_val_C,
-    //   self.eval_t_plus_r_inv_row,
-    //   self.eval_row,
-    //   self.eval_w_plus_r_inv_row,
-    //   self.eval_ts_row,
-    //   self.eval_t_plus_r_inv_col,
-    //   self.eval_col,
-    //   self.eval_w_plus_r_inv_col,
-    //   self.eval_ts_col,
-    // ];
-
     let comm_vec = [
       U.comm_W,
       comm_Az,
@@ -1740,9 +1529,6 @@ impl<EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK
       comm_w_plus_r_inv_col,
       vk.S_comm.comm_ts_col,
     ];
-    // transcript.absorb(b"e", &eval_vec.as_slice()); // comm_vec is already in the transcript
-    // let c = transcript.squeeze(b"c")?;
-    // let u: PolyEvalInstance<E> = PolyEvalInstance::batch(&comm_vec, rand_sc.clone(), &eval_vec, &c);
 
     let mut points = Vec::with_capacity(18);
     points.resize(18, rand_sc);
