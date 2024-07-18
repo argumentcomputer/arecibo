@@ -92,6 +92,10 @@ where
     };
     Ok(Self { comm })
   }
+  
+  fn reinterpret_as_generator(&self) -> <<E as Engine>::GE as PrimeCurve>::Affine {
+    self.comm.to_affine()
+  }
 }
 
 impl<E> Default for Commitment<E>
