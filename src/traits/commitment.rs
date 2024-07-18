@@ -56,6 +56,11 @@ pub trait CommitmentTrait<E: Engine>:
 
   /// Decompresses a compressed commitment into a commitment
   fn decompress(c: &Self::CompressedCommitment) -> Result<Self, NovaError>;
+
+  /// Reinterpret as generator
+  fn reinterpret_as_generator(&self) -> <<E as Engine>::GE as PrimeCurve>::Affine
+  where
+    E::GE: DlogGroup;
 }
 
 /// A trait that helps determine the length of a structure.
