@@ -17,12 +17,14 @@ use std::marker::PhantomData;
 
 // Define a iterator over Natural number without allocated a whole size vector
 // it started from 0 instead of 1
+#[allow(unused)]
 pub(in crate::spartan) struct NaturalNumVec<E: Engine> {
   curr: u64,
   size: u64,
   _phatom: PhantomData<E>,
 }
 impl<E: Engine> NaturalNumVec<E> {
+  #[allow(unused)]
   pub fn new(size: u64) -> Self {
     NaturalNumVec {
       curr: 0,
@@ -602,6 +604,7 @@ pub(in crate::spartan) struct InnerSumcheckInstance<E: Engine> {
   pub(in crate::spartan) poly_val: MultilinearPolynomial<E::Scalar>,
 }
 impl<E: Engine> InnerSumcheckInstance<E> {
+  #[allow(unused)]
   pub fn new(
     claim: E::Scalar,
     poly_L_row: MultilinearPolynomial<E::Scalar>,
@@ -659,6 +662,7 @@ impl ZKSumcheckEngine for InnerSumcheckInstance<Bn256EngineZKPedersen> {
   }
 }
 
+#[allow(unused)]
 pub(in crate::spartan) struct LookupSumcheckInstance<E: Engine> {
   w_plus_r: MultilinearPolynomial<E::Scalar>,
   t_plus_r: MultilinearPolynomial<E::Scalar>,
@@ -694,6 +698,7 @@ impl<E: Engine> LookupSumcheckInstance<E> {
   /// as well as auxiliary polynomials T[i] + r, W[i] + r
   // such that caller pass vector of iterators with respective to T and W part
   // and this function will return the oracle version of it
+  #[allow(unused)]
   pub fn compute_oracles<'a>(
     ck: &CommitmentKey<E>,
     r: &E::Scalar,
@@ -818,6 +823,7 @@ impl<E: Engine> LookupSumcheckInstance<E> {
     Ok((comm_vec, poly_vec, aux_poly_vec))
   }
 
+  #[allow(unused)]
   pub fn new(
     polys_oracle: [Vec<E::Scalar>; 2],
     polys_aux: [Vec<E::Scalar>; 2],
