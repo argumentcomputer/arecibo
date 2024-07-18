@@ -16,7 +16,7 @@ use crate::Engine;
 
 pub(in crate::spartan) mod engine;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct ZKSumcheckProof {
   comm_polys: Vec<CompressedCommitment<Bn256EngineZKPedersen>>,
   comm_evals: Vec<CompressedCommitment<Bn256EngineZKPedersen>>,
