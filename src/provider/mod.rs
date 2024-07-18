@@ -3,6 +3,8 @@
 // public modules to be used as an evaluation engine with Spartan
 pub mod hyperkzg;
 pub mod ipa_pc;
+pub mod zk_ipa_pc;
+
 pub mod non_hiding_zeromorph;
 
 // crate-public modules, made crate-public mostly for tests
